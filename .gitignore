@@ -1,0 +1,35 @@
+# deps
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+build/
+
+# payload
+/media/
+
+# env y secretos
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# testing / cobertura
+coverage/
+
+# tipos generados y builds
+*.tsbuildinfo
+next-env.d.ts
+
+# sistema
+.DS_Store
+*.pem
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
