@@ -7,9 +7,10 @@ Instrucciones obligatorias para cualquier agente/sesión que trabaje en este rep
 1. **Leer `docs/BEST-PRACTICES.md` completo** — manual de buenas prácticas validado
    contra los docs oficiales. Contiene las reglas de oro del proyecto y el checklist
    pre-PR obligatorio.
-2. Consultar la referencia oficial descargada en `docs/payload-sdk/` (SKILL.md y
-   `reference/*.md`) como fuente primaria de APIs de Payload — antes que memoria o
-   suposiciones.
+2. **Cargar la skill `payload`** (herramienta `skill`) al iniciar cualquier tarea de
+   código — está instalada a nivel global (`~/.config/opencode/skills/payload`) y en
+   el proyecto (`.opencode/skill/payload`). Es la referencia oficial de Payload para
+   agentes: usarla como fuente primaria de APIs antes que memoria o suposiciones.
 3. Contexto de producto y sprints: `README.md`.
 
 ## Reglas no negociables
