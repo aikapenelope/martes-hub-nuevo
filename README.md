@@ -20,6 +20,7 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 | Citas | Google Calendar API v3 (solo lectura; el agente de OpenBSP crea las citas) |
 | Publicación social | Meta Graph API directa, flujo determinístico (Jobs Queue), OAuth embebido en el admin |
 | Agente IA | Hermes Agent (propio) vía `@payloadcms/plugin-mcp` |
+| Captura por voz (PWA) | Rutas móviles instalables (manifest + service worker) · MediaRecorder · Whisper API (Groq u OpenAI) con fallback Web Speech API · extracción de campos con LLM |
 
 ## Configuración regional
 
@@ -37,6 +38,30 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 | MCP hacia Hermes | `@payloadcms/plugin-mcp` (oficial, sincronizado con core) | `payload-plugin-mcp` de Antler Digital (buena alternativa si falta algo) |
 | Observabilidad | Logs/métricas nativas Vercel + Neon | Sentry (opcional futuro; sistema privado) |
 | Task manager | Colección `tasks` propia + vista kanban (evaluar plugin comunitario `payload-kanban-board` como base visual) | Ningún equivalente ClickUp existe sobre Payload; la ventaja es la interconexión nativa con todo el CRM |
+
+## Estructura de la aplicación (una sola app, dos caras)
+
+Payload 3 vive dentro de Next.js, así que el admin y la PWA comparten repo, dominio,
+deploy y base de datos. No hay segundo proyecto:
+
+```
+src/
+├── app/
+│   ├── (admin)/admin/…        → Dashboard Payload: Hoy · Inbox · Kanban · Calendario · KPIs
+│   ├── captura/               → PWA móvil de campo (instalable en el teléfono)
+│   │   └── page.tsx           → botón GRABAR + formulario confirmable
+│   ├── manifest.ts            → hace instalable la PWA (icono en home screen)
+│   ├── api/captura/
+│   │   ├── transcribir/route.ts → recibe audio → Whisper API → texto
+│   │   └── extraer/route.ts     → texto → LLM extrae campos estructurados
+│   └── api/webhooks/…         → openbsp · apify · tally · gcal
+├── payload.config.ts
+├── collections/ · jobs/ · endpoints/ · integrations/ · access/
+```
+
+La PWA usa las mismas colecciones (`leads` / `clients` / `activities`) y el mismo
+control de acceso por roles del admin. El audio original se guarda como documento
+adjunto (colección `media`) para auditar lo dictado.
 
 ## Modelo de datos (colecciones)
 
@@ -152,6 +177,13 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 - Objetivo: producción confiable.
 - Tareas: revisión seguridad (webhooks firmados, secrets, tokens cifrados), tests de webhooks y jobs, manejo de rate limits/reintentos, backups PITR Neon.
 - Done when: suite de webhooks verde; auditoría de seguridad sin hallazgos High/Critical.
+
+### F11 — Captura por voz (PWA interna de campo)
+> Solo depende de F1; puede ejecutarse en paralelo desde ahí.
+
+- Objetivo: registrar personas hablando — grabo la conversación, la app transcribe, propone los campos y guarda en el CRM.
+- Tareas: `manifest.ts` + service worker (PWA instalable), ruta móvil `/captura` con botón GRABAR (MediaRecorder), endpoint `/api/captura/transcribir` (audio → Whisper API de Groq u OpenAI, ~$0.006/min; fallback sin costo: Web Speech API para dictado directo), endpoint `/api/captura/extraer` (LLM convierte el texto libre en nombre/teléfono/email/interés/rubro/notas), formulario prellenado confirmable antes de guardar, guardado en `leads`/`clients` + `activity` con audio adjunto.
+- Done when: grabo 30 s dictando datos de una persona real → formulario prellenado correcto → confirmo → el lead aparece en el CRM con su audio adjunto y actividad registrada.
 
 ## Convenciones de trabajo
 
