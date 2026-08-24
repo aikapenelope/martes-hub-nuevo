@@ -38,6 +38,8 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 | MCP hacia Hermes | `@payloadcms/plugin-mcp` (oficial, sincronizado con core) | `payload-plugin-mcp` de Antler Digital (buena alternativa si falta algo) |
 | Observabilidad | Logs/métricas nativas Vercel + Neon | Sentry (opcional futuro; sistema privado) |
 | Task manager | Colección `tasks` propia + vista kanban (evaluar plugin comunitario `payload-kanban-board` como base visual) | Ningún equivalente ClickUp existe sobre Payload; la ventaja es la interconexión nativa con todo el CRM |
+| Archivos (media/documentos/audios) | `storage-vercel-blob` desde F1 — disco de Vercel es efímero | Local disk (se pierde en deploys); S3/R2 solo si el volumen lo justifica |
+| Tenencia de datos | **Single-tenant + roles** (equipo pequeño ve lo mismo; scoping opcional por agente asignado) | Multi-tenant (solo si algún día se venden espacios a otros negocios — ruta documentada abajo) |
 
 ## Estructura de la aplicación (una sola app, dos caras)
 
@@ -62,6 +64,58 @@ src/
 La PWA usa las mismas colecciones (`leads` / `clients` / `activities`) y el mismo
 control de acceso por roles del admin. El audio original se guarda como documento
 adjunto (colección `media`) para auditar lo dictado.
+
+## Plugins seleccionados (verificados en docs oficiales)
+
+### Oficiales que SÍ entran
+
+| Plugin | Para qué en Martes Hub | Sprint |
+|---|---|---|
+| `@payloadcms/db-postgres` | Adapter de base de datos → Neon (pooled + SSL) | F0 |
+| `@payloadcms/email-nodemailer` | Transporte de email vía Resend | F2/F5 |
+| `@payloadcms/storage-vercel-blob` | Almacenamiento de media/documentos/audios — **obligatorio**: el disco de Vercel es efímero y los archivos locales se pierden entre deploys. Token `BLOB_READ_WRITE_TOKEN` del propio proyecto Vercel | F1 |
+| `@payloadcms/plugin-import-export` | Import/export CSV de clientes, leads y pagos | F1 |
+| `@payloadcms/plugin-mcp` | Expone el CRM como tools MCP para Hermes (permisos por colección) | F9 |
+
+> Si el volumen de archivos crece mucho, `@payloadcms/storage-s3` permite migrar a Cloudflare R2 (más barato por GB) sin cambiar nada más: es el mismo patrón de adapter sobre colecciones.
+
+### Oficiales evaluados — NO entran (por ahora)
+
+| Plugin | Motivo |
+|---|---|
+| `plugin-multi-tenant` | Decisión consciente, ver asesoría abajo |
+| `plugin-stripe` | Cobros son tracking manual; entra solo si algún día cobran online |
+| `plugin-form-builder` | Tally cubre formularios externos; queda como opción si quieren formularios internos sin Tally |
+| `plugin-search` | Los filtros/búsqueda nativos del admin bastan para el equipo; pgvector cubre búsqueda semántica |
+| `plugin-seo`, `plugin-redirects`, `live-preview`, `nested-docs` | Este repo no tiene sitio público; la landing ya vive en otro proyecto |
+| `plugin-sentry` | Observabilidad nativa Vercel+Neon basta (sistema privado) |
+
+### Comunidad (evaluados)
+
+| Plugin | Estado |
+|---|---|
+| `payload-kanban-board` (40★, v3) | Base candidata para el kanban de `tasks` en F9; se evalúa calidad real antes de adoptar o se construye vista propia |
+| `payload-plugin-socials` (OAuth adapters IG/FB/Pinterest + scheduling + audit trail) | Acelerador candidato para F7; mismo patrón que diseñamos, se evalúa antes de escribir el publisher desde cero |
+| `better-fields` (289★) | Opcional, mejoras de UX de campos; no crítico |
+| `payload-oauth2` / `payload-authjs` | Descartados: equipo pequeño, auth nativo de Payload basta |
+
+## Multi-tenant o datos compartidos? — Asesoría
+
+**Recomendación: NO usar multi-tenant ahora. Single-tenant con roles.**
+
+Son tres necesidades distintas que conviene no confundir:
+
+1. **"Mi esposa y mis empleados entran a ver los mismos datos"** (tu caso hoy)
+   → Solo se crean más `users` con roles (`admin` / `agente` / `viewer`). Cero complejidad extra. Todos ven el mismo CRM.
+
+2. **"Que cada quien vea SOLO sus clientes asignados"**
+   → Eso **no es multi-tenant**, es *scoping por asignación*: un campo `assignedTo` en `clients`/`leads`/`tasks` y una regla de access control ("agente ve únicamente lo suyo; admin ve todo"), con un toggle en `company-settings` para activarlo/desactivarlo. Se construye en F1 y es reversible.
+
+3. **Multi-tenant real** (el plugin oficial): varias **empresas aisladas** dentro de la misma instalación — cada empresa con sus propios clientes, mensajes y pagos, invisible para las demás. Tiene sentido solo si algún día vendes el sistema a otros negocios o quieres aislar completamente dos líneas de negocio.
+
+**Por qué decidirlo ahora:** activar multi-tenant después implica añadir el campo `tenant` a todas las colecciones, el array `tenants` a los usuarios y revisar cada regla de acceso custom — es un refactor con riesgo sobre un sistema vivo. Documentarlo como decisión explícita evita sorpresas.
+
+**Ruta de migración futura (si llegara el caso):** crear colección `tenants` → activar `multiTenantPlugin({ collections: { clients: {}, leads: {}, conversations: {}, … } })` → el plugin agrega campos/filtros base automáticamente → migrar usuarios al array de tenants. El plugin está oficialmente mantenido, así que la puerta queda abierta.
 
 ## Modelo de datos (colecciones)
 
@@ -109,6 +163,7 @@ adjunto (colección `media`) para auditar lo dictado.
 | Servicio | Credencial | Notas |
 |---|---|---|
 | Neon | `DATABASE_URL` (pooled, SSL) | Proyecto nuevo; activar pgvector |
+| Vercel Blob | `BLOB_READ_WRITE_TOKEN` | Se habilita Blob en el proyecto Vercel (media, documentos, audios) |
 | OpenBSP | Org + `api-key` (+ `apikey` pública Supabase) | Webhook con `callback_url` + `verify_token`; envío por REST |
 | Meta (Graph API) | App propia: `META_APP_ID`, `META_APP_SECRET` | Registro único guiado; OAuth embebido después; Development Mode |
 | Resend | `RESEND_API_KEY` | Verificar dominio de envío |
@@ -130,7 +185,7 @@ adjunto (colección `media`) para auditar lo dictado.
 
 ### F1 — CRM core
 - Objetivo: clientes, leads y actividades gestionables en el admin.
-- Tareas: colecciones `users`(roles)/`clients`/`leads`/`activities`/`segments`/`documents`/`company-settings`; RBAC campo a campo; vista kanban del pipeline; import/export CSV.
+- Tareas: colecciones `users`(roles)/`clients`/`leads`/`activities`/`segments`/`documents`/`company-settings`; RBAC campo a campo; **storage Vercel Blob para media y documentos**; campo `assignedTo` + toggle "agentes solo ven sus clientes" en `company-settings`; vista kanban del pipeline; import/export CSV.
 - Done when: alta de cliente → timeline visible; roles restringen acciones reales.
 
 ### F2 — Dinero: pagos y membresías
