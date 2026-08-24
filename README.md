@@ -112,12 +112,20 @@ adjunto (colección `media`) para auditar lo dictado.
 | `payload-workflow` (DennisSnijder) | Máquina de estados/workflows sobre colecciones | F8 — transiciones del ciclo de vida del cliente |
 | Passkey (WebAuthn vía Better Auth, 884 desc/sem) | Login con huella/clave del dispositivo | Post-F10 — alternativa moderna al password; requiere evaluar integración |
 
+#### Evaluadas a fondo (revisión de repositorios)
+
+| Plugin | Cómo funciona | Madurez | Veredicto |
+|---|---|---|---|
+| `payload-agent` (aamdmn) — chat-agent por Telegram/Slack/**WhatsApp** | El LLM escribe TypeScript que se ejecuta contra la API Local de Payload ("Code Mode"); orquestación TanStack AI + Chat SDK; proveedores Anthropic/OpenAI. Puede consultar colecciones, crear/editar documentos y gestionar uploads conversando | **Temprana**: v0.10.0, 16★, última publicación jun-2026; medios salientes aún "en progreso" | Tu caso de uso interno (gestionar el CRM conversando desde TU WhatsApp personal, separado del canal de clientes) es exactamente lo que hace. Hoy ese rol lo cumple Hermes+MCP con protocolo estándar — este queda como **alternativa directa a comparar en F9**: menos maduro, pero casi sin construcción propia |
+| `@mvriu5/payload-ai` (**AI Assistant**, dentro del dashboard) | Chat en el panel admin: lee esquemas y documentos, acepta @-menciones de colecciones, y **propone** acciones crear/actualizar/borrar firmadas con HMAC derivado de `PAYLOAD_SECRET` y verificadas server-side antes de aplicarse (el modelo no puede colar cambios arbitrarios). Vercel AI SDK: OpenAI/Claude/Gemini/Mistral/OpenRouter u Ollama. Permisos por colección, límites de tokens por usuario (ventanas 24h/7d) y audit log con estado antes/después de cada propuesta aplicada | **Joven pero bien diseñado**: v1.6.4 activa (jul-2026), 130 desc/sem — pero 3★ y desarrollador único (riesgo de abandono) | Sí es pariente del chat-agent (ambos dejan al LLM operar el CRM), con superficie distinta: este vive DENTRO del admin y trae cinturón de seguridad formal (propuestas firmadas + auditoría + cuotas). Perfecto para que esposa/empleados trabajen asistidos por IA sin riesgo. Candidato fuerte F9 junto al `plugin-mcp` |
+| `payload-invoices` (Poseidonas) — facturación secuencial PDF | Facturas y notas de crédito con numeración *gapless* garantizada (contador compare-and-set dentro de la transacción de Postgres), snapshot congelado de precios, montos en enteros menores sin redondeo, PDF generado por encoder propio sin dependencias, formato `SERIE-AÑO-00001` con reinicio anual, descarga en `/api/invoices/:id/pdf` | **Recién nacida, técnica impecable**: v1.0.1 publicada hace días, 337 desc/sem, 0★ | Limitación clave: se engancha a órdenes del plugin oficial `plugin-ecommerce`, que NO usamos (cobros = tracking manual). Si algún día formalizan facturación hay dos caminos: adoptar ecommerce+invoices, o replicar su patrón (contador gapless + encoder PDF) sobre nuestra colección `payments`. No entra ahora |
+| `payload-reserve` (elghaied) — reservas con conflictos | Detección de dobles reservas, UI calendario, máquina de estados con políticas de cancelación personalizables, colecciones de servicios/recursos/clientes, REST público para integraciones, capacidad/inventario, idempotencia y hooks de ciclo de vida | **La más madura de las cuatro**: v4.0.0, 31★, 291 desc/sem, actualizada esta semana | Como Google Calendar es la fuente de verdad de tus citas, **no entra hoy**: duplicaría la verdad. Se justifica en un escenario futuro concreto: que los clientes se auto-agenden desde un enlace/formulario directo al sistema — ahí conviven (GCal = citas que crea el agente; reserve = reservas públicas). Registrado como opción condicional |
+
+🎁 Hallazgo extra del research: el mismo autor de `payload-reserve` tiene un plugin de **notificaciones in-dashboard con actualizaciones en vivo** — candidato directo para nuestra colección `notifications` (queja nueva, pago vencido, lead caliente) en F8/F9.
+
 #### Descubiertas — NO aplican hoy (registradas por si cambia el negocio)
 
-- **Agent** (marketplace): chat-agent sobre Telegram/Slack/WhatsApp conectado a Payload — solapa con nuestra integración OpenBSP propia.
-- **AI Assistant** (mvriu5): asistente IA dentro del dashboard con propuestas de acciones firmadas — complemento interesante de MCP+Hermes; aún muy pequeño (130 desc/sem).
-- **Invoices / Sales Reports** (marketplace commerce): facturación secuencial PDF y reportes de ventas — solo si formalizan facturación.
-- **Reservation and Booking Manager**: reservas con detección de conflictos — nuestras citas vienen de Google Calendar.
+- **Llms-txt / AI Localization / AI control panel** (marketplace): variantes de IA para sitios públicos — este repo no tiene frontend público.
 - **Mux Video**: hosting/transcodificación de video — Vercel Blob sirve los medios actuales.
 - `payload-better-fields`, `payload-enchants`, `payload-visual-editor`, `payload-lexical-typography`: mejoras generales de editor/UI — opcionales cosméticas.
 - `payload-oauth2` / `payload-authjs` / Passkey-like auth: descartados por ahora — equipo pequeño, auth nativo basta.
@@ -248,7 +256,7 @@ Son tres necesidades distintas que conviene no confundir:
 
 ### F9 — Hermes + MCP + Task manager
 - Objetivo: agente dentro del CRM y gestión de tareas interconectada.
-- Tareas: `@payloadcms/plugin-mcp` (permisos por colección), conexión de Hermes, reporte semanal, colección `tasks` + kanban + reglas de creación automática (queja→tarea, pago vencido→tarea).
+- Tareas: `@payloadcms/plugin-mcp` (permisos por colección), conexión de Hermes, **evaluación head-to-head: Hermes/MCP vs `payload-agent` (gestión por WhatsApp interno) y AI Assistant (`@mvriu5/payload-ai`, asistente dentro del dashboard con propuestas firmadas)**, reporte semanal, colección `tasks` + kanban + reglas de creación automática (queja→tarea, pago vencido→tarea), notificaciones internas (evaluar plugin de elghaied con live updates).
 - Done when: Hermes responde preguntas del CRM vía MCP; tarea se crea sola ante evento definido.
 
 ### F10 — Hardening
