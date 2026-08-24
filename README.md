@@ -297,6 +297,17 @@ Son tres necesidades distintas que conviene no confundir:
 - Tareas: `manifest.ts` + service worker (PWA instalable), ruta móvil `/captura` con botón GRABAR (MediaRecorder), endpoint `/api/captura/transcribir` (audio → Whisper API de Groq u OpenAI, ~$0.006/min; fallback sin costo: Web Speech API para dictado directo), endpoint `/api/captura/extraer` (LLM convierte el texto libre en nombre/teléfono/email/interés/rubro/notas), formulario prellenado confirmable antes de guardar, guardado en `leads`/`clients` + `activity` con audio adjunto.
 - Done when: grabo 30 s dictando datos de una persona real → formulario prellenado correcto → confirmo → el lead aparece en el CRM con su audio adjunto y actividad registrada.
 
+## Documentación interna
+
+- **`AGENTS.md`** — reglas obligatorias para cualquier sesión/agente (se carga al inicio).
+- **`docs/BEST-PRACTICES.md`** — manual de buenas prácticas: las 5 reglas base validadas
+  contra docs oficiales, reglas de oro del proyecto y checklist pre-PR. Consultar SIEMPRE
+  antes de tocar código.
+- **`docs/payload-sdk/`** — SDK de documentación oficial de Payload descargado
+  (`SKILL.md` + 11 referencias: Local API, hooks, access control, endpoints, adapters,
+  plugin development… ~6.800 líneas). Fuente primaria para desarrollar.
+- `docs/diagrams/sistema.excalidraw` — diagrama completo del sistema.
+
 ## Convenciones de trabajo
 
 - Git: commits convencionales (`type(scope): descripción`); **PRs obligatorios** tras el README inicial — nadie mergea directo a `main` (el merge lo hace el dueño del repo).
