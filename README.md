@@ -11,7 +11,7 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 | Capa | Tecnología |
 |---|---|
 | Aplicación | Payload 3.x (framework fullstack Next.js) · TypeScript estricto |
-| Base de datos | Neon Postgres (adapter `@payloadcms/db-postgres`, connection string *pooled*, SSL) + `pgvector` |
+| Base de datos | Neon Postgres vía adapter oficial `@payloadcms/db-postgres` (runtime *pooled* · migraciones *direct*) · SSL · `pgvector` |
 | Hosting | Vercel (serverless) + scheduler externo gratuito para crons sub-diarios (fase inicial) |
 | Mensajería | OpenBSP (`matiasbattocchia/open-bsp-api`) sobre Meta Cloud API: WhatsApp + Instagram DM |
 | Email | Resend (transporte Nodemailer nativo de Payload) |
@@ -27,10 +27,27 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 - Zona horaria: **America/Caracas (UTC-4)** — aplica a crons, calendario editorial y digestios.
 - Idioma del admin/producto: español.
 
+## Base de datos (Neon)
+
+Payload es el **único** componente que habla con la base de datos. Neon queda standalone: credenciales solo como variables de entorno (Vercel/local), sin integración de marketplace.
+
+| Variable | Uso | Connection string |
+|---|---|---|
+| `DATABASE_URL` | Runtime de la app (serverless Vercel) | **Pooled** (`-pooler`), SSL |
+| `DATABASE_URL_DIRECT` | Migraciones (`payload migrate`) y dumps (`pg_dump`) | **Directa** (sin `-pooler`), SSL |
+
+Reglas:
+- Esquema 100 % gestionado por Payload: `push: false`, migraciones generadas con Payload y aplicadas en el build de Vercel antes de `next build`. Prohibido alterar el esquema por fuera de Payload.
+- La pooled (PgBouncer en modo transacción) no soporta operaciones de sesión: migraciones/dumps SIEMPRE por la directa.
+- `pgvector`: activar la extensión en el proyecto Neon durante F0 (la necesita F4).
+- Operación de la BD (branches, monitoreo, restore): vía **MCP de Neon** conectado a opencode. No se instala CLI.
+
 ## Decisiones técnicas cerradas (con alternativas descartadas)
 
 | Decisión | Elegido | Descartado / motivo |
 |---|---|---|
+| Adapter de base de datos | `@payloadcms/db-postgres` — único camino soportado; la guía oficial de Neon lo usa así | "Plugin de Neon para Payload": **no existe** (verificado en npm 2026-08: `@payloadcms/db-neon`, `payload-neon`, `@neondatabase/payload` → 404). El driver `@neondatabase/serverless` no aplica al adapter de Payload |
+| Topología Vercel ↔ Neon | Neon standalone + credenciales como env vars en Vercel; **todo acceso a BD pasa por Payload** (dueño del esquema y migraciones) | Integración Vercel Marketplace ↔ Neon (acopla paneles sin beneficio real aquí; si se necesitan ramas de preview en BD, se gestionan por MCP de Neon) |
 | Publicación social | Meta Graph directo + OAuth embebido (app en Development Mode: cuentas propias, sin App Review) | Metricool API (requiere plan Advanced); Composio (tercero en camino crítico) queda como expansión futura a otras redes |
 | Orquestación interna | Payload Jobs Queue + cron externo | n8n / ActivePieces (duplican lógica y webhooks; se pueden añadir después sin rediseño) |
 | IA en background | Jobs Queue llamando LLM + pgvector para búsqueda semántica | "IA en Neon": Neon es Postgres puro, no tiene IA nativa |
@@ -79,6 +96,8 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 | `daily-digest` | diario 08:00 UTC-4 | Resumen interno: citas del día, pagos, leads nuevos, tareas vencidas |
 | `weekly-report` | lunes 08:00 | Reporte generado por Hermes vía MCP |
 
+> **Nota serverless:** Payload no ejecuta los `schedule` (cron) por sí solo en Vercel. Un trigger externo debe llamar `GET /api/payload-jobs/run` (y `handle-schedules`) — el scheduler externo gratuito de la fase inicial cubre exactamente eso; con Vercel Pro puede migrarse a Vercel Cron.
+
 ## Integraciones y credenciales requeridas
 
 | Servicio | Credencial | Notas |
@@ -99,18 +118,18 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 > **todo entra por PR**: ninguna rama se mergea directo a `main`.
 
 ### F0 — Fundaciones
-- Objetivo: repo vivo, deployable, documentado.
-- Tareas: scaffold Payload 3 + Next.js (`pnpm dlx create-payload-app@latest`), adapter Postgres apuntando a Neon, deploy base en Vercel, `.gitignore`, CI básico (typecheck+lint).
-- Done when: `vercel` sirve el admin en preview desde un PR; typecheck/lint verdes en CI.
+- Objetivo: repo vivo, deployable, documentado, con estrategia de migraciones cerrada.
+- Tareas: scaffold Payload 3 + Next.js (`pnpm dlx create-payload-app@latest`), adapter `@payloadcms/db-postgres` apuntando a Neon (`DATABASE_URL` pooled para runtime + `DATABASE_URL_DIRECT` para migraciones), `push: false` + primera migración generada (`payload migrate:create`) y aplicada en el build de Vercel (`payload migrate && next build`), extensión `pgvector` activada en Neon, deploy base en Vercel, `.gitignore`, CI básico (typecheck+lint).
+- Done when: `vercel` sirve el admin en preview desde un PR; la migración inicial se aplica sola en el deploy; typecheck/lint verdes en CI.
 
 ### F1 — CRM core
 - Objetivo: clientes, leads y actividades gestionables en el admin.
-- Tareas: colecciones `users`(roles)/`clients`/`leads`/`activities`/`segments`/`documents`/`company-settings`; RBAC campo a campo; vista kanban del pipeline; import/export CSV.
+- Tareas: colecciones `users`(roles)/`clients`/`leads`/`activities`/`segments`/`documents`/`company-settings`; RBAC por colección y campo (nota: el acceso a nivel de campo en Payload solo acepta booleano, sin constraints de query; roles con `saveToJWT: true`); vista kanban del pipeline; import/export CSV.
 - Done when: alta de cliente → timeline visible; roles restringen acciones reales.
 
 ### F2 — Dinero: pagos y membresías
 - Objetivo: tracking completo de cobros y ciclo de membresía.
-- Tareas: `payments`/`memberships` (USD), job `payment-reminders` (email primero), `daily-digest`.
+- Tareas: `payments`/`memberships` (USD), transporte Resend básico (adapter + env — lo requieren los recordatorios; campañas y log quedan en F5), job `payment-reminders` (email primero), `daily-digest`.
 - Done when: pago vence mañana → llega recordatorio hoy; digest diario correcto en UTC-4.
 
 ### F3 — WhatsApp e Instagram DM (OpenBSP)
@@ -125,7 +144,7 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 
 ### F5 — Email automatizado (Resend)
 - Objetivo: transaccionales + campañas.
-- Tareas: transporte Resend, dominio verificado, `email-campaigns`/`email-log`, plantillas base.
+- Tareas: dominio de envío completo (SPF/DKIM; transporte ya cableado en F2), `email-campaigns`/`email-log`, plantillas base, manejo de bounces/supresión.
 - Done when: campaña de prueba enviada y loggeada; bounce registrado.
 
 ### F6 — Leads por Apify
@@ -145,7 +164,7 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 
 ### F9 — Hermes + MCP + Task manager
 - Objetivo: agente dentro del CRM y gestión de tareas interconectada.
-- Tareas: `@payloadcms/plugin-mcp` (permisos por colección), conexión de Hermes, reporte semanal, colección `tasks` + kanban + reglas de creación automática (queja→tarea, pago vencido→tarea).
+- Tareas: `@payloadcms/plugin-mcp` (permisos por colección/herramienta; **sin** `overrideAccess` en producción — autorización propia del endpoint), conexión de Hermes, reporte semanal, colección `tasks` + kanban + reglas de creación automática (queja→tarea, pago vencido→tarea).
 - Done when: Hermes responde preguntas del CRM vía MCP; tarea se crea sola ante evento definido.
 
 ### F10 — Hardening
@@ -157,6 +176,7 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 
 - Git: commits convencionales (`type(scope): descripción`); **PRs obligatorios** tras el README inicial — nadie mergea directo a `main` (el merge lo hace el dueño del repo).
 - Identidad git: `AngelDelN <57774536+aikapenelope@users.noreply.github.com>`.
+- Base de datos: operación (branches, monitoreo, restore) solo vía **MCP de Neon**; sin CLI instalada.
 - Calidad: todo sprint cierra con typecheck + lint sin errores (y tests donde existan).
 - Seguridad: secretos solo en variables de entorno (Vercel/local `.env` nunca commiteado); tokens OAuth cifrados en BD.
 - Diagrama del sistema: `docs/diagrams/sistema.excalidraw` (editable en excalidraw.com o VS Code).
