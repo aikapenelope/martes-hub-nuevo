@@ -8,8 +8,9 @@ Instrucciones obligatorias para cualquier agente/sesión que trabaje en este rep
    contra los docs oficiales. Contiene las reglas de oro del proyecto y el checklist
    pre-PR obligatorio.
 2. **Cargar la skill `payload`** (herramienta `skill`) al iniciar cualquier tarea de
-   código — está instalada a nivel global (`~/.config/opencode/skills/payload`) y en
-   el proyecto (`.opencode/skill/payload`). Es la referencia oficial de Payload para
+   código — gestionada por el CLI oficial de skills (`skills-lock.json`) en
+   `.agents/skills/payload/`, con symlink en `.opencode/skill/payload` y copia global
+   en `~/.config/opencode/skills/payload`. Es la referencia oficial de Payload para
    agentes: usarla como fuente primaria de APIs antes que memoria o suposiciones.
 3. Contexto de producto y sprints: `README.md`.
 

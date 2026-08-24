@@ -303,9 +303,10 @@ Son tres necesidades distintas que conviene no confundir:
 - **`docs/BEST-PRACTICES.md`** — manual de buenas prácticas: las 5 reglas base validadas
   contra docs oficiales, reglas de oro del proyecto y checklist pre-PR. Consultar SIEMPRE
   antes de tocar código.
-- **`docs/payload-sdk/`** — SDK de documentación oficial de Payload descargado
-  (`SKILL.md` + 11 referencias: Local API, hooks, access control, endpoints, adapters,
-  plugin development… ~6.800 líneas). Fuente primaria para desarrollar.
+- **Skill oficial de Payload** — instalada con el CLI de skills.sh (`skills-lock.json`
+  como fuente de verdad, carpeta `.agents/skills/payload/` con `SKILL.md` + 11
+  referencias oficiales). Se actualiza con `npx skills update -p`. `.opencode/skill/payload`
+  es un symlink para que opencode la lea; copia global manual en `~/.config/opencode/skills/payload`.
 - `docs/diagrams/sistema.excalidraw` — diagrama completo del sistema.
 
 ## Convenciones de trabajo

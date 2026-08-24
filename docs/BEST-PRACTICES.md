@@ -2,7 +2,7 @@
 
 > **LEER ANTES DE TOCAR CUALQUIER CÓDIGO.** Este manual protege la integridad del
 > sistema. Cualquier sesión/agente debe consultarlo al inicio y el checklist final
-> antes de abrir un PR. Fuentes oficiales descargadas en `docs/payload-sdk/`
+> antes de abrir un PR. Fuentes oficiales descargadas en `.agents/skills/payload/`
 > (SKILL.md de Payload + 11 documentos de referencia, ~6.800 líneas).
 
 ---
@@ -15,7 +15,7 @@ Confirmada por la documentación y por cómo está escrito el propio `plugin-str
 oficial (el ejemplo canónico de integración externa):
 
 - Los datos se leen/escriben con la **Local API** (`req.payload.find/create/update/delete`)
-  — ver `docs/payload-sdk/reference/QUERIES.md`.
+  — ver `.agents/skills/payload/reference/QUERIES.md`.
 - Las integraciones externas entran por **hooks** (`beforeValidate`, `beforeChange`,
   `afterDelete`) y **endpoints** propios — patrón completo en
   `reference/PLUGIN-DEVELOPMENT.md` y en `packages/plugin-stripe/src/index.ts`.
@@ -128,7 +128,7 @@ garantía semver. Reglas derivadas:
 
 | Archivo | Contenido |
 |---|---|
-| `docs/payload-sdk/SKILL.md` | Guía maestra oficial para agentes que construyen con Payload |
+| `.agents/skills/payload/SKILL.md` | Guía maestra oficial para agentes que construyen con Payload |
 | `reference/QUERIES.md` | Local API: find/create/update/delete/count |
 | `reference/HOOKS.md` | Orden y patrones de hooks |
 | `reference/COLLECTIONS.md` | Config de colecciones, uploads |
@@ -139,6 +139,6 @@ garantía semver. Reglas derivadas:
 | `reference/PLUGIN-DEVELOPMENT.md` | Escribir plugins (1.400 líneas, incluye webhook pattern) |
 | `reference/ADVANCED.md` | Plugins disponibles, jobs queue, email |
 
-Actualizar estos archivos con: `git checkout main && pnpm dlx` no aplica — se
-re-sincronizan copiando desde `payloadcms/payload@main/packages/payload/skills/`
-cuando subamos de versión.
+Actualización de estas referencias: `npx skills update -p` (CLI oficial de skills.sh,
+gestionado por `skills-lock.json`). Tras actualizar, refrescar la copia global con:
+`cp -R .agents/skills/payload/* ~/.config/opencode/skills/payload/`.
