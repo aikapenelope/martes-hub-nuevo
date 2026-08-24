@@ -90,14 +90,37 @@ adjunto (colección `media`) para auditar lo dictado.
 | `plugin-seo`, `plugin-redirects`, `live-preview`, `nested-docs` | Este repo no tiene sitio público; la landing ya vive en otro proyecto |
 | `plugin-sentry` | Observabilidad nativa Vercel+Neon basta (sistema privado) |
 
-### Comunidad (evaluados)
+### Comunidad (investigadas en payload.market, payloaddirectory.dev y el topic `payload-plugin` de GitHub)
 
-| Plugin | Estado |
-|---|---|
-| `payload-kanban-board` (40★, v3) | Base candidata para el kanban de `tasks` en F9; se evalúa calidad real antes de adoptar o se construye vista propia |
-| `payload-plugin-socials` (OAuth adapters IG/FB/Pinterest + scheduling + audit trail) | Acelerador candidato para F7; mismo patrón que diseñamos, se evalúa antes de escribir el publisher desde cero |
-| `better-fields` (289★) | Opcional, mejoras de UX de campos; no crítico |
-| `payload-oauth2` / `payload-authjs` | Descartados: equipo pequeño, auth nativo de Payload basta |
+#### Recomendadas — entran al plan
+
+| Plugin | Qué hace | Veredicto |
+|---|---|---|
+| `@ai-stack/payloadcms` (**payload-ai**, ~530★, 2.8k desc/sem, MIT, probado con v3.84) | Botones IA dentro de los campos del admin: redactar, corregir, traducir, reescribir; genera imágenes y voz; bring-your-own-model (OpenAI/Anthropic/Gemini); acceso por rol | **F5/F7** — redactar captions de posts y textos de campañas sin salir del admin. Los resúmenes de conversaciones siguen siendo jobs propios (esto es edición en editor, no background) |
+| `payload-dashboard-analytics` (NouanceLabs, autor reputable — también hace `better-fields`, 289★) | Gráficos y métricas dentro del admin | **F9** — candidato base para la vista KPIs (embudo, cobros, actividad social) antes de construir charts a mano |
+| `payload-totp` | 2FA por código temporal para usuarios del admin | **F10** — seguridad seria y barata para sistema privado multiusuario (tú, esposa, empleados) |
+| `payload-openapi` (~120★, actualizado esta semana) | Genera especificación OpenAPI/Swagger del REST de Payload | **Transversal** — documenta la API que consumen Hermes e integraciones |
+
+#### Evaluadas — decisión al llegar el sprint
+
+| Plugin | Qué hace | Cuándo decidir |
+|---|---|---|
+| `payload-kanban-board` (40★, v3) | Vista kanban arrastrable con estados configurables por colección | F9 — base visual del task manager; si su calidad no convence, vista propia |
+| `payload-plugin-socials` | Publicación multi-red (IG/FB/Pinterest) con OAuth adapters, scheduling y audit trail | F7 — si cubre nuestro flujo acelera; si no, publisher propio |
+| `payload-plugin-scheduler` | Campo fecha + UI de programación editorial | F7 — solo pulido UX; la ejecución real ya es Jobs Queue |
+| `payload-rbac` (teunmooij/payload-tools) | Permisos granulares declarativos | F1 — solo si el RBAC nativo campo-a-campo se vuelve verboso |
+| `payload-workflow` (DennisSnijder) | Máquina de estados/workflows sobre colecciones | F8 — transiciones del ciclo de vida del cliente |
+| Passkey (WebAuthn vía Better Auth, 884 desc/sem) | Login con huella/clave del dispositivo | Post-F10 — alternativa moderna al password; requiere evaluar integración |
+
+#### Descubiertas — NO aplican hoy (registradas por si cambia el negocio)
+
+- **Agent** (marketplace): chat-agent sobre Telegram/Slack/WhatsApp conectado a Payload — solapa con nuestra integración OpenBSP propia.
+- **AI Assistant** (mvriu5): asistente IA dentro del dashboard con propuestas de acciones firmadas — complemento interesante de MCP+Hermes; aún muy pequeño (130 desc/sem).
+- **Invoices / Sales Reports** (marketplace commerce): facturación secuencial PDF y reportes de ventas — solo si formalizan facturación.
+- **Reservation and Booking Manager**: reservas con detección de conflictos — nuestras citas vienen de Google Calendar.
+- **Mux Video**: hosting/transcodificación de video — Vercel Blob sirve los medios actuales.
+- `payload-better-fields`, `payload-enchants`, `payload-visual-editor`, `payload-lexical-typography`: mejoras generales de editor/UI — opcionales cosméticas.
+- `payload-oauth2` / `payload-authjs` / Passkey-like auth: descartados por ahora — equipo pequeño, auth nativo basta.
 
 ## Multi-tenant o datos compartidos? — Asesoría
 
