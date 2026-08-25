@@ -46,3 +46,8 @@ Plan maestro de fases: `README.md` · Plan OpenBSP: `docs/plan-openbsp.md`.
 - Colección nueva: `notifications` (tenant-aware, escritura solo sistema).
 - Ambos jobs nuevos se saltan solos con motivo (`skippedReason`) hasta que existan credenciales hosted.
 - Sigue pendiente lo mismo del usuario: merge PRs, credenciales hosted cuando toque, PR #2 viejo, roadmap V3, API key Neon vieja, CI.
+
+## Actualización final de sesión (F3d en PR #11, incluye roadmap)
+- PR #11 = F3d completo + README actualizado (tabla de estado + sección F4 detallada).
+- **Sesión siguiente: empezar aquí.** Orden: ① merge #11 ② conectar OpenBSP real (creds del dashboard) y E2E con WhatsApp real ③ F4: sequences + lead-follow-up (usa client.ts ya listo; se detiene si el lead responde) + generate-summary (LLM pendiente de elegir) + score-engagement.
+- Contexto de esta sesión agotado — NO continuar aquí.
