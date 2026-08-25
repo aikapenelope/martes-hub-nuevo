@@ -1,5 +1,6 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { resendAdapter } from '@payloadcms/email-resend'
+import { importExportPlugin } from '@payloadcms/plugin-import-export'
 import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { payloadKanbanBoard } from 'payload-kanban-board'
@@ -87,6 +88,9 @@ export default buildConfig({
     CompanySettings,
   ],
   plugins: [
+    importExportPlugin({
+      collections: [{ slug: 'leads' }, { slug: 'clients' }, { slug: 'payments' }],
+    }),
     payloadKanbanBoard({
       collections: {
         leads: {
