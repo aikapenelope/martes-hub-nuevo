@@ -2,7 +2,7 @@
 
 CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, publicaciones en redes con métricas, formularios, citas y agente de IA conectado por MCP.
 
-**Estado actual:** F0–F2 en producción · **F3 completa** (PR #11) · siguiente: **F4 — IA agéntica (OpenBSP agent + MCP)**. Detalle OpenBSP: `docs/plan-openbsp.md`.
+**Estado actual:** F0–F5 con código en producción · siguiente código: **Dashboard de inicio + F8 Formularios** · bloqueado por credenciales externas: **F4 real (OpenBSP) y F5 activo (Resend)**. Detalle OpenBSP: `docs/plan-openbsp.md`.
 
 | Fase | Estado |
 |---|---|
@@ -10,14 +10,16 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | F1 CRM core (colecciones, RBAC, timeline, kanban, CSV) | ✅ |
 | F1b Multi-tenant SaaS-ready (plugin oficial, mono-tenant operativo) | ✅ |
 | F2 Dinero (payments/memberships, recordatorios, digest) | ✅ |
-| F3a Modelo de mensajería | ✅ |
-| F3b/c Webhook + envío + Inbox en admin | ✅ mergeado (#10) |
-| F3d Plantillas sync + errores Meta + contactos + notificaciones | 🔵 PR #11 |
-| F4 Seguimiento proactivo determinista (lista "Hoy" + click-to-chat) · agente reactivo vive en OpenBSP | ✅ código (#13) — pendiente conexión real del número y agente |
-| F5 Email (Resend: adaptador oficial + campaigns + log + webhooks bounce) | ✅ código (#14) — pendiente credenciales Resend |
-| F6 Leads por Apify | ❌ descartada — import manual CSV/JSON con plugin oficial; opción futura: Hermes + MCP de Apify en F9 |
-| Facturación y cotizaciones (`payload-invoicepdf`) | 🔵 en curso |
-| F7–F10 Social · Formularios · Hermes/Tasks · Hardening | ⬜ |
+| F3 WhatsApp/IG completo (modelo + webhook + inbox + plantillas + errores + contactos) | ✅ #10/#11 |
+| F4 Seguimiento proactivo determinista (lista "Hoy" + click-to-chat) · agente reactivo vive en OpenBSP | ✅ código (#13) — ⏳ requiere conexión real del número y agente |
+| F5 Email (Resend: adaptador oficial + campaigns + log + webhooks bounce) | ✅ código (#14) — ⏳ requiere credenciales Resend |
+| F6 Leads por Apify | ❌ descartada — import manual CSV/JSON con plugin oficial (#15); opción futura: Hermes + MCP de Apify en F9 |
+| F6b Facturación y cotizaciones (`payload-invoicepdf`) | 🔵 PR #16 verde — pendiente merge |
+| **Dashboard de inicio** (resumen del día en el admin) | ⬜ siguiente código |
+| F8 Formularios y ciclo de vida (Tally) | ⬜ |
+| F7 Social (IG/FB publicaciones + métricas) | ⬜ bloqueada por app Meta |
+| F9 Hermes + MCP + Task manager | ⬜ |
+| F10 Hardening | ⬜ |
 
 **Cómo vamos:** infraestructura y CRM operativos en producción (admin, cobros con recordatorios, digest diario). Canal WhatsApp/IG construido y probado E2E de punta a punta salvo la llamada HTTP final, que espera únicamente las credenciales hosted de OpenBSP (API key + conectar número). Tras F4 el sistema dice a quién escribirle hoy, el dueño abre la conversación sin costo y el agente de OpenBSP continúa sola.
 
@@ -178,6 +180,14 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
   - Config: moneda `$` USD · IVA por defecto 16% · términos 30 días · prefijos INV/COT.
 - Done when: cotización creada desde un offer se descarga en PDF y su aceptación genera factura borrador.
 
+### Dashboard de inicio (nueva fase — sin número de sprint)
+- Objetivo: abrir el admin y ver el día de un vistazo, sin navegar colecciones.
+- Tareas:
+  - Vista custom `/admin/dashboard` (mismo patrón que Hoy/Inbox) como página de aterrizaje.
+  - Widgets v1: **Hoy** (reutiliza `/api/followups/hoy` con botón WhatsApp), **Cobros** (vencidos + por vencer esta semana), **Conversaciones sin responder** (>4h desde último entrante), **Notificaciones** recientes, **Números rápidos** (leads nuevos esta semana, ingresos del mes, cotizaciones abiertas).
+  - Widgets v2 (cuando existan): citas del día (GCal), tareas vencidas (F9), campañas activas.
+- Done when: el dueño abre el admin y en una pantalla decide qué hacer hoy.
+
 ### F7 — Publicaciones sociales + métricas
 - Objetivo: calendario editorial con publicación determinística y medición.
 - Tareas: app Meta (registro guiado) + OAuth embebido "Conectar cuenta", media library, `social-posts` draft→scheduled→published, job 5 min, `post-metrics` diario, evaluación de `payload-plugin-socials` como acelerador.
@@ -197,6 +207,20 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 - Objetivo: producción confiable.
 - Tareas: revisión seguridad (webhooks firmados, secrets, tokens cifrados), tests de webhooks y jobs, manejo de rate limits/reintentos, backups PITR Neon.
 - Done when: suite de webhooks verde; auditoría de seguridad sin hallazgos High/Critical.
+
+## Qué falta para estar LISTO (v1 operativa)
+
+> Criterio de "listo": el dueño corre su negocio desde el CRM sin herramientas externas.
+
+1. **Merge #16** (facturación/cotizaciones) — pendiente, verde
+2. **Conectar OpenBSP real** (tú): org + número + API keys + agente LLM en dashboard → E2E: lead contactado desde "Hoy" responde y el agente continúa
+3. **Activar Resend** (tú): dominio verificado + `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` → E2E: campaña enviada, loggeada y bounce detectado
+4. **Dashboard de inicio** — fase nueva arriba
+5. **F8 Formularios** — código por construir (+ cuenta Tally tuya para activarlo)
+6. **CI mínimo** — GitHub Actions typecheck+lint por PR (deuda arrastrada)
+7. **Hardening básico** — revisión de secrets/webhooks + backups PITR verificados (recorte de F10)
+
+No bloquean v1: F7 Social (espera app Meta), F9 Hermes/Tasks completo, multi-tenant real (SaaS), limpiar warnings de lint (~48).
 
 ## Convenciones de trabajo
 
