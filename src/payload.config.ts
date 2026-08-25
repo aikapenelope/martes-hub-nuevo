@@ -30,6 +30,7 @@ import { openbspErrorsTask } from './jobs/openbspErrorLog'
 import { Notifications } from './collections/Notifications'
 import { openbspWebhookHandler } from './endpoints/openbspWebhook'
 import { replyConversationHandler } from './endpoints/replyConversation'
+import { followupsHoyHandler } from './endpoints/followupsHoy'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -62,6 +63,11 @@ export default buildConfig({
           path: '/inbox',
           exact: true,
           Component: '/views/Inbox#InboxView',
+        },
+        hoy: {
+          path: '/hoy',
+          exact: true,
+          Component: '/views/Hoy#HoyView',
         },
       },
     },
@@ -138,6 +144,11 @@ export default buildConfig({
       path: '/messaging/reply',
       method: 'post',
       handler: replyConversationHandler,
+    },
+    {
+      path: '/followups/hoy',
+      method: 'get',
+      handler: followupsHoyHandler,
     },
   ],
   secret: process.env.PAYLOAD_SECRET || '',

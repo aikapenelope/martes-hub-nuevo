@@ -49,7 +49,7 @@ async function matchContact(
   req: PayloadRequest,
   tenantId: number,
   phone: string | undefined,
-): Promise<{ clientId?: number; leadId?: number }> {
+): Promise<{ client?: number; lead?: number }> {
   const p = digits(phone)
   if (!p) return {}
   const suffix = p.slice(-10)
@@ -62,7 +62,7 @@ async function matchContact(
       depth: 0,
     })
     if (exact.docs[0]) {
-      return collection === 'clients' ? { clientId: exact.docs[0].id } : { leadId: exact.docs[0].id }
+      return collection === 'clients' ? { client: exact.docs[0].id } : { lead: exact.docs[0].id }
     }
     const loose = await req.payload.find({
       collection,
@@ -71,9 +71,7 @@ async function matchContact(
       depth: 0,
     })
     if (loose.docs.length === 1) {
-      return collection === 'clients'
-        ? { clientId: loose.docs[0].id }
-        : { leadId: loose.docs[0].id }
+      return collection === 'clients' ? { client: loose.docs[0].id } : { lead: loose.docs[0].id }
     }
   }
   return {}
@@ -102,13 +100,19 @@ async function upsertConversation(
   }
 
   if (existing.docs[0]) {
+    const conv = existing.docs[0]
+    const patchWithLink: typeof patch & { client?: number; lead?: number } = { ...patch }
+    if (!conv.client && !conv.lead) {
+      const relink = await matchContact(req, tenant.id, digits(conv.contactAddress))
+      Object.assign(patchWithLink, relink)
+    }
     await req.payload.update({
       collection: 'conversations',
-      id: existing.docs[0].id,
-      data: patch,
+      id: conv.id,
+      data: patchWithLink,
       overrideAccess: true,
     })
-    return existing.docs[0].id
+    return conv.id
   }
 
   const contactPhone = digits(data.conversation_address || data.sender_address)
