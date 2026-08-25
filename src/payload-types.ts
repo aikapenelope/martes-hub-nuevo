@@ -77,6 +77,9 @@ export interface Config {
     media: Media;
     payments: Payment;
     memberships: Membership;
+    conversations: Conversation;
+    messages: Message;
+    'message-templates': MessageTemplate;
     'company-settings': CompanySetting;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
@@ -100,6 +103,9 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     payments: PaymentsSelect<false> | PaymentsSelect<true>;
     memberships: MembershipsSelect<false> | MembershipsSelect<true>;
+    conversations: ConversationsSelect<false> | ConversationsSelect<true>;
+    messages: MessagesSelect<false> | MessagesSelect<true>;
+    'message-templates': MessageTemplatesSelect<false> | MessageTemplatesSelect<true>;
     'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
@@ -163,6 +169,14 @@ export interface Tenant {
    * Identificador estable; no cambiar después de crear datos
    */
   slug: string;
+  /**
+   * UUID de la organización en la instancia hosted de OpenBSP
+   */
+  openbspOrganizationId?: string | null;
+  /**
+   * organization_address para enviar mensajes (Meta phone_number_id)
+   */
+  openbspPhoneNumberId?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -374,6 +388,108 @@ export interface Membership {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "conversations".
+ */
+export interface Conversation {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  channel: 'whatsapp' | 'instagram_dm' | 'whatsapp_web';
+  /**
+   * UUID de la conversación en OpenBSP; lo rellena el webhook
+   */
+  openbspId?: string | null;
+  organizationAddress?: string | null;
+  contactAddress: string;
+  client?: (number | null) | Client;
+  lead?: (number | null) | Lead;
+  lastMessageAt?: string | null;
+  /**
+   * Si es mayor a 24h, solo se pueden enviar plantillas
+   */
+  lastInboundAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "messages".
+ */
+export interface Message {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  conversation: number | Conversation;
+  direction: 'inbound' | 'outbound';
+  openbspId?: string | null;
+  /**
+   * Idempotencia: reintentos del webhook no duplican
+   */
+  externalId?: string | null;
+  type:
+    'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'template' | 'location' | 'contacts' | 'unknown';
+  text?: string | null;
+  /**
+   * Fidelidad total del objeto content recibido/enviado
+   */
+  content?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * {accepted, sent, delivered, read, failed, errors[]}
+   */
+  statusJson?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  senderAddress?: string | null;
+  performedBy?: (number | null) | User;
+  sentAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "message-templates".
+ */
+export interface MessageTemplate {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  /**
+   * Ej: recordatorio_pago — debe existir aprobado en Meta
+   */
+  name: string;
+  language: string;
+  category?: ('MARKETING' | 'UTILITY' | 'AUTHENTICATION') | null;
+  metaStatus?: ('PENDING' | 'APPROVED' | 'REJECTED' | 'PAUSED' | 'DISABLED') | null;
+  /**
+   * Con placeholders {{1}}, {{2}}…
+   */
+  bodyText?: string | null;
+  componentsJson?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  openbspTemplateId?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "company-settings".
  */
 export interface CompanySetting {
@@ -556,6 +672,18 @@ export interface PayloadLockedDocument {
         value: number | Membership;
       } | null)
     | ({
+        relationTo: 'conversations';
+        value: number | Conversation;
+      } | null)
+    | ({
+        relationTo: 'messages';
+        value: number | Message;
+      } | null)
+    | ({
+        relationTo: 'message-templates';
+        value: number | MessageTemplate;
+      } | null)
+    | ({
         relationTo: 'company-settings';
         value: number | CompanySetting;
       } | null);
@@ -608,6 +736,8 @@ export interface PayloadMigration {
 export interface TenantsSelect<T extends boolean = true> {
   name?: T;
   slug?: T;
+  openbspOrganizationId?: T;
+  openbspPhoneNumberId?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -778,6 +908,59 @@ export interface MembershipsSelect<T extends boolean = true> {
   startDate?: T;
   renewalDate?: T;
   notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "conversations_select".
+ */
+export interface ConversationsSelect<T extends boolean = true> {
+  tenant?: T;
+  channel?: T;
+  openbspId?: T;
+  organizationAddress?: T;
+  contactAddress?: T;
+  client?: T;
+  lead?: T;
+  lastMessageAt?: T;
+  lastInboundAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "messages_select".
+ */
+export interface MessagesSelect<T extends boolean = true> {
+  tenant?: T;
+  conversation?: T;
+  direction?: T;
+  openbspId?: T;
+  externalId?: T;
+  type?: T;
+  text?: T;
+  content?: T;
+  statusJson?: T;
+  senderAddress?: T;
+  performedBy?: T;
+  sentAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "message-templates_select".
+ */
+export interface MessageTemplatesSelect<T extends boolean = true> {
+  tenant?: T;
+  name?: T;
+  language?: T;
+  category?: T;
+  metaStatus?: T;
+  bodyText?: T;
+  componentsJson?: T;
+  openbspTemplateId?: T;
   updatedAt?: T;
   createdAt?: T;
 }
