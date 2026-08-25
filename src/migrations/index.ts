@@ -1,6 +1,7 @@
 import * as migration_20260824_201843_f0_init from './20260824_201843_f0_init';
 import * as migration_20260825_021413_f1_core_collections from './20260825_021413_f1_core_collections';
 import * as migration_20260825_023329_f1b_multi_tenant from './20260825_023329_f1b_multi_tenant';
+import * as migration_20260825_041101_f1d_kanban_fields from './20260825_041101_f1d_kanban_fields';
 
 export const migrations = [
   {
@@ -16,6 +17,11 @@ export const migrations = [
   {
     up: migration_20260825_023329_f1b_multi_tenant.up,
     down: migration_20260825_023329_f1b_multi_tenant.down,
-    name: '20260825_023329_f1b_multi_tenant'
+    name: '20260825_023329_f1b_multi_tenant',
+  },
+  {
+    up: migration_20260825_041101_f1d_kanban_fields.up,
+    down: migration_20260825_041101_f1d_kanban_fields.down,
+    name: '20260825_041101_f1d_kanban_fields'
   },
 ];
