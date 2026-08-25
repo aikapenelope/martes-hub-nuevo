@@ -16,6 +16,7 @@ import { Segments } from './collections/Segments'
 import { Documents } from './collections/Documents'
 import { Tenants } from './collections/Tenants'
 import { CompanySettings } from './collections/CompanySettings'
+import { importCsvHandler } from './endpoints/importCsv'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -68,6 +69,13 @@ export default buildConfig({
     }),
   ],
   editor: lexicalEditor(),
+  endpoints: [
+    {
+      path: '/import-csv',
+      method: 'post',
+      handler: importCsvHandler,
+    },
+  ],
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
