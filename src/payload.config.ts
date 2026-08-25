@@ -19,6 +19,9 @@ import { Tenants } from './collections/Tenants'
 import { CompanySettings } from './collections/CompanySettings'
 import { Payments } from './collections/Payments'
 import { Memberships } from './collections/Memberships'
+import { Conversations } from './collections/Conversations'
+import { Messages } from './collections/Messages'
+import { MessageTemplates } from './collections/MessageTemplates'
 import { importCsvHandler } from './endpoints/importCsv'
 import { paymentRemindersTask } from './jobs/paymentReminders'
 import { dailyDigestTask } from './jobs/dailyDigest'
@@ -60,6 +63,9 @@ export default buildConfig({
     Media,
     Payments,
     Memberships,
+    Conversations,
+    Messages,
+    MessageTemplates,
     CompanySettings,
   ],
   plugins: [
@@ -89,6 +95,9 @@ export default buildConfig({
         media: {},
         payments: {},
         memberships: {},
+        conversations: {},
+        messages: {},
+        'message-templates': {},
         'company-settings': { isGlobal: true },
       },
     }),

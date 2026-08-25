@@ -33,5 +33,22 @@ export const Tenants: CollectionConfig = {
         description: 'Identificador estable; no cambiar después de crear datos',
       },
     },
+    {
+      name: 'openbspOrganizationId',
+      type: 'text',
+      index: true,
+      label: 'OpenBSP Organization ID',
+      admin: {
+        description: 'UUID de la organización en la instancia hosted de OpenBSP',
+      },
+    },
+    {
+      name: 'openbspPhoneNumberId',
+      type: 'text',
+      label: 'OpenBSP Phone Number ID',
+      admin: {
+        description: 'organization_address para enviar mensajes (Meta phone_number_id)',
+      },
+    },
   ],
 }
