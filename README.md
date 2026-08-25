@@ -2,7 +2,7 @@
 
 CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, publicaciones en redes con métricas, formularios, citas y agente de IA conectado por MCP.
 
-**Estado actual:** F0–F2 en producción · **F3 completa** (PR #11) · siguiente: **F4 — IA proactiva**. Detalle OpenBSP: `docs/plan-openbsp.md`.
+**Estado actual:** F0–F2 en producción · **F3 completa** (PR #11) · siguiente: **F4 — IA agéntica (OpenBSP agent + MCP)**. Detalle OpenBSP: `docs/plan-openbsp.md`.
 
 | Fase | Estado |
 |---|---|
@@ -13,10 +13,10 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | F3a Modelo de mensajería | ✅ |
 | F3b/c Webhook + envío + Inbox en admin | ✅ mergeado (#10) |
 | F3d Plantillas sync + errores Meta + contactos + notificaciones | 🔵 PR #11 |
-| F4 IA proactiva (sequences, follow-up, summaries pgvector) | ⬜ siguiente — requiere proveedor LLM y conexión real del número para envíos |
-| F5–F10 Email · Apify · Social · Formularios · Hermes/MCP/Tasks · Hardening | ⬜ |
+| F4 Seguimiento proactivo determinista (lista "Hoy" + click-to-chat) · agente reactivo vive en OpenBSP | ⬜ siguiente — requiere conexión real del número |
+| F5–F10 Email · Apify · Social · Formularios · Hermes/Tasks · Hardening | ⬜ |
 
-**Cómo vamos:** infraestructura y CRM operativos en producción (admin, cobros con recordatorios, digest diario). Canal WhatsApp/IG construido y probado E2E de punta a punta salvo la llamada HTTP final, que espera únicamente las credenciales hosted de OpenBSP (API key + conectar número). Tras F4 el sistema ya sigue leads solo.
+**Cómo vamos:** infraestructura y CRM operativos en producción (admin, cobros con recordatorios, digest diario). Canal WhatsApp/IG construido y probado E2E de punta a punta salvo la llamada HTTP final, que espera únicamente las credenciales hosted de OpenBSP (API key + conectar número). Tras F4 el sistema dice a quién escribirle hoy, el dueño abre la conversación sin costo y el agente de OpenBSP continúa sola.
 
 ---
 
@@ -33,7 +33,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | Formularios | Tally (webhooks firmados → `form-submissions`) |
 | Citas | Google Calendar API v3 (solo lectura; el agente de OpenBSP crea las citas) |
 | Publicación social | Meta Graph API directa, flujo determinístico (Jobs Queue), OAuth embebido en el admin |
-| Agente IA | Hermes Agent (propio) vía `@payloadcms/plugin-mcp` |
+| Agente IA | Reactivo (entrantes): agente nativo de OpenBSP, configurado en su dashboard con LLM propio o AI credits — martes-hub solo espeja por webhook · Proactivo: determinista, sin IA (lista "Hoy" en el admin) · IA interna: Hermes Agent (propio) vía `@payloadcms/plugin-mcp`, llega en F9 |
 
 ## Configuración regional
 
@@ -48,7 +48,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | Multi-tenancy | Plugin oficial `@payloadcms/plugin-multi-tenant` desde F1: colección `tenants`, campo tenant en todas las colecciones de negocio, `company-settings` como global por empresa (`isGlobal`). Producto opera **mono-tenant** (tenant "Martes") pero el esquema queda SaaS-ready | Retrofit posterior (migrar datos vivos + rehacer access control en cada colección, job y webhook). DB-per-tenant en Neon descartado: sobrecosto operativo para muchas pymes |
 | Publicación social | Meta Graph directo + OAuth embebido (app en Development Mode: cuentas propias, sin App Review) | Metricool API (requiere plan Advanced); Composio (tercero en camino crítico) queda como expansión futura a otras redes |
 | Orquestación interna | Payload Jobs Queue + cron externo | n8n / ActivePieces (duplican lógica y webhooks; se pueden añadir después sin rediseño) |
-| IA en background | Jobs Queue llamando LLM + pgvector para búsqueda semántica | "IA en Neon": Neon es Postgres puro, no tiene IA nativa |
+| IA en background | Fuera de martes-hub: el agente reactivo vive en OpenBSP (dispara en cada entrante, LLM propio o AI credits). El proactivo es una lista determinista sin IA. La IA interna propia (resúmenes, reportes) llega con Hermes vía MCP en F9 · pgvector para búsqueda semántica | Jobs propios llamando LLM (más código que mantener y rígido); "IA en Neon" (Neon es Postgres puro, no tiene IA nativa) |
 | MCP hacia Hermes | `@payloadcms/plugin-mcp` (oficial, sincronizado con core) | `payload-plugin-mcp` de Antler Digital (buena alternativa si falta algo) |
 | Observabilidad | Logs/métricas nativas Vercel + Neon | Sentry (opcional futuro; sistema privado) |
 | Task manager | Colección `tasks` propia + vista kanban (evaluar plugin comunitario `payload-kanban-board` como base visual) | Ningún equivalente ClickUp existe sobre Payload; la ventaja es la interconexión nativa con todo el CRM |
@@ -63,12 +63,11 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | `activities` | Log unificado de interacciones |
 | `conversations` / `messages` | Hilos por canal (whatsapp / instagram_dm / email) y mensajes con estado Meta |
 | `message-templates` | Plantillas WhatsApp aprobadas + respuestas rápidas |
-| `conversation-summaries` | Resumen IA por cliente (sentimiento, próximos pasos) + embeddings pgvector |
+| `conversation-summaries` | Resumen IA por cliente (sentimiento, próximos pasos) + embeddings pgvector — lo escribe Hermes desde F9 |
 | `payments` | Tracking USD: monto, vencimiento, estado, método |
 | `memberships` | Ciclo de membresía: inicio, renovación, estado |
 | `appointments` | Citas sincronizadas de Google Calendar |
 | `offers` | Catálogo de productos/servicios (alimenta sugerencias del agente) |
-| `sequences` | Flujos de seguimiento configurables desde el admin (pasos, esperas, canales) |
 | `social-accounts` | Cuentas IG/FB (tokens cifrados, expiración) |
 | `social-posts` / `post-metrics` | Contenido: draft→scheduled→published/failed; métricas diarias (views, reach, likes…) |
 | `scrape-runs` | Ejecuciones Apify (actor, run ID, dataset, estado) |
@@ -92,11 +91,9 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 |---|---|---|
 | `publish-scheduled-posts` | 5 min | Publica `social-posts` vencidos vía Graph API |
 | `sync-gcal` | 15 min | Sincroniza citas de Google Calendar |
-| `lead-follow-up` | horario | Ejecuta secuencias según `sequences`; se detiene si responde |
+| `score-engagement` | cada hora | Determinista, sin IA ni ML: reglas aritméticas fijas (días desde último contacto, etapa, respondió o no) → ordena la lista "Hoy" del admin |
 | `payment-reminders` | diario 08:00 UTC-4 | Cobros por vencer/vencidos → WhatsApp plantilla + email |
-| `score-engagement` | cada hora | Score por cliente para la lista "Hoy" |
 | `fetch-social-metrics` | diario | Métricas IG/FB → `post-metrics` |
-| `generate-summary` | al cerrar conversación + semanal | Resumen IA por cliente |
 | `refresh-tokens` | diario | Renueva long-lived tokens Meta (~55 días) |
 | `daily-digest` | diario 08:00 UTC-4 | Resumen interno: citas del día, pagos, leads nuevos, tareas vencidas |
 | `weekly-report` | lunes 08:00 | Reporte generado por Hermes vía MCP |
@@ -112,7 +109,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 | Apify | `APIFY_TOKEN` | Webhook de fin de actor → `/api/webhooks/apify` |
 | Tally | Webhook firmado por formulario | HMAC compartido en env |
 | Google Calendar | OAuth client JSON | Solo lectura del calendario de citas |
-| LLM resúmenes | API key del proveedor elegido en F4 | Puede delegarse a Hermes |
+| LLM del agente reactivo | API key del proveedor elegido (opcional) | Se configura en el dashboard de OpenBSP (`AgentExtra.api_key`); sin ella consume los AI credits hosted ($1 incluidos) |
 | Scheduler externo | cuenta gratuita (cron-job.org / Upstash QStash) | Llama endpoint runner mientras no haya Vercel Pro |
 
 ## Sprints
@@ -140,15 +137,20 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 - Tareas: registro de webhook OpenBSP (`verify_token`, firma Meta), ingesta a `conversations`/`messages`, envío REST desde inbox, `message-templates`, opt-out.
 - Done when: mensaje entrante aparece <5s en inbox; respuesta humana sale y queda registrada.
 
-### F4 — IA proactiva
-- Objetivo: seguimiento automático que conversa y resume.
+### F4 — Seguimiento proactivo + agente reactivo (OpenBSP hosted)
+- Objetivo: saber a quién escribirle cada día sin pagar conversaciones business-initiated, y que las conversaciones se atiendan solas.
+- Principio: OpenBSP es dueño del canal y del agente; martes-hub solo jala información (webhook), envía por API y calcula listas deterministas. Sin IA interna — eso llega con Hermes en F9.
+- Estrategia de contacto:
+  - **Primer mensaje lo escribe el humano** desde su WhatsApp vía link click-to-chat (`wa.me/<tel>?text=<borrador>`) en la lista "Hoy" del admin → conversación user-initiated, sin costo de plantilla Meta.
+  - **Cuando el lead responde, el agente de OpenBSP continúa solo** (ventana 24h abierta). El webhook F3 ya espeja entrantes Y salientes (incluidos los del agente) a `conversations`/`messages`.
+  - Opción futura (no bloquea): disparar al agente proactivamente vía API/MCP de OpenBSP → requiere plantilla business-initiated (costo Meta); se evalúa con datos reales.
 - Tareas:
-  - Colección `sequences` (tenant-aware): pasos con espera en días, canal (whatsapp/email), plantilla o texto, condición de salida.
-  - Job `lead-follow-up` (horario): ejecuta secuencias día 1/3/7 sobre leads sin respuesta usando `src/integrations/openbsp/client.ts` (texto dentro de ventana 24h, plantilla fuera); **se detiene** cuando el lead responde (chequeo de mensajes entrantes posteriores al último paso).
-  - Job `generate-summary`: al cerrar conversación + semanal; resumen por cliente vía LLM + embeddings `pgvector` (extensión ya activada) guardados en `conversation-summaries`.
-  - Job `score-engagement` (cada hora): puntaje por cliente para la lista "Hoy".
-  - Requiere decidir proveedor LLM y su API key (puede delegarse después a Hermes vía MCP).
-- Done when: lead sin responder recibe secuencia día 1/3/7 y se detiene al responder; resumen visible en ficha del cliente.
+  - Job `score-engagement` (horario): prioridad por reglas aritméticas fijas — días desde el último contacto, etapa del lead, si respondió. Aritmética pura, sin IA ni LLM.
+  - Vista admin **"Hoy"**: lista ordenada de seguimientos pendientes con nombre, etapa, motivo ("3 días sin respuesta"), score y botón WhatsApp click-to-chat con borrador de mensaje; marca seguimiento hecho al detectar respuesta entrante.
+  - Verificaciones E2E al conectar el número real: (1) los mensajes salientes del agente OpenBSP llegan por webhook y se espejan como `outbound`; (2) el registro del webhook soporta el header `Authorization: Bearer OPENBSP_WEBHOOK_TOKEN` — si la tabla `webhooks` no permite headers, mover el token a query param firmado; (3) `listTemplates()` contra `/rest/v1/templates` devuelve filas — si no, migrar a `/functions/v1/whatsapp-management/templates`.
+  - Configuración del agente reactivo (usuario, en dashboard OpenBSP): elegir LLM (BYO API key para no gastar AI credits), prompt base, alcance de conversaciones.
+- Eliminado respecto al diseño original: colección `sequences`, jobs `lead-follow-up`/`generate-summary` propios, plugin MCP en F4.
+- Done when: la lista "Hoy" muestra los leads correctos con su link; el usuario abre conversación manualmente, el lead responde y el agente de OpenBSP le contesta solo, quedando todo espejado en el CRM.
 
 ### F5 — Email automatizado (Resend)
 - Objetivo: transaccionales + campañas.
@@ -170,10 +172,10 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 - Tareas: webhooks Tally (queja/comentario/sugerencia/NPS), matching a `clients`, notificaciones internas, reglas de transición de etapa, encuesta post-servicio.
 - Done when: queja desde formulario crea notificación y queda vinculada al cliente.
 
-### F9 — Hermes + MCP + Task manager
-- Objetivo: agente dentro del CRM y gestión de tareas interconectada.
-- Tareas: `@payloadcms/plugin-mcp` (permisos por colección), conexión de Hermes, reporte semanal, colección `tasks` + kanban + reglas de creación automática (queja→tarea, pago vencido→tarea).
-- Done when: Hermes responde preguntas del CRM vía MCP; tarea se crea sola ante evento definido.
+### F9 — Hermes + Task manager
+- Objetivo: IA interna residente en el CRM y gestión de tareas interconectada.
+- Tareas: `@payloadcms/plugin-mcp` (permisos por colección) + conexión de Hermes, resúmenes de conversación (`conversation-summaries` + pgvector) al cerrar hilo y semanalmente, reporte semanal, colección `tasks` + kanban + reglas de creación automática (queja→tarea, pago vencido→tarea).
+- Done when: Hermes resume una conversación y responde preguntas del CRM vía MCP; tarea se crea sola ante evento definido.
 
 ### F10 — Hardening
 - Objetivo: producción confiable.
