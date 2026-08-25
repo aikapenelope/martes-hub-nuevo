@@ -22,7 +22,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@payloadcms/db-postgres": "3.88.0",
     "@payloadcms/next": "3.88.0",
+    "@payloadcms/plugin-multi-tenant": "3.88.0",
     "@payloadcms/richtext-lexical": "3.88.0",
     "@payloadcms/ui": "3.88.0",
     "cross-env": "10.1.0",
@@ -32,8 +34,7 @@
     "payload": "3.88.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "sharp": "0.34.2",
-    "@payloadcms/db-postgres": "3.88.0"
+    "sharp": "0.34.2"
   },
   "devDependencies": {
     "@playwright/test": "1.59.1",

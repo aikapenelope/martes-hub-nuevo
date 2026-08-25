@@ -1,4 +1,5 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
+import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
 import { buildConfig } from 'payload'
@@ -12,7 +13,8 @@ import { Leads } from './collections/Leads'
 import { Activities } from './collections/Activities'
 import { Segments } from './collections/Segments'
 import { Documents } from './collections/Documents'
-import { CompanySettings } from './globals/CompanySettings'
+import { Tenants } from './collections/Tenants'
+import { CompanySettings } from './collections/CompanySettings'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -24,8 +26,30 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Clients, Leads, Activities, Segments, Documents, Media],
-  globals: [CompanySettings],
+  collections: [
+    Tenants,
+    Users,
+    Clients,
+    Leads,
+    Activities,
+    Segments,
+    Documents,
+    Media,
+    CompanySettings,
+  ],
+  plugins: [
+    multiTenantPlugin({
+      collections: {
+        clients: {},
+        leads: {},
+        activities: {},
+        segments: {},
+        documents: {},
+        media: {},
+        'company-settings': { isGlobal: true },
+      },
+    }),
+  ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
