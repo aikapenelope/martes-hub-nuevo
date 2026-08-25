@@ -69,7 +69,7 @@ export const InboxView: React.FC = () => {
   useEffect(() => {
     // Carga del hilo al seleccionar conversación
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadThread(selected)
+    if (selected !== null) void loadThread(selected)
   }, [selected, loadThread])
 
   const send = async (): Promise<void> => {
