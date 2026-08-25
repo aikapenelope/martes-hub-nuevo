@@ -57,6 +57,9 @@ export default buildConfig({
     },
     components: {
       views: {
+        dashboard: {
+          Component: '/views/Dashboard#DashboardView',
+        },
         inbox: {
           path: '/inbox',
           exact: true,
