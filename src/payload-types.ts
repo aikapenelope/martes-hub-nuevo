@@ -68,15 +68,29 @@ export interface Config {
   blocks: {};
   collections: {
     users: User;
+    clients: Client;
+    leads: Lead;
+    activities: Activity;
+    segments: Segment;
+    documents: Document;
     media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
-  collectionsJoins: {};
+  collectionsJoins: {
+    clients: {
+      activities: 'activities';
+    };
+  };
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
+    clients: ClientsSelect<false> | ClientsSelect<true>;
+    leads: LeadsSelect<false> | LeadsSelect<true>;
+    activities: ActivitiesSelect<false> | ActivitiesSelect<true>;
+    segments: SegmentsSelect<false> | SegmentsSelect<true>;
+    documents: DocumentsSelect<false> | DocumentsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -86,10 +100,14 @@ export interface Config {
   db: {
     defaultIDType: number;
   };
-  fallbackLocale: ('false' | 'none' | 'null') | false | null | 'en' | 'en'[];
-  globals: {};
-  globalsSelect: {};
-  locale: 'en';
+  fallbackLocale: null;
+  globals: {
+    'company-settings': CompanySetting;
+  };
+  globalsSelect: {
+    'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
+  };
+  locale: null;
   widgets: {
     collections: CollectionsWidget;
   };
@@ -123,6 +141,13 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
+  firstName?: string | null;
+  lastName?: string | null;
+  /**
+   * admin gestiona todo · agente opera CRM · viewer solo lectura
+   */
+  roles: ('admin' | 'agente' | 'viewer')[];
+  active?: boolean | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -141,6 +166,102 @@ export interface User {
     | null;
   password?: string | null;
   collection: 'users';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "clients".
+ */
+export interface Client {
+  id: number;
+  name: string;
+  stage: 'nuevo' | 'activo' | 'inactivo' | 'perdido';
+  email?: string | null;
+  /**
+   * Formato internacional sin +: ej 584121234567
+   */
+  phone?: string | null;
+  segment?: (number | null) | Segment;
+  assignedAgent?: (number | null) | User;
+  consent?: boolean | null;
+  /**
+   * Si tiene fecha, no se le debe contactar
+   */
+  optOutAt?: string | null;
+  notes?: string | null;
+  activities?: {
+    docs?: (number | Activity)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "segments".
+ */
+export interface Segment {
+  id: number;
+  name: string;
+  description?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "activities".
+ */
+export interface Activity {
+  id: number;
+  type: 'nota' | 'llamada' | 'whatsapp' | 'email' | 'reunion' | 'otro';
+  occurredAt: string;
+  summary: string;
+  client?: (number | null) | Client;
+  lead?: (number | null) | Lead;
+  performedBy?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "leads".
+ */
+export interface Lead {
+  id: number;
+  fullName: string;
+  status: 'nuevo' | 'contactado' | 'calificado' | 'descartado';
+  source: 'manual' | 'apify' | 'tally' | 'whatsapp' | 'instagram_dm' | 'referido';
+  phone?: string | null;
+  email?: string | null;
+  segment?: (number | null) | Segment;
+  notes?: string | null;
+  /**
+   * Se llena automáticamente al convertir el lead
+   */
+  convertedClient?: (number | null) | Client;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "documents".
+ */
+export interface Document {
+  id: number;
+  title: string;
+  client: number | Client;
+  documentType: 'contrato' | 'factura' | 'otro';
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -188,6 +309,26 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'users';
         value: number | User;
+      } | null)
+    | ({
+        relationTo: 'clients';
+        value: number | Client;
+      } | null)
+    | ({
+        relationTo: 'leads';
+        value: number | Lead;
+      } | null)
+    | ({
+        relationTo: 'activities';
+        value: number | Activity;
+      } | null)
+    | ({
+        relationTo: 'segments';
+        value: number | Segment;
+      } | null)
+    | ({
+        relationTo: 'documents';
+        value: number | Document;
       } | null)
     | ({
         relationTo: 'media';
@@ -240,6 +381,10 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  firstName?: T;
+  lastName?: T;
+  roles?: T;
+  active?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -256,6 +401,84 @@ export interface UsersSelect<T extends boolean = true> {
         createdAt?: T;
         expiresAt?: T;
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "clients_select".
+ */
+export interface ClientsSelect<T extends boolean = true> {
+  name?: T;
+  stage?: T;
+  email?: T;
+  phone?: T;
+  segment?: T;
+  assignedAgent?: T;
+  consent?: T;
+  optOutAt?: T;
+  notes?: T;
+  activities?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "leads_select".
+ */
+export interface LeadsSelect<T extends boolean = true> {
+  fullName?: T;
+  status?: T;
+  source?: T;
+  phone?: T;
+  email?: T;
+  segment?: T;
+  notes?: T;
+  convertedClient?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "activities_select".
+ */
+export interface ActivitiesSelect<T extends boolean = true> {
+  type?: T;
+  occurredAt?: T;
+  summary?: T;
+  client?: T;
+  lead?: T;
+  performedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "segments_select".
+ */
+export interface SegmentsSelect<T extends boolean = true> {
+  name?: T;
+  description?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "documents_select".
+ */
+export interface DocumentsSelect<T extends boolean = true> {
+  title?: T;
+  client?: T;
+  documentType?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -314,6 +537,37 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "company-settings".
+ */
+export interface CompanySetting {
+  id: number;
+  companyName: string;
+  /**
+   * Aplica a crons, calendario editorial y digestios (UTC-4)
+   */
+  timezone: string;
+  currency: 'USD';
+  digestHour: number;
+  internalNotificationsEmail?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "company-settings_select".
+ */
+export interface CompanySettingsSelect<T extends boolean = true> {
+  companyName?: T;
+  timezone?: T;
+  currency?: T;
+  digestHour?: T;
+  internalNotificationsEmail?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
