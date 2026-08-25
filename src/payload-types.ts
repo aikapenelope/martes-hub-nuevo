@@ -67,6 +67,7 @@ export interface Config {
   };
   blocks: {};
   collections: {
+    tenants: Tenant;
     users: User;
     clients: Client;
     leads: Lead;
@@ -74,6 +75,7 @@ export interface Config {
     segments: Segment;
     documents: Document;
     media: Media;
+    'company-settings': CompanySetting;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -85,6 +87,7 @@ export interface Config {
     };
   };
   collectionsSelect: {
+    tenants: TenantsSelect<false> | TenantsSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     clients: ClientsSelect<false> | ClientsSelect<true>;
     leads: LeadsSelect<false> | LeadsSelect<true>;
@@ -92,6 +95,7 @@ export interface Config {
     segments: SegmentsSelect<false> | SegmentsSelect<true>;
     documents: DocumentsSelect<false> | DocumentsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -101,12 +105,8 @@ export interface Config {
     defaultIDType: number;
   };
   fallbackLocale: null;
-  globals: {
-    'company-settings': CompanySetting;
-  };
-  globalsSelect: {
-    'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
-  };
+  globals: {};
+  globalsSelect: {};
   locale: null;
   widgets: {
     collections: CollectionsWidget;
@@ -137,6 +137,20 @@ export interface UserAuthOperations {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenants".
+ */
+export interface Tenant {
+  id: number;
+  name: string;
+  /**
+   * Identificador estable; no cambiar después de crear datos
+   */
+  slug: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
@@ -148,6 +162,12 @@ export interface User {
    */
   roles: ('admin' | 'agente' | 'viewer')[];
   active?: boolean | null;
+  tenants?:
+    | {
+        tenant: number | Tenant;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -173,6 +193,7 @@ export interface User {
  */
 export interface Client {
   id: number;
+  tenant?: (number | null) | Tenant;
   name: string;
   stage: 'nuevo' | 'activo' | 'inactivo' | 'perdido';
   email?: string | null;
@@ -202,6 +223,7 @@ export interface Client {
  */
 export interface Segment {
   id: number;
+  tenant?: (number | null) | Tenant;
   name: string;
   description?: string | null;
   updatedAt: string;
@@ -213,6 +235,7 @@ export interface Segment {
  */
 export interface Activity {
   id: number;
+  tenant?: (number | null) | Tenant;
   type: 'nota' | 'llamada' | 'whatsapp' | 'email' | 'reunion' | 'otro';
   occurredAt: string;
   summary: string;
@@ -228,6 +251,7 @@ export interface Activity {
  */
 export interface Lead {
   id: number;
+  tenant?: (number | null) | Tenant;
   fullName: string;
   status: 'nuevo' | 'contactado' | 'calificado' | 'descartado';
   source: 'manual' | 'apify' | 'tally' | 'whatsapp' | 'instagram_dm' | 'referido';
@@ -248,6 +272,7 @@ export interface Lead {
  */
 export interface Document {
   id: number;
+  tenant?: (number | null) | Tenant;
   title: string;
   client: number | Client;
   documentType: 'contrato' | 'factura' | 'otro';
@@ -269,6 +294,7 @@ export interface Document {
  */
 export interface Media {
   id: number;
+  tenant?: (number | null) | Tenant;
   alt: string;
   updatedAt: string;
   createdAt: string;
@@ -281,6 +307,24 @@ export interface Media {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "company-settings".
+ */
+export interface CompanySetting {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  companyName: string;
+  /**
+   * Aplica a crons, calendario editorial y digestios (UTC-4)
+   */
+  timezone: string;
+  currency: 'USD';
+  digestHour: number;
+  internalNotificationsEmail?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -306,6 +350,10 @@ export interface PayloadKv {
 export interface PayloadLockedDocument {
   id: number;
   document?:
+    | ({
+        relationTo: 'tenants';
+        value: number | Tenant;
+      } | null)
     | ({
         relationTo: 'users';
         value: number | User;
@@ -333,6 +381,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'company-settings';
+        value: number | CompanySetting;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -378,6 +430,16 @@ export interface PayloadMigration {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenants_select".
+ */
+export interface TenantsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
@@ -385,6 +447,12 @@ export interface UsersSelect<T extends boolean = true> {
   lastName?: T;
   roles?: T;
   active?: T;
+  tenants?:
+    | T
+    | {
+        tenant?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -407,6 +475,7 @@ export interface UsersSelect<T extends boolean = true> {
  * via the `definition` "clients_select".
  */
 export interface ClientsSelect<T extends boolean = true> {
+  tenant?: T;
   name?: T;
   stage?: T;
   email?: T;
@@ -425,6 +494,7 @@ export interface ClientsSelect<T extends boolean = true> {
  * via the `definition` "leads_select".
  */
 export interface LeadsSelect<T extends boolean = true> {
+  tenant?: T;
   fullName?: T;
   status?: T;
   source?: T;
@@ -441,6 +511,7 @@ export interface LeadsSelect<T extends boolean = true> {
  * via the `definition` "activities_select".
  */
 export interface ActivitiesSelect<T extends boolean = true> {
+  tenant?: T;
   type?: T;
   occurredAt?: T;
   summary?: T;
@@ -455,6 +526,7 @@ export interface ActivitiesSelect<T extends boolean = true> {
  * via the `definition` "segments_select".
  */
 export interface SegmentsSelect<T extends boolean = true> {
+  tenant?: T;
   name?: T;
   description?: T;
   updatedAt?: T;
@@ -465,6 +537,7 @@ export interface SegmentsSelect<T extends boolean = true> {
  * via the `definition` "documents_select".
  */
 export interface DocumentsSelect<T extends boolean = true> {
+  tenant?: T;
   title?: T;
   client?: T;
   documentType?: T;
@@ -485,6 +558,7 @@ export interface DocumentsSelect<T extends boolean = true> {
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
+  tenant?: T;
   alt?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -497,6 +571,20 @@ export interface MediaSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "company-settings_select".
+ */
+export interface CompanySettingsSelect<T extends boolean = true> {
+  tenant?: T;
+  companyName?: T;
+  timezone?: T;
+  currency?: T;
+  digestHour?: T;
+  internalNotificationsEmail?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -537,37 +625,6 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "company-settings".
- */
-export interface CompanySetting {
-  id: number;
-  companyName: string;
-  /**
-   * Aplica a crons, calendario editorial y digestios (UTC-4)
-   */
-  timezone: string;
-  currency: 'USD';
-  digestHour: number;
-  internalNotificationsEmail?: string | null;
-  updatedAt?: string | null;
-  createdAt?: string | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "company-settings_select".
- */
-export interface CompanySettingsSelect<T extends boolean = true> {
-  companyName?: T;
-  timezone?: T;
-  currency?: T;
-  digestHour?: T;
-  internalNotificationsEmail?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

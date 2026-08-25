@@ -1,13 +1,21 @@
-import type { GlobalConfig } from 'payload'
+import type { CollectionConfig } from 'payload'
 
-import { authenticated, adminOnly } from '../access'
+import { adminOnly, authenticated } from '../access'
 
-export const CompanySettings: GlobalConfig = {
+export const CompanySettings: CollectionConfig = {
   slug: 'company-settings',
-  label: 'Configuración de la empresa',
+  labels: {
+    singular: 'Configuración de la empresa',
+    plural: 'Configuraciones de empresas',
+  },
+  admin: {
+    group: 'Administración',
+  },
   access: {
     read: authenticated,
     update: adminOnly,
+    create: adminOnly,
+    delete: adminOnly,
   },
   fields: [
     {

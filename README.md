@@ -31,6 +31,7 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 
 | Decisión | Elegido | Descartado / motivo |
 |---|---|---|
+| Multi-tenancy | Plugin oficial `@payloadcms/plugin-multi-tenant` desde F1: colección `tenants`, campo tenant en todas las colecciones de negocio, `company-settings` como global por empresa (`isGlobal`). Producto opera **mono-tenant** (tenant "Martes") pero el esquema queda SaaS-ready | Retrofit posterior (migrar datos vivos + rehacer access control en cada colección, job y webhook). DB-per-tenant en Neon descartado: sobrecosto operativo para muchas pymes |
 | Publicación social | Meta Graph directo + OAuth embebido (app en Development Mode: cuentas propias, sin App Review) | Metricool API (requiere plan Advanced); Composio (tercero en camino crítico) queda como expansión futura a otras redes |
 | Orquestación interna | Payload Jobs Queue + cron externo | n8n / ActivePieces (duplican lógica y webhooks; se pueden añadir después sin rediseño) |
 | IA en background | Jobs Queue llamando LLM + pgvector para búsqueda semántica | "IA en Neon": Neon es Postgres puro, no tiene IA nativa |
@@ -62,7 +63,14 @@ CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Insta
 | `documents` | Contratos/facturas PDF por cliente (uploads) |
 | `segments` | Segmentos/tags (p. ej. rubro del lead) |
 | `notifications` | Centro de notificaciones internas |
-| `company-settings` (global) | Empresa, horarios, políticas de recordatorio, textos, zona horaria |
+| `company-settings` (global por tenant) | Empresa, horarios, políticas de recordatorio, textos, zona horaria |
+
+### Para ofrecer como servicio (SaaS) — pendiente, NO bloquea F2+
+El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide más adelante:
+- Onboarding/self-signup de nuevas empresas
+- Credenciales por tenant (app Meta propia, dominio Resend verificado, OAuth GCal) → fases F3–F7 se construyen tenant-aware desde el inicio
+- Billing: suscripciones, límites de uso
+- Roles diferenciados por membresía (hoy: rol global del usuario + aislamiento por pertenencia al tenant)
 
 ## Automatizaciones (Jobs Queue)
 
