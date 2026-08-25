@@ -6,6 +6,9 @@ export const Users: CollectionConfig = {
     useAsTitle: 'email',
   },
   auth: true,
+  access: {
+    read: ({ req }) => Boolean(req.user),
+  },
   fields: [
     // Email added by default
     // Add more fields as needed

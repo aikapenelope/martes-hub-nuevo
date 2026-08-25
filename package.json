@@ -16,9 +16,9 @@
     "test": "pnpm run test:int && pnpm run test:e2e",
     "test:e2e": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" playwright test --config=playwright.config.ts",
     "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts",
-    "migrate": "cross-env NODE_OPTIONS=--no-deprecation payload migrate",
-    "migrate:create": "cross-env NODE_OPTIONS=--no-deprecation payload migrate:create",
-    "migrate:status": "cross-env NODE_OPTIONS=--no-deprecation payload migrate:status",
+    "migrate": "cross-env NODE_OPTIONS=--no-deprecation node scripts/migrate.mjs migrate",
+    "migrate:create": "cross-env NODE_OPTIONS=--no-deprecation node scripts/migrate.mjs migrate:create",
+    "migrate:status": "cross-env NODE_OPTIONS=--no-deprecation node scripts/migrate.mjs migrate:status",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
