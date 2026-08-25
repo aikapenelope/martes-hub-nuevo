@@ -1,4 +1,5 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { payloadKanbanBoard } from 'payload-kanban-board'
@@ -16,10 +17,30 @@ import { Segments } from './collections/Segments'
 import { Documents } from './collections/Documents'
 import { Tenants } from './collections/Tenants'
 import { CompanySettings } from './collections/CompanySettings'
+import { Payments } from './collections/Payments'
+import { Memberships } from './collections/Memberships'
 import { importCsvHandler } from './endpoints/importCsv'
+import { paymentRemindersTask } from './jobs/paymentReminders'
+import { dailyDigestTask } from './jobs/dailyDigest'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
+
+const emailAdapter = process.env.RESEND_API_KEY
+  ? nodemailerAdapter({
+      defaultFromAddress: process.env.RESEND_FROM || 'onboarding@resend.dev',
+      defaultFromName: 'Martes Hub',
+      transportOptions: {
+        host: process.env.RESEND_SMTP_HOST || 'smtp.resend.com',
+        port: Number(process.env.RESEND_SMTP_PORT || 465),
+        secure: true,
+        auth: {
+          user: 'resend',
+          pass: process.env.RESEND_API_KEY,
+        },
+      },
+    })
+  : undefined
 
 export default buildConfig({
   admin: {
@@ -37,6 +58,8 @@ export default buildConfig({
     Segments,
     Documents,
     Media,
+    Payments,
+    Memberships,
     CompanySettings,
   ],
   plugins: [
@@ -64,10 +87,16 @@ export default buildConfig({
         segments: {},
         documents: {},
         media: {},
+        payments: {},
+        memberships: {},
         'company-settings': { isGlobal: true },
       },
     }),
   ],
+  email: emailAdapter,
+  jobs: {
+    tasks: [paymentRemindersTask, dailyDigestTask],
+  },
   editor: lexicalEditor(),
   endpoints: [
     {
