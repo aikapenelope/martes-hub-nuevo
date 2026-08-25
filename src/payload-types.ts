@@ -81,6 +81,8 @@ export interface Config {
     messages: Message;
     'message-templates': MessageTemplate;
     notifications: Notification;
+    'email-log': EmailLog;
+    'email-campaigns': EmailCampaign;
     'company-settings': CompanySetting;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
@@ -108,6 +110,8 @@ export interface Config {
     messages: MessagesSelect<false> | MessagesSelect<true>;
     'message-templates': MessageTemplatesSelect<false> | MessageTemplatesSelect<true>;
     notifications: NotificationsSelect<false> | NotificationsSelect<true>;
+    'email-log': EmailLogSelect<false> | EmailLogSelect<true>;
+    'email-campaigns': EmailCampaignsSelect<false> | EmailCampaignsSelect<true>;
     'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
@@ -511,6 +515,73 @@ export interface Notification {
   createdAt: string;
 }
 /**
+ * Registro de emails enviados. Lo escribe el sistema; los eventos de Resend actualizan el estado.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-log".
+ */
+export interface EmailLog {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  to: string;
+  from?: string | null;
+  subject: string;
+  /**
+   * queued→sent lo setea el envío; delivered/bounced/complained llegan por webhook de Resend
+   */
+  status: 'queued' | 'sent' | 'delivered' | 'bounced' | 'complained' | 'failed';
+  source: 'transactional' | 'campaign' | 'test';
+  /**
+   * email_id que devuelve la API; lo usa el webhook para actualizar el estado
+   */
+  providerMessageId?: string | null;
+  campaign?: (number | null) | EmailCampaign;
+  error?: string | null;
+  eventsJson?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-campaigns".
+ */
+export interface EmailCampaign {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  name: string;
+  subject: string;
+  /**
+   * Texto de vista previa en el inbox del destinatario
+   */
+  preheader?: string | null;
+  /**
+   * HTML del cuerpo. Se envuelve automáticamente con la plantilla base de la marca.
+   */
+  bodyHtml: string;
+  /**
+   * Destinatarios = leads + clientes de ese rubro con email válido
+   */
+  segment?: (number | null) | Segment;
+  status: 'draft' | 'sending' | 'sent' | 'partial' | 'failed';
+  /**
+   * Informativo en v1: el envío es manual desde el botón Enviar
+   */
+  scheduledAt?: string | null;
+  sentAt?: string | null;
+  sentCount?: number | null;
+  bouncedCount?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "company-settings".
  */
@@ -708,6 +779,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'notifications';
         value: number | Notification;
+      } | null)
+    | ({
+        relationTo: 'email-log';
+        value: number | EmailLog;
+      } | null)
+    | ({
+        relationTo: 'email-campaigns';
+        value: number | EmailCampaign;
       } | null)
     | ({
         relationTo: 'company-settings';
@@ -1001,6 +1080,43 @@ export interface NotificationsSelect<T extends boolean = true> {
   severity?: T;
   source?: T;
   read?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-log_select".
+ */
+export interface EmailLogSelect<T extends boolean = true> {
+  tenant?: T;
+  to?: T;
+  from?: T;
+  subject?: T;
+  status?: T;
+  source?: T;
+  providerMessageId?: T;
+  campaign?: T;
+  error?: T;
+  eventsJson?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-campaigns_select".
+ */
+export interface EmailCampaignsSelect<T extends boolean = true> {
+  tenant?: T;
+  name?: T;
+  subject?: T;
+  preheader?: T;
+  bodyHtml?: T;
+  segment?: T;
+  status?: T;
+  scheduledAt?: T;
+  sentAt?: T;
+  sentCount?: T;
+  bouncedCount?: T;
   updatedAt?: T;
   createdAt?: T;
 }

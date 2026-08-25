@@ -5,6 +5,7 @@ import * as migration_20260825_041101_f1d_kanban_fields from './20260825_041101_
 import * as migration_20260825_042019_f2_money_collections from './20260825_042019_f2_money_collections';
 import * as migration_20260825_044143_f3a_messaging_collections from './20260825_044143_f3a_messaging_collections';
 import * as migration_20260825_051138_f3d_notifications from './20260825_051138_f3d_notifications';
+import * as migration_20260825_071209_f5_email_collections from './20260825_071209_f5_email_collections';
 
 export const migrations = [
   {
@@ -40,6 +41,11 @@ export const migrations = [
   {
     up: migration_20260825_051138_f3d_notifications.up,
     down: migration_20260825_051138_f3d_notifications.down,
-    name: '20260825_051138_f3d_notifications'
+    name: '20260825_051138_f3d_notifications',
+  },
+  {
+    up: migration_20260825_071209_f5_email_collections.up,
+    down: migration_20260825_071209_f5_email_collections.down,
+    name: '20260825_071209_f5_email_collections'
   },
 ];
