@@ -1,8 +1,19 @@
 # Martes Hub
 
-CRM integral **privado** (una empresa, sus clientes): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, publicaciones en redes con métricas, formularios, citas y agente de IA conectado por MCP.
+CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, publicaciones en redes con métricas, formularios, citas y agente de IA conectado por MCP.
 
-**Estado actual:** Fase F0 — documentación y scaffolding.
+**Estado actual:** F2 completa · F3 (WhatsApp/IG vía OpenBSP hosted) en curso — ver `docs/plan-openbsp.md`.
+
+| Fase | Estado |
+|---|---|
+| F0 Fundaciones (scaffold + Neon + Vercel + migraciones en build) | ✅ |
+| F1 CRM core (colecciones, RBAC, timeline, kanban, CSV) | ✅ |
+| F1b Multi-tenant SaaS-ready (plugin oficial, mono-tenant operativo) | ✅ |
+| F2 Dinero (payments/memberships, recordatorios, digest) | ✅ |
+| F3a Modelo de mensajería | ✅ |
+| F3b/c Webhook + envío + Inbox en admin | 🔵 PR abierto — falta conectar credenciales hosted |
+| F3d Plantillas sync + errores Meta + contactos | ⬜ |
+| F4+ IA proactiva → Hardening | ⬜ |
 
 ---
 

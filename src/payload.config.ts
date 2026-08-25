@@ -25,6 +25,8 @@ import { MessageTemplates } from './collections/MessageTemplates'
 import { importCsvHandler } from './endpoints/importCsv'
 import { paymentRemindersTask } from './jobs/paymentReminders'
 import { dailyDigestTask } from './jobs/dailyDigest'
+import { openbspWebhookHandler } from './endpoints/openbspWebhook'
+import { replyConversationHandler } from './endpoints/replyConversation'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -50,6 +52,15 @@ export default buildConfig({
     user: Users.slug,
     importMap: {
       baseDir: path.resolve(dirname),
+    },
+    components: {
+      views: {
+        inbox: {
+          path: '/inbox',
+          exact: true,
+          Component: '/views/Inbox#InboxView',
+        },
+      },
     },
   },
   collections: [
@@ -112,6 +123,16 @@ export default buildConfig({
       path: '/import-csv',
       method: 'post',
       handler: importCsvHandler,
+    },
+    {
+      path: '/webhooks/openbsp',
+      method: 'post',
+      handler: openbspWebhookHandler,
+    },
+    {
+      path: '/messaging/reply',
+      method: 'post',
+      handler: replyConversationHandler,
     },
   ],
   secret: process.env.PAYLOAD_SECRET || '',
