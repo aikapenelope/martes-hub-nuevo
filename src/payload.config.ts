@@ -31,6 +31,8 @@ import { openbspErrorsTask } from './jobs/openbspErrorLog'
 import { Notifications } from './collections/Notifications'
 import { EmailLog } from './collections/EmailLog'
 import { EmailCampaigns } from './collections/EmailCampaigns'
+import { Offers } from './collections/Offers'
+import { invoicePdf, builtInTemplates } from 'payload-invoicepdf'
 import { openbspWebhookHandler } from './endpoints/openbspWebhook'
 import { replyConversationHandler } from './endpoints/replyConversation'
 import { followupsHoyHandler } from './endpoints/followupsHoy'
@@ -85,6 +87,7 @@ export default buildConfig({
     Notifications,
     EmailLog,
     EmailCampaigns,
+    Offers,
     CompanySettings,
   ],
   plugins: [
@@ -107,6 +110,26 @@ export default buildConfig({
         },
       },
     }),
+    invoicePdf({
+      productCollection: 'offers',
+      productFieldMapping: {
+        name: 'name',
+        price: 'price',
+        description: 'description',
+      },
+      templates: [...builtInTemplates],
+      customerCollection: 'clients',
+      customerFieldMapping: {
+        name: 'name',
+        email: 'email',
+      },
+      mediaCollection: 'media',
+      currency: '$',
+      defaultTaxRate: 0.16,
+      defaultPaymentTerms: 30,
+      invoiceNumberPrefix: 'INV',
+      quoteNumberPrefix: 'COT',
+    }),
     multiTenantPlugin({
       collections: {
         clients: {},
@@ -123,6 +146,7 @@ export default buildConfig({
         notifications: {},
         'email-log': {},
         'email-campaigns': {},
+        offers: {},
         'company-settings': { isGlobal: true },
       },
     }),

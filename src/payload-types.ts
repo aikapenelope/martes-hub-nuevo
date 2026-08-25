@@ -83,9 +83,12 @@ export interface Config {
     notifications: Notification;
     'email-log': EmailLog;
     'email-campaigns': EmailCampaign;
+    offers: Offer;
     'company-settings': CompanySetting;
     exports: Export;
     imports: Import;
+    invoices: Invoice;
+    quotes: Quote;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
@@ -114,9 +117,12 @@ export interface Config {
     notifications: NotificationsSelect<false> | NotificationsSelect<true>;
     'email-log': EmailLogSelect<false> | EmailLogSelect<true>;
     'email-campaigns': EmailCampaignsSelect<false> | EmailCampaignsSelect<true>;
+    offers: OffersSelect<false> | OffersSelect<true>;
     'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
     exports: ExportsSelect<false> | ExportsSelect<true>;
     imports: ImportsSelect<false> | ImportsSelect<true>;
+    invoices: InvoicesSelect<false> | InvoicesSelect<true>;
+    quotes: QuotesSelect<false> | QuotesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -128,9 +134,11 @@ export interface Config {
   };
   fallbackLocale: null;
   globals: {
+    'shop-info': ShopInfo;
     'payload-jobs-stats': PayloadJobsStat;
   };
   globalsSelect: {
+    'shop-info': ShopInfoSelect<false> | ShopInfoSelect<true>;
     'payload-jobs-stats': PayloadJobsStatsSelect<false> | PayloadJobsStatsSelect<true>;
   };
   locale: null;
@@ -588,6 +596,32 @@ export interface EmailCampaign {
   createdAt: string;
 }
 /**
+ * Catálogo de productos/servicios: alimenta cotizaciones y facturas
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "offers".
+ */
+export interface Offer {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  name: string;
+  /**
+   * Precio base sin impuestos; el IVA se aplica al cotizar/facturar
+   */
+  price: number;
+  description?: string | null;
+  /**
+   * Para qué tipo de cliente aplica este offer
+   */
+  segment?: (number | null) | Segment;
+  /**
+   * Los inactivos no se ofrecen en nuevas cotizaciones
+   */
+  active?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "company-settings".
  */
@@ -678,6 +712,144 @@ export interface Import {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "invoices".
+ */
+export interface Invoice {
+  id: number;
+  issueDate?: string | null;
+  dueDate?: string | null;
+  client: {
+    /**
+     * Select a customer to auto-fill client details
+     */
+    customer?: (number | null) | Client;
+    name: string;
+    email?: string | null;
+    address?: {
+      street?: string | null;
+      city?: string | null;
+      postalCode?: string | null;
+      country?: string | null;
+    };
+    vatNumber?: string | null;
+  };
+  items?:
+    | {
+        /**
+         * Select a product to auto-fill description and price
+         */
+        product?: (number | null) | Offer;
+        /**
+         * Auto-filled when a product is selected. Changing the product overrides this value.
+         */
+        description: string;
+        quantity: number;
+        /**
+         * Auto-filled when a product is selected. Changing the product overrides this value.
+         */
+        unitPrice: number;
+        taxRate?: number | null;
+        lineTotal?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  notes?: string | null;
+  subtotal?: number | null;
+  taxTotal?: number | null;
+  total?: number | null;
+  generatedPdfs?: (number | Media)[] | null;
+  lastSentAt?: string | null;
+  sendHistory?:
+    | {
+        sentAt?: string | null;
+        to?: string | null;
+        templateUsed?: string | null;
+        subject?: string | null;
+        attachedPdf?: (number | null) | Media;
+        sentBy?: (number | null) | User;
+        id?: string | null;
+      }[]
+    | null;
+  invoiceNumber?: string | null;
+  status?: ('draft' | 'sent' | 'paid' | 'overdue' | 'cancelled') | null;
+  template?: ('Classic' | 'Modern' | 'Minimal' | 'Bold') | null;
+  sourceQuote?: (number | null) | Quote;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "quotes".
+ */
+export interface Quote {
+  id: number;
+  issueDate?: string | null;
+  validUntil?: string | null;
+  client: {
+    /**
+     * Select a customer to auto-fill client details
+     */
+    customer?: (number | null) | Client;
+    name: string;
+    email?: string | null;
+    address?: {
+      street?: string | null;
+      city?: string | null;
+      postalCode?: string | null;
+      country?: string | null;
+    };
+    vatNumber?: string | null;
+  };
+  items?:
+    | {
+        /**
+         * Select a product to auto-fill description and price
+         */
+        product?: (number | null) | Offer;
+        /**
+         * Auto-filled when a product is selected. Changing the product overrides this value.
+         */
+        description: string;
+        quantity: number;
+        /**
+         * Auto-filled when a product is selected. Changing the product overrides this value.
+         */
+        unitPrice: number;
+        taxRate?: number | null;
+        lineTotal?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  notes?: string | null;
+  subtotal?: number | null;
+  taxTotal?: number | null;
+  total?: number | null;
+  acceptToken?: string | null;
+  rejectToken?: string | null;
+  tokenExpiresAt?: string | null;
+  rejectionReason?: string | null;
+  generatedPdfs?: (number | Media)[] | null;
+  lastSentAt?: string | null;
+  sendHistory?:
+    | {
+        sentAt?: string | null;
+        to?: string | null;
+        templateUsed?: string | null;
+        subject?: string | null;
+        attachedPdf?: (number | null) | Media;
+        sentBy?: (number | null) | User;
+        id?: string | null;
+      }[]
+    | null;
+  quoteNumber?: string | null;
+  status?: ('draft' | 'sent' | 'accepted' | 'rejected' | 'expired') | null;
+  template?: ('Classic' | 'Modern' | 'Minimal' | 'Bold') | null;
+  relatedInvoices?: (number | Invoice)[] | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -886,8 +1058,20 @@ export interface PayloadLockedDocument {
         value: number | EmailCampaign;
       } | null)
     | ({
+        relationTo: 'offers';
+        value: number | Offer;
+      } | null)
+    | ({
         relationTo: 'company-settings';
         value: number | CompanySetting;
+      } | null)
+    | ({
+        relationTo: 'invoices';
+        value: number | Invoice;
+      } | null)
+    | ({
+        relationTo: 'quotes';
+        value: number | Quote;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1219,6 +1403,20 @@ export interface EmailCampaignsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "offers_select".
+ */
+export interface OffersSelect<T extends boolean = true> {
+  tenant?: T;
+  name?: T;
+  price?: T;
+  description?: T;
+  segment?: T;
+  active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "company-settings_select".
  */
 export interface CompanySettingsSelect<T extends boolean = true> {
@@ -1288,6 +1486,126 @@ export interface ImportsSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "invoices_select".
+ */
+export interface InvoicesSelect<T extends boolean = true> {
+  issueDate?: T;
+  dueDate?: T;
+  client?:
+    | T
+    | {
+        customer?: T;
+        name?: T;
+        email?: T;
+        address?:
+          | T
+          | {
+              street?: T;
+              city?: T;
+              postalCode?: T;
+              country?: T;
+            };
+        vatNumber?: T;
+      };
+  items?:
+    | T
+    | {
+        product?: T;
+        description?: T;
+        quantity?: T;
+        unitPrice?: T;
+        taxRate?: T;
+        lineTotal?: T;
+        id?: T;
+      };
+  notes?: T;
+  subtotal?: T;
+  taxTotal?: T;
+  total?: T;
+  generatedPdfs?: T;
+  lastSentAt?: T;
+  sendHistory?:
+    | T
+    | {
+        sentAt?: T;
+        to?: T;
+        templateUsed?: T;
+        subject?: T;
+        attachedPdf?: T;
+        sentBy?: T;
+        id?: T;
+      };
+  invoiceNumber?: T;
+  status?: T;
+  template?: T;
+  sourceQuote?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "quotes_select".
+ */
+export interface QuotesSelect<T extends boolean = true> {
+  issueDate?: T;
+  validUntil?: T;
+  client?:
+    | T
+    | {
+        customer?: T;
+        name?: T;
+        email?: T;
+        address?:
+          | T
+          | {
+              street?: T;
+              city?: T;
+              postalCode?: T;
+              country?: T;
+            };
+        vatNumber?: T;
+      };
+  items?:
+    | T
+    | {
+        product?: T;
+        description?: T;
+        quantity?: T;
+        unitPrice?: T;
+        taxRate?: T;
+        lineTotal?: T;
+        id?: T;
+      };
+  notes?: T;
+  subtotal?: T;
+  taxTotal?: T;
+  total?: T;
+  acceptToken?: T;
+  rejectToken?: T;
+  tokenExpiresAt?: T;
+  rejectionReason?: T;
+  generatedPdfs?: T;
+  lastSentAt?: T;
+  sendHistory?:
+    | T
+    | {
+        sentAt?: T;
+        to?: T;
+        templateUsed?: T;
+        subject?: T;
+        attachedPdf?: T;
+        sentBy?: T;
+        id?: T;
+      };
+  quoteNumber?: T;
+  status?: T;
+  template?: T;
+  relatedInvoices?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1363,6 +1681,33 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "shop-info".
+ */
+export interface ShopInfo {
+  id: number;
+  companyName: string;
+  companyLogo?: (number | null) | Media;
+  address?: {
+    street?: string | null;
+    city?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+  };
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  vatNumber?: string | null;
+  siret?: string | null;
+  iban?: string | null;
+  bic?: string | null;
+  bankName?: string | null;
+  legalMentions?: string | null;
+  defaultPaymentTerms?: number | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-jobs-stats".
  */
 export interface PayloadJobsStat {
@@ -1378,6 +1723,35 @@ export interface PayloadJobsStat {
     | null;
   updatedAt?: string | null;
   createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "shop-info_select".
+ */
+export interface ShopInfoSelect<T extends boolean = true> {
+  companyName?: T;
+  companyLogo?: T;
+  address?:
+    | T
+    | {
+        street?: T;
+        city?: T;
+        postalCode?: T;
+        country?: T;
+      };
+  phone?: T;
+  email?: T;
+  website?: T;
+  vatNumber?: T;
+  siret?: T;
+  iban?: T;
+  bic?: T;
+  bankName?: T;
+  legalMentions?: T;
+  defaultPaymentTerms?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1470,6 +1844,7 @@ export interface TaskCreateCollectionExport {
       | 'notifications'
       | 'email-log'
       | 'email-campaigns'
+      | 'offers'
       | 'company-settings'
       | 'exports'
       | 'imports';

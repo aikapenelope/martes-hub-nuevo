@@ -14,8 +14,10 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | F3b/c Webhook + envío + Inbox en admin | ✅ mergeado (#10) |
 | F3d Plantillas sync + errores Meta + contactos + notificaciones | 🔵 PR #11 |
 | F4 Seguimiento proactivo determinista (lista "Hoy" + click-to-chat) · agente reactivo vive en OpenBSP | ✅ código (#13) — pendiente conexión real del número y agente |
-| F5 Email (Resend: adaptador oficial + campaigns + log + webhooks bounce) | 🔵 en curso |
-| F6–F10 Apify · Social · Formularios · Hermes/Tasks · Hardening | ⬜ |
+| F5 Email (Resend: adaptador oficial + campaigns + log + webhooks bounce) | ✅ código (#14) — pendiente credenciales Resend |
+| F6 Leads por Apify | ❌ descartada — import manual CSV/JSON con plugin oficial; opción futura: Hermes + MCP de Apify en F9 |
+| Facturación y cotizaciones (`payload-invoicepdf`) | 🔵 en curso |
+| F7–F10 Social · Formularios · Hermes/Tasks · Hardening | ⬜ |
 
 **Cómo vamos:** infraestructura y CRM operativos en producción (admin, cobros con recordatorios, digest diario). Canal WhatsApp/IG construido y probado E2E de punta a punta salvo la llamada HTTP final, que espera únicamente las credenciales hosted de OpenBSP (API key + conectar número). Tras F4 el sistema dice a quién escribirle hoy, el dueño abre la conversación sin costo y el agente de OpenBSP continúa sola.
 
@@ -54,6 +56,8 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | Observabilidad | Logs/métricas nativas Vercel + Neon | Sentry (opcional futuro; sistema privado) |
 | Task manager | Colección `tasks` propia + vista kanban (evaluar plugin comunitario `payload-kanban-board` como base visual) | Ningún equivalente ClickUp existe sobre Payload; la ventaja es la interconexión nativa con todo el CRM |
 | Import/Export de datos | Plugin oficial `@payloadcms/plugin-import-export` (UI en admin, CSV/JSON, preview, upsert) sobre leads/clients/payments | Endpoint casero `importCsv` queda como respaldo hasta validar el plugin con multi-tenant; community plugins de import/export descartados (menor mantenimiento) |
+| Facturas y cotizaciones | Plugin `payload-invoicepdf`: colecciones invoices/quotes, PDF vía `@react-pdf/renderer` (serverless sin Chrome), autofill desde `clients`/`offers`, envío por email con adjunto (Resend), link de aceptación de cotizaciones. **Solo documento comercial interno — sin cumplimiento fiscal SENIAT** | Construir facturación propia sobre pdfkit (más código, mismo resultado); e-factura fiscal (no requerido) |
+| Scraping de leads (Apify / F6) | Fase descartada: import manual de datasets CSV/JSON cubre el volumen actual. Opción futura documentada: Hermes corre actores vía MCP oficial de Apify (`mcp.apify.com`) cuando exista (F9) | Webhook automático actor→CRM (over-engineering para el volumen actual) |
 
 ## Modelo de datos (colecciones)
 
@@ -69,7 +73,8 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | `payments` | Tracking USD: monto, vencimiento, estado, método |
 | `memberships` | Ciclo de membresía: inicio, renovación, estado |
 | `appointments` | Citas sincronizadas de Google Calendar |
-| `offers` | Catálogo de productos/servicios (alimenta sugerencias del agente) |
+| `offers` | Catálogo de productos/servicios (alimenta cotizaciones, facturas y sugerencias del agente) |
+| `invoices` / `quotes` / `shop-info` (plugin invoicepdf) | Facturación comercial interna: line items, IVA, numeración automática, PDFs versionados en Media, envío por email y aceptación de cotizaciones por link |
 | `social-accounts` | Cuentas IG/FB (tokens cifrados, expiración) |
 | `social-posts` / `post-metrics` | Contenido: draft→scheduled→published/failed; métricas diarias (views, reach, likes…) |
 | `scrape-runs` | Ejecuciones Apify (actor, run ID, dataset, estado) |
@@ -164,10 +169,14 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 - Pendiente (usuario): cuenta Resend + dominio verificado + `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET` y registro del webhook en su dashboard.
 - Done when: campaña de prueba enviada y loggeada; bounce registrado por webhook.
 
-### F6 — Leads por Apify
-- Objetivo: prospectos llegan solos, limpios y clasificados.
-- Tareas: actor de scraping, webhook → `scrape-runs`, normalización a `leads` con rubro, dedupe por teléfono/email.
-- Done when: run real genera leads deduplicados etiquetados por rubro.
+### F6 — Facturación y cotizaciones (antes: Leads por Apify, descartada)
+- Objetivo: cotizar y facturar sin salir del CRM (documento comercial interno, no fiscal).
+- Tareas:
+  - Plugin `payload-invoicepdf`: colecciones `invoices`/`quotes` + global `shop-info`, PDFs con `@react-pdf/renderer` guardados en `media`.
+  - Colección `offers` (catálogo): nombre, precio USD, descripción — alimenta el autofill de line items.
+  - Autofill de cliente desde `clients`; envío por email con adjunto vía Resend; link público tokenizado para aceptar/rechazar cotizaciones → genera factura borrador.
+  - Config: moneda `$` USD · IVA por defecto 16% · términos 30 días · prefijos INV/COT.
+- Done when: cotización creada desde un offer se descarga en PDF y su aceptación genera factura borrador.
 
 ### F7 — Publicaciones sociales + métricas
 - Objetivo: calendario editorial con publicación determinística y medición.
