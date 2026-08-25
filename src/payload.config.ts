@@ -7,6 +7,12 @@ import sharp from 'sharp'
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
+import { Clients } from './collections/Clients'
+import { Leads } from './collections/Leads'
+import { Activities } from './collections/Activities'
+import { Segments } from './collections/Segments'
+import { Documents } from './collections/Documents'
+import { CompanySettings } from './globals/CompanySettings'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -18,7 +24,8 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media],
+  collections: [Users, Clients, Leads, Activities, Segments, Documents, Media],
+  globals: [CompanySettings],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
@@ -32,9 +39,7 @@ export default buildConfig({
     migrationDir: './src/migrations',
   }),
   sharp,
-  localization: {
-    locales: ['en'],
-    fallback: true,
-    defaultLocale: 'en',
+  i18n: {
+    fallbackLanguage: 'es',
   },
 })
