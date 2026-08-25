@@ -1,6 +1,7 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import { payloadKanbanBoard } from 'payload-kanban-board'
 import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
@@ -38,6 +39,22 @@ export default buildConfig({
     CompanySettings,
   ],
   plugins: [
+    payloadKanbanBoard({
+      collections: {
+        leads: {
+          enabled: true,
+          config: {
+            statuses: [
+              { value: 'nuevo', label: 'Nuevo' },
+              { value: 'contactado', label: 'Contactado' },
+              { value: 'calificado', label: 'Calificado' },
+              { value: 'descartado', label: 'Descartado' },
+            ],
+            defaultStatus: 'nuevo',
+          },
+        },
+      },
+    }),
     multiTenantPlugin({
       collections: {
         clients: {},

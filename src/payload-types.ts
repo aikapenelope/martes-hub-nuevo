@@ -263,6 +263,8 @@ export interface Lead {
    * Se llena automáticamente al convertir el lead
    */
   convertedClient?: (number | null) | Client;
+  kanbanStatus?: ('nuevo' | 'contactado' | 'calificado' | 'descartado') | null;
+  kanbanOrderRank?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -503,6 +505,8 @@ export interface LeadsSelect<T extends boolean = true> {
   segment?: T;
   notes?: T;
   convertedClient?: T;
+  kanbanStatus?: T;
+  kanbanOrderRank?: T;
   updatedAt?: T;
   createdAt?: T;
 }
