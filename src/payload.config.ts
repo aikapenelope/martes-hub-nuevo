@@ -25,6 +25,9 @@ import { MessageTemplates } from './collections/MessageTemplates'
 import { importCsvHandler } from './endpoints/importCsv'
 import { paymentRemindersTask } from './jobs/paymentReminders'
 import { dailyDigestTask } from './jobs/dailyDigest'
+import { syncTemplatesTask } from './jobs/syncTemplates'
+import { openbspErrorsTask } from './jobs/openbspErrorLog'
+import { Notifications } from './collections/Notifications'
 import { openbspWebhookHandler } from './endpoints/openbspWebhook'
 import { replyConversationHandler } from './endpoints/replyConversation'
 
@@ -77,6 +80,7 @@ export default buildConfig({
     Conversations,
     Messages,
     MessageTemplates,
+    Notifications,
     CompanySettings,
   ],
   plugins: [
@@ -109,13 +113,14 @@ export default buildConfig({
         conversations: {},
         messages: {},
         'message-templates': {},
+        notifications: {},
         'company-settings': { isGlobal: true },
       },
     }),
   ],
   email: emailAdapter,
   jobs: {
-    tasks: [paymentRemindersTask, dailyDigestTask],
+    tasks: [paymentRemindersTask, dailyDigestTask, syncTemplatesTask, openbspErrorsTask],
   },
   editor: lexicalEditor(),
   endpoints: [

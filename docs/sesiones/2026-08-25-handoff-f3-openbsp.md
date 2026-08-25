@@ -40,3 +40,20 @@ Plan maestro de fases: `README.md` · Plan OpenBSP: `docs/plan-openbsp.md`.
 - Webhook OpenBSP: Bearer `OPENBSP_WEBHOOK_TOKEN` (en `.env` local, NO commiteado)
 - MCP activos en opencode: Context7, Supabase, **Neon** (proyecto `martesapp` = `rapid-bonus-33572154`, DB `neondb`, pgvector ON)
 - Usuario responde en español; respuestas concisas
+
+## Actualización F3d (mismo día, PR #11)
+- **F3 completa al 100% salvo conexión real**: sync de plantillas (job diario), poll de errores Meta → notificaciones (cada 6h), enriquecimiento de contactos en el webhook (verificado E2E: `Ana Enrichida`).
+- Colección nueva: `notifications` (tenant-aware, escritura solo sistema).
+- Ambos jobs nuevos se saltan solos con motivo (`skippedReason`) hasta que existan credenciales hosted.
+- Sigue pendiente lo mismo del usuario: merge PRs, credenciales hosted cuando toque, PR #2 viejo, roadmap V3, API key Neon vieja, CI.
+
+## Actualización final de sesión (F3d en PR #11, incluye roadmap)
+- PR #11 = F3d completo + README actualizado (tabla de estado + sección F4 detallada).
+- **Sesión siguiente: empezar aquí.** Orden: ① merge #11 ② conectar OpenBSP real (creds del dashboard) y E2E con WhatsApp real ③ F4: sequences + lead-follow-up (usa client.ts ya listo; se detiene si el lead responde) + generate-summary (LLM pendiente de elegir) + score-engagement.
+- Contexto de esta sesión agotado — NO continuar aquí.
+
+## Post-mortem: por qué fallaba tanto Vercel (3 veces)
+Causa raíz idéntica en los 3 casos: se pusheó código verificado solo con `typecheck`/`lint`, pero Vercel ejecuta `pnpm migrate && pnpm build` — y `next build` compila TODO (scripts/, vistas .tsx, etc.) encontrando errores que tsc no vio en ese momento:
+1. PR #10: edición a mano borró el guard `if (selected)` en Inbox.tsx.
+2. PR #11: script desechable `test-f3d-fixture.ts` commiteado después de la última verificación.
+Prevención ya aplicada: `pnpm verify` (= migrate+build+lint, espejo de Vercel) es OBLIGATORIO antes de cada push. Regla escrita en README → Convenciones.

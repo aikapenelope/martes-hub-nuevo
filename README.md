@@ -2,7 +2,7 @@
 
 CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, publicaciones en redes con métricas, formularios, citas y agente de IA conectado por MCP.
 
-**Estado actual:** F2 completa · F3 (WhatsApp/IG vía OpenBSP hosted) en curso — ver `docs/plan-openbsp.md`.
+**Estado actual:** F0–F2 en producción · **F3 completa** (PR #11) · siguiente: **F4 — IA proactiva**. Detalle OpenBSP: `docs/plan-openbsp.md`.
 
 | Fase | Estado |
 |---|---|
@@ -11,9 +11,12 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | F1b Multi-tenant SaaS-ready (plugin oficial, mono-tenant operativo) | ✅ |
 | F2 Dinero (payments/memberships, recordatorios, digest) | ✅ |
 | F3a Modelo de mensajería | ✅ |
-| F3b/c Webhook + envío + Inbox en admin | 🔵 PR abierto — falta conectar credenciales hosted |
-| F3d Plantillas sync + errores Meta + contactos | ⬜ |
-| F4+ IA proactiva → Hardening | ⬜ |
+| F3b/c Webhook + envío + Inbox en admin | ✅ mergeado (#10) |
+| F3d Plantillas sync + errores Meta + contactos + notificaciones | 🔵 PR #11 |
+| F4 IA proactiva (sequences, follow-up, summaries pgvector) | ⬜ siguiente — requiere proveedor LLM y conexión real del número para envíos |
+| F5–F10 Email · Apify · Social · Formularios · Hermes/MCP/Tasks · Hardening | ⬜ |
+
+**Cómo vamos:** infraestructura y CRM operativos en producción (admin, cobros con recordatorios, digest diario). Canal WhatsApp/IG construido y probado E2E de punta a punta salvo la llamada HTTP final, que espera únicamente las credenciales hosted de OpenBSP (API key + conectar número). Tras F4 el sistema ya sigue leads solo.
 
 ---
 
@@ -139,7 +142,12 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 
 ### F4 — IA proactiva
 - Objetivo: seguimiento automático que conversa y resume.
-- Tareas: `sequences` configurables, job `lead-follow-up` con plantillas, `generate-summary` con embeddings pgvector, score de engagement.
+- Tareas:
+  - Colección `sequences` (tenant-aware): pasos con espera en días, canal (whatsapp/email), plantilla o texto, condición de salida.
+  - Job `lead-follow-up` (horario): ejecuta secuencias día 1/3/7 sobre leads sin respuesta usando `src/integrations/openbsp/client.ts` (texto dentro de ventana 24h, plantilla fuera); **se detiene** cuando el lead responde (chequeo de mensajes entrantes posteriores al último paso).
+  - Job `generate-summary`: al cerrar conversación + semanal; resumen por cliente vía LLM + embeddings `pgvector` (extensión ya activada) guardados en `conversation-summaries`.
+  - Job `score-engagement` (cada hora): puntaje por cliente para la lista "Hoy".
+  - Requiere decidir proveedor LLM y su API key (puede delegarse después a Hermes vía MCP).
 - Done when: lead sin responder recibe secuencia día 1/3/7 y se detiene al responder; resumen visible en ficha del cliente.
 
 ### F5 — Email automatizado (Resend)
@@ -177,6 +185,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 - Git: commits convencionales (`type(scope): descripción`); **PRs obligatorios** tras el README inicial — nadie mergea directo a `main` (el merge lo hace el dueño del repo).
 - Identidad git: `AngelDelN <57774536+aikapenelope@users.noreply.github.com>`.
 - Calidad: todo sprint cierra con typecheck + lint sin errores (y tests donde existan).
+- **Antes de CADA push**: correr `pnpm verify` (migrate + build + lint). Es exactamente lo que ejecuta Vercel; `typecheck`/`lint` solos NO bastan — `next build` compila también scripts y vistas cliente y detecta errores que se le escapan a tsc. Los fallos repetidos de deploy de Vercel en agosto 2025 vinieron todos de empujar sin este paso.
 - Seguridad: secretos solo en variables de entorno (Vercel/local `.env` nunca commiteado); tokens OAuth cifrados en BD.
 - Diagrama del sistema: `docs/diagrams/sistema.excalidraw` (editable en excalidraw.com o VS Code).
 
