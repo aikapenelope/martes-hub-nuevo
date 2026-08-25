@@ -57,7 +57,9 @@ export default buildConfig({
     },
     components: {
       views: {
-        dashboard: {
+        dashboardHermes: {
+          path: '/dashboard',
+          exact: true,
           Component: '/views/Dashboard#DashboardView',
         },
         inbox: {
@@ -71,6 +73,7 @@ export default buildConfig({
           Component: '/views/Hoy#HoyView',
         },
       },
+      afterNavLinks: ['/components/DashboardNavLink#DashboardNavLink'],
     },
   },
   collections: [
