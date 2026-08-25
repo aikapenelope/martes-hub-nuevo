@@ -91,7 +91,6 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 |---|---|---|
 | `publish-scheduled-posts` | 5 min | Publica `social-posts` vencidos vía Graph API |
 | `sync-gcal` | 15 min | Sincroniza citas de Google Calendar |
-| `score-engagement` | cada hora | Determinista, sin IA ni ML: reglas aritméticas fijas (días desde último contacto, etapa, respondió o no) → ordena la lista "Hoy" del admin |
 | `payment-reminders` | diario 08:00 UTC-4 | Cobros por vencer/vencidos → WhatsApp plantilla + email |
 | `fetch-social-metrics` | diario | Métricas IG/FB → `post-metrics` |
 | `refresh-tokens` | diario | Renueva long-lived tokens Meta (~55 días) |
@@ -145,7 +144,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
   - **Cuando el lead responde, el agente de OpenBSP continúa solo** (ventana 24h abierta). El webhook F3 ya espeja entrantes Y salientes (incluidos los del agente) a `conversations`/`messages`.
   - Opción futura (no bloquea): disparar al agente proactivamente vía API/MCP de OpenBSP → requiere plantilla business-initiated (costo Meta); se evalúa con datos reales.
 - Tareas:
-  - Job `score-engagement` (horario): prioridad por reglas aritméticas fijas — días desde el último contacto, etapa del lead, si respondió. Aritmética pura, sin IA ni LLM.
+  - Prioridad de seguimiento **calculada en vivo** (sin job ni cron): endpoint `GET /api/followups/hoy` rankea con reglas aritméticas fijas — días desde el último contacto, etapa del lead, si respondió (aritmética pura, sin IA ni LLM). Si el lead respondió hace menos de 24h sale solo de la lista: stop-on-reply estructural.
   - Vista admin **"Hoy"**: lista ordenada de seguimientos pendientes con nombre, etapa, motivo ("3 días sin respuesta"), score y botón WhatsApp click-to-chat con borrador de mensaje; marca seguimiento hecho al detectar respuesta entrante.
   - Verificaciones E2E al conectar el número real: (1) los mensajes salientes del agente OpenBSP llegan por webhook y se espejan como `outbound`; (2) el registro del webhook soporta el header `Authorization: Bearer OPENBSP_WEBHOOK_TOKEN` — si la tabla `webhooks` no permite headers, mover el token a query param firmado; (3) `listTemplates()` contra `/rest/v1/templates` devuelve filas — si no, migrar a `/functions/v1/whatsapp-management/templates`.
   - Configuración del agente reactivo (usuario, en dashboard OpenBSP): elegir LLM (BYO API key para no gastar AI credits), prompt base, alcance de conversaciones.
