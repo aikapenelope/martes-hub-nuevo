@@ -13,8 +13,9 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | F3a Modelo de mensajería | ✅ |
 | F3b/c Webhook + envío + Inbox en admin | ✅ mergeado (#10) |
 | F3d Plantillas sync + errores Meta + contactos + notificaciones | 🔵 PR #11 |
-| F4 Seguimiento proactivo determinista (lista "Hoy" + click-to-chat) · agente reactivo vive en OpenBSP | ⬜ siguiente — requiere conexión real del número |
-| F5–F10 Email · Apify · Social · Formularios · Hermes/Tasks · Hardening | ⬜ |
+| F4 Seguimiento proactivo determinista (lista "Hoy" + click-to-chat) · agente reactivo vive en OpenBSP | ✅ código (#13) — pendiente conexión real del número y agente |
+| F5 Email (Resend: adaptador oficial + campaigns + log + webhooks bounce) | 🔵 en curso |
+| F6–F10 Apify · Social · Formularios · Hermes/Tasks · Hardening | ⬜ |
 
 **Cómo vamos:** infraestructura y CRM operativos en producción (admin, cobros con recordatorios, digest diario). Canal WhatsApp/IG construido y probado E2E de punta a punta salvo la llamada HTTP final, que espera únicamente las credenciales hosted de OpenBSP (API key + conectar número). Tras F4 el sistema dice a quién escribirle hoy, el dueño abre la conversación sin costo y el agente de OpenBSP continúa sola.
 
@@ -28,7 +29,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | Base de datos | Neon Postgres (adapter `@payloadcms/db-postgres`, connection string *pooled*, SSL) + `pgvector` |
 | Hosting | Vercel (serverless) + scheduler externo gratuito para crons sub-diarios (fase inicial) |
 | Mensajería | OpenBSP (`matiasbattocchia/open-bsp-api`) sobre Meta Cloud API: WhatsApp + Instagram DM |
-| Email | Resend (transporte Nodemailer nativo de Payload) |
+| Email | Resend vía adaptador oficial `@payloadcms/email-resend` (API HTTP, no SMTP) |
 | Ingesta de leads | Apify (actors → webhook → colección `leads`) |
 | Formularios | Tally (webhooks firmados → `form-submissions`) |
 | Citas | Google Calendar API v3 (solo lectura; el agente de OpenBSP crea las citas) |
@@ -104,7 +105,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 | Neon | `DATABASE_URL` (pooled, SSL) | Proyecto nuevo; activar pgvector |
 | OpenBSP | Org + `api-key` (+ `apikey` pública Supabase) | Webhook con `callback_url` + `verify_token`; envío por REST |
 | Meta (Graph API) | App propia: `META_APP_ID`, `META_APP_SECRET` | Registro único guiado; OAuth embebido después; Development Mode |
-| Resend | `RESEND_API_KEY` | Verificar dominio de envío |
+| Resend | `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` | Verificar dominio de envío; webhook de bounce/complaint en dashboard Resend → `/api/webhooks/resend` |
 | Apify | `APIFY_TOKEN` | Webhook de fin de actor → `/api/webhooks/apify` |
 | Tally | Webhook firmado por formulario | HMAC compartido en env |
 | Google Calendar | OAuth client JSON | Solo lectura del calendario de citas |
@@ -152,9 +153,15 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 - Done when: la lista "Hoy" muestra los leads correctos con su link; el usuario abre conversación manualmente, el lead responde y el agente de OpenBSP le contesta solo, quedando todo espejado en el CRM.
 
 ### F5 — Email automatizado (Resend)
-- Objetivo: transaccionales + campañas.
-- Tareas: transporte Resend, dominio verificado, `email-campaigns`/`email-log`, plantillas base.
-- Done when: campaña de prueba enviada y loggeada; bounce registrado.
+- Objetivo: transaccionales + campañas con log y detección de bounces.
+- Construido:
+  - Adaptador oficial `@payloadcms/email-resend` (API HTTP; reemplaza el SMTP vía nodemailer).
+  - Colecciones `email-log` (registro por destinatario, estado actualizado por webhook) y `email-campaigns` (asunto, cuerpo HTML, audiencia por rubro, stats) — tenant-aware.
+  - Plantilla base HTML (`src/email/layout.ts`) con preheader y footer de baja.
+  - Envío de campaña: `POST /api/email-campaigns/:id/send` — destinatarios = leads + clientes del rubro con email, dedupe, tope 200, cada envío queda en `email-log`.
+  - Webhook Resend `/api/webhooks/resend` (firma Svix): delivered/bounced/complained/failed actualizan el `email-log`.
+- Pendiente (usuario): cuenta Resend + dominio verificado + `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET` y registro del webhook en su dashboard.
+- Done when: campaña de prueba enviada y loggeada; bounce registrado por webhook.
 
 ### F6 — Leads por Apify
 - Objetivo: prospectos llegan solos, limpios y clasificados.

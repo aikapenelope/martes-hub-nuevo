@@ -1,5 +1,5 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
-import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
+import { resendAdapter } from '@payloadcms/email-resend'
 import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { payloadKanbanBoard } from 'payload-kanban-board'
@@ -28,26 +28,21 @@ import { dailyDigestTask } from './jobs/dailyDigest'
 import { syncTemplatesTask } from './jobs/syncTemplates'
 import { openbspErrorsTask } from './jobs/openbspErrorLog'
 import { Notifications } from './collections/Notifications'
+import { EmailLog } from './collections/EmailLog'
+import { EmailCampaigns } from './collections/EmailCampaigns'
 import { openbspWebhookHandler } from './endpoints/openbspWebhook'
 import { replyConversationHandler } from './endpoints/replyConversation'
 import { followupsHoyHandler } from './endpoints/followupsHoy'
+import { resendWebhookHandler } from './endpoints/resendWebhook'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
 const emailAdapter = process.env.RESEND_API_KEY
-  ? nodemailerAdapter({
+  ? resendAdapter({
       defaultFromAddress: process.env.RESEND_FROM || 'onboarding@resend.dev',
       defaultFromName: 'Martes Hub',
-      transportOptions: {
-        host: process.env.RESEND_SMTP_HOST || 'smtp.resend.com',
-        port: Number(process.env.RESEND_SMTP_PORT || 465),
-        secure: true,
-        auth: {
-          user: 'resend',
-          pass: process.env.RESEND_API_KEY,
-        },
-      },
+      apiKey: process.env.RESEND_API_KEY,
     })
   : undefined
 
@@ -87,6 +82,8 @@ export default buildConfig({
     Messages,
     MessageTemplates,
     Notifications,
+    EmailLog,
+    EmailCampaigns,
     CompanySettings,
   ],
   plugins: [
@@ -120,6 +117,8 @@ export default buildConfig({
         messages: {},
         'message-templates': {},
         notifications: {},
+        'email-log': {},
+        'email-campaigns': {},
         'company-settings': { isGlobal: true },
       },
     }),
@@ -149,6 +148,11 @@ export default buildConfig({
       path: '/followups/hoy',
       method: 'get',
       handler: followupsHoyHandler,
+    },
+    {
+      path: '/webhooks/resend',
+      method: 'post',
+      handler: resendWebhookHandler,
     },
   ],
   secret: process.env.PAYLOAD_SECRET || '',
