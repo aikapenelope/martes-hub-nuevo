@@ -40,3 +40,9 @@ Plan maestro de fases: `README.md` · Plan OpenBSP: `docs/plan-openbsp.md`.
 - Webhook OpenBSP: Bearer `OPENBSP_WEBHOOK_TOKEN` (en `.env` local, NO commiteado)
 - MCP activos en opencode: Context7, Supabase, **Neon** (proyecto `martesapp` = `rapid-bonus-33572154`, DB `neondb`, pgvector ON)
 - Usuario responde en español; respuestas concisas
+
+## Actualización F3d (mismo día, PR #11)
+- **F3 completa al 100% salvo conexión real**: sync de plantillas (job diario), poll de errores Meta → notificaciones (cada 6h), enriquecimiento de contactos en el webhook (verificado E2E: `Ana Enrichida`).
+- Colección nueva: `notifications` (tenant-aware, escritura solo sistema).
+- Ambos jobs nuevos se saltan solos con motivo (`skippedReason`) hasta que existan credenciales hosted.
+- Sigue pendiente lo mismo del usuario: merge PRs, credenciales hosted cuando toque, PR #2 viejo, roadmap V3, API key Neon vieja, CI.

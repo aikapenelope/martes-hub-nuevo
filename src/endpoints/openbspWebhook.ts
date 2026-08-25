@@ -199,6 +199,50 @@ async function handleMessage(req: PayloadRequest, action: string, data: OpenBSPE
   return json({ ok: true, created: true })
 }
 
+async function enrichContact(
+  req: PayloadRequest,
+  tenant: Tenant,
+  data: OpenBSPEntity,
+): Promise<Response> {
+  // contacts_addresses trae el teléfono; contacts trae display_name en extra
+  const phone = digits(data.contact_address ?? data.conversation_address ?? '')
+  const extra = (data.extra ?? {}) as Record<string, unknown>
+  const displayName =
+    typeof extra.display_name === 'string' && extra.display_name.trim()
+      ? extra.display_name.trim()
+      : typeof data.display_name === 'string'
+        ? data.display_name.trim()
+        : ''
+  if (!phone || !displayName) return json({ ok: true, ignored: 'sin teléfono o nombre' })
+
+  const p10 = phone.slice(-10)
+  const clients = await req.payload.find({
+    collection: 'clients',
+    where: {
+      and: [
+        { or: [{ phone: { equals: phone } }, { phone: { like: p10 } }] },
+        { tenant: { equals: tenant.id } },
+      ],
+    },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const client = clients.docs[0]
+  if (!client) return json({ ok: true, ignored: 'sin cliente asociado al teléfono' })
+
+  if (client.name && client.name !== client.phone) {
+    return json({ ok: true, ignored: 'cliente ya tiene nombre' })
+  }
+  await req.payload.update({
+    collection: 'clients',
+    id: client.id,
+    data: { name: displayName },
+    overrideAccess: true,
+  })
+  return json({ ok: true, enriched: true })
+}
+
 export async function openbspWebhookHandler(req: PayloadRequest): Promise<Response> {
   const expected = process.env.OPENBSP_WEBHOOK_TOKEN
   if (!expected) return json({ error: 'Webhook no configurado (falta OPENBSP_WEBHOOK_TOKEN)' }, 503)
@@ -227,10 +271,15 @@ export async function openbspWebhookHandler(req: PayloadRequest): Promise<Respon
         // v1: las conversaciones se materializan solas al llegar mensajes
         return json({ ok: true, ignored: 'conversations se manejan vía messages' })
       case 'organizations_addresses':
+        return json({ ok: true, ignored: 'cuentas conectadas: fase SaaS futura' })
       case 'contacts':
-      case 'contacts_addresses':
+      case 'contacts_addresses': {
+        const tenant = await resolveTenant(req, envelope.data.organization_id)
+        if (!tenant) return json({ ok: true, ignored: 'organización sin mapear a tenant' })
+        return await enrichContact(req, tenant, envelope.data)
+      }
       case 'logs':
-        return json({ ok: true, ignored: `${envelope.entity} pendiente de fase F3d` })
+        return json({ ok: true, ignored: 'los logs se poll-ean por job openbsp-error-poll' })
       default:
         return json({ ok: true, ignored: `entidad desconocida: ${envelope.entity}` })
     }

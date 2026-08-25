@@ -12,7 +12,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | F2 Dinero (payments/memberships, recordatorios, digest) | ✅ |
 | F3a Modelo de mensajería | ✅ |
 | F3b/c Webhook + envío + Inbox en admin | 🔵 PR abierto — falta conectar credenciales hosted |
-| F3d Plantillas sync + errores Meta + contactos | ⬜ |
+| F3d Plantillas sync + errores Meta + contactos + notificaciones | ✅ (PR abierto) |
 | F4+ IA proactiva → Hardening | ⬜ |
 
 ---

@@ -80,6 +80,7 @@ export interface Config {
     conversations: Conversation;
     messages: Message;
     'message-templates': MessageTemplate;
+    notifications: Notification;
     'company-settings': CompanySetting;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
@@ -106,6 +107,7 @@ export interface Config {
     conversations: ConversationsSelect<false> | ConversationsSelect<true>;
     messages: MessagesSelect<false> | MessagesSelect<true>;
     'message-templates': MessageTemplatesSelect<false> | MessageTemplatesSelect<true>;
+    notifications: NotificationsSelect<false> | NotificationsSelect<true>;
     'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
@@ -132,6 +134,8 @@ export interface Config {
     tasks: {
       'payment-reminders': TaskPaymentReminders;
       'daily-digest': TaskDailyDigest;
+      'sync-templates': TaskSyncTemplates;
+      'openbsp-error-poll': TaskOpenbspErrorPoll;
       inline: {
         input: unknown;
         output: unknown;
@@ -490,6 +494,24 @@ export interface MessageTemplate {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notifications".
+ */
+export interface Notification {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  title: string;
+  body?: string | null;
+  severity: 'info' | 'warning' | 'error';
+  /**
+   * openbsp / jobs / formularios…
+   */
+  source?: string | null;
+  read?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "company-settings".
  */
 export interface CompanySetting {
@@ -575,7 +597,7 @@ export interface PayloadJob {
     | {
         executedAt: string;
         completedAt: string;
-        taskSlug: 'inline' | 'payment-reminders' | 'daily-digest';
+        taskSlug: 'inline' | 'payment-reminders' | 'daily-digest' | 'sync-templates' | 'openbsp-error-poll';
         taskID: string;
         input?:
           | {
@@ -608,7 +630,7 @@ export interface PayloadJob {
         id?: string | null;
       }[]
     | null;
-  taskSlug?: ('inline' | 'payment-reminders' | 'daily-digest') | null;
+  taskSlug?: ('inline' | 'payment-reminders' | 'daily-digest' | 'sync-templates' | 'openbsp-error-poll') | null;
   queue?: string | null;
   waitUntil?: string | null;
   processing?: boolean | null;
@@ -682,6 +704,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'message-templates';
         value: number | MessageTemplate;
+      } | null)
+    | ({
+        relationTo: 'notifications';
+        value: number | Notification;
       } | null)
     | ({
         relationTo: 'company-settings';
@@ -966,6 +992,20 @@ export interface MessageTemplatesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notifications_select".
+ */
+export interface NotificationsSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  body?: T;
+  severity?: T;
+  source?: T;
+  read?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "company-settings_select".
  */
 export interface CompanySettingsSelect<T extends boolean = true> {
@@ -1109,6 +1149,28 @@ export interface TaskDailyDigest {
   output: {
     sent?: boolean | null;
     summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSync-templates".
+ */
+export interface TaskSyncTemplates {
+  input?: unknown;
+  output: {
+    synced?: number | null;
+    skippedReason?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskOpenbsp-error-poll".
+ */
+export interface TaskOpenbspErrorPoll {
+  input?: unknown;
+  output: {
+    notified?: number | null;
+    skippedReason?: string | null;
   };
 }
 /**
