@@ -185,6 +185,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 - Git: commits convencionales (`type(scope): descripción`); **PRs obligatorios** tras el README inicial — nadie mergea directo a `main` (el merge lo hace el dueño del repo).
 - Identidad git: `AngelDelN <57774536+aikapenelope@users.noreply.github.com>`.
 - Calidad: todo sprint cierra con typecheck + lint sin errores (y tests donde existan).
+- **Antes de CADA push**: correr `pnpm verify` (migrate + build + lint). Es exactamente lo que ejecuta Vercel; `typecheck`/`lint` solos NO bastan — `next build` compila también scripts y vistas cliente y detecta errores que se le escapan a tsc. Los fallos repetidos de deploy de Vercel en agosto 2025 vinieron todos de empujar sin este paso.
 - Seguridad: secretos solo en variables de entorno (Vercel/local `.env` nunca commiteado); tokens OAuth cifrados en BD.
 - Diagrama del sistema: `docs/diagrams/sistema.excalidraw` (editable en excalidraw.com o VS Code).
 

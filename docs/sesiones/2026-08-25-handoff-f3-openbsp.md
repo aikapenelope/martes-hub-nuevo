@@ -51,3 +51,9 @@ Plan maestro de fases: `README.md` · Plan OpenBSP: `docs/plan-openbsp.md`.
 - PR #11 = F3d completo + README actualizado (tabla de estado + sección F4 detallada).
 - **Sesión siguiente: empezar aquí.** Orden: ① merge #11 ② conectar OpenBSP real (creds del dashboard) y E2E con WhatsApp real ③ F4: sequences + lead-follow-up (usa client.ts ya listo; se detiene si el lead responde) + generate-summary (LLM pendiente de elegir) + score-engagement.
 - Contexto de esta sesión agotado — NO continuar aquí.
+
+## Post-mortem: por qué fallaba tanto Vercel (3 veces)
+Causa raíz idéntica en los 3 casos: se pusheó código verificado solo con `typecheck`/`lint`, pero Vercel ejecuta `pnpm migrate && pnpm build` — y `next build` compila TODO (scripts/, vistas .tsx, etc.) encontrando errores que tsc no vio en ese momento:
+1. PR #10: edición a mano borró el guard `if (selected)` en Inbox.tsx.
+2. PR #11: script desechable `test-f3d-fixture.ts` commiteado después de la última verificación.
+Prevención ya aplicada: `pnpm verify` (= migrate+build+lint, espejo de Vercel) es OBLIGATORIO antes de cada push. Regla escrita en README → Convenciones.
