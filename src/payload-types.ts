@@ -152,6 +152,7 @@ export interface Config {
       'daily-digest': TaskDailyDigest;
       'sync-templates': TaskSyncTemplates;
       'openbsp-error-poll': TaskOpenbspErrorPoll;
+      'send-campaign-batch': TaskSendCampaignBatch;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -719,6 +720,7 @@ export interface Import {
  */
 export interface Invoice {
   id: number;
+  tenant?: (number | null) | Tenant;
   issueDate?: string | null;
   dueDate?: string | null;
   client: {
@@ -786,6 +788,7 @@ export interface Invoice {
  */
 export interface Quote {
   id: number;
+  tenant?: (number | null) | Tenant;
   issueDate?: string | null;
   validUntil?: string | null;
   client: {
@@ -926,6 +929,7 @@ export interface PayloadJob {
           | 'daily-digest'
           | 'sync-templates'
           | 'openbsp-error-poll'
+          | 'send-campaign-batch'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -967,6 +971,7 @@ export interface PayloadJob {
         | 'daily-digest'
         | 'sync-templates'
         | 'openbsp-error-poll'
+        | 'send-campaign-batch'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -1492,6 +1497,7 @@ export interface ImportsSelect<T extends boolean = true> {
  * via the `definition` "invoices_select".
  */
 export interface InvoicesSelect<T extends boolean = true> {
+  tenant?: T;
   issueDate?: T;
   dueDate?: T;
   client?:
@@ -1550,6 +1556,7 @@ export interface InvoicesSelect<T extends boolean = true> {
  * via the `definition` "quotes_select".
  */
 export interface QuotesSelect<T extends boolean = true> {
+  tenant?: T;
   issueDate?: T;
   validUntil?: T;
   client?:
@@ -1816,6 +1823,20 @@ export interface TaskOpenbspErrorPoll {
   output: {
     notified?: number | null;
     skippedReason?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSend-campaign-batch".
+ */
+export interface TaskSendCampaignBatch {
+  input: {
+    campaignId: number;
+    tenantId: number;
+  };
+  output: {
+    sent?: number | null;
+    failed?: number | null;
   };
 }
 /**

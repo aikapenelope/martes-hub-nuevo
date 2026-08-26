@@ -30,6 +30,7 @@
     "@payloadcms/plugin-import-export": "3.88.0",
     "@payloadcms/plugin-multi-tenant": "3.88.0",
     "@payloadcms/richtext-lexical": "3.88.0",
+    "@payloadcms/storage-s3": "3.88.0",
     "@payloadcms/ui": "3.88.0",
     "cross-env": "10.1.0",
     "csv-parse": "^7.0.2",

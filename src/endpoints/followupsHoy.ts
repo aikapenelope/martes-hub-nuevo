@@ -1,5 +1,5 @@
 import type { PayloadRequest } from 'payload'
-import type { Tenant } from '@/payload-types'
+import type { User } from '@/payload-types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -38,9 +38,27 @@ export interface FollowUpItem {
   crmUrl: string
 }
 
-async function resolveTenant(req: PayloadRequest): Promise<Tenant | null> {
-  const all = await req.payload.find({ collection: 'tenants', limit: 2, depth: 0 })
-  if (all.totalDocs === 1) return all.docs[0]
+async function resolveTenantId(req: PayloadRequest): Promise<number | null> {
+  const user = req.user as User | null
+  if (!user) return null
+
+  const url = new URL(req.url ?? 'http://local.payload/api/followups/hoy')
+  const qTenant = url.searchParams.get('tenant')
+  if (qTenant) {
+    const parsed = Number(qTenant)
+    if (Number.isInteger(parsed)) return parsed
+  }
+
+  const userTenants = user.tenants
+  if (Array.isArray(userTenants) && userTenants.length > 0) {
+    const first = userTenants[0]?.tenant
+    const id = typeof first === 'object' && first !== null ? first.id : first
+    if (typeof id === 'number') return id
+  }
+
+  const all = await req.payload.find({ collection: 'tenants', limit: 2, depth: 0, overrideAccess: true, req })
+  if (all.totalDocs === 1) return all.docs[0].id
+
   return null
 }
 
@@ -58,8 +76,8 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
     return Response.json({ error: 'No autenticado' }, { status: 401 })
   }
 
-  const tenant = await resolveTenant(req)
-  if (!tenant) {
+  const tenantId = await resolveTenantId(req)
+  if (!tenantId) {
     return Response.json({ error: 'Tenant no resoluble' }, { status: 422 })
   }
 
@@ -68,7 +86,7 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
   const conversationsByContactId = new Map<string, ConversationRef>()
   const conversations = await req.payload.find({
     collection: 'conversations',
-    where: { tenant: { equals: tenant.id } },
+    where: { tenant: { equals: tenantId } },
     limit: 1000,
     depth: 0,
     select: {
@@ -78,6 +96,7 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
       lastMessageAt: true,
     },
     overrideAccess: true,
+    req,
   })
   for (const conv of conversations.docs) {
     for (const key of ['lead', 'client'] as const) {
@@ -109,7 +128,7 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
     collection: 'leads',
     where: {
       and: [
-        { tenant: { equals: tenant.id } },
+        { tenant: { equals: tenantId } },
         { status: { not_equals: 'descartado' } },
         { phone: { exists: true } },
         { convertedClient: { exists: false } },
@@ -118,6 +137,7 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
     limit: 500,
     depth: 0,
     overrideAccess: true,
+    req,
   })
 
   for (const lead of leads.docs) {
@@ -155,7 +175,7 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
     collection: 'clients',
     where: {
       and: [
-        { tenant: { equals: tenant.id } },
+        { tenant: { equals: tenantId } },
         { phone: { exists: true } },
         { optOutAt: { exists: false } },
       ],
@@ -163,6 +183,7 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
     limit: 500,
     depth: 0,
     overrideAccess: true,
+    req,
   })
 
   for (const client of clients.docs) {

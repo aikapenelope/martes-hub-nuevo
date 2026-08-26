@@ -67,19 +67,25 @@ export const MessageTemplates: CollectionConfig = {
   ],
   hooks: {
     beforeValidate: [
-      async ({ data, req, operation, originalDoc }) => {
+      async ({ data, req, originalDoc }) => {
         if (!data?.name || !data?.language) return data
+        const rawTenant = data.tenant ?? originalDoc?.tenant
+        const tenantId =
+          typeof rawTenant === 'object' && rawTenant !== null ? rawTenant.id : rawTenant
+
         const dupes = await req.payload.find({
           collection: 'message-templates',
           where: {
             and: [
               { name: { equals: data.name as string } },
               { language: { equals: data.language as string } },
-              { tenant: { equals: (data.tenant as number) ?? originalDoc?.tenant } },
+              ...(tenantId ? [{ tenant: { equals: tenantId } }] : []),
             ],
           },
           limit: 1,
           depth: 0,
+          overrideAccess: true,
+          req,
         })
         const clash = dupes.docs.find((d) => d.id !== originalDoc?.id)
         if (clash) {

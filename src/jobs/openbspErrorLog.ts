@@ -1,5 +1,4 @@
-import type { PayloadRequest, TaskConfig } from 'payload'
-import type { Tenant } from '@/payload-types'
+import type { TaskConfig } from 'payload'
 import { isConfigured } from '../integrations/openbsp/client'
 
 const SUPABASE_URL = process.env.OPENBSP_SUPABASE_URL || 'https://nheelwshzbgenpavwhcy.supabase.co'
@@ -12,11 +11,6 @@ interface LogRow {
   message: string
   metadata?: Record<string, unknown>
   created_at: string
-}
-
-async function resolveTenant(req: PayloadRequest): Promise<Tenant | null> {
-  const all = await req.payload.find({ collection: 'tenants', limit: 2, depth: 0 })
-  return all.totalDocs === 1 ? all.docs[0] : null
 }
 
 async function fetchErrorLogs(): Promise<LogRow[]> {
@@ -46,8 +40,17 @@ export const openbspErrorsTask: TaskConfig = {
       return { output: { notified: 0, skippedReason: 'OpenBSP no configurado todavía' } }
     }
 
-    const tenant = await resolveTenant(req)
-    if (!tenant) return { output: { notified: 0, skippedReason: 'sin tenant resoluble' } }
+    const tenants = await req.payload.find({
+      collection: 'tenants',
+      limit: 100,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+
+    if (tenants.docs.length === 0) {
+      return { output: { notified: 0, skippedReason: 'sin tenants configurados' } }
+    }
 
     let rows: LogRow[]
     try {
@@ -58,38 +61,43 @@ export const openbspErrorsTask: TaskConfig = {
     }
 
     let notified = 0
-    for (const row of rows) {
-      // Dedupe por título compuesto: si ya notificamos ese error exacto, saltar
-      const title = `[OpenBSP] ${row.category ?? row.service ?? 'error'}`
-      const dupes = await req.payload.count({
-        collection: 'notifications',
-        where: {
-          and: [
-            { title: { equals: title } },
-            { body: { equals: `${row.message} (${row.created_at})` } },
-            { tenant: { equals: tenant.id } },
-          ],
-        },
-        overrideAccess: true,
-      })
-      if (dupes.totalDocs > 0) continue
+    for (const tenant of tenants.docs) {
+      for (const row of rows) {
+        // Dedupe por título compuesto: si ya notificamos ese error exacto, saltar
+        const title = `[OpenBSP] ${row.category ?? row.service ?? 'error'}`
+        const dupes = await req.payload.count({
+          collection: 'notifications',
+          where: {
+            and: [
+              { title: { equals: title } },
+              { body: { equals: `${row.message} (${row.created_at})` } },
+              { tenant: { equals: tenant.id } },
+            ],
+          },
+          overrideAccess: true,
+          req,
+        })
+        if (dupes.totalDocs > 0) continue
 
-      await req.payload.create({
-        collection: 'notifications',
-        data: {
-          title,
-          body: `${row.message} (${row.created_at})`,
-          severity: 'error',
-          source: 'openbsp',
-          read: false,
-          tenant: tenant.id,
-        },
-        overrideAccess: true,
-      })
-      notified += 1
+        await req.payload.create({
+          collection: 'notifications',
+          data: {
+            title,
+            body: `${row.message} (${row.created_at})`,
+            severity: 'error',
+            source: 'openbsp',
+            read: false,
+            tenant: tenant.id,
+          },
+          overrideAccess: true,
+          req,
+        })
+        notified += 1
+      }
     }
 
     if (notified > 0) req.payload.logger.warn({ msg: 'openbsp-error-poll', notified })
     return { output: { notified, skippedReason: '' } }
   },
 }
+
