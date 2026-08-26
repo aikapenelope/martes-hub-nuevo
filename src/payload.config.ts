@@ -1,6 +1,7 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { resendAdapter } from '@payloadcms/email-resend'
 import { importExportPlugin } from '@payloadcms/plugin-import-export'
+import { mcpPlugin } from '@payloadcms/plugin-mcp'
 import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { payloadKanbanBoard } from 'payload-kanban-board'
@@ -156,6 +157,7 @@ export default buildConfig({
         'company-settings': { isGlobal: true },
       },
     }),
+    mcpPlugin({}),
   ],
   email: emailAdapter,
   jobs: {

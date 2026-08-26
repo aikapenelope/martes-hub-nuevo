@@ -18,7 +18,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | **Dashboard de inicio** (resumen del día en el admin) | ⬜ siguiente código |
 | F8 Formularios y ciclo de vida (Tally) | ⬜ |
 | F7 Social (IG/FB publicaciones + métricas) | ⬜ bloqueada por app Meta |
-| F9 Hermes + MCP + Task manager | ⬜ |
+| F9 Hermes + MCP + Task manager | 🔵 plugin MCP instalado (`/api/mcp`) — falta usuario API key + conectar Hermes + tasks |
 | F10 Hardening | ⬜ |
 
 **Cómo vamos:** infraestructura y CRM operativos en producción (admin, cobros con recordatorios, digest diario). Canal WhatsApp/IG construido y probado E2E de punta a punta salvo la llamada HTTP final, que espera únicamente las credenciales hosted de OpenBSP (API key + conectar número). Tras F4 el sistema dice a quién escribirle hoy, el dueño abre la conversación sin costo y el agente de OpenBSP continúa sola.
@@ -119,6 +119,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 | Google Calendar | OAuth client JSON | Solo lectura del calendario de citas |
 | LLM del agente reactivo | API key del proveedor elegido (opcional) | Se configura en el dashboard de OpenBSP (`AgentExtra.api_key`); sin ella consume los AI credits hosted ($1 incluidos) |
 | Scheduler externo | cuenta gratuita (cron-job.org / Upstash QStash) | Llama endpoint runner mientras no haya Vercel Pro |
+| Agentes IA (Hermes, Claude…) | Usuario de tipo "agente" con API key habilitada en el admin | Autentica contra `POST /api/mcp` con header `Authorization: users API-Key <key>`; respeta RBAC (rol viewer/agente) |
 
 ## Sprints
 
@@ -200,8 +201,9 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 
 ### F9 — Hermes + Task manager
 - Objetivo: IA interna residente en el CRM y gestión de tareas interconectada.
-- Tareas: `@payloadcms/plugin-mcp` (permisos por colección) + conexión de Hermes, resúmenes de conversación (`conversation-summaries` + pgvector) al cerrar hilo y semanalmente, reporte semanal, colección `tasks` + kanban + reglas de creación automática (queja→tarea, pago vencido→tarea).
-- Done when: Hermes resume una conversación y responde preguntas del CRM vía MCP; tarea se crea sola ante evento definido.
+- Hecho: `@payloadcms/plugin-mcp` instalado — servidor MCP en `POST /api/mcp` (Streamable HTTP) con autenticación por API key de usuario y RBAC respetado.
+- Tareas restantes: crear usuario "Hermes" (rol agente) + API key en el admin, conectar el cliente MCP (`url: <prod>/api/mcp`, header Authorization), resúmenes de conversación (`conversation-summaries` + pgvector) al cerrar hilo y semanalmente, reporte semanal, colección `tasks` + kanban + reglas de creación automática (queja→tarea, pago vencido→tarea).
+- Done when: Hermes lee/escribe el CRM vía `/api/mcp`; tarea se crea sola ante evento definido.
 
 ### F10 — Hardening
 - Objetivo: producción confiable.
