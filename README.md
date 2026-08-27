@@ -2,26 +2,26 @@
 
 CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, publicaciones en redes con métricas, formularios, citas y agente de IA conectado por MCP.
 
-**Estado actual:** F0–F5 con código en producción · siguiente código: **Dashboard de inicio + F8 Formularios** · bloqueado por credenciales externas: **F4 real (OpenBSP) y F5 activo (Resend)**. Detalle OpenBSP: `docs/plan-openbsp.md`.
+**Estado actual:** F0–F6b, Dashboard Hermes y F8 completados · siguiente código: **F7 Social o F9 Hermes + MCP + Tasks** · bloqueado por credenciales externas: **F4 real (OpenBSP), F5 activo (Resend) y F8 endpoint (Tally secret)**. Detalle OpenBSP: `docs/plan-openbsp.md`.
 
 | Fase | Estado |
 |---|---|
 | F0 Fundaciones (scaffold + Neon + Vercel + migraciones en build) | ✅ |
 | F1 CRM core (colecciones, RBAC, timeline, kanban, CSV) | ✅ |
-| F1b Multi-tenant SaaS-ready (plugin oficial, mono-tenant operativo) | ✅ |
-| F2 Dinero (payments/memberships, recordatorios, digest) | ✅ |
+| F1b Multi-tenant SaaS-ready (plugin oficial, isolation endurecido en #21, S3 storage) | ✅ #21 |
+| F2 Dinero (payments/memberships, recordatorios, digest multi-tenant) | ✅ |
 | F3 WhatsApp/IG completo (modelo + webhook + inbox + plantillas + errores + contactos) | ✅ #10/#11 |
 | F4 Seguimiento proactivo determinista (lista "Hoy" + click-to-chat) · agente reactivo vive en OpenBSP | ✅ código (#13) — ⏳ requiere conexión real del número y agente |
-| F5 Email (Resend: adaptador oficial + campaigns + log + webhooks bounce) | ✅ código (#14) — ⏳ requiere credenciales Resend |
+| F5 Email (Resend: adaptador oficial + campaigns async con Jobs Queue + log + webhooks) | ✅ código (#14/#21) — ⏳ requiere credenciales Resend |
 | F6 Leads por Apify | ❌ descartada — import manual CSV/JSON con plugin oficial (#15); opción futura: Hermes + MCP de Apify en F9 |
-| F6b Facturación y cotizaciones (`payload-invoicepdf`) | 🔵 PR #16 verde — pendiente merge |
-| **Dashboard de inicio** (resumen del día en el admin) | ⬜ siguiente código |
-| F8 Formularios y ciclo de vida (Tally) | ⬜ |
+| F6b Facturación y cotizaciones (`payload-invoicepdf` + `offers` + aislamiento multi-tenant) | ✅ #16/#21 |
+| **Dashboard de inicio** (vista custom `/admin/dashboard` estilo Hermes con widgets operativos) | ✅ #18/#19 |
+| **F8 Formularios y ciclo de vida** (Tally webhook firmado + `form-submissions` + matching lead/cliente + alertas) | ✅ #22 |
 | F7 Social (IG/FB publicaciones + métricas) | ⬜ bloqueada por app Meta |
-| F9 Hermes + MCP + Task manager | ⬜ |
-| F10 Hardening | ⬜ |
+| F9 Hermes + MCP + Task manager (`@payloadcms/plugin-mcp` + `tasks` kanban + pgvector) | ⬜ siguiente código |
+| F10 Hardening (CI GitHub Actions + suite de pruebas + seguridad PITR) | ⬜ |
 
-**Cómo vamos:** infraestructura y CRM operativos en producción (admin, cobros con recordatorios, digest diario). Canal WhatsApp/IG construido y probado E2E de punta a punta salvo la llamada HTTP final, que espera únicamente las credenciales hosted de OpenBSP (API key + conectar número). Tras F4 el sistema dice a quién escribirle hoy, el dueño abre la conversación sin costo y el agente de OpenBSP continúa sola.
+**Cómo vamos:** infraestructura, CRM, facturación, seguimiento diario, dashboard Hermes, jobs asíncronos y recepción de formularios operativos. El canal WhatsApp/IG y el motor de email están listos a nivel de código y arquitectura, en espera de la activación de credenciales reales. Con F8 listo, los envíos de Tally entran directo al CRM, vinculando clientes o generando leads nuevos automáticamente.
 
 ---
 
@@ -193,10 +193,14 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 - Tareas: app Meta (registro guiado) + OAuth embebido "Conectar cuenta", media library, `social-posts` draft→scheduled→published, job 5 min, `post-metrics` diario, evaluación de `payload-plugin-socials` como acelerador.
 - Done when: post precargado se publica solo en su hora y sus métricas aparecen al día siguiente.
 
-### F8 — Formularios y ciclo de vida
+### F8 — Formularios y ciclo de vida (Tally)
 - Objetivo: voz del cliente y transiciones automáticas de etapa.
-- Tareas: webhooks Tally (queja/comentario/sugerencia/NPS), matching a `clients`, notificaciones internas, reglas de transición de etapa, encuesta post-servicio.
-- Done when: queja desde formulario crea notificación y queda vinculada al cliente.
+- Construido:
+  - Colección `form-submissions` (tenant-aware, vinculación a `client` y `lead`, respuestas estructuradas en JSON y raw payload).
+  - Webhook `/api/webhooks/tally` con verificación criptográfica HMAC SHA256 (`TALLY_SIGNING_SECRET`) y tokens.
+  - Auto-matching por email/teléfono a clientes existentes o creación automática de nuevo lead (`source: 'tally'`).
+  - Detección de quejas / bajo NPS (≤6) con disparo automático de notificaciones de advertencia.
+- Done when: envío desde Tally crea `form-submissions`, asocia cliente/lead y alerta quejas en `notifications` (✅ PR #22).
 
 ### F9 — Hermes + Task manager
 - Objetivo: IA interna residente en el CRM y gestión de tareas interconectada.
@@ -205,22 +209,21 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 
 ### F10 — Hardening
 - Objetivo: producción confiable.
-- Tareas: revisión seguridad (webhooks firmados, secrets, tokens cifrados), tests de webhooks y jobs, manejo de rate limits/reintentos, backups PITR Neon.
+- Tareas: revisión seguridad (webhooks firmados, secrets, tokens cifrados), tests de webhooks y jobs, manejo de rate limits/reintentos, backups PITR Neon, CI GitHub Actions.
 - Done when: suite de webhooks verde; auditoría de seguridad sin hallazgos High/Critical.
 
 ## Qué falta para estar LISTO (v1 operativa)
 
 > Criterio de "listo": el dueño corre su negocio desde el CRM sin herramientas externas.
 
-1. **Merge #16** (facturación/cotizaciones) — pendiente, verde
+1. **Merge #22** (F8 Formularios Tally + FormSubmissions) — abierto, verde
 2. **Conectar OpenBSP real** (tú): org + número + API keys + agente LLM en dashboard → E2E: lead contactado desde "Hoy" responde y el agente continúa
 3. **Activar Resend** (tú): dominio verificado + `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` → E2E: campaña enviada, loggeada y bounce detectado
-4. **Dashboard de inicio** — fase nueva arriba
-5. **F8 Formularios** — código por construir (+ cuenta Tally tuya para activarlo)
-6. **CI mínimo** — GitHub Actions typecheck+lint por PR (deuda arrastrada)
-7. **Hardening básico** — revisión de secrets/webhooks + backups PITR verificados (recorte de F10)
+4. **Configurar Webhook Tally** (tú): apuntar webhook a `https://tu-dominio/api/webhooks/tally` y configurar `TALLY_SIGNING_SECRET`
+5. **CI mínimo** — GitHub Actions typecheck+lint por PR (deuda arrastrada)
+6. **Hardening básico** — revisión de secrets/webhooks + backups PITR verificados (recorte de F10)
 
-No bloquean v1: F7 Social (espera app Meta), F9 Hermes/Tasks completo, multi-tenant real (SaaS), limpiar warnings de lint (~48).
+No bloquean v1: F7 Social (espera app Meta), F9 Hermes/Tasks completo, multi-tenant real (SaaS), limpiar warnings de lint (~46).
 
 ## Convenciones de trabajo
 
