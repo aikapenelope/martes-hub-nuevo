@@ -32,12 +32,14 @@ import { Notifications } from './collections/Notifications'
 import { EmailLog } from './collections/EmailLog'
 import { EmailCampaigns } from './collections/EmailCampaigns'
 import { Offers } from './collections/Offers'
+import { FormSubmissions } from './collections/FormSubmissions'
 import { invoicePdf, builtInTemplates } from 'payload-invoicepdf'
 import { s3Storage } from '@payloadcms/storage-s3'
 import { openbspWebhookHandler } from './endpoints/openbspWebhook'
 import { replyConversationHandler } from './endpoints/replyConversation'
 import { followupsHoyHandler } from './endpoints/followupsHoy'
 import { resendWebhookHandler } from './endpoints/resendWebhook'
+import { tallyWebhookHandler } from './endpoints/tallyWebhook'
 import { sendCampaignTask } from './jobs/sendCampaignTask'
 import type { User } from './payload-types'
 
@@ -97,6 +99,7 @@ export default buildConfig({
     EmailLog,
     EmailCampaigns,
     Offers,
+    FormSubmissions,
     CompanySettings,
   ],
   plugins: [
@@ -159,6 +162,7 @@ export default buildConfig({
         offers: {},
         invoices: {},
         quotes: {},
+        'form-submissions': {},
         'company-settings': { isGlobal: true },
       },
     }),
@@ -219,6 +223,11 @@ export default buildConfig({
       path: '/webhooks/resend',
       method: 'post',
       handler: resendWebhookHandler,
+    },
+    {
+      path: '/webhooks/tally',
+      method: 'post',
+      handler: tallyWebhookHandler,
     },
   ],
   secret: process.env.PAYLOAD_SECRET || '',

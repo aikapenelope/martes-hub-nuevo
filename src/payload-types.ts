@@ -84,6 +84,7 @@ export interface Config {
     'email-log': EmailLog;
     'email-campaigns': EmailCampaign;
     offers: Offer;
+    'form-submissions': FormSubmission;
     'company-settings': CompanySetting;
     exports: Export;
     imports: Import;
@@ -118,6 +119,7 @@ export interface Config {
     'email-log': EmailLogSelect<false> | EmailLogSelect<true>;
     'email-campaigns': EmailCampaignsSelect<false> | EmailCampaignsSelect<true>;
     offers: OffersSelect<false> | OffersSelect<true>;
+    'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
     'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
     exports: ExportsSelect<false> | ExportsSelect<true>;
     imports: ImportsSelect<false> | ImportsSelect<true>;
@@ -624,6 +626,49 @@ export interface Offer {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "form-submissions".
+ */
+export interface FormSubmission {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  formName: string;
+  /**
+   * Tally form_id o ID de la plataforma
+   */
+  formId?: string | null;
+  source: 'tally' | 'typeform' | 'web' | 'otro';
+  respondentName?: string | null;
+  respondentEmail?: string | null;
+  respondentPhone?: string | null;
+  client?: (number | null) | Client;
+  lead?: (number | null) | Lead;
+  /**
+   * Marcado si la respuesta contiene queja o bajo NPS
+   */
+  isComplaint?: boolean | null;
+  answersJson?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  rawPayload?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "company-settings".
  */
 export interface CompanySetting {
@@ -1067,6 +1112,10 @@ export interface PayloadLockedDocument {
         value: number | Offer;
       } | null)
     | ({
+        relationTo: 'form-submissions';
+        value: number | FormSubmission;
+      } | null)
+    | ({
         relationTo: 'company-settings';
         value: number | CompanySetting;
       } | null)
@@ -1417,6 +1466,26 @@ export interface OffersSelect<T extends boolean = true> {
   description?: T;
   segment?: T;
   active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "form-submissions_select".
+ */
+export interface FormSubmissionsSelect<T extends boolean = true> {
+  tenant?: T;
+  formName?: T;
+  formId?: T;
+  source?: T;
+  respondentName?: T;
+  respondentEmail?: T;
+  respondentPhone?: T;
+  client?: T;
+  lead?: T;
+  isComplaint?: T;
+  answersJson?: T;
+  rawPayload?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1866,6 +1935,7 @@ export interface TaskCreateCollectionExport {
       | 'email-log'
       | 'email-campaigns'
       | 'offers'
+      | 'form-submissions'
       | 'company-settings'
       | 'exports'
       | 'imports';
