@@ -2,7 +2,7 @@
 
 CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, publicaciones en redes con métricas, formularios, citas y agente de IA conectado por MCP.
 
-**Estado actual:** F0–F6b, Dashboard Hermes y F8 completados · siguiente código: **F7 Social o F9 Hermes + MCP + Tasks** · bloqueado por credenciales externas: **F4 real (OpenBSP), F5 activo (Resend) y F8 endpoint (Tally secret)**. Detalle OpenBSP: `docs/plan-openbsp.md`.
+**Estado actual:** backend y modelo de F0–F9 implementados; F7 Social sigue bloqueada por Meta. El workspace operativo (`/overview`, `/crm`, `/tasks`, `/inbox`, `/social`, `/billing`, `/analytics`) tiene arquitectura y scaffold, pero su UI todavía usa datos demo y Hermes aún no tiene una ruta AI real. El próximo desarrollo visual se rige por [`docs/WORKSPACE_ARCHITECTURE.md`](docs/WORKSPACE_ARCHITECTURE.md) y [`docs/WORKSPACE_UI_SPRINT.md`](docs/WORKSPACE_UI_SPRINT.md). Siguen pendientes las credenciales/E2E de OpenBSP, Resend y Tally.
 
 | Fase | Estado |
 |---|---|
@@ -15,13 +15,14 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | F5 Email (Resend: adaptador oficial + campaigns async con Jobs Queue + log + webhooks) | ✅ código (#14/#21) — ⏳ requiere credenciales Resend |
 | F6 Leads por Apify | ❌ descartada — import manual CSV/JSON con plugin oficial (#15); opción futura: Hermes + MCP de Apify en F9 |
 | F6b Facturación y cotizaciones (`payload-invoicepdf` + `offers` + aislamiento multi-tenant) | ✅ #16/#21 |
-| **Dashboard de inicio** (vista custom `/admin/dashboard` estilo Hermes con widgets operativos) | ✅ #18/#19 |
+| **Dashboard admin legado** (`/admin/dashboard`) | ✅ #18/#19 — se conserva; no será la UI operativa |
+| **Martes Workspace** (`/overview` y módulos separados) | 🟡 arquitectura + scaffold #25; datos reales, seguridad por operación y UI funcional pendientes |
 | **F8 Formularios y ciclo de vida** (Tally webhook firmado + `form-submissions` + matching lead/cliente + alertas) | ✅ #22 |
 | **F9 Hermes + MCP + Task manager** (`@payloadcms/plugin-mcp` + `tasks` kanban + `conversation-summaries`) | ✅ #23 |
 | F7 Social (IG/FB publicaciones + métricas) | ⬜ bloqueada por app Meta |
 | F10 Hardening (CI GitHub Actions + suite de pruebas + seguridad PITR) | ⬜ siguiente código |
 
-**Cómo vamos:** infraestructura, CRM, facturación, seguimiento diario, dashboard Hermes, jobs asíncronos, formularios y servidor MCP operativos. Con F9, el sistema expone capacidades MCP seguras para agentes de IA externos y cuenta con un Task Manager kanban totalmente interconectado con clientes, prospectos y alertas.
+**Cómo vamos:** infraestructura, CRM, facturación, seguimiento diario, jobs, formularios, colecciones de tareas y plugin MCP están implementados. El MCP debe endurecerse por operación/rol/tenant antes de conectarlo a Hermes; el sidecar del workspace es actualmente una demo. El workspace será la aplicación diaria integrada y `/admin` seguirá como backoffice técnico.
 
 ---
 
@@ -205,7 +206,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 ### F9 — Hermes + Task manager
 - Objetivo: IA interna residente en el CRM y gestión de tareas interconectada.
 - Construido:
-  - Integración oficial de `@payloadcms/plugin-mcp` (expone de forma segura clientes, leads, tareas, resúmenes y pagos para agentes externos).
+  - Integración oficial de `@payloadcms/plugin-mcp` registrada para clientes, leads, tareas, resúmenes y pagos. Antes de conectarla a Hermes se deben restringir operaciones, rol y tenant según el blueprint del workspace.
   - Colección `tasks` (título, descripción, estados kanban, prioridad, checklist, fechas límite, cliente y lead vinculados).
   - Colección `conversation-summaries` (resúmenes ejecutivos, sentimiento, objeciones y próximos pasos).
   - Creación automática de tareas ante quejas en formularios (`tally_complaint`).
@@ -220,12 +221,12 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 
 > Criterio de "listo": el dueño corre su negocio desde el CRM sin herramientas externas.
 
-1. **Merge #23** (F9 Tasks + MCP + Summaries) — abierto, verde
-2. **Conectar OpenBSP real** (tú): org + número + API keys + agente LLM en dashboard → E2E: lead contactado desde "Hoy" responde y el agente continúa
-3. **Activar Resend** (tú): dominio verificado + `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` → E2E: campaña enviada, loggeada y bounce detectado
-4. **Configurar Webhook Tally** (tú): apuntar webhook a `https://tu-dominio/api/webhooks/tally` y configurar `TALLY_SIGNING_SECRET`
-5. **CI mínimo** — GitHub Actions typecheck+lint por PR (F10)
-6. **Hardening básico** — revisión de secrets/webhooks + backups PITR verificados (recorte de F10)
+1. **Construir el workspace operativo** según [`docs/WORKSPACE_UI_SPRINT.md`](docs/WORKSPACE_UI_SPRINT.md): contexto seguro, design system, shell, overview y módulos con datos reales.
+2. **Conectar OpenBSP real**: org + número + API keys + agente LLM en dashboard → E2E: lead contactado desde «Hoy» responde y el agente continúa.
+3. **Activar Resend**: dominio verificado + `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` → E2E: campaña enviada, registrada y bounce detectado.
+4. **Configurar Webhook Tally**: apuntar a `https://tu-dominio/api/webhooks/tally` y configurar `TALLY_SIGNING_SECRET`.
+5. **Endurecer Hermes/MCP**: ruta AI autenticada, herramientas inicialmente read-only, allowlist por rol/tenant, límites y auditoría.
+6. **Hardening básico**: pruebas de aislamiento, revisión de secrets/webhooks y backups PITR verificados.
 
 No bloquean v1: F7 Social (espera app Meta), multi-tenant real (SaaS), limpiar warnings de lint (~46).
 

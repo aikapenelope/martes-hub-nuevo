@@ -1,116 +1,171 @@
-# 🏛️ MANUAL ARQUITECTÓNICO & BLUEPRINT: MARTES WORKSPACE SUITE
+# Arquitectura del Martes Workspace
 
-Este documento sirve como la **Guía Maestra de Arquitectura** para el desarrollo de la interfaz de usuario (UI) del **Martes Workspace Suite**, una aplicación empresarial moderna sobre **Next.js 16 + Payload CMS 3.88 + Neon Postgres**, manteniendo el panel de administración nativo de Payload (`/admin`) como el Superadmin del sistema.
+## Propósito y estado
 
----
+Martes Hub tiene dos superficies dentro de la misma aplicación Next.js y el mismo despliegue de Vercel:
 
-## 🎯 1. Filosofía Arquitectónica y Separación de Capas
+- `/admin`: backoffice técnico nativo de Payload. Sirve para administrar colecciones, usuarios, tenants, configuración y operaciones de bajo nivel. No se reemplaza ni se modifica destructivamente.
+- `src/app/(workspace)`: producto operativo para el equipo. El route group `(workspace)` organiza el código y no aparece en la URL; sus rutas son `/overview`, `/crm`, `/tasks`, `/inbox`, `/social`, `/billing` y `/analytics`.
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   MARTES PLATFORM                                      │
-├─────────────────────────────────────────┬──────────────────────────────────────────────┤
-│ 👑 CAPA SUPERADMIN (/admin)             │ 💼 CAPA WORKSPACE SUITE (/ o /(workspace))   │
-│ - Admin nativo de Payload CMS 3.x       │ - Aplicación fullstack personalizada         │
-│ - Gestión de esquemas crudos y DB       │ - Centro de comando operativo diario         │
-│ - Configuración de tenants y roles      │ - CRM, Tareas, Social, Facturación, Inbox    │
-│ - Backoffice de bajo nivel              │ - Sidecar de IA Hermes (Consulta en vivo)    │
-├─────────────────────────────────────────┴──────────────────────────────────────────────┤
-│ 🔌 MOTOR CENTRAL: Payload Local API + Auth Session + MCP Server + Neon PostgreSQL     │
-└────────────────────────────────────────────────────────────────────────────────────────┘
-```
+Ambas superficies comparten Payload, la sesión `payload-token`, Neon Postgres, colecciones, permisos e integraciones. Los módulos están separados para mantener el código entendible, no porque sean aplicaciones independientes.
 
-### Principios Fundamentales:
-1. **Zero Destructive Edits en `/admin`**: El admin de Payload permanece inalterado como la consola técnica de administración (Superadmin).
-2. **Autenticación Unificada**: La aplicación del Workspace comparte las cookies HTTP-only de sesión (`payload-token`) verificadas en los Server Components mediante `payload.auth({ headers })`.
-3. **Hermes AI Sidecar (Solo Consulta)**: El agente de IA se comunica mediante el protocolo MCP oficial (`@payloadcms/plugin-mcp`), permitiendo consultas en lenguaje natural con total seguridad sin riesgo de mutaciones destructivas.
+El scaffold actual define navegación y dirección de producto, pero todavía no es la UI operativa: usa datos de demostración, estilos inline y controles incompletos. Hermes es un sidecar simulado y no está conectado a una ruta de IA.
 
----
+## Decisión de acceso
 
-## 🤖 2. Cómo Funciona la Conexión de Hermes AI vía MCP
+El flujo recomendado es:
 
-El protocolo **Model Context Protocol (MCP)** es el estándar oficial de Payload para conectar agentes inteligentes:
+1. El usuario abre una ruta del workspace.
+2. `src/app/(workspace)/layout.tsx` obtiene `headers()` y ejecuta `payload.auth({ headers })` en el servidor.
+3. Sin usuario válido, redirige a `/admin/login?redirect=/overview`.
+4. Tras autenticarse con Payload, el usuario entra a `/overview` y navega por el workspace.
+5. `/admin` continúa disponible para tareas técnicas según el rol.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Usuario as 👤 Usuario en Workspace
-    participant Drawer as 🖥️ Hermes AI Drawer (UI)
-    participant Route as ⚡ Route Handler (/api/chat)
-    participant Hermes as 🤖 Hermes Agent Engine
-    participant MCPServer as 🔌 Payload MCP Server
-    participant Postgres as 🐘 Neon PostgreSQL
+Como mejora futura se puede añadir en el admin un enlace no destructivo «Abrir workspace». No se debe sustituir el dashboard nativo de Payload ni depender de una redirección cliente para proteger el producto.
 
-    Usuario->>Drawer: "¿Qué clientes tienen pagos vencidos?"
-    Drawer->>Route: POST /api/chat (streaming)
-    Route->>Hermes: Inicia conversación con herramientas MCP
-    Hermes->>MCPServer: Call Tool: find_payments({ status: "vencido" })
-    MCPServer->>Postgres: SELECT * FROM payments WHERE status = 'vencido'
-    Postgres-->>MCPServer: Resultados de pagos
-    MCPServer-->>Hermes: Retorna datos estructurados
-    Hermes-->>Route: Genera respuesta streaming con insights
-    Route-->>Drawer: Stream de texto + Deep-links al CRM
-    Drawer-->>Usuario: Muestra lista interactiva y botones de acción
+El parámetro de retorno del login debe restringirse a rutas internas permitidas para evitar open redirects. La sesión válida habilita la entrada, pero no autoriza por sí sola cada operación.
+
+## Mapa integrado
+
+```text
+Martes Hub (Next.js + Payload)
+├── /admin                    consola técnica Payload
+└── /(workspace)              aplicación operativa protegida
+    ├── /overview             prioridades y pulso diario
+    ├── /crm                  leads, clientes y actividad
+    ├── /tasks                ejecución y seguimiento
+    ├── /inbox                WhatsApp, Instagram y email
+    ├── /social               calendario, publicación y métricas
+    ├── /billing              ofertas, cotizaciones, facturas y cobros
+    └── /analytics            indicadores y reportes
 ```
 
-### ¿Es Oficial de Payload?
-**Sí**. Payload 3.x incluye el paquete oficial `@payloadcms/plugin-mcp`. Al registrarlo en `src/payload.config.ts`, Payload expone endpoints y herramientas estándar que cualquier cliente MCP (como Hermes o agentes externos) puede consumir de forma tipada y segura.
+Relaciones esperadas:
 
----
+- Un lead puede convertirse en cliente y conservar su actividad.
+- Una conversación se vincula con el lead o cliente y puede originar tareas.
+- Tareas, pagos, membresías, cotizaciones y formularios alimentan `/overview`.
+- Las métricas sociales y de campañas alimentan `/analytics`.
+- Hermes, cuando exista la integración real, consultará únicamente datos autorizados y devolverá deep links a estas rutas.
 
-## 🧭 3. Estructura de Rutas y Módulos de la Aplicación
+## Shell común y navegación
 
+`WorkspaceShell` será el marco compartido y no el dueño de los datos de negocio. Debe contener:
+
+- sidebar responsive con estado activo, agrupación clara y navegación por teclado;
+- header con título contextual, búsqueda global, identidad del usuario y tenant activo;
+- área principal con ancho y densidad adecuados para tablas, kanban y conversaciones;
+- estados globales de conectividad e integraciones sin números decorativos;
+- drawer de Hermes desacoplado y claramente marcado como no disponible mientras sea demo.
+
+En móvil, la navegación será un drawer y el contenido conservará acciones críticas visibles. En escritorio se priorizará densidad, escaneo rápido y atajos. Todos los iconos, badges y colores deben acompañarse de texto o etiquetas accesibles.
+
+## Fronteras de ejecución
+
+### Lecturas
+
+- Server Components para la carga inicial y autorización cercana a los datos.
+- Payload Local API en servidor, con selección mínima de campos, paginación y filtros explícitos.
+- Consultas agregadas dedicadas para overview/analytics; no descargar colecciones completas para agregarlas en React.
+- SWR solo cuando una vista cliente necesite revalidación, polling o estado compartido sincronizado.
+
+### Mutaciones
+
+- Route Handlers o Server Actions con validación de entrada, sesión, rol y tenant.
+- Nunca confiar en un `tenantId` enviado por el cliente sin comprobar pertenencia.
+- Respuestas normalizadas para éxito, validación, conflicto, permiso y error recuperable.
+- Acciones sensibles auditables e idempotencia donde haya webhooks, jobs, email o pagos.
+
+### Componentes cliente
+
+Se reservan para interacción: kanban, filtros, drawers, composer del inbox y feedback optimista. No deben contener secretos, construir autorización ni acceder directamente a Neon.
+
+## Modelo de seguridad
+
+Cada lectura y mutación del workspace debe pasar estas capas:
+
+1. **Sesión:** usuario obtenido desde la cookie HTTP-only de Payload.
+2. **RBAC:** capacidad explícita para `admin`, `agente` o `viewer`.
+3. **Tenant:** tenant activo derivado de membresías autorizadas, no de un valor libre del navegador.
+4. **Acceso Payload:** al usar Local API, pasar `user` y `overrideAccess: false` cuando se espere aplicar access control. Payload Local API usa `overrideAccess: true` por defecto.
+5. **Filtro de datos:** consultas tenant-aware incluso en agregaciones, exportaciones, relaciones y jobs.
+6. **Validación y auditoría:** validar payloads y registrar acciones sensibles sin secretos ni contenido privado innecesario.
+
+Ocultar un enlace o proteger solo el layout no sustituye estos controles. Los webhooks que legítimamente usan `overrideAccess: true` deben autenticar la fuente, resolver el tenant de forma determinista y validarlo antes de escribir.
+
+### Matriz inicial
+
+| Capacidad | admin | agente | viewer |
+|---|---:|---:|---:|
+| Usar workspace | Sí | Sí | Sí |
+| Leer datos del tenant | Sí | Sí | Sí |
+| Crear/editar operación diaria | Sí | Sí | No |
+| Eliminar datos sensibles | Sí | Limitado | No |
+| Gestionar tenants/usuarios/configuración | Sí | No | No |
+| Usar acciones de Hermes | Según allowlist | Según allowlist | Solo lectura |
+
+La matriz definitiva debe traducirse a helpers reutilizables y pruebas, no quedar únicamente documentada.
+
+## Hermes y MCP: estado real y objetivo
+
+`@payloadcms/plugin-mcp` está registrado y expone colecciones configuradas. Eso no significa que `HermesAiSidecar` esté conectado: hoy responde mediante temporizador y texto simulado. Tampoco todo el MCP es de solo lectura; la configuración actual permite crear y actualizar en varias colecciones.
+
+La integración futura requiere:
+
+```text
+HermesAiSidecar
+  -> route AI autenticada
+  -> agente/modelo server-side
+  -> herramientas allowlisted por rol y tenant
+  -> Payload/MCP con acceso explícito
+  -> respuesta streaming + deep links + auditoría
 ```
-src/app/(workspace)/
-├── layout.tsx                # Shell maestro con Auth Guard, Sidebar, Header y Drawer IA
-├── page.tsx                  # Redirige a /overview
-│
-├── overview/page.tsx         # 📊 Command Center Ejecutivo (Pulso del día, métricas, 'Hoy')
-├── crm/page.tsx              # 💼 CRM Studio (Pipeline Kanban, Clientes 360°, Scoring)
-├── tasks/page.tsx            # ⚡ Task Manager (Kanban de tareas, Subtareas, Prioridades)
-├── inbox/page.tsx            # 💬 Omnichannel Inbox (WhatsApp, Instagram DM, Email)
-├── social/page.tsx           # 📱 Social Content Hub (Calendario editorial, programación)
-├── billing/page.tsx          # 💰 Commerce & Facturación (Catálogo, Cotizaciones, Facturas PDF)
-├── analytics/page.tsx        # 📈 Inteligencia & Reportes (Conversión, NPS de Tally)
-│
-└── components/
-    ├── WorkspaceSidebar.tsx  # Navegación izquierda con estado activo y badges
-    ├── WorkspaceHeader.tsx   # Barra de comando superior (Búsqueda ⌘K, Live Status)
-    └── HermesAiSidecar.tsx   # Drawer lateral derecho de IA (Consulta y Streaming)
-```
 
----
+Antes de habilitarla se debe definir por herramienta `find/create/update/delete`, limitar campos y resultados, impedir cruces de tenant, aplicar rate limits y registrar invocaciones. La primera versión del workspace debe presentar Hermes deshabilitado o «demo», nunca como consulta real.
 
-## 🎨 4. Design System Tokens (Paleta Hermes Dark)
+## Sistema visual funcional
 
-```css
-/* Tokens Oficiales de Diseño */
---bg-workspace: #050505;        /* Deep Black */
---surface-card: #090909;        /* Superficie de tarjeta */
---surface-subtle: #111111;      /* Superficie secundaria / hover */
---border-default: #1a1a1a;      /* Borde sutil */
---border-hover: #333333;        /* Borde en foco/hover */
---text-primary: #ffffff;        /* Texto principal */
---text-secondary: #888888;      /* Texto de apoyo */
---text-muted: #555555;          /* Micro-etiquetas / placeholders */
+La dirección visual debe partir del trabajo diario, no de efectos decorativos:
 
-/* Acentos de Espectro */
---spectrum-rainbow: linear-gradient(to right, #ff3333, #ffaa00, #00ffaa, #00aaff, #aa00ff);
---status-success: #00ffaa;      /* Verde neón: Pagado / Conectado / Positivo */
---status-warning: #ffaa00;      /* Ámbar: Pendiente / Por vencer */
---status-danger: #ff3333;       /* Rojo: Vencido / Error / Queja Tally */
-```
+- tokens semánticos para fondo, superficie, texto, borde, acción y estados;
+- máximo dos familias tipográficas y jerarquía consistente;
+- densidad compacta para tablas/inbox y más aire en overview;
+- una acción primaria clara por contexto;
+- estados `loading`, `empty`, `error`, `permission denied`, `offline` y `stale` en cada módulo;
+- foco visible, contraste AA, labels, live regions para actualizaciones y navegación completa por teclado;
+- layouts mobile-first sin perder acciones esenciales;
+- tablas y kanban con alternativas accesibles, filtros persistentes en URL y deep links compartibles.
 
----
+Los datos, badges y gráficos solo aparecerán si ayudan a decidir o actuar. Los estilos inline del scaffold se migrarán gradualmente a tokens y componentes reutilizables.
 
-## 🔌 5. Contratos de Datos por Módulo
+## Capacidad: Payload + Vercel + Neon
 
-| Módulo | Endpoint / Query Local | Datos Principales | Acciones de UI |
-|---|---|---|---|
-| **Overview** | `/api/followups/hoy`<br/>`/api/payments`<br/>`/api/notifications` | Seguimientos clasificados, cobros del mes, alertas activas | Click-to-chat WhatsApp (`wa.me`), resolución de alertas |
-| **CRM** | `payload.find({ collection: 'leads' })`<br/>`payload.find({ collection: 'clients' })` | Pipeline Kanban (`nuevo` ➔ `calificado`), ficha 360° | Arrastrar etapas, vincular notas, abrir chat |
-| **Tasks** | `payload.find({ collection: 'tasks' })` | Tareas (`pendiente` ➔ `completada`), subtareas, prioridad | Checkbox de checklist, cambiar asignado/fecha |
-| **Inbox** | `payload.find({ collection: 'conversations' })`<br/>`payload.find({ collection: 'messages' })` | Hilos de chat, canal, estado Meta, último mensaje | Responder mensaje, insertar plantilla aprobada |
-| **Social** | `payload.find({ collection: 'social-posts' })`<br/>`payload.find({ collection: 'post-metrics' })` | Calendario mensual, estados de post, métricas | Programar publicación, previsualizar en móvil |
-| **Billing** | `payload.find({ collection: 'quotes' })`<br/>`payload.find({ collection: 'invoices' })` | Line items, PDF versionado en Media, estado de pago | Descargar PDF, enviar por email vía Resend |
-| **Analytics** | `/api/form-submissions`<br/>`/api/email-log` | NPS Tally, tasas de rebote de email, conversión | Filtrar por fechas, exportar a CSV/JSON |
+La arquitectura es adecuada para el uso interno actual y para aproximadamente 1–20 tenants de tamaño similar. Tener muchos módulos registrados no provoca por sí mismo un crash: Payload ejecuta solo las rutas, consultas y jobs solicitados. Los riesgos reales son consultas sin límites, índices ausentes, conexiones excesivas, trabajos largos, archivos en almacenamiento efímero y aislamiento incompleto.
+
+Controles antes de crecer:
+
+- índices compuestos que empiecen por `tenant` y continúen por campos de filtro/orden frecuentes (`status`, `updatedAt`, fechas);
+- paginación obligatoria, límites máximos y `select` mínimo;
+- agregados específicos para dashboard, evitando N+1 y conteos repetidos por widget;
+- `DATABASE_URL` pooled para runtime serverless y conexión directa/no pooled para migraciones;
+- región de Vercel y Neon alineada para reducir latencia;
+- media/documentos en S3 compatible, no en filesystem de Vercel;
+- jobs cortos, idempotentes, por lotes y reanudables; externalizar procesos largos cuando aparezcan límites reales;
+- ramas Neon para probar migraciones, PITR/restore ensayado, métricas de Vercel, logs estructurados y alertas.
+
+### Señales para optimizar, no para rediseñar prematuramente
+
+Investigar cuando el p95 de una pantalla operativa supere aproximadamente 1 s de servidor de forma sostenida, una consulta escanee grandes porciones de una tabla, los jobs excedan su ventana, aumenten los errores de conexión o la concurrencia real degrade el inbox. Entonces se revisan índices/planes, caché, batching, read replicas o workers; no se introduce infraestructura adicional solo por llegar a 20 tenants.
+
+## Criterios arquitectónicos de aceptación
+
+- `/admin` sigue funcionando como backoffice nativo.
+- Toda ruta del workspace exige sesión server-side.
+- Cada operación de negocio prueba rol y tenant.
+- Ninguna página depende de datos demo para declararse terminada.
+- Las consultas están paginadas y las agregaciones tienen contrato propio.
+- Todos los módulos exponen estados de carga, vacío, error y permiso.
+- Hermes se muestra como demo hasta contar con ruta autenticada y herramientas restringidas.
+- Existen pruebas negativas de cruce de tenants y roles.
+
+El plan ejecutable está en [`WORKSPACE_UI_SPRINT.md`](./WORKSPACE_UI_SPRINT.md).
