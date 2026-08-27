@@ -88,6 +88,9 @@ export interface Config {
     'form-submissions': FormSubmission;
     tasks: Task;
     'conversation-summaries': ConversationSummary;
+    'social-accounts': SocialAccount;
+    'social-posts': SocialPost;
+    'post-metrics': PostMetric;
     'company-settings': CompanySetting;
     exports: Export;
     imports: Import;
@@ -126,6 +129,9 @@ export interface Config {
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
     tasks: TasksSelect<false> | TasksSelect<true>;
     'conversation-summaries': ConversationSummariesSelect<false> | ConversationSummariesSelect<true>;
+    'social-accounts': SocialAccountsSelect<false> | SocialAccountsSelect<true>;
+    'social-posts': SocialPostsSelect<false> | SocialPostsSelect<true>;
+    'post-metrics': PostMetricsSelect<false> | PostMetricsSelect<true>;
     'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
     exports: ExportsSelect<false> | ExportsSelect<true>;
     imports: ImportsSelect<false> | ImportsSelect<true>;
@@ -162,6 +168,9 @@ export interface Config {
       'sync-templates': TaskSyncTemplates;
       'openbsp-error-poll': TaskOpenbspErrorPoll;
       'send-campaign-batch': TaskSendCampaignBatch;
+      'publish-scheduled-posts': TaskPublishScheduledPosts;
+      'fetch-social-metrics': TaskFetchSocialMetrics;
+      'refresh-social-tokens': TaskRefreshSocialTokens;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -761,6 +770,75 @@ export interface ConversationSummary {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "social-accounts".
+ */
+export interface SocialAccount {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  accountName: string;
+  platform: 'instagram' | 'facebook';
+  /**
+   * Page ID o Instagram Business Account ID
+   */
+  platformAccountId: string;
+  /**
+   * Token cifrado/almacenado de Graph API
+   */
+  accessToken: string;
+  tokenExpiresAt?: string | null;
+  status: 'conectada' | 'desconectada' | 'expirada';
+  profilePictureUrl?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "social-posts".
+ */
+export interface SocialPost {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  caption: string;
+  account: number | SocialAccount;
+  media?: (number | Media)[] | null;
+  status: 'borrador' | 'programado' | 'publicado' | 'fallido';
+  scheduledAt?: string | null;
+  publishedAt?: string | null;
+  platformPostId?: string | null;
+  permalink?: string | null;
+  lastError?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "post-metrics".
+ */
+export interface PostMetric {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  post: number | SocialPost;
+  recordedAt: string;
+  impressions?: number | null;
+  reach?: number | null;
+  likes?: number | null;
+  comments?: number | null;
+  shares?: number | null;
+  saved?: number | null;
+  rawMetrics?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "company-settings".
  */
 export interface CompanySetting {
@@ -1083,6 +1161,42 @@ export interface PayloadMcpApiKey {
      */
     delete?: boolean | null;
   };
+  socialPosts?: {
+    /**
+     * Allow clients to find social-posts.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create social-posts.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update social-posts.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete social-posts.
+     */
+    delete?: boolean | null;
+  };
+  postMetrics?: {
+    /**
+     * Allow clients to find post-metrics.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create post-metrics.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update post-metrics.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete post-metrics.
+     */
+    delete?: boolean | null;
+  };
   payments?: {
     /**
      * Allow clients to find payments.
@@ -1186,6 +1300,9 @@ export interface PayloadJob {
           | 'sync-templates'
           | 'openbsp-error-poll'
           | 'send-campaign-batch'
+          | 'publish-scheduled-posts'
+          | 'fetch-social-metrics'
+          | 'refresh-social-tokens'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -1228,6 +1345,9 @@ export interface PayloadJob {
         | 'sync-templates'
         | 'openbsp-error-poll'
         | 'send-campaign-batch'
+        | 'publish-scheduled-posts'
+        | 'fetch-social-metrics'
+        | 'refresh-social-tokens'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -1333,6 +1453,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'conversation-summaries';
         value: number | ConversationSummary;
+      } | null)
+    | ({
+        relationTo: 'social-accounts';
+        value: number | SocialAccount;
+      } | null)
+    | ({
+        relationTo: 'social-posts';
+        value: number | SocialPost;
+      } | null)
+    | ({
+        relationTo: 'post-metrics';
+        value: number | PostMetric;
       } | null)
     | ({
         relationTo: 'company-settings';
@@ -1778,6 +1910,58 @@ export interface ConversationSummariesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "social-accounts_select".
+ */
+export interface SocialAccountsSelect<T extends boolean = true> {
+  tenant?: T;
+  accountName?: T;
+  platform?: T;
+  platformAccountId?: T;
+  accessToken?: T;
+  tokenExpiresAt?: T;
+  status?: T;
+  profilePictureUrl?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "social-posts_select".
+ */
+export interface SocialPostsSelect<T extends boolean = true> {
+  tenant?: T;
+  caption?: T;
+  account?: T;
+  media?: T;
+  status?: T;
+  scheduledAt?: T;
+  publishedAt?: T;
+  platformPostId?: T;
+  permalink?: T;
+  lastError?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "post-metrics_select".
+ */
+export interface PostMetricsSelect<T extends boolean = true> {
+  tenant?: T;
+  post?: T;
+  recordedAt?: T;
+  impressions?: T;
+  reach?: T;
+  likes?: T;
+  comments?: T;
+  shares?: T;
+  saved?: T;
+  rawMetrics?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "company-settings_select".
  */
 export interface CompanySettingsSelect<T extends boolean = true> {
@@ -2003,6 +2187,22 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         delete?: T;
       };
   conversationSummaries?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  socialPosts?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  postMetrics?:
     | T
     | {
         find?: T;
@@ -2255,6 +2455,41 @@ export interface TaskSendCampaignBatch {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskPublish-scheduled-posts".
+ */
+export interface TaskPublishScheduledPosts {
+  input?: unknown;
+  output: {
+    published?: number | null;
+    failed?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskFetch-social-metrics".
+ */
+export interface TaskFetchSocialMetrics {
+  input?: unknown;
+  output: {
+    metricsRecorded?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskRefresh-social-tokens".
+ */
+export interface TaskRefreshSocialTokens {
+  input?: unknown;
+  output: {
+    accountsChecked?: number | null;
+    alertsGenerated?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "TaskCreateCollectionExport".
  */
 export interface TaskCreateCollectionExport {
@@ -2283,6 +2518,9 @@ export interface TaskCreateCollectionExport {
       | 'form-submissions'
       | 'tasks'
       | 'conversation-summaries'
+      | 'social-accounts'
+      | 'social-posts'
+      | 'post-metrics'
       | 'company-settings'
       | 'exports'
       | 'imports';
