@@ -27,18 +27,37 @@ function json(data: unknown, status = 200): Response {
   return Response.json(data, { status })
 }
 
-async function resolveTenant(req: PayloadRequest, orgId?: string): Promise<Tenant | null> {
+async function resolveTenant(
+  req: PayloadRequest,
+  orgId?: string,
+  phoneNumberId?: string,
+): Promise<Tenant | null> {
   if (orgId) {
     const byOrg = await req.payload.find({
       collection: 'tenants',
       where: { openbspOrganizationId: { equals: orgId } },
       limit: 1,
       depth: 0,
+      overrideAccess: true,
+      req,
     })
     if (byOrg.docs[0]) return byOrg.docs[0]
   }
+
+  if (phoneNumberId) {
+    const byPhone = await req.payload.find({
+      collection: 'tenants',
+      where: { openbspPhoneNumberId: { equals: phoneNumberId } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+    if (byPhone.docs[0]) return byPhone.docs[0]
+  }
+
   // Bootstrap mono-tenant: si hay exactamente un tenant, es nuestro
-  const all = await req.payload.find({ collection: 'tenants', limit: 2, depth: 0 })
+  const all = await req.payload.find({ collection: 'tenants', limit: 2, depth: 0, overrideAccess: true, req })
   if (all.totalDocs === 1) return all.docs[0]
   return null
 }
@@ -133,7 +152,7 @@ async function upsertConversation(
 }
 
 async function handleMessage(req: PayloadRequest, action: string, data: OpenBSPEntity): Promise<Response> {
-  const tenant = await resolveTenant(req, data.organization_id)
+  const tenant = await resolveTenant(req, data.organization_id, data.organization_address)
   if (!tenant) return json({ ok: true, ignored: 'organización sin mapear a tenant' })
 
   // Idempotencia por uuid OpenBSP o WAMID
@@ -278,7 +297,11 @@ export async function openbspWebhookHandler(req: PayloadRequest): Promise<Respon
         return json({ ok: true, ignored: 'cuentas conectadas: fase SaaS futura' })
       case 'contacts':
       case 'contacts_addresses': {
-        const tenant = await resolveTenant(req, envelope.data.organization_id)
+        const tenant = await resolveTenant(
+          req,
+          envelope.data.organization_id,
+          envelope.data.organization_address,
+        )
         if (!tenant) return json({ ok: true, ignored: 'organización sin mapear a tenant' })
         return await enrichContact(req, tenant, envelope.data)
       }

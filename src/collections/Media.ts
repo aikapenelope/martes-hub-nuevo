@@ -1,9 +1,14 @@
 import type { CollectionConfig } from 'payload'
 
+import { adminOnly, authenticated, editorsOnly } from '../access'
+
 export const Media: CollectionConfig = {
   slug: 'media',
   access: {
-    read: ({ req }) => Boolean(req.user),
+    read: authenticated,
+    create: editorsOnly,
+    update: editorsOnly,
+    delete: adminOnly,
   },
   fields: [
     {
@@ -14,3 +19,4 @@ export const Media: CollectionConfig = {
   ],
   upload: true,
 }
+

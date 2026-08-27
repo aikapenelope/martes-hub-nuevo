@@ -33,10 +33,13 @@ import { EmailLog } from './collections/EmailLog'
 import { EmailCampaigns } from './collections/EmailCampaigns'
 import { Offers } from './collections/Offers'
 import { invoicePdf, builtInTemplates } from 'payload-invoicepdf'
+import { s3Storage } from '@payloadcms/storage-s3'
 import { openbspWebhookHandler } from './endpoints/openbspWebhook'
 import { replyConversationHandler } from './endpoints/replyConversation'
 import { followupsHoyHandler } from './endpoints/followupsHoy'
 import { resendWebhookHandler } from './endpoints/resendWebhook'
+import { sendCampaignTask } from './jobs/sendCampaignTask'
+import type { User } from './payload-types'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -137,6 +140,7 @@ export default buildConfig({
       quoteNumberPrefix: 'COT',
     }),
     multiTenantPlugin({
+      userHasAccessToAllTenants: (user) => Boolean((user as User)?.roles?.includes('admin')),
       collections: {
         clients: {},
         leads: {},
@@ -153,13 +157,41 @@ export default buildConfig({
         'email-log': {},
         'email-campaigns': {},
         offers: {},
+        invoices: {},
+        quotes: {},
         'company-settings': { isGlobal: true },
       },
     }),
+    ...(process.env.S3_BUCKET
+      ? [
+          s3Storage({
+            collections: {
+              media: true,
+              documents: true,
+            },
+            bucket: process.env.S3_BUCKET,
+            config: {
+              credentials: {
+                accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
+                secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+              },
+              region: process.env.S3_REGION || 'auto',
+              endpoint: process.env.S3_ENDPOINT,
+              forcePathStyle: true,
+            },
+          }),
+        ]
+      : []),
   ],
   email: emailAdapter,
   jobs: {
-    tasks: [paymentRemindersTask, dailyDigestTask, syncTemplatesTask, openbspErrorsTask],
+    tasks: [
+      paymentRemindersTask,
+      dailyDigestTask,
+      syncTemplatesTask,
+      openbspErrorsTask,
+      sendCampaignTask,
+    ],
   },
   editor: lexicalEditor(),
   endpoints: [
