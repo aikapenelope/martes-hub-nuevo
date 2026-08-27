@@ -15,7 +15,7 @@ export const Users: CollectionConfig = {
     update: ({ req, id }) => {
       if (!req.user) return false
       if (req.user.id === id) return true
-      return Boolean(req.user.roles?.includes('admin'))
+      return Boolean('roles' in req.user && req.user.roles?.includes('admin'))
     },
     delete: adminOnly,
     admin: ({ req }) => Boolean(req.user),
@@ -39,7 +39,7 @@ export const Users: CollectionConfig = {
       options: ['admin', 'agente', 'viewer'],
       saveToJWT: true,
       access: {
-        update: ({ req }) => Boolean(req.user?.roles?.includes('admin')),
+        update: ({ req }) => Boolean(req.user && 'roles' in req.user && req.user.roles?.includes('admin')),
       },
       admin: {
         position: 'sidebar',

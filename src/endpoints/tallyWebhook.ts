@@ -291,7 +291,7 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
     req,
   })
 
-  // 4. Si es una queja o feedback negativo, generar alerta en notifications
+  // 4. Si es una queja o feedback negativo, generar alerta en notifications y crear tarea urgente
   if (isComplaint) {
     const person = respondentName || respondentEmail || respondentPhone || 'Usuario anónimo'
     await req.payload.create({
@@ -302,6 +302,22 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
         severity: 'warning',
         source: 'tally',
         read: false,
+        tenant: tenant.id,
+      },
+      overrideAccess: true,
+      req,
+    })
+
+    await req.payload.create({
+      collection: 'tasks',
+      data: {
+        title: `Resolver queja en "${formName}" (${person})`,
+        description: `El cliente/lead reportó una queja o bajo NPS en el formulario "${formName}". Revisar respuestas en el envío #${submission.id}.`,
+        status: 'pendiente',
+        priority: 'urgente',
+        source: 'tally_complaint',
+        client: clientId,
+        lead: leadId,
         tenant: tenant.id,
       },
       overrideAccess: true,
