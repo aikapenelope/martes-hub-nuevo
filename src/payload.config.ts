@@ -35,6 +35,9 @@ import { Offers } from './collections/Offers'
 import { FormSubmissions } from './collections/FormSubmissions'
 import { Tasks } from './collections/Tasks'
 import { ConversationSummaries } from './collections/ConversationSummaries'
+import { SocialAccounts } from './collections/SocialAccounts'
+import { SocialPosts } from './collections/SocialPosts'
+import { PostMetrics } from './collections/PostMetrics'
 import { invoicePdf, builtInTemplates } from 'payload-invoicepdf'
 import { s3Storage } from '@payloadcms/storage-s3'
 import { mcpPlugin } from '@payloadcms/plugin-mcp'
@@ -44,6 +47,9 @@ import { followupsHoyHandler } from './endpoints/followupsHoy'
 import { resendWebhookHandler } from './endpoints/resendWebhook'
 import { tallyWebhookHandler } from './endpoints/tallyWebhook'
 import { sendCampaignTask } from './jobs/sendCampaignTask'
+import { publishScheduledPostsTask } from './jobs/publishScheduledPosts'
+import { fetchSocialMetricsTask } from './jobs/fetchSocialMetrics'
+import { refreshSocialTokensTask } from './jobs/refreshSocialTokens'
 import type { User } from './payload-types'
 
 const filename = fileURLToPath(import.meta.url)
@@ -105,6 +111,9 @@ export default buildConfig({
     FormSubmissions,
     Tasks,
     ConversationSummaries,
+    SocialAccounts,
+    SocialPosts,
+    PostMetrics,
     CompanySettings,
   ],
   plugins: [
@@ -183,6 +192,9 @@ export default buildConfig({
         'form-submissions': {},
         tasks: {},
         'conversation-summaries': {},
+        'social-accounts': {},
+        'social-posts': {},
+        'post-metrics': {},
         'company-settings': { isGlobal: true },
       },
     }),
@@ -202,6 +214,14 @@ export default buildConfig({
         },
         'conversation-summaries': {
           description: 'Resúmenes ejecutivos con sentimiento, objeciones y próximos pasos de clientes.',
+          enabled: true,
+        },
+        'social-posts': {
+          description: 'Publicaciones en redes sociales: contenido, fecha programada y estado.',
+          enabled: true,
+        },
+        'post-metrics': {
+          description: 'Métricas de rendimiento de publicaciones sociales: alcance, likes, impresiones.',
           enabled: true,
         },
         payments: {
@@ -253,6 +273,9 @@ export default buildConfig({
       syncTemplatesTask,
       openbspErrorsTask,
       sendCampaignTask,
+      publishScheduledPostsTask,
+      fetchSocialMetricsTask,
+      refreshSocialTokensTask,
     ],
   },
   editor: lexicalEditor(),
