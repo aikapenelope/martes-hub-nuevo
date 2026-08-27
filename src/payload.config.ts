@@ -33,8 +33,11 @@ import { EmailLog } from './collections/EmailLog'
 import { EmailCampaigns } from './collections/EmailCampaigns'
 import { Offers } from './collections/Offers'
 import { FormSubmissions } from './collections/FormSubmissions'
+import { Tasks } from './collections/Tasks'
+import { ConversationSummaries } from './collections/ConversationSummaries'
 import { invoicePdf, builtInTemplates } from 'payload-invoicepdf'
 import { s3Storage } from '@payloadcms/storage-s3'
+import { mcpPlugin } from '@payloadcms/plugin-mcp'
 import { openbspWebhookHandler } from './endpoints/openbspWebhook'
 import { replyConversationHandler } from './endpoints/replyConversation'
 import { followupsHoyHandler } from './endpoints/followupsHoy'
@@ -100,6 +103,8 @@ export default buildConfig({
     EmailCampaigns,
     Offers,
     FormSubmissions,
+    Tasks,
+    ConversationSummaries,
     CompanySettings,
   ],
   plugins: [
@@ -118,6 +123,19 @@ export default buildConfig({
               { value: 'descartado', label: 'Descartado' },
             ],
             defaultStatus: 'nuevo',
+          },
+        },
+        tasks: {
+          enabled: true,
+          config: {
+            statuses: [
+              { value: 'pendiente', label: 'Pendiente' },
+              { value: 'en_progreso', label: 'En Progreso' },
+              { value: 'completada', label: 'Completada' },
+              { value: 'bloqueada', label: 'Bloqueada' },
+              { value: 'cancelada', label: 'Cancelada' },
+            ],
+            defaultStatus: 'pendiente',
           },
         },
       },
@@ -163,7 +181,47 @@ export default buildConfig({
         invoices: {},
         quotes: {},
         'form-submissions': {},
+        tasks: {},
+        'conversation-summaries': {},
         'company-settings': { isGlobal: true },
+      },
+    }),
+    mcpPlugin({
+      collections: {
+        clients: {
+          description: 'Clientes del CRM: datos de contacto, etapa, notas y estado.',
+          enabled: true,
+        },
+        leads: {
+          description: 'Prospectos (leads) en pipeline: estado, rubro, canal y notas.',
+          enabled: true,
+        },
+        tasks: {
+          description: 'Gestión de tareas internas: título, estado, prioridad y asignaciones.',
+          enabled: true,
+        },
+        'conversation-summaries': {
+          description: 'Resúmenes ejecutivos con sentimiento, objeciones y próximos pasos de clientes.',
+          enabled: true,
+        },
+        payments: {
+          description: 'Registro de pagos y cobros de clientes.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: true,
+            update: true,
+          },
+        },
+        users: {
+          description: 'Usuarios del sistema.',
+          enabled: {
+            create: false,
+            delete: false,
+            update: false,
+            find: true,
+          },
+        },
       },
     }),
     ...(process.env.S3_BUCKET

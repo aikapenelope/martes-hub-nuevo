@@ -17,11 +17,11 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | F6b Facturación y cotizaciones (`payload-invoicepdf` + `offers` + aislamiento multi-tenant) | ✅ #16/#21 |
 | **Dashboard de inicio** (vista custom `/admin/dashboard` estilo Hermes con widgets operativos) | ✅ #18/#19 |
 | **F8 Formularios y ciclo de vida** (Tally webhook firmado + `form-submissions` + matching lead/cliente + alertas) | ✅ #22 |
+| **F9 Hermes + MCP + Task manager** (`@payloadcms/plugin-mcp` + `tasks` kanban + `conversation-summaries`) | ✅ #23 |
 | F7 Social (IG/FB publicaciones + métricas) | ⬜ bloqueada por app Meta |
-| F9 Hermes + MCP + Task manager (`@payloadcms/plugin-mcp` + `tasks` kanban + pgvector) | ⬜ siguiente código |
-| F10 Hardening (CI GitHub Actions + suite de pruebas + seguridad PITR) | ⬜ |
+| F10 Hardening (CI GitHub Actions + suite de pruebas + seguridad PITR) | ⬜ siguiente código |
 
-**Cómo vamos:** infraestructura, CRM, facturación, seguimiento diario, dashboard Hermes, jobs asíncronos y recepción de formularios operativos. El canal WhatsApp/IG y el motor de email están listos a nivel de código y arquitectura, en espera de la activación de credenciales reales. Con F8 listo, los envíos de Tally entran directo al CRM, vinculando clientes o generando leads nuevos automáticamente.
+**Cómo vamos:** infraestructura, CRM, facturación, seguimiento diario, dashboard Hermes, jobs asíncronos, formularios y servidor MCP operativos. Con F9, el sistema expone capacidades MCP seguras para agentes de IA externos y cuenta con un Task Manager kanban totalmente interconectado con clientes, prospectos y alertas.
 
 ---
 
@@ -38,7 +38,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | Formularios | Tally (webhooks firmados → `form-submissions`) |
 | Citas | Google Calendar API v3 (solo lectura; el agente de OpenBSP crea las citas) |
 | Publicación social | Meta Graph API directa, flujo determinístico (Jobs Queue), OAuth embebido en el admin |
-| Agente IA | Reactivo (entrantes): agente nativo de OpenBSP, configurado en su dashboard con LLM propio o AI credits — martes-hub solo espeja por webhook · Proactivo: determinista, sin IA (lista "Hoy" en el admin) · IA interna: Hermes Agent (propio) vía `@payloadcms/plugin-mcp`, llega en F9 |
+| Agente IA / MCP | Protocolo MCP nativo vía `@payloadcms/plugin-mcp` (expone clientes, leads, tareas, resúmenes) · Reactivo (entrantes): agente nativo de OpenBSP |
 
 ## Configuración regional
 
@@ -56,7 +56,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | IA en background | Fuera de martes-hub: el agente reactivo vive en OpenBSP (dispara en cada entrante, LLM propio o AI credits). El proactivo es una lista determinista sin IA. La IA interna propia (resúmenes, reportes) llega con Hermes vía MCP en F9 · pgvector para búsqueda semántica | Jobs propios llamando LLM (más código que mantener y rígido); "IA en Neon" (Neon es Postgres puro, no tiene IA nativa) |
 | MCP hacia Hermes | `@payloadcms/plugin-mcp` (oficial, sincronizado con core) | `payload-plugin-mcp` de Antler Digital (buena alternativa si falta algo) |
 | Observabilidad | Logs/métricas nativas Vercel + Neon | Sentry (opcional futuro; sistema privado) |
-| Task manager | Colección `tasks` propia + vista kanban (evaluar plugin comunitario `payload-kanban-board` como base visual) | Ningún equivalente ClickUp existe sobre Payload; la ventaja es la interconexión nativa con todo el CRM |
+| Task manager | Colección `tasks` propia + vista kanban (plugin `payload-kanban-board` interconectado al CRM) | Ningún equivalente ClickUp existe sobre Payload; la ventaja es la interconexión nativa con todo el CRM |
 | Import/Export de datos | Plugin oficial `@payloadcms/plugin-import-export` (UI en admin, CSV/JSON, preview, upsert) sobre leads/clients/payments | Endpoint casero `importCsv` queda como respaldo hasta validar el plugin con multi-tenant; community plugins de import/export descartados (menor mantenimiento) |
 | Facturas y cotizaciones | Plugin `payload-invoicepdf`: colecciones invoices/quotes, PDF vía `@react-pdf/renderer` (serverless sin Chrome), autofill desde `clients`/`offers`, envío por email con adjunto (Resend), link de aceptación de cotizaciones. **Solo documento comercial interno — sin cumplimiento fiscal SENIAT** | Construir facturación propia sobre pdfkit (más código, mismo resultado); e-factura fiscal (no requerido) |
 | Scraping de leads (Apify / F6) | Fase descartada: import manual de datasets CSV/JSON cubre el volumen actual. Opción futura documentada: Hermes corre actores vía MCP oficial de Apify (`mcp.apify.com`) cuando exista (F9) | Webhook automático actor→CRM (over-engineering para el volumen actual) |
@@ -71,7 +71,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | `activities` | Log unificado de interacciones |
 | `conversations` / `messages` | Hilos por canal (whatsapp / instagram_dm / email) y mensajes con estado Meta |
 | `message-templates` | Plantillas WhatsApp aprobadas + respuestas rápidas |
-| `conversation-summaries` | Resumen IA por cliente (sentimiento, próximos pasos) + embeddings pgvector — lo escribe Hermes desde F9 |
+| `conversation-summaries` | Resumen IA por cliente (sentimiento, objeciones, próximos pasos) |
 | `payments` | Tracking USD: monto, vencimiento, estado, método |
 | `memberships` | Ciclo de membresía: inicio, renovación, estado |
 | `appointments` | Citas sincronizadas de Google Calendar |
@@ -81,7 +81,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | `social-posts` / `post-metrics` | Contenido: draft→scheduled→published/failed; métricas diarias (views, reach, likes…) |
 | `scrape-runs` | Ejecuciones Apify (actor, run ID, dataset, estado) |
 | `form-submissions` | Entradas Tally: queja / comentario / sugerencia / NPS |
-| `tasks` | Task manager interno estilo ClickUp: asignado, cliente relacionado, prioridad, subtareas, kanban |
+| `tasks` | Task manager interno con vista kanban: estado, prioridad, checklist, cliente/lead asignado |
 | `documents` | Contratos/facturas PDF por cliente (uploads) |
 | `segments` | Segmentos/tags (p. ej. rubro del lead) |
 | `notifications` | Centro de notificaciones internas |
@@ -199,13 +199,17 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
   - Colección `form-submissions` (tenant-aware, vinculación a `client` y `lead`, respuestas estructuradas en JSON y raw payload).
   - Webhook `/api/webhooks/tally` con verificación criptográfica HMAC SHA256 (`TALLY_SIGNING_SECRET`) y tokens.
   - Auto-matching por email/teléfono a clientes existentes o creación automática de nuevo lead (`source: 'tally'`).
-  - Detección de quejas / bajo NPS (≤6) con disparo automático de notificaciones de advertencia.
+  - Detección de quejas / bajo NPS (≤6) con disparo automático de notificaciones de advertencia y creación de tareas urgentes.
 - Done when: envío desde Tally crea `form-submissions`, asocia cliente/lead y alerta quejas en `notifications` (✅ PR #22).
 
 ### F9 — Hermes + Task manager
 - Objetivo: IA interna residente en el CRM y gestión de tareas interconectada.
-- Tareas: `@payloadcms/plugin-mcp` (permisos por colección) + conexión de Hermes, resúmenes de conversación (`conversation-summaries` + pgvector) al cerrar hilo y semanalmente, reporte semanal, colección `tasks` + kanban + reglas de creación automática (queja→tarea, pago vencido→tarea).
-- Done when: Hermes resume una conversación y responde preguntas del CRM vía MCP; tarea se crea sola ante evento definido.
+- Construido:
+  - Integración oficial de `@payloadcms/plugin-mcp` (expone de forma segura clientes, leads, tareas, resúmenes y pagos para agentes externos).
+  - Colección `tasks` (título, descripción, estados kanban, prioridad, checklist, fechas límite, cliente y lead vinculados).
+  - Colección `conversation-summaries` (resúmenes ejecutivos, sentimiento, objeciones y próximos pasos).
+  - Creación automática de tareas ante quejas en formularios (`tally_complaint`).
+- Done when: herramientas MCP operativas en el backend y tareas gestionables vía vista kanban (✅ PR #23).
 
 ### F10 — Hardening
 - Objetivo: producción confiable.
@@ -216,14 +220,14 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 
 > Criterio de "listo": el dueño corre su negocio desde el CRM sin herramientas externas.
 
-1. **Merge #22** (F8 Formularios Tally + FormSubmissions) — abierto, verde
+1. **Merge #23** (F9 Tasks + MCP + Summaries) — abierto, verde
 2. **Conectar OpenBSP real** (tú): org + número + API keys + agente LLM en dashboard → E2E: lead contactado desde "Hoy" responde y el agente continúa
 3. **Activar Resend** (tú): dominio verificado + `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` → E2E: campaña enviada, loggeada y bounce detectado
 4. **Configurar Webhook Tally** (tú): apuntar webhook a `https://tu-dominio/api/webhooks/tally` y configurar `TALLY_SIGNING_SECRET`
-5. **CI mínimo** — GitHub Actions typecheck+lint por PR (deuda arrastrada)
+5. **CI mínimo** — GitHub Actions typecheck+lint por PR (F10)
 6. **Hardening básico** — revisión de secrets/webhooks + backups PITR verificados (recorte de F10)
 
-No bloquean v1: F7 Social (espera app Meta), F9 Hermes/Tasks completo, multi-tenant real (SaaS), limpiar warnings de lint (~46).
+No bloquean v1: F7 Social (espera app Meta), multi-tenant real (SaaS), limpiar warnings de lint (~46).
 
 ## Convenciones de trabajo
 

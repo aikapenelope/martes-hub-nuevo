@@ -64,6 +64,7 @@ export type SupportedTimezones =
 export interface Config {
   auth: {
     users: UserAuthOperations;
+    'payload-mcp-api-keys': PayloadMcpApiKeyAuthOperations;
   };
   blocks: {};
   collections: {
@@ -85,11 +86,14 @@ export interface Config {
     'email-campaigns': EmailCampaign;
     offers: Offer;
     'form-submissions': FormSubmission;
+    tasks: Task;
+    'conversation-summaries': ConversationSummary;
     'company-settings': CompanySetting;
     exports: Export;
     imports: Import;
     invoices: Invoice;
     quotes: Quote;
+    'payload-mcp-api-keys': PayloadMcpApiKey;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
@@ -120,11 +124,14 @@ export interface Config {
     'email-campaigns': EmailCampaignsSelect<false> | EmailCampaignsSelect<true>;
     offers: OffersSelect<false> | OffersSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
+    tasks: TasksSelect<false> | TasksSelect<true>;
+    'conversation-summaries': ConversationSummariesSelect<false> | ConversationSummariesSelect<true>;
     'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
     exports: ExportsSelect<false> | ExportsSelect<true>;
     imports: ImportsSelect<false> | ImportsSelect<true>;
     invoices: InvoicesSelect<false> | InvoicesSelect<true>;
     quotes: QuotesSelect<false> | QuotesSelect<true>;
+    'payload-mcp-api-keys': PayloadMcpApiKeysSelect<false> | PayloadMcpApiKeysSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -147,7 +154,7 @@ export interface Config {
   widgets: {
     collections: CollectionsWidget;
   };
-  user: User;
+  user: User | PayloadMcpApiKey;
   jobs: {
     tasks: {
       'payment-reminders': TaskPaymentReminders;
@@ -166,6 +173,24 @@ export interface Config {
   };
 }
 export interface UserAuthOperations {
+  forgotPassword: {
+    email: string;
+    password: string;
+  };
+  login: {
+    email: string;
+    password: string;
+  };
+  registerFirstUser: {
+    email: string;
+    password: string;
+  };
+  unlock: {
+    email: string;
+    password: string;
+  };
+}
+export interface PayloadMcpApiKeyAuthOperations {
   forgotPassword: {
     email: string;
     password: string;
@@ -669,6 +694,73 @@ export interface FormSubmission {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tasks".
+ */
+export interface Task {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  title: string;
+  description?: string | null;
+  status: 'pendiente' | 'en_progreso' | 'completada' | 'bloqueada' | 'cancelada';
+  priority: 'baja' | 'media' | 'alta' | 'urgente';
+  dueDate?: string | null;
+  assignedTo?: (number | null) | User;
+  client?: (number | null) | Client;
+  lead?: (number | null) | Lead;
+  source?: ('manual' | 'tally_complaint' | 'payment_overdue' | 'openbsp_error' | 'hermes_ai') | null;
+  checklist?:
+    | {
+        item: string;
+        done?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  completedAt?: string | null;
+  kanbanStatus?: ('pendiente' | 'en_progreso' | 'completada' | 'bloqueada' | 'cancelada') | null;
+  kanbanOrderRank?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "conversation-summaries".
+ */
+export interface ConversationSummary {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  title: string;
+  conversation?: (number | null) | Conversation;
+  client?: (number | null) | Client;
+  lead?: (number | null) | Lead;
+  summary: string;
+  sentiment: 'positivo' | 'neutral' | 'negativo' | 'en_riesgo';
+  /**
+   * Precio, tiempos de entrega, dudas técnicas, etc.
+   */
+  objections?: string | null;
+  nextSteps?: string | null;
+  budgetExpectation?: string | null;
+  keyTopics?:
+    | {
+        topic: string;
+        id?: string | null;
+      }[]
+    | null;
+  generatedBy?: ('hermes_ai' | 'openbsp_agent' | 'manual') | null;
+  rawAiResponse?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "company-settings".
  */
 export interface CompanySetting {
@@ -900,6 +992,125 @@ export interface Quote {
   createdAt: string;
 }
 /**
+ * API keys control which collections, resources, tools, and prompts MCP clients can access
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-mcp-api-keys".
+ */
+export interface PayloadMcpApiKey {
+  id: number;
+  /**
+   * The user that the API key is associated with.
+   */
+  user: number | User;
+  /**
+   * A useful label for the API key.
+   */
+  label?: string | null;
+  /**
+   * The purpose of the API key.
+   */
+  description?: string | null;
+  clients?: {
+    /**
+     * Allow clients to find clients.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create clients.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update clients.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete clients.
+     */
+    delete?: boolean | null;
+  };
+  leads?: {
+    /**
+     * Allow clients to find leads.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create leads.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update leads.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete leads.
+     */
+    delete?: boolean | null;
+  };
+  tasks?: {
+    /**
+     * Allow clients to find tasks.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create tasks.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update tasks.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete tasks.
+     */
+    delete?: boolean | null;
+  };
+  conversationSummaries?: {
+    /**
+     * Allow clients to find conversation-summaries.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create conversation-summaries.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update conversation-summaries.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete conversation-summaries.
+     */
+    delete?: boolean | null;
+  };
+  payments?: {
+    /**
+     * Allow clients to find payments.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create payments.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update payments.
+     */
+    update?: boolean | null;
+  };
+  users?: {
+    /**
+     * Allow clients to find users.
+     */
+    find?: boolean | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
+  collection: 'payload-mcp-api-keys';
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -1116,6 +1327,14 @@ export interface PayloadLockedDocument {
         value: number | FormSubmission;
       } | null)
     | ({
+        relationTo: 'tasks';
+        value: number | Task;
+      } | null)
+    | ({
+        relationTo: 'conversation-summaries';
+        value: number | ConversationSummary;
+      } | null)
+    | ({
         relationTo: 'company-settings';
         value: number | CompanySetting;
       } | null)
@@ -1126,12 +1345,21 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'quotes';
         value: number | Quote;
+      } | null)
+    | ({
+        relationTo: 'payload-mcp-api-keys';
+        value: number | PayloadMcpApiKey;
       } | null);
   globalSlug?: string | null;
-  user: {
-    relationTo: 'users';
-    value: number | User;
-  };
+  user:
+    | {
+        relationTo: 'users';
+        value: number | User;
+      }
+    | {
+        relationTo: 'payload-mcp-api-keys';
+        value: number | PayloadMcpApiKey;
+      };
   updatedAt: string;
   createdAt: string;
 }
@@ -1141,10 +1369,15 @@ export interface PayloadLockedDocument {
  */
 export interface PayloadPreference {
   id: number;
-  user: {
-    relationTo: 'users';
-    value: number | User;
-  };
+  user:
+    | {
+        relationTo: 'users';
+        value: number | User;
+      }
+    | {
+        relationTo: 'payload-mcp-api-keys';
+        value: number | PayloadMcpApiKey;
+      };
   key?: string | null;
   value?:
     | {
@@ -1491,6 +1724,60 @@ export interface FormSubmissionsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tasks_select".
+ */
+export interface TasksSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  description?: T;
+  status?: T;
+  priority?: T;
+  dueDate?: T;
+  assignedTo?: T;
+  client?: T;
+  lead?: T;
+  source?: T;
+  checklist?:
+    | T
+    | {
+        item?: T;
+        done?: T;
+        id?: T;
+      };
+  completedAt?: T;
+  kanbanStatus?: T;
+  kanbanOrderRank?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "conversation-summaries_select".
+ */
+export interface ConversationSummariesSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  conversation?: T;
+  client?: T;
+  lead?: T;
+  summary?: T;
+  sentiment?: T;
+  objections?: T;
+  nextSteps?: T;
+  budgetExpectation?: T;
+  keyTopics?:
+    | T
+    | {
+        topic?: T;
+        id?: T;
+      };
+  generatedBy?: T;
+  rawAiResponse?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "company-settings_select".
  */
 export interface CompanySettingsSelect<T extends boolean = true> {
@@ -1682,6 +1969,64 @@ export interface QuotesSelect<T extends boolean = true> {
   relatedInvoices?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-mcp-api-keys_select".
+ */
+export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
+  user?: T;
+  label?: T;
+  description?: T;
+  clients?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  leads?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  tasks?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  conversationSummaries?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  payments?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+      };
+  users?:
+    | T
+    | {
+        find?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  enableAPIKey?: T;
+  apiKey?: T;
+  apiKeyIndex?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1936,6 +2281,8 @@ export interface TaskCreateCollectionExport {
       | 'email-campaigns'
       | 'offers'
       | 'form-submissions'
+      | 'tasks'
+      | 'conversation-summaries'
       | 'company-settings'
       | 'exports'
       | 'imports';
