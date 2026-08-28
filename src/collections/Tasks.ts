@@ -20,18 +20,6 @@ export const Tasks: CollectionConfig = {
     delete: adminOnly,
   },
   timestamps: true,
-  hooks: {
-    beforeChange: [
-      ({ data, originalDoc }) => {
-        if (data.status === 'completada' && originalDoc?.status !== 'completada') {
-          data.completedAt = new Date().toISOString()
-        } else if (data.status && data.status !== 'completada' && originalDoc?.status === 'completada') {
-          data.completedAt = null
-        }
-        return data
-      },
-    ],
-  },
   fields: [
     {
       name: 'title',
@@ -148,6 +136,15 @@ export const Tasks: CollectionConfig = {
       admin: {
         position: 'sidebar',
         readOnly: true,
+      },
+      hooks: {
+        beforeChange: [
+          ({ siblingData, value }) => {
+            if (siblingData?.status === 'completada' && !value) return new Date().toISOString()
+            if (siblingData?.status && siblingData.status !== 'completada') return null
+            return value
+          },
+        ],
       },
     },
   ],

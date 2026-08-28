@@ -60,11 +60,13 @@ export const Leads: CollectionConfig = {
     {
       name: 'phone',
       type: 'text',
+      index: true,
       label: 'Teléfono (WhatsApp)',
     },
     {
       name: 'email',
       type: 'email',
+      index: true,
     },
     {
       name: 'segment',

@@ -31,6 +31,7 @@ export const SocialPosts: CollectionConfig = {
       name: 'account',
       type: 'relationship',
       relationTo: 'social-accounts',
+      maxDepth: 1,
       required: true,
       label: 'Cuenta de destino',
     },

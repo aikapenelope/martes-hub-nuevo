@@ -111,7 +111,7 @@ export async function replyConversationHandler(req: PayloadRequest): Promise<Res
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error enviando por OpenBSP'
     const notConfigured = message.startsWith('OpenBSP no configurado')
-    req.payload.logger.error({ msg: 'reply falló', message })
+    req.payload.logger.error({ msg: 'reply falló', err })
     return Response.json({ error: message }, { status: notConfigured ? 503 : 502 })
   }
 }

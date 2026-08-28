@@ -19,7 +19,7 @@ export const Clients: CollectionConfig = {
   hooks: {
     afterChange: [
       async ({ doc, req, operation }) => {
-        if (operation !== 'create') return
+        if (operation !== 'create' || req.context?.skipLeadConversion) return
         const rawTenant = doc.tenant
         const tenantId =
           typeof rawTenant === 'object' && rawTenant !== null ? rawTenant.id : rawTenant
@@ -54,6 +54,10 @@ export const Clients: CollectionConfig = {
               data: {
                 status: 'calificado',
                 convertedClient: doc.id,
+              },
+              context: {
+                ...req.context,
+                skipLeadConversion: true,
               },
               overrideAccess: true,
               req,
@@ -90,11 +94,13 @@ export const Clients: CollectionConfig = {
     {
       name: 'email',
       type: 'email',
+      index: true,
       label: 'Email',
     },
     {
       name: 'phone',
       type: 'text',
+      index: true,
       label: 'Teléfono (WhatsApp)',
       admin: {
         description: 'Formato internacional sin +: ej 584121234567',

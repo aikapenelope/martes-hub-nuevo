@@ -39,6 +39,7 @@ export const Tenants: CollectionConfig = {
       type: 'text',
       required: true,
       unique: true,
+      index: true,
       label: 'Slug',
       admin: {
         description: 'Identificador estable; no cambiar después de crear datos',

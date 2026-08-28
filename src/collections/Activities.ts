@@ -59,6 +59,12 @@ export const Activities: CollectionConfig = {
       type: 'relationship',
       relationTo: 'clients',
       label: 'Cliente',
+      validate: (value: unknown, { siblingData }: { siblingData?: Record<string, unknown> }): true | string => {
+        if (!value && !siblingData?.lead) {
+          return 'La actividad debe estar vinculada a un cliente o a un lead'
+        }
+        return true
+      },
     },
     {
       name: 'lead',
@@ -78,14 +84,6 @@ export const Activities: CollectionConfig = {
     },
   ],
   hooks: {
-    beforeValidate: [
-      ({ data }) => {
-        if (!data?.client && !data?.lead) {
-          throw new Error('La actividad debe estar vinculada a un cliente o a un lead')
-        }
-        return data
-      },
-    ],
     beforeChange: [
       ({ req, data }) => {
         if (!data.performedBy && req.user) {

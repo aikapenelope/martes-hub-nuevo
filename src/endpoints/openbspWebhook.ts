@@ -352,7 +352,7 @@ export async function openbspWebhookHandler(req: PayloadRequest): Promise<Respon
         return json({ ok: true, ignored: `entidad desconocida: ${envelope.entity}` })
     }
   } catch (err) {
-    req.payload.logger.error({ msg: 'openbsp webhook error', err: err instanceof Error ? err.message : err })
+    req.payload.logger.error({ msg: 'openbsp webhook error', err })
     return json({ error: 'Error procesando webhook' }, 500)
   }
 }

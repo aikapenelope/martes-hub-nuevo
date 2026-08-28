@@ -623,7 +623,7 @@ export interface EmailCampaign {
   segment?: (number | null) | Segment;
   status: 'draft' | 'sending' | 'sent' | 'partial' | 'failed';
   /**
-   * Informativo en v1: el envío es manual desde el botón Enviar
+   * Fecha objetivo de envío. En v1 el despacho se activa desde la acción Enviar Campaña.
    */
   scheduledAt?: string | null;
   sentAt?: string | null;
@@ -782,7 +782,7 @@ export interface SocialAccount {
    */
   platformAccountId: string;
   /**
-   * Token cifrado/almacenado de Graph API
+   * Token de Graph API restringido a administradores
    */
   accessToken: string;
   tokenExpiresAt?: string | null;

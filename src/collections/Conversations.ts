@@ -49,6 +49,7 @@ export const Conversations: CollectionConfig = {
       name: 'contactAddress',
       type: 'text',
       required: true,
+      index: true,
       label: 'Contacto (E.164 sin +)',
     },
     {

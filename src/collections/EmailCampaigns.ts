@@ -97,7 +97,7 @@ export const EmailCampaigns: CollectionConfig = {
       admin: {
         position: 'sidebar',
         date: { pickerAppearance: 'dayAndTime' },
-        description: 'Informativo en v1: el envío es manual desde el botón Enviar',
+        description: 'Fecha objetivo de envío. En v1 el despacho se activa desde la acción Enviar Campaña.',
       },
     },
     {
