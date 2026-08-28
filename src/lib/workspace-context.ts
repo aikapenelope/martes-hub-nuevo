@@ -49,7 +49,7 @@ export async function getWorkspaceContext(
   const { user: authenticatedUser } = await payload.auth({ headers: requestHeaders })
 
   if (!authenticatedUser || authenticatedUser.collection !== 'users') {
-    redirect(`/admin/login?redirect=${encodeURIComponent('/overview')}`)
+    redirect(`/admin/login?redirect=${encodeURIComponent('/workspace')}`)
   }
 
   const user = authenticatedUser as User

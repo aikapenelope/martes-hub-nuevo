@@ -1,0 +1,9 @@
+/*
+ * Workspace product surface — Tailwind v4 completo (theme + utilities + preflight).
+ *
+ * A diferencia de `src/app/(payload)/custom.css` (que solo carga theme+utilities
+ * SIN preflight para no romper el admin nativo de Payload), el workspace es su
+ * propio root layout con su propio <html>/<body>, así que puede usar Tailwind
+ * completo sin conflicto con ningún otro sistema de estilos.
+ */
+@import 'tailwindcss';

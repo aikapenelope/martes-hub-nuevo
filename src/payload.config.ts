@@ -71,36 +71,6 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
-    components: {
-      views: {
-        analytics: {
-          path: '/analytics',
-          exact: true,
-          Component: '/components/admin/AnalyticsView#AnalyticsView',
-        },
-        dashboardHermes: {
-          path: '/dashboard',
-          exact: true,
-          Component: '/views/Dashboard#DashboardView',
-        },
-        inbox: {
-          path: '/inbox',
-          exact: true,
-          Component: '/views/Inbox#InboxView',
-        },
-        hoy: {
-          path: '/hoy',
-          exact: true,
-          Component: '/views/Hoy#HoyView',
-        },
-        overview: {
-          path: '/overview',
-          exact: true,
-          Component: '/views/Overview#OverviewView',
-        },
-      },
-      afterNavLinks: ['/components/DashboardNavLink#DashboardNavLink'],
-    },
   },
   collections: [
     Tenants,
