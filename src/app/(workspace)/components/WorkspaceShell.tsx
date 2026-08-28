@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import { HermesAiSidecar } from './HermesAiSidecar'
 import { WorkspaceHeader } from './WorkspaceHeader'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
@@ -14,8 +15,25 @@ interface WorkspaceShellProps {
 }
 
 export function WorkspaceShell({ userEmail, userName, tenantName, isAdmin, children }: WorkspaceShellProps) {
+  const router = useRouter()
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        // Búsqueda global: navega al CRM donde vive el buscador de leads/clientes
+        router.push('/crm')
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault()
+        setIsAiDrawerOpen((open) => !open)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [router])
 
   return (
     <div className="workspace-shell">

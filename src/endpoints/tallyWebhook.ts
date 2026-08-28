@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import type { PayloadRequest } from 'payload'
 import type { Tenant } from '@/payload-types'
+import { checkRateLimit } from './rateLimit'
 
 interface TallyField {
   key: string
@@ -37,10 +38,21 @@ function verifyTallySignature(rawBody: string, signatureHeader: string | null, s
   try {
     const hmac = crypto.createHmac('sha256', secret)
     const digest = hmac.update(rawBody).digest('base64')
-    return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signatureHeader))
+    const a = Buffer.from(digest)
+    const b = Buffer.from(signatureHeader)
+    if (a.length !== b.length) return false
+    return crypto.timingSafeEqual(a, b)
   } catch {
     return false
   }
+}
+
+function timingSafeEqual(a: string | null, b: string): boolean {
+  if (!a) return false
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return crypto.timingSafeEqual(bufA, bufB)
 }
 
 async function resolveTenant(req: PayloadRequest, explicitTenantId?: number | null): Promise<Tenant | null> {
@@ -80,9 +92,22 @@ const COMPLAINT_KEYWORDS = [
 export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response> {
   const secret = process.env.TALLY_SIGNING_SECRET || process.env.TALLY_WEBHOOK_SECRET
 
+  // La autenticación es OBLIGATORIA: sin secreto configurado, el webhook no procesa nada.
+  // Evita que el endpoint quede abierto como vector de inyección de datos sin firma.
+  if (!secret) {
+    return Response.json(
+      { error: 'Webhook no configurado: falta TALLY_SIGNING_SECRET' },
+      { status: 503 },
+    )
+  }
+
   const readText = req.text
   if (typeof readText !== 'function') {
     return Response.json({ error: 'Cuerpo requerido' }, { status: 400 })
+  }
+
+  if (!checkRateLimit(req, 'tally-webhook')) {
+    return Response.json({ error: 'Demasiadas peticiones' }, { status: 429 })
   }
 
   let rawBody: string
@@ -92,19 +117,17 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
     return Response.json({ error: 'Error leyendo el cuerpo de la petición' }, { status: 400 })
   }
 
-  if (secret) {
-    const sigHeader = req.headers.get('tally-signature')
-    const authHeader = req.headers.get('authorization')
-    const url = new URL(req.url ?? 'http://local.payload/api/webhooks/tally')
-    const querySecret = url.searchParams.get('secret')
+  const sigHeader = req.headers.get('tally-signature')
+  const authHeader = req.headers.get('authorization')
+  const url = new URL(req.url ?? 'http://local.payload/api/webhooks/tally')
+  const querySecret = url.searchParams.get('secret')
 
-    const isHmacValid = sigHeader ? verifyTallySignature(rawBody, sigHeader, secret) : false
-    const isBearerValid = authHeader === `Bearer ${secret}`
-    const isQueryValid = querySecret === secret
+  const isHmacValid = sigHeader ? verifyTallySignature(rawBody, sigHeader, secret) : false
+  const isBearerValid = timingSafeEqual(authHeader, `Bearer ${secret}`)
+  const isQueryValid = timingSafeEqual(querySecret, secret)
 
-    if (!isHmacValid && !isBearerValid && !isQueryValid) {
-      return Response.json({ error: 'Firma o token de webhook inválido' }, { status: 401 })
-    }
+  if (!isHmacValid && !isBearerValid && !isQueryValid) {
+    return Response.json({ error: 'Firma o token de webhook inválido' }, { status: 401 })
   }
 
   let envelope: TallyEnvelope
@@ -189,7 +212,6 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
   }
 
   // Si se envió query param ?tenant=ID
-  const url = new URL(req.url ?? 'http://local.payload/api/webhooks/tally')
   const qTenant = url.searchParams.get('tenant')
   if (qTenant && Number.isInteger(Number(qTenant))) {
     explicitTenantId = Number(qTenant)

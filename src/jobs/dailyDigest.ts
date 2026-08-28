@@ -19,7 +19,6 @@ export const dailyDigestTask: TaskConfig = {
   handler: async ({ req }) => {
     const today = caracasDayRange(caracasIsoDate(0))
     const in7Days = caracasDayRange(caracasIsoDate(7))
-    const weekAhead = caracasDayRange(caracasIsoDate(7))
 
     const tenants = await req.payload.find({
       collection: 'tenants',
@@ -51,7 +50,7 @@ export const dailyDigestTask: TaskConfig = {
             { tenant: { equals: tenant.id } },
             { status: { equals: 'pendiente' } },
             { dueDate: { greater_than_equal: today.start.toISOString() } },
-            { dueDate: { less_than_equal: weekAhead.end.toISOString() } },
+            { dueDate: { less_than_equal: in7Days.end.toISOString() } },
           ],
         },
         req,

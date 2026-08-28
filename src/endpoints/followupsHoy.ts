@@ -136,6 +136,13 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
     },
     limit: 500,
     depth: 0,
+    select: {
+      id: true,
+      fullName: true,
+      phone: true,
+      status: true,
+      createdAt: true,
+    },
     overrideAccess: true,
     req,
   })
@@ -182,6 +189,13 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
     },
     limit: 500,
     depth: 0,
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      stage: true,
+      createdAt: true,
+    },
     overrideAccess: true,
     req,
   })
@@ -218,5 +232,8 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
 
   items.sort((a, b) => b.priority - a.priority)
 
-  return Response.json({ items: items.slice(0, 50), generatedAt: new Date().toISOString() })
+  return Response.json(
+    { items: items.slice(0, 50), generatedAt: new Date().toISOString() },
+    { headers: { 'Cache-Control': 'private, no-store' } },
+  )
 }

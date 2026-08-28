@@ -212,25 +212,61 @@ export default buildConfig({
           description: 'Gestión de tareas internas: título, estado, prioridad y asignaciones.',
           enabled: true,
         },
-        'conversation-summaries': {
-          description: 'Resúmenes ejecutivos con sentimiento, objeciones y próximos pasos de clientes.',
-          enabled: true,
-        },
-        'social-posts': {
-          description: 'Publicaciones en redes sociales: contenido, fecha programada y estado.',
-          enabled: true,
-        },
-        'post-metrics': {
-          description: 'Métricas de rendimiento de publicaciones sociales: alcance, likes, impresiones.',
-          enabled: true,
-        },
+        // Documentos financieros: SOLO LECTURA para el agente MCP.
+        // Sin create/update el agente no puede sintetizar ni mutar cobros/facturas/cotizaciones.
         payments: {
-          description: 'Registro de pagos y cobros de clientes.',
+          description:
+            'Registro de pagos y cobros de clientes. SOLO LECTURA: el agente no crea ni modifica pagos.',
           enabled: {
             delete: false,
             find: true,
-            create: true,
-            update: true,
+            create: false,
+            update: false,
+          },
+        },
+        invoices: {
+          description: 'Facturas emitidas. SOLO LECTURA para el agente.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: false,
+            update: false,
+          },
+        },
+        quotes: {
+          description: 'Cotizaciones enviadas y en negociación. SOLO LECTURA para el agente.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: false,
+            update: false,
+          },
+        },
+        'conversation-summaries': {
+          description: 'Resúmenes ejecutivos con sentimiento, objeciones y próximos pasos de clientes.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: false,
+            update: false,
+          },
+        },
+        'social-posts': {
+          description: 'Publicaciones en redes sociales: contenido, fecha programada y estado.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: false,
+            update: false,
+          },
+        },
+        'post-metrics': {
+          description: 'Métricas de rendimiento de publicaciones sociales: alcance, likes, impresiones.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: false,
+            update: false,
           },
         },
         users: {
@@ -311,13 +347,30 @@ export default buildConfig({
       handler: tallyWebhookHandler,
     },
   ],
-  secret: process.env.PAYLOAD_SECRET || '',
+  secret: (() => {
+    const secret = process.env.PAYLOAD_SECRET
+    if (!secret && process.env.VERCEL) {
+      throw new Error('FATAL: PAYLOAD_SECRET environment variable is required on Vercel deployments.')
+    }
+    return secret || 'martes-hub-build-secret-key-32chars-min'
+  })(),
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 15000,
+      ...(process.env.SUPABASE_CA_CERT || process.env.DATABASE_CA_CERT
+        ? {
+            ssl: {
+              rejectUnauthorized: true,
+              ca: (process.env.SUPABASE_CA_CERT || process.env.DATABASE_CA_CERT || '').replace(/\\n/g, '\n'),
+            },
+          }
+        : {}),
     },
     push: false,
     migrationDir: './src/migrations',

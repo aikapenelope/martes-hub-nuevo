@@ -1,46 +1,115 @@
-import React from 'react'
+import Link from 'next/link'
+import { Ban, CircleDollarSign, Clock3, Plus, ShieldAlert } from 'lucide-react'
 
-export default function BillingPage() {
+import { getWorkspaceContext } from '@/lib/workspace-context'
+import { paymentsAggregate, startOfMonthIso } from '@/lib/overview-data'
+
+const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+const date = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric' })
+
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tenant?: string | string[] }>
+}) {
+  const params = await searchParams
+  const context = await getWorkspaceContext(params)
+  const { payload, user, tenantId, canEdit } = context
+
+  const [collected, pending, overdue, cancelled, recent] = await Promise.all([
+    paymentsAggregate(payload, tenantId, ['pagado'], startOfMonthIso()),
+    paymentsAggregate(payload, tenantId, ['pendiente', 'vencido']),
+    paymentsAggregate(payload, tenantId, ['vencido']),
+    paymentsAggregate(payload, tenantId, ['anulado']),
+    payload.find({
+      collection: 'payments',
+      where: { tenant: { equals: tenantId } },
+      depth: 1,
+      limit: 10,
+      sort: '-createdAt',
+      overrideAccess: false,
+      user,
+    }),
+  ])
+
+  const cards = [
+    { label: 'Cobrado este mes', value: usd.format(collected.total), note: `${collected.count} pagos registrados`, icon: CircleDollarSign },
+    { label: 'Por cobrar', value: usd.format(pending.total), note: `${pending.count} cobros abiertos (pendiente + vencido)`, icon: Clock3 },
+    { label: 'Vencidos', value: usd.format(overdue.total), note: `${overdue.count} pagos vencidos por gestionar`, icon: ShieldAlert },
+    { label: 'Anulados', value: usd.format(cancelled.total), note: `${cancelled.count} registros anulados`, icon: Ban },
+  ]
+
   return (
-    <div style={{ padding: '32px 40px', background: '#050505', minHeight: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+    <div className="workspace-page">
+      <section className="workspace-page-head">
         <div>
-          <div style={{ fontSize: 10, color: '#ffaa00', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-            ● VENTAS_Y_COBRANZAS
+          <div className="workspace-eyebrow"><span className="workspace-eyebrow-dot" /> Ventas y cobranzas</div>
+          <h1 className="workspace-title">Billing & Commerce</h1>
+          <p className="workspace-subtitle">Cobros, pendientes y facturación de {context.tenant.name}.</p>
+        </div>
+        {canEdit ? (
+          <div className="workspace-actions">
+            <Link className="workspace-button" href="/admin/collections/quotes/create"><Plus size={16} /> Crear cotización</Link>
+            <Link className="workspace-button workspace-button-primary" href="/admin/collections/invoices/create"><Plus size={16} /> Nueva factura</Link>
           </div>
-          <h1 style={{ margin: '6px 0 0', fontSize: 24, fontWeight: 700, color: '#fff' }}>
-            Billing & Commerce // Cotizaciones y Facturas
-          </h1>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button style={{ background: '#111', color: '#fff', border: '1px solid #333', padding: '8px 16px', borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-            + CREAR COTIZACIÓN
-          </button>
-          <button style={{ background: '#fff', color: '#000', border: 'none', padding: '8px 16px', borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-            + NUEVA FACTURA
-          </button>
-        </div>
-      </div>
+        ) : null}
+      </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
-        <div style={{ background: '#090909', border: '1px solid #1a1a1a', borderRadius: 6, padding: 20 }}>
-          <div style={{ fontSize: 11, color: '#888', textTransform: 'uppercase' }}>Total Cobrado Este Mes</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#00ffaa', margin: '8px 0' }}>$8,450 USD</div>
-          <div style={{ fontSize: 10, color: '#666' }}>14 pagos registrados</div>
-        </div>
+      <section className="workspace-kpis" aria-label="Indicadores de cobranza">
+        {cards.map(({ label, value, note, icon: Icon }) => (
+          <article className="workspace-card workspace-kpi" key={label}>
+            <div className="workspace-kpi-top"><span className="workspace-kpi-label">{label}</span><span className="workspace-kpi-icon"><Icon size={18} /></span></div>
+            <div className="workspace-kpi-value">{value}</div>
+            <div className="workspace-kpi-note">{note}</div>
+          </article>
+        ))}
+      </section>
 
-        <div style={{ background: '#090909', border: '1px solid #1a1a1a', borderRadius: 6, padding: 20 }}>
-          <div style={{ fontSize: 11, color: '#888', textTransform: 'uppercase' }}>Por Cobrar / Pendiente</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#ffaa00', margin: '8px 0' }}>$3,550 USD</div>
-          <div style={{ fontSize: 10, color: '#666' }}>6 facturas abiertas</div>
-        </div>
-
-        <div style={{ background: '#090909', border: '1px solid #1a1a1a', borderRadius: 6, padding: 20 }}>
-          <div style={{ fontSize: 11, color: '#888', textTransform: 'uppercase' }}>Cotizaciones en Negociación</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#aa00ff', margin: '8px 0' }}>$6,200 USD</div>
-          <div style={{ fontSize: 10, color: '#666' }}>4 cotizaciones activas</div>
-        </div>
-      </div>
+      <section className="workspace-card crm-table-card" style={{ marginTop: '1rem' }}>
+        <header className="workspace-card-head">
+          <div><h2 className="workspace-card-title">Cobros recientes</h2><p className="workspace-card-description">Últimos registros de pagos del tenant.</p></div>
+          <Link className="workspace-button" href="/admin/collections/payments">Ver todos</Link>
+        </header>
+        {recent.docs.length === 0 ? (
+          <div className="workspace-empty">Sin pagos registrados para este tenant todavía.</div>
+        ) : (
+          <div className="crm-table-wrap">
+            <table className="crm-table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Concepto</th>
+                  <th>Monto</th>
+                  <th>Estado</th>
+                  <th>Vence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.docs.map((p) => {
+                  const clientName = (() => {
+                    if (p.client && typeof p.client === 'object') {
+                      const populated = p.client as { name?: string; id?: number }
+                      return populated.name || `Cliente #${populated.id ?? ''}`
+                    }
+                    return `Cliente #${String(p.client)}`
+                  })()
+                  return (
+                    <tr key={p.id}>
+                      <td data-label="Cliente">{clientName}</td>
+                      <td data-label="Concepto">{p.concept || '—'}</td>
+                      <td data-label="Monto"><strong>{usd.format(p.amount)}</strong></td>
+                      <td data-label="Estado">
+                        <span className="workspace-badge" data-tone={p.status === 'vencido' || p.status === 'anulado' ? 'danger' : undefined}>{p.status}</span>
+                      </td>
+                      <td data-label="Vence">{p.dueDate ? date.format(new Date(p.dueDate)) : '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   )
 }
