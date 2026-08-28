@@ -38,7 +38,11 @@ export const Documents: CollectionConfig = {
       required: true,
       defaultValue: 'contrato',
       label: 'Tipo',
-      options: ['contrato', 'factura', 'otro'],
+      options: [
+        { label: 'Contrato', value: 'contrato' },
+        { label: 'Factura', value: 'factura' },
+        { label: 'Otro', value: 'otro' },
+      ],
       admin: {
         position: 'sidebar',
       },

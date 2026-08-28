@@ -69,6 +69,7 @@ export async function replyConversationHandler(req: PayloadRequest): Promise<Res
     limit: 1,
     depth: 0,
     overrideAccess: true,
+    req,
   })
   const tenant = tenants.docs[0] as Tenant | undefined
 
@@ -95,6 +96,7 @@ export async function replyConversationHandler(req: PayloadRequest): Promise<Res
         tenant: tenantId,
       },
       overrideAccess: true,
+      req,
     })
 
     await req.payload.update({
@@ -102,6 +104,7 @@ export async function replyConversationHandler(req: PayloadRequest): Promise<Res
       id: conversation.id,
       data: { lastMessageAt: new Date().toISOString() },
       overrideAccess: true,
+      req,
     })
 
     return Response.json({ ok: true, messageId: created.id, openbspId: row.id })

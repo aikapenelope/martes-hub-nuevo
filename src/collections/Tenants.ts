@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
-
-import { adminOnly, authenticated } from '../access'
+import type { User } from '@/payload-types'
+import { adminOnly } from '../access'
 
 export const Tenants: CollectionConfig = {
   slug: 'tenants',
@@ -10,7 +10,18 @@ export const Tenants: CollectionConfig = {
     group: 'Administración',
   },
   access: {
-    read: authenticated,
+    read: ({ req }) => {
+      const user = req.user as User | null
+      if (!user) return false
+      if (user.roles?.includes('admin')) return true
+      const userTenants = (user.tenants || [])
+        .map((t) => (typeof t.tenant === 'object' && t.tenant ? t.tenant.id : t.tenant))
+        .filter((id): id is number => typeof id === 'number')
+      if (userTenants.length === 0) return false
+      return {
+        id: { in: userTenants },
+      }
+    },
     create: adminOnly,
     update: adminOnly,
     delete: adminOnly,

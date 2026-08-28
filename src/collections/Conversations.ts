@@ -23,7 +23,11 @@ export const Conversations: CollectionConfig = {
       required: true,
       defaultValue: 'whatsapp',
       label: 'Canal',
-      options: ['whatsapp', 'instagram_dm', 'whatsapp_web'],
+      options: [
+        { label: 'WhatsApp', value: 'whatsapp' },
+        { label: 'Instagram DM', value: 'instagram_dm' },
+        { label: 'WhatsApp Web', value: 'whatsapp_web' },
+      ],
       admin: { position: 'sidebar' },
     },
     {

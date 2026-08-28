@@ -111,72 +111,89 @@ export const sendCampaignTask: TaskConfig = {
     let sent = 0
     let failed = 0
 
-    for (const recipient of recipients.values()) {
-      // Idempotencia por destinatario: si la campaña ya registró un envío
-      // (sent/delivered) para este email, no se reenvía aunque el job se reintente
-      // por timeout de Vercel o fallo de infraestructura.
-      const alreadySent = await req.payload.find({
+    const recipientList = Array.from(recipients.values())
+    const allEmails = recipientList.map((r) => r.email.toLowerCase())
+
+    // Idempotencia en bulk: una sola consulta para todos los destinatarios
+    const alreadySentSet = new Set<string>()
+    if (allEmails.length > 0) {
+      const alreadySentRes = await req.payload.find({
         collection: 'email-log',
         where: {
           and: [
-            { to: { equals: recipient.email } },
+            { to: { in: allEmails } },
             { campaign: { equals: campaignId } },
             { status: { in: ['sent', 'delivered'] } },
           ],
         },
-        limit: 1,
+        limit: allEmails.length,
         depth: 0,
         overrideAccess: true,
         req,
       })
-      if (alreadySent.docs.length > 0) continue
-
-      const html = renderEmailHtml({
-        title: campaign.subject,
-        preheader: campaign.preheader ?? undefined,
-        bodyHtml: campaign.bodyHtml.replaceAll('{{nombre}}', firstName(recipient.name)),
-      })
-
-      try {
-        const result = (await req.payload.sendEmail({
-          to: recipient.email,
-          subject: campaign.subject,
-          html,
-        })) as { id?: string } | null | undefined
-
-        await req.payload.create({
-          collection: 'email-log',
-          data: {
-            to: recipient.email,
-            subject: campaign.subject,
-            status: 'sent',
-            source: 'campaign',
-            providerMessageId: result?.id,
-            campaign: campaign.id,
-            tenant: tenantId,
-          },
-          overrideAccess: true,
-          req,
-        })
-        sent += 1
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'error desconocido'
-        await req.payload.create({
-          collection: 'email-log',
-          data: {
-            to: recipient.email,
-            subject: campaign.subject,
-            status: 'failed',
-            source: 'campaign',
-            error: message.slice(0, 1000),
-            campaign: campaign.id,
-            tenant: tenantId,
-          },
-          overrideAccess: true,
-          req,
-        })
-        failed += 1
+      for (const doc of alreadySentRes.docs) {
+        if (doc.to) alreadySentSet.add(doc.to.toLowerCase())
       }
+    }
+
+    const pendingRecipients = recipientList.filter(
+      (r) => !alreadySentSet.has(r.email.toLowerCase()),
+    )
+
+    // Enviar en lotes concurrentes controlados para evitar N round-trips secuenciales
+    const BATCH_SIZE = 15
+    for (let i = 0; i < pendingRecipients.length; i += BATCH_SIZE) {
+      const batch = pendingRecipients.slice(i, i + BATCH_SIZE)
+      await Promise.all(
+        batch.map(async (recipient) => {
+          const html = renderEmailHtml({
+            title: campaign.subject,
+            preheader: campaign.preheader ?? undefined,
+            bodyHtml: campaign.bodyHtml.replaceAll('{{nombre}}', firstName(recipient.name)),
+          })
+
+          try {
+            const result = (await req.payload.sendEmail({
+              to: recipient.email,
+              subject: campaign.subject,
+              html,
+            })) as { id?: string } | null | undefined
+
+            await req.payload.create({
+              collection: 'email-log',
+              data: {
+                to: recipient.email,
+                subject: campaign.subject,
+                status: 'sent',
+                source: 'campaign',
+                providerMessageId: result?.id,
+                campaign: campaign.id,
+                tenant: tenantId,
+              },
+              overrideAccess: true,
+              req,
+            })
+            sent += 1
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'error desconocido'
+            await req.payload.create({
+              collection: 'email-log',
+              data: {
+                to: recipient.email,
+                subject: campaign.subject,
+                status: 'failed',
+                source: 'campaign',
+                error: message.slice(0, 1000),
+                campaign: campaign.id,
+                tenant: tenantId,
+              },
+              overrideAccess: true,
+              req,
+            })
+            failed += 1
+          }
+        }),
+      )
     }
 
     const finalStatus = sent > 0 && failed > 0 ? 'partial' : sent > 0 ? 'sent' : 'failed'

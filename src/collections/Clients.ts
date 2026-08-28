@@ -1,4 +1,4 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Where } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
 
@@ -16,6 +16,55 @@ export const Clients: CollectionConfig = {
     delete: adminOnly,
   },
   timestamps: true,
+  hooks: {
+    afterChange: [
+      async ({ doc, req, operation }) => {
+        if (operation !== 'create') return
+        const rawTenant = doc.tenant
+        const tenantId =
+          typeof rawTenant === 'object' && rawTenant !== null ? rawTenant.id : rawTenant
+
+        const matchOr: Where[] = []
+        if (doc.phone) matchOr.push({ phone: { equals: doc.phone } })
+        if (doc.email) matchOr.push({ email: { equals: doc.email } })
+        if (matchOr.length === 0) return
+
+        const andClauses: Where[] = [
+          { convertedClient: { exists: false } },
+          { or: matchOr },
+        ]
+        if (tenantId) {
+          andClauses.unshift({ tenant: { equals: tenantId } })
+        }
+
+        try {
+          const matchingLeads = await req.payload.find({
+            collection: 'leads',
+            where: { and: andClauses },
+            limit: 10,
+            depth: 0,
+            overrideAccess: true,
+            req,
+          })
+
+          for (const lead of matchingLeads.docs) {
+            await req.payload.update({
+              collection: 'leads',
+              id: lead.id,
+              data: {
+                status: 'calificado',
+                convertedClient: doc.id,
+              },
+              overrideAccess: true,
+              req,
+            })
+          }
+        } catch {
+          // Ignorar si falla la sincronización secundaria del lead
+        }
+      },
+    ],
+  },
   fields: [
     {
       name: 'name',
@@ -27,7 +76,12 @@ export const Clients: CollectionConfig = {
       type: 'select',
       required: true,
       defaultValue: 'activo',
-      options: ['nuevo', 'activo', 'inactivo', 'perdido'],
+      options: [
+        { label: 'Nuevo', value: 'nuevo' },
+        { label: 'Activo', value: 'activo' },
+        { label: 'Inactivo', value: 'inactivo' },
+        { label: 'Perdido', value: 'perdido' },
+      ],
       label: 'Etapa',
       admin: {
         position: 'sidebar',

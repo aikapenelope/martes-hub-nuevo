@@ -35,9 +35,13 @@ export const InboxView: React.FC = () => {
   const [convs, setConvs] = useState<ConvItem[]>([])
   const [selected, setSelected] = useState<number | null>(null)
   const [messages, setMessages] = useState<MsgItem[]>([])
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  const messagesEndRef = React.useRef<HTMLDivElement>(null)
+  const messagesContainerRef = React.useRef<HTMLDivElement>(null)
 
   const loadConversations = useCallback(async () => {
     const res = await fetch('/api/conversations?limit=50&sort=-lastMessageAt&depth=1', {
@@ -49,28 +53,41 @@ export const InboxView: React.FC = () => {
     }
   }, [])
 
-  const loadThread = useCallback(async (id: number) => {
+  const loadThread = useCallback(async (id: number, limit = 50) => {
     const res = await fetch(
-      `/api/messages?limit=200&sort=sentAt&where[conversation][equals]=${id}`,
+      `/api/messages?limit=${limit}&sort=sentAt&where[conversation][equals]=${id}`,
       { credentials: 'include' },
     )
     if (res.ok) {
-      const data = (await res.json()) as { docs: MsgItem[] }
+      const data = (await res.json()) as { docs: MsgItem[]; totalDocs: number }
       setMessages(data.docs)
+      setHasMore(data.totalDocs > data.docs.length)
     }
   }, [])
 
+  const loadMoreMessages = async () => {
+    if (!selected || loadingOlder) return
+    setLoadingOlder(true)
+    const newLimit = messages.length + 50
+    await loadThread(selected, newLimit)
+    setLoadingOlder(false)
+  }
+
   useEffect(() => {
-    // Carga inicial al montar; los setState ocurren después del await (no son síncronos)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadConversations()
   }, [loadConversations])
 
   useEffect(() => {
-    // Carga del hilo al seleccionar conversación
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (selected !== null) void loadThread(selected)
   }, [selected, loadThread])
+
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
+    }
+  }, [messages])
 
   const send = async (): Promise<void> => {
     if (!selected || !draft.trim()) return
@@ -127,7 +144,29 @@ export const InboxView: React.FC = () => {
           <p style={{ opacity: 0.6, marginTop: 24 }}>Selecciona una conversación.</p>
         ) : (
           <>
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: 12 }}>
+            <div
+              ref={messagesContainerRef}
+              style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: 12 }}
+            >
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={() => void loadMoreMessages()}
+                  disabled={loadingOlder}
+                  style={{
+                    alignSelf: 'center',
+                    padding: '4px 12px',
+                    fontSize: 12,
+                    borderRadius: 6,
+                    border: '1px solid var(--theme-elevation-200)',
+                    background: 'var(--theme-elevation-50)',
+                    cursor: 'pointer',
+                    marginBottom: 8,
+                  }}
+                >
+                  {loadingOlder ? 'Cargando…' : 'Cargar mensajes anteriores'}
+                </button>
+              )}
               {messages.map((m) => (
                 <div key={m.id} style={bubble(m.direction)}>
                   {m.type !== 'text' && <div style={{ fontSize: 11, opacity: 0.8 }}>[{m.type}] </div>}
@@ -141,6 +180,7 @@ export const InboxView: React.FC = () => {
                 </div>
               ))}
               {messages.length === 0 && <p style={{ opacity: 0.6 }}>Sin mensajes.</p>}
+              <div ref={messagesEndRef} />
             </div>
             {error && (
               <div style={{ color: 'var(--theme-error-500)', padding: '4px 12px', fontSize: 13 }}>{error}</div>

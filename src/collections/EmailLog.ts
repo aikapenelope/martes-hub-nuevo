@@ -45,7 +45,14 @@ export const EmailLog: CollectionConfig = {
       required: true,
       defaultValue: 'queued',
       label: 'Estado',
-      options: ['queued', 'sent', 'delivered', 'bounced', 'complained', 'failed'],
+      options: [
+        { label: 'En Cola', value: 'queued' },
+        { label: 'Enviado', value: 'sent' },
+        { label: 'Entregado', value: 'delivered' },
+        { label: 'Rebotado', value: 'bounced' },
+        { label: 'Queja', value: 'complained' },
+        { label: 'Fallido', value: 'failed' },
+      ],
       admin: {
         position: 'sidebar',
         description: 'queued→sent lo setea el envío; delivered/bounced/complained llegan por webhook de Resend',
@@ -57,7 +64,11 @@ export const EmailLog: CollectionConfig = {
       required: true,
       defaultValue: 'transactional',
       label: 'Origen',
-      options: ['transactional', 'campaign', 'test'],
+      options: [
+        { label: 'Transaccional', value: 'transactional' },
+        { label: 'Campaña', value: 'campaign' },
+        { label: 'Prueba', value: 'test' },
+      ],
       admin: { position: 'sidebar' },
     },
     {

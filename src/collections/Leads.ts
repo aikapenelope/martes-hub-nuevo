@@ -29,7 +29,12 @@ export const Leads: CollectionConfig = {
       required: true,
       defaultValue: 'nuevo',
       label: 'Pipeline',
-      options: ['nuevo', 'contactado', 'calificado', 'descartado'],
+      options: [
+        { label: 'Nuevo', value: 'nuevo' },
+        { label: 'Contactado', value: 'contactado' },
+        { label: 'Calificado', value: 'calificado' },
+        { label: 'Descartado', value: 'descartado' },
+      ],
       admin: {
         position: 'sidebar',
       },
@@ -40,7 +45,14 @@ export const Leads: CollectionConfig = {
       required: true,
       defaultValue: 'manual',
       label: 'Origen',
-      options: ['manual', 'apify', 'tally', 'whatsapp', 'instagram_dm', 'referido'],
+      options: [
+        { label: 'Manual', value: 'manual' },
+        { label: 'Apify', value: 'apify' },
+        { label: 'Tally', value: 'tally' },
+        { label: 'WhatsApp', value: 'whatsapp' },
+        { label: 'Instagram DM', value: 'instagram_dm' },
+        { label: 'Referido', value: 'referido' },
+      ],
       admin: {
         position: 'sidebar',
       },

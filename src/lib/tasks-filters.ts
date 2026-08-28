@@ -56,9 +56,18 @@ export function checklistProgress(checklist: { done?: boolean | null }[] | null 
 
 export function dueState(dueDate: string | null | undefined, now = new Date()): 'none' | 'overdue' | 'today' | 'upcoming' {
   if (!dueDate) return 'none'
-  const due = new Date(dueDate)
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(dueDate)
+  let target: Date
+  if (dateOnlyMatch) {
+    const year = Number(dateOnlyMatch[1])
+    const month = Number(dateOnlyMatch[2]) - 1
+    const day = Number(dateOnlyMatch[3])
+    target = new Date(year, month, day)
+  } else {
+    const due = new Date(dueDate)
+    target = new Date(due.getFullYear(), due.getMonth(), due.getDate())
+  }
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const target = new Date(due.getFullYear(), due.getMonth(), due.getDate())
   if (target.getTime() < today.getTime()) return 'overdue'
   if (target.getTime() === today.getTime()) return 'today'
   return 'upcoming'

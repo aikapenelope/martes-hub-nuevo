@@ -28,6 +28,39 @@ export function clientKey(req: PayloadRequest): string {
   return ip
 }
 
+/**
+ * Distributed rate limiter with Upstash Redis REST API support on Serverless / Vercel Edge,
+ * with graceful in-memory fixed-window fallback when Redis credentials are not configured.
+ */
+export async function checkRateLimitDistributed(req: PayloadRequest, bucketName: string): Promise<boolean> {
+  if (MAX <= 0) return true
+  const key = `ratelimit:${bucketName}:${clientKey(req)}`
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN
+
+  if (redisUrl && redisToken) {
+    try {
+      const incrRes = await fetch(`${redisUrl}/incr/${encodeURIComponent(key)}`, {
+        headers: { Authorization: `Bearer ${redisToken}` },
+      })
+      if (incrRes.ok) {
+        const { result: currentCount } = (await incrRes.json()) as { result: number }
+        if (currentCount === 1) {
+          const ttlSeconds = Math.max(1, Math.ceil(WINDOW_MS / 1000))
+          await fetch(`${redisUrl}/expire/${encodeURIComponent(key)}/${ttlSeconds}`, {
+            headers: { Authorization: `Bearer ${redisToken}` },
+          })
+        }
+        return currentCount <= MAX
+      }
+    } catch {
+      // Fallback to in-memory on network error
+    }
+  }
+
+  return checkRateLimit(req, bucketName)
+}
+
 export function checkRateLimit(req: PayloadRequest, bucketName: string): boolean {
   if (MAX <= 0) return true
   const key = `${bucketName}:${clientKey(req)}`

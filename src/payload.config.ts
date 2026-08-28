@@ -46,6 +46,7 @@ import { replyConversationHandler } from './endpoints/replyConversation'
 import { followupsHoyHandler } from './endpoints/followupsHoy'
 import { resendWebhookHandler } from './endpoints/resendWebhook'
 import { tallyWebhookHandler } from './endpoints/tallyWebhook'
+import { dashboardStatsHandler } from './endpoints/dashboardStats'
 import { sendCampaignTask } from './jobs/sendCampaignTask'
 import { publishScheduledPostsTask } from './jobs/publishScheduledPosts'
 import { fetchSocialMetricsTask } from './jobs/fetchSocialMetrics'
@@ -345,6 +346,11 @@ export default buildConfig({
       path: '/webhooks/tally',
       method: 'post',
       handler: tallyWebhookHandler,
+    },
+    {
+      path: '/dashboard/stats',
+      method: 'get',
+      handler: dashboardStatsHandler,
     },
   ],
   secret: (() => {

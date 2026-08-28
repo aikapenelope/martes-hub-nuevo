@@ -5,10 +5,15 @@ import { Bot, LockKeyhole, X } from 'lucide-react'
 interface HermesAiSidecarProps { isOpen: boolean; onClose: () => void }
 
 export function HermesAiSidecar({ isOpen, onClose }: HermesAiSidecarProps) {
-  if (!isOpen) return null
-
   return (
-    <aside className="workspace-drawer" aria-label="Hermes">
+    <aside
+      className="workspace-drawer"
+      aria-label="Hermes"
+      aria-hidden={!isOpen}
+      style={{
+        display: isOpen ? 'block' : 'none',
+      }}
+    >
       <div className="workspace-drawer-inner">
         <div className="workspace-drawer-head">
           <div><strong>Hermes</strong><div className="workspace-card-description">Asistente de Martes Hub</div></div>

@@ -14,7 +14,7 @@
 * { box-sizing: border-box; }
 
 .workspace-body { margin: 0; background: var(--workspace-bg); color: var(--workspace-text); }
-.workspace-shell { min-height: 100vh; display: flex; background: var(--workspace-bg); color: var(--workspace-text); font-family: Arial, Helvetica, sans-serif; }
+.workspace-shell { min-height: 100vh; display: flex; background: var(--workspace-bg); color: var(--workspace-text); font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
 .workspace-sidebar { width: 260px; position: fixed; inset: 0 auto 0 0; display: flex; flex-direction: column; background: var(--workspace-panel); border-right: 1px solid var(--workspace-border); padding: 0.75rem; z-index: 50; }
 .workspace-brand { display: flex; align-items: center; gap: 0.75rem; min-height: 3.5rem; padding: 0 0.625rem; color: var(--workspace-text); text-decoration: none; }
 .workspace-brand-mark { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 0.5rem; background: var(--workspace-accent); color: #081a16; font-weight: 800; }

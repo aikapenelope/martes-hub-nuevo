@@ -1,4 +1,4 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Where } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
 
@@ -32,7 +32,11 @@ export const Notifications: CollectionConfig = {
       required: true,
       defaultValue: 'info',
       label: 'Severidad',
-      options: ['info', 'warning', 'error'],
+      options: [
+        { label: 'Información', value: 'info' },
+        { label: 'Advertencia', value: 'warning' },
+        { label: 'Error', value: 'error' },
+      ],
       admin: { position: 'sidebar' },
     },
     {
@@ -50,6 +54,60 @@ export const Notifications: CollectionConfig = {
       defaultValue: false,
       label: 'Leída',
       admin: { position: 'sidebar' },
+    },
+  ],
+  endpoints: [
+    {
+      path: '/mark-read',
+      method: 'patch',
+      handler: async (req) => {
+        if (!req.user) {
+          return Response.json({ error: 'No autenticado' }, { status: 401 })
+        }
+        let body: { ids?: number[]; all?: boolean; tenantId?: number } = {}
+        if (typeof req.json === 'function') {
+          try {
+            body = (await req.json.call(req)) as typeof body
+          } catch {
+            body = {}
+          }
+        }
+
+        let whereClause: Where = { read: { equals: false } }
+        if (body.ids && body.ids.length > 0) {
+          whereClause = { id: { in: body.ids } }
+        } else if (body.tenantId) {
+          whereClause = {
+            and: [
+              { tenant: { equals: body.tenantId } },
+              { read: { equals: false } },
+            ],
+          }
+        }
+
+        const unread = await req.payload.find({
+          collection: 'notifications',
+          where: whereClause,
+          limit: 100,
+          depth: 0,
+          overrideAccess: false,
+          user: req.user,
+          req,
+        })
+
+        for (const notif of unread.docs) {
+          await req.payload.update({
+            collection: 'notifications',
+            id: notif.id,
+            data: { read: true },
+            overrideAccess: false,
+            user: req.user,
+            req,
+          })
+        }
+
+        return Response.json({ ok: true, markedCount: unread.docs.length })
+      },
     },
   ],
 }

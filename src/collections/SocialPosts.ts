@@ -47,7 +47,12 @@ export const SocialPosts: CollectionConfig = {
       required: true,
       defaultValue: 'borrador',
       label: 'Estado de publicación',
-      options: ['borrador', 'programado', 'publicado', 'fallido'],
+      options: [
+        { label: 'Borrador', value: 'borrador' },
+        { label: 'Programado', value: 'programado' },
+        { label: 'Publicado', value: 'publicado' },
+        { label: 'Fallido', value: 'fallido' },
+      ],
       admin: {
         position: 'sidebar',
       },

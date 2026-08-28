@@ -23,7 +23,14 @@ export const Activities: CollectionConfig = {
       required: true,
       defaultValue: 'nota',
       label: 'Tipo',
-      options: ['nota', 'llamada', 'whatsapp', 'email', 'reunion', 'otro'],
+      options: [
+        { label: 'Nota', value: 'nota' },
+        { label: 'Llamada', value: 'llamada' },
+        { label: 'WhatsApp', value: 'whatsapp' },
+        { label: 'Email', value: 'email' },
+        { label: 'Reunión', value: 'reunion' },
+        { label: 'Otro', value: 'otro' },
+      ],
       admin: {
         position: 'sidebar',
       },

@@ -1,6 +1,6 @@
 import { getPayload } from 'payload'
 
-import config from '../payload.config.js'
+import config from '../src/payload.config.js'
 
 export const DEV_USER = {
   email: 'dev@martes.local',
