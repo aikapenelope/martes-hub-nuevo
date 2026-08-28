@@ -73,6 +73,11 @@ export default buildConfig({
     },
     components: {
       views: {
+        analytics: {
+          path: '/analytics',
+          exact: true,
+          Component: '/components/admin/AnalyticsView#AnalyticsView',
+        },
         dashboardHermes: {
           path: '/dashboard',
           exact: true,
@@ -87,6 +92,11 @@ export default buildConfig({
           path: '/hoy',
           exact: true,
           Component: '/views/Hoy#HoyView',
+        },
+        overview: {
+          path: '/overview',
+          exact: true,
+          Component: '/views/Overview#OverviewView',
         },
       },
       afterNavLinks: ['/components/DashboardNavLink#DashboardNavLink'],
