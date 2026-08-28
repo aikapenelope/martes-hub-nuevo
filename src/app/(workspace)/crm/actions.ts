@@ -3,9 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
-import type { Client, Lead } from '@/payload-types'
+import type { Activity, Client, Lead } from '@/payload-types'
 import { CLIENT_STAGES, LEAD_STATUSES, type ClientStage, type LeadStatus } from '@/lib/crm-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
+
+// Valores válidos del select Activity.type (deben coincidir con Collections/Activities.ts)
+const ACTIVITY_TYPES: Activity['type'][] = ['nota', 'llamada', 'whatsapp', 'email', 'reunion', 'otro']
 
 const MAX_NAME = 160
 const MAX_CONTACT = 240
@@ -265,4 +268,59 @@ export async function convertLeadAction(formData: FormData): Promise<void> {
   revalidatePath('/crm')
   revalidatePath(`/crm/leads/${id}`)
   redirect(`/crm/clientes/${client.id}?converted=1`)
+}
+
+/**
+ * Registra una actividad (nota, llamada, reunión…) en la ficha de un lead o cliente.
+ *
+ * Patrón: mismo que createLeadAction — Server Action con overrideAccess: false + user
+ * (QUERIES.md > Access Control in Local API).
+ * performedBy se auto-asigna en el beforeChange hook de Activities; no se pasa aquí.
+ */
+export async function createActivityAction(formData: FormData): Promise<void> {
+  const context = await getWorkspaceContext()
+  assertEditor(context.canEdit)
+
+  const rawType = optionalText(formData, 'type', 30) ?? 'nota'
+  const type: Activity['type'] = ACTIVITY_TYPES.includes(rawType as Activity['type'])
+    ? (rawType as Activity['type'])
+    : 'nota'
+
+  const summary = requiredText(formData, 'summary', 500)
+  const occurredAt = optionalText(formData, 'occurredAt', 40) ?? new Date().toISOString()
+
+  // client y lead son opcionales pero uno debe estar presente — la colección lo valida
+  const clientRaw = formData.get('client')
+  const leadRaw = formData.get('lead')
+  const clientId = clientRaw ? Number(clientRaw) : undefined
+  const leadId = leadRaw ? Number(leadRaw) : undefined
+
+  // Verificar que client/lead pertenecen al tenant activo (no se puede inyectar IDs ajenos)
+  if (clientId && Number.isInteger(clientId) && clientId > 0) {
+    const { client } = await scopedClient(clientId)
+    void client // verificación implícita — lanza si no pertenece al tenant
+  }
+  if (leadId && Number.isInteger(leadId) && leadId > 0) {
+    const { lead } = await scopedLead(leadId)
+    void lead
+  }
+
+  await context.payload.create({
+    collection: 'activities',
+    overrideAccess: false,
+    user: context.user,
+    data: {
+      tenant: context.tenantId,
+      type,
+      summary,
+      occurredAt,
+      ...(clientId && Number.isInteger(clientId) ? { client: clientId } : {}),
+      ...(leadId && Number.isInteger(leadId) ? { lead: leadId } : {}),
+    },
+  })
+
+  // Revalidar la ficha del registro afectado
+  if (clientId) revalidatePath(`/crm/clientes/${clientId}`)
+  if (leadId) revalidatePath(`/crm/leads/${leadId}`)
+  revalidatePath('/overview')
 }
