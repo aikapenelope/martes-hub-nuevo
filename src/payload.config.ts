@@ -311,13 +311,30 @@ export default buildConfig({
       handler: tallyWebhookHandler,
     },
   ],
-  secret: process.env.PAYLOAD_SECRET || '',
+  secret: (() => {
+    const secret = process.env.PAYLOAD_SECRET
+    if (!secret && process.env.VERCEL) {
+      throw new Error('FATAL: PAYLOAD_SECRET environment variable is required on Vercel deployments.')
+    }
+    return secret || 'martes-hub-build-secret-key-32chars-min'
+  })(),
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 15000,
+      ...(process.env.SUPABASE_CA_CERT || process.env.DATABASE_CA_CERT
+        ? {
+            ssl: {
+              rejectUnauthorized: true,
+              ca: (process.env.SUPABASE_CA_CERT || process.env.DATABASE_CA_CERT || '').replace(/\\n/g, '\n'),
+            },
+          }
+        : {}),
     },
     push: false,
     migrationDir: './src/migrations',
