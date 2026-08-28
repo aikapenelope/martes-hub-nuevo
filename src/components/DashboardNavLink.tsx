@@ -24,5 +24,17 @@ export const DashboardNavLink: React.FC = () => (
     <Link href="/admin/inbox" className="nav__link">
       Inbox
     </Link>
+    <Link href="/admin/crm" className="nav__link">
+      CRM
+    </Link>
+    <Link href="/admin/tasks" className="nav__link">
+      Tareas
+    </Link>
+    <Link href="/admin/billing" className="nav__link">
+      Facturación
+    </Link>
+    <Link href="/admin/social" className="nav__link">
+      Social
+    </Link>
   </div>
 )

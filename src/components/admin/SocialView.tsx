@@ -1,4 +1,13 @@
-import React from 'react'
+/**
+ * SocialView — Payload custom admin view registrada en `/admin/social`.
+ *
+ * Puerto de la antigua página `(workspace)/social/page.tsx`. `searchParams`
+ * llega como objeto plano desde Payload; se acepta también como Promise por
+ * compatibilidad con el patrón de Server Components de Next.js.
+ */
+
+import 'server-only'
+
 import Link from 'next/link'
 import { Calendar, Plus, Share2, Radio, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 
@@ -7,12 +16,12 @@ import type { SocialAccount, SocialPost } from '@/payload-types'
 
 const dateFmt = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
-export default async function SocialPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ tenant?: string | string[] }>
-}) {
-  const params = await searchParams
+interface SocialViewProps {
+  searchParams?: { tenant?: string | string[] } | Promise<{ tenant?: string | string[] }>
+}
+
+export async function SocialView({ searchParams }: SocialViewProps = {}) {
+  const params = (await searchParams) ?? {}
   const context = await getWorkspaceContext(params)
   const { payload, user, tenantId, canEdit } = context
 

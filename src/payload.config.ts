@@ -98,6 +98,36 @@ export default buildConfig({
           exact: true,
           Component: '/views/Overview#OverviewView',
         },
+        crm: {
+          path: '/crm',
+          exact: true,
+          Component: '/components/admin/CrmView#CrmView',
+        },
+        crmDetail: {
+          path: '/crm/:type/:id',
+          exact: true,
+          Component: '/components/admin/CrmDetailView#CrmDetailView',
+        },
+        tasks: {
+          path: '/tasks',
+          exact: true,
+          Component: '/components/admin/TasksView#TasksView',
+        },
+        taskDetail: {
+          path: '/tasks/:id',
+          exact: true,
+          Component: '/components/admin/TaskDetailView#TaskDetailView',
+        },
+        billing: {
+          path: '/billing',
+          exact: true,
+          Component: '/components/admin/BillingView#BillingView',
+        },
+        social: {
+          path: '/social',
+          exact: true,
+          Component: '/components/admin/SocialView#SocialView',
+        },
       },
       afterNavLinks: ['/components/DashboardNavLink#DashboardNavLink'],
     },

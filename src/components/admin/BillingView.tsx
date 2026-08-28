@@ -1,3 +1,13 @@
+/**
+ * BillingView — Payload custom admin view registrada en `/admin/billing`.
+ *
+ * Puerto de la antigua página `(workspace)/billing/page.tsx`. `searchParams`
+ * llega como objeto plano desde Payload; se acepta también como Promise por
+ * compatibilidad con el patrón de Server Components de Next.js.
+ */
+
+import 'server-only'
+
 import Link from 'next/link'
 import { Ban, CircleDollarSign, Clock3, Plus, ShieldAlert } from 'lucide-react'
 
@@ -7,12 +17,12 @@ import { paymentsAggregate, startOfMonthIso } from '@/lib/overview-data'
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 const date = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric' })
 
-export default async function BillingPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ tenant?: string | string[] }>
-}) {
-  const params = await searchParams
+interface BillingViewProps {
+  searchParams?: { tenant?: string | string[] } | Promise<{ tenant?: string | string[] }>
+}
+
+export async function BillingView({ searchParams }: BillingViewProps = {}) {
+  const params = (await searchParams) ?? {}
   const context = await getWorkspaceContext(params)
   const { payload, user, tenantId, canEdit } = context
 

@@ -1,7 +1,21 @@
+/**
+ * CrmView — Payload custom admin view registrada en `/admin/crm`.
+ *
+ * Puerto de la antigua página `(workspace)/crm/page.tsx`: mismo contrato de datos
+ * (getCrmData + parseCrmFilters) y misma UI, con los hrefs apuntando al namespace
+ * `/admin/...` en vez de las rutas standalone del route group `(workspace)`.
+ *
+ * `searchParams` llega como objeto plano desde Payload (AdminViewServerProps), no
+ * como Promise de Next.js App Router — se acepta ambas formas y se usa `?? {}`
+ * como fallback cuando Payload no lo inyecta.
+ */
+
+import 'server-only'
+
 import Link from 'next/link'
 import { ArrowRight, Download, Search, UsersRound } from 'lucide-react'
 
-import { CrmFormDialog } from './components/CrmFormDialog'
+import { CrmFormDialog } from '@/components/admin/CrmFormDialog'
 import { getCrmData, parseCrmFilters, type CrmSearchParams } from '@/lib/crm-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import type { Client, Lead, Segment, User } from '@/payload-types'
@@ -47,7 +61,7 @@ function buildHref(filters: ReturnType<typeof parseCrmFilters>, changes: Record<
     if (value === undefined || value === '' || value === 'todos') params.delete(key)
     else params.set(key, String(value))
   }
-  return `/crm?${params.toString()}`
+  return `/admin/crm?${params.toString()}`
 }
 
 function Contact({ record }: { record: Lead | Client }) {
@@ -59,12 +73,12 @@ function Contact({ record }: { record: Lead | Client }) {
   )
 }
 
-export default async function CrmPage({
-  searchParams,
-}: {
-  searchParams: Promise<CrmSearchParams>
-}) {
-  const params = await searchParams
+interface CrmViewProps {
+  searchParams?: CrmSearchParams | Promise<CrmSearchParams>
+}
+
+export async function CrmView({ searchParams }: CrmViewProps = {}) {
+  const params = (await searchParams) ?? {}
   const filters = parseCrmFilters(params)
   const context = await getWorkspaceContext()
   const data = await getCrmData({
@@ -175,7 +189,7 @@ export default async function CrmPage({
             <button className="workspace-button" type="submit">Aplicar filtros</button>
           </form>
           {(filters.query || (data.view === 'leads' ? filters.status : filters.stage) !== 'todos') && (
-            <Link className="crm-clear-filter" href={`/crm?vista=${data.view}`}>Limpiar filtros</Link>
+            <Link className="crm-clear-filter" href={`/admin/crm?vista=${data.view}`}>Limpiar filtros</Link>
           )}
         </div>
 
@@ -205,7 +219,7 @@ export default async function CrmPage({
                   ? data.leads.map((lead) => (
                       <tr key={lead.id}>
                         <td data-label="Nombre">
-                          <Link className="crm-record-name" href={`/crm/leads/${lead.id}`}>{lead.fullName}</Link>
+                          <Link className="crm-record-name" href={`/admin/crm/leads/${lead.id}`}>{lead.fullName}</Link>
                           <small>Creado {new Intl.DateTimeFormat('es', { dateStyle: 'medium' }).format(new Date(lead.createdAt))}</small>
                         </td>
                         <td data-label="Contacto"><Contact record={lead} /></td>
@@ -214,13 +228,13 @@ export default async function CrmPage({
                           <small>{relationName(lead.segment)}</small>
                         </td>
                         <td data-label="Estado"><span className="workspace-badge" data-tone={lead.status === 'descartado' ? 'danger' : undefined}>{leadLabels[lead.status]}</span></td>
-                        <td><Link aria-label={`Abrir ficha de ${lead.fullName}`} className="crm-row-action" href={`/crm/leads/${lead.id}`}><ArrowRight aria-hidden="true" size={17} /></Link></td>
+                        <td><Link aria-label={`Abrir ficha de ${lead.fullName}`} className="crm-row-action" href={`/admin/crm/leads/${lead.id}`}><ArrowRight aria-hidden="true" size={17} /></Link></td>
                       </tr>
                     ))
                   : data.clients.map((client) => (
                       <tr key={client.id}>
                         <td data-label="Nombre">
-                          <Link className="crm-record-name" href={`/crm/clientes/${client.id}`}>{client.name}</Link>
+                          <Link className="crm-record-name" href={`/admin/crm/clientes/${client.id}`}>{client.name}</Link>
                           <small>Actualizado {new Intl.DateTimeFormat('es', { dateStyle: 'medium' }).format(new Date(client.updatedAt))}</small>
                         </td>
                         <td data-label="Contacto"><Contact record={client} /></td>
@@ -229,7 +243,7 @@ export default async function CrmPage({
                           <small>{relationName(client.assignedAgent)}</small>
                         </td>
                         <td data-label="Estado"><span className="workspace-badge" data-tone={client.stage === 'perdido' ? 'danger' : undefined}>{clientLabels[client.stage]}</span></td>
-                        <td><Link aria-label={`Abrir ficha de ${client.name}`} className="crm-row-action" href={`/crm/clientes/${client.id}`}><ArrowRight aria-hidden="true" size={17} /></Link></td>
+                        <td><Link aria-label={`Abrir ficha de ${client.name}`} className="crm-row-action" href={`/admin/crm/clientes/${client.id}`}><ArrowRight aria-hidden="true" size={17} /></Link></td>
                       </tr>
                     ))}
               </tbody>

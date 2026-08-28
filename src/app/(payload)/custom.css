@@ -11,4 +11,4 @@
  * Cargados aquí para que estén disponibles en las custom admin views que renderizan
  * vistas del workspace dentro del admin de Payload.
  */
-@import "../../app/(workspace)/workspace.css";
+@import "../../styles/workspace.css";

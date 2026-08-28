@@ -1,9 +1,24 @@
+/**
+ * CrmDetailView — Payload custom admin view registrada en `/admin/crm/:type/:id`.
+ *
+ * Puerto de la antigua página `(workspace)/crm/[type]/[id]/page.tsx`. Payload
+ * soporta rutas dinámicas en custom views (path-to-regexp) e inyecta `params`
+ * como objeto plano — se acepta también la forma Promise por compatibilidad de
+ * tipos con el patrón de Server Components de Next.js.
+ *
+ * Se conserva la UX completa (timeline de actividades, conversión lead→cliente,
+ * checklist de contacto) en vez de degradar a la vista nativa de edición de
+ * Payload, que no tiene estos flujos derivados.
+ */
+
+import 'server-only'
+
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, CircleDot, ExternalLink, Mail, MessageCircle, Phone, Plus, UserRound } from 'lucide-react'
 
-import { convertLeadAction, createActivityAction, updateClientAction, updateLeadAction } from '../../../crm/actions'
-import { getCrmRecord, type CrmView } from '@/lib/crm-data'
+import { convertLeadAction, createActivityAction, updateClientAction, updateLeadAction } from '@/lib/crm-actions'
+import { getCrmRecord, type CrmView as CrmViewKind } from '@/lib/crm-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import type { Segment, User } from '@/payload-types'
 
@@ -14,20 +29,30 @@ function relationName(value: number | Segment | User | null | undefined): string
   return 'Sin asignar'
 }
 
-export default async function CrmRecordPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ type: string; id: string }>
-  searchParams: Promise<{ created?: string; updated?: string; converted?: string }>
-}) {
-  const { type: rawType, id: rawId } = await params
-  const feedback = await searchParams
+interface CrmDetailParams {
+  type?: string
+  id?: string
+}
+
+interface CrmDetailSearchParams {
+  created?: string
+  updated?: string
+  converted?: string
+}
+
+interface CrmDetailViewProps {
+  params?: CrmDetailParams | Promise<CrmDetailParams>
+  searchParams?: CrmDetailSearchParams | Promise<CrmDetailSearchParams>
+}
+
+export async function CrmDetailView({ params, searchParams }: CrmDetailViewProps = {}) {
+  const { type: rawType, id: rawId } = (await params) ?? {}
+  const feedback = (await searchParams) ?? {}
   if (rawType !== 'leads' && rawType !== 'clientes') notFound()
   const id = Number(rawId)
   if (!Number.isInteger(id) || id <= 0) notFound()
 
-  const type = rawType as CrmView
+  const type = rawType as CrmViewKind
   const context = await getWorkspaceContext()
   const detail = await getCrmRecord({ payload: context.payload, user: context.user, tenantId: context.tenantId, type, id })
   if (!detail) notFound()
@@ -43,7 +68,7 @@ export default async function CrmRecordPage({
 
   return (
     <main className="workspace-page crm-detail-page">
-      <Link className="crm-back-link" href={`/crm?vista=${type}`}>
+      <Link className="crm-back-link" href={`/admin/crm?vista=${type}`}>
         <ArrowLeft aria-hidden="true" size={16} /> Volver al CRM
       </Link>
 
@@ -65,8 +90,8 @@ export default async function CrmRecordPage({
         </div>
         <div className="workspace-actions">
           {phone && <a className="workspace-button" href={`https://wa.me/${phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"><MessageCircle aria-hidden="true" size={16} /> WhatsApp</a>}
-          <Link className="workspace-button" href={`/tasks?${isLead ? 'lead' : 'client'}=${record.id}`}>Crear tarea</Link>
-          {convertedId && <Link className="workspace-button workspace-button-primary" href={`/crm/clientes/${convertedId}`}>Ver cliente</Link>}
+          <Link className="workspace-button" href={`/admin/tasks?${isLead ? 'lead' : 'client'}=${record.id}`}>Crear tarea</Link>
+          {convertedId && <Link className="workspace-button workspace-button-primary" href={`/admin/crm/clientes/${convertedId}`}>Ver cliente</Link>}
         </div>
       </header>
 

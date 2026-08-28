@@ -2,63 +2,66 @@
 
 ## Propósito y estado
 
-Martes Hub tiene dos superficies dentro de la misma aplicación Next.js y el mismo despliegue de Vercel:
+Martes Hub expone una única superficie de administración: el admin nativo de Payload en `/admin`, extendido con **custom admin views** para el producto operativo del equipo. No existe una aplicación separada con su propio shell/root-layout; todo el producto vive dentro del árbol de Next.js que renderiza `/admin`.
 
-- `/admin`: backoffice técnico nativo de Payload. Sirve para administrar colecciones, usuarios, tenants, configuración y operaciones de bajo nivel. No se reemplaza ni se modifica destructivamente.
-- `src/app/(workspace)`: producto operativo para el equipo. El route group `(workspace)` organiza el código y no aparece en la URL; sus rutas son `/overview`, `/crm`, `/tasks`, `/inbox`, `/social`, `/billing` y `/analytics`.
+- `/admin/collections/...`, `/admin/globals/...`: backoffice técnico nativo de Payload (colecciones, usuarios, tenants, configuración).
+- `/admin/overview`, `/admin/crm`, `/admin/tasks`, `/admin/inbox`, `/admin/social`, `/admin/billing`, `/admin/analytics`, `/admin/hoy`, `/admin/dashboard`: vistas operativas del equipo, registradas como custom views en `admin.components.views` (`src/payload.config.ts`) y renderizadas dentro del mismo shell de navegación de Payload (sidebar + `afterNavLinks`).
 
-Ambas superficies comparten Payload, la sesión `payload-token`, Neon Postgres, colecciones, permisos e integraciones. Los módulos están separados para mantener el código entendible, no porque sean aplicaciones independientes.
+Este reemplaza el diseño anterior de un route group `src/app/(workspace)` con su propio root layout, sidebar (`WorkspaceShell`/`WorkspaceHeader`/`WorkspaceSidebar`) y sidecar de IA (`HermesAiSidecar`). Ese código se eliminó: Payload ya provee navegación, header y sesión, y duplicar un shell propio solo agregaba una segunda superficie a mantener sin aportar funcionalidad adicional. El sidecar de Hermes (chat simulado) se retiró sin reemplazo — la integración real de Hermes sigue siendo trabajo futuro (ver sección «Hermes y MCP» más abajo).
 
-El scaffold actual define navegación y dirección de producto, pero todavía no es la UI operativa: usa datos de demostración, estilos inline y controles incompletos. Hermes es un sidecar simulado y no está conectado a una ruta de IA.
+Todas las vistas comparten Payload, la sesión `payload-token`, Neon Postgres, colecciones, permisos e integraciones. Los módulos están separados en archivos por dominio (`src/components/admin/*View.tsx`, `src/views/*.tsx`) para mantener el código entendible, no porque sean aplicaciones independientes.
 
 ## Decisión de acceso
 
-El flujo recomendado es:
+El flujo real es:
 
-1. El usuario abre una ruta del workspace.
-2. `src/app/(workspace)/layout.tsx` obtiene `headers()` y ejecuta `payload.auth({ headers })` en el servidor.
-3. Sin usuario válido, redirige a `/admin/login?redirect=/overview`.
-4. Tras autenticarse con Payload, el usuario entra a `/overview` y navega por el workspace.
-5. `/admin` continúa disponible para tareas técnicas según el rol.
+1. El usuario navega a una vista del workspace bajo `/admin/...` (por ejemplo `/admin/overview`).
+2. Payload renderiza el componente registrado en `admin.components.views` como Server Component; ese componente llama a `getWorkspaceContext()`, que obtiene `headers()` y ejecuta `payload.auth({ headers })` en el servidor.
+3. Sin usuario válido, redirige a `/admin/login?redirect=/admin/overview`.
+4. Tras autenticarse con Payload, el usuario entra a `/admin/overview` y navega por el resto de vistas vía el sidebar (`DashboardNavLink` + navegación nativa de Payload).
+5. El resto de `/admin` (colecciones, config) sigue disponible para tareas técnicas según el rol, sin enlaces adicionales necesarios: es la misma superficie.
 
-Como mejora futura se puede añadir en el admin un enlace no destructivo «Abrir workspace». No se debe sustituir el dashboard nativo de Payload ni depender de una redirección cliente para proteger el producto.
+`getWorkspaceContext()` acepta `searchParams` opcional: Payload inyecta `params`/`searchParams` como objetos planos a las custom views (no como `Promise` del App Router), así que las vistas usan `(await searchParams) ?? {}` para funcionar con ambas formas.
 
 El parámetro de retorno del login debe restringirse a rutas internas permitidas para evitar open redirects. La sesión válida habilita la entrada, pero no autoriza por sí sola cada operación.
 
 ## Mapa integrado
 
 ```text
-Martes Hub (Next.js + Payload)
-├── /admin                    consola técnica Payload
-└── /(workspace)              aplicación operativa protegida
-    ├── /overview             prioridades y pulso diario
-    ├── /crm                  leads, clientes y actividad
-    ├── /tasks                ejecución y seguimiento
-    ├── /inbox                WhatsApp, Instagram y email
-    ├── /social               calendario, publicación y métricas
-    ├── /billing              ofertas, cotizaciones, facturas y cobros
-    └── /analytics            indicadores y reportes
+Martes Hub (Next.js + Payload, una sola superficie: /admin)
+├── /admin/collections/...     backoffice técnico Payload
+├── /admin/overview            prioridades y pulso diario
+├── /admin/crm, /admin/crm/:type/:id   leads, clientes y actividad
+├── /admin/tasks, /admin/tasks/:id     ejecución y seguimiento
+├── /admin/inbox               WhatsApp, Instagram y email
+├── /admin/social               calendario, publicación y métricas
+├── /admin/billing              ofertas, cotizaciones, facturas y cobros
+├── /admin/analytics             indicadores y reportes
+├── /admin/hoy                  seguimientos del día
+└── /admin/dashboard             dashboard tipo Hermes (datos reales, sin IA todavía)
 ```
+
+Cada vista dinámica (`/admin/crm/:type/:id`, `/admin/tasks/:id`) se registra en `payload.config.ts` usando rutas `path-to-regexp` (soportado nativamente por las custom views de Payload), conservando la UX de ficha completa (timeline, checklist, conversión lead→cliente) en vez de degradar a la vista de edición genérica de una colección.
 
 Relaciones esperadas:
 
 - Un lead puede convertirse en cliente y conservar su actividad.
 - Una conversación se vincula con el lead o cliente y puede originar tareas.
-- Tareas, pagos, membresías, cotizaciones y formularios alimentan `/overview`.
-- Las métricas sociales y de campañas alimentan `/analytics`.
+- Tareas, pagos, membresías, cotizaciones y formularios alimentan `/admin/overview`.
+- Las métricas sociales y de campañas alimentan `/admin/analytics`.
 - Hermes, cuando exista la integración real, consultará únicamente datos autorizados y devolverá deep links a estas rutas.
 
 ## Shell común y navegación
 
-`WorkspaceShell` será el marco compartido y no el dueño de los datos de negocio. Debe contener:
+No hay un shell propio: el sidebar, el header (identidad del usuario, tenant activo) y la navegación responsive los provee el admin panel nativo de Payload. `DashboardNavLink` (`admin.components.afterNavLinks`) agrega los enlaces a las vistas operativas (Resumen, CRM, Tareas, Inbox, Facturación, Social, Analíticas, Hoy) al sidebar existente en vez de construir uno nuevo.
 
-- sidebar responsive con estado activo, agrupación clara y navegación por teclado;
-- header con título contextual, búsqueda global, identidad del usuario y tenant activo;
-- área principal con ancho y densidad adecuados para tablas, kanban y conversaciones;
-- estados globales de conectividad e integraciones sin números decorativos;
-- drawer de Hermes desacoplado y claramente marcado como no disponible mientras sea demo.
+Consecuencias de este enfoque:
 
-En móvil, la navegación será un drawer y el contenido conservará acciones críticas visibles. En escritorio se priorizará densidad, escaneo rápido y atajos. Todos los iconos, badges y colores deben acompañarse de texto o etiquetas accesibles.
+- Accesibilidad de navegación por teclado, foco y responsive los hereda del admin de Payload; no se reimplementan.
+- El área principal de cada vista usa las clases `.workspace-*` (definidas en `src/styles/workspace.css`, cargadas junto con `theme.css`/`utilities.css` de Tailwind v4 en `src/app/(payload)/custom.css`) para mantener densidad y tablas consistentes entre vistas.
+- No existe todavía un drawer de Hermes: se retiró el sidecar simulado. Cuando la integración real de Hermes exista (ver «Hermes y MCP»), deberá decidirse si vive como panel embebido en una vista o como una nueva custom view, sin depender de un shell propio.
+
+Todos los iconos, badges y colores deben acompañarse de texto o etiquetas accesibles.
 
 ## Fronteras de ejecución
 
@@ -108,12 +111,12 @@ La matriz definitiva debe traducirse a helpers reutilizables y pruebas, no queda
 
 ## Hermes y MCP: estado real y objetivo
 
-`@payloadcms/plugin-mcp` está registrado y expone colecciones configuradas. Eso no significa que `HermesAiSidecar` esté conectado: hoy responde mediante temporizador y texto simulado. Tampoco todo el MCP es de solo lectura; la configuración actual permite crear y actualizar en varias colecciones.
+`@payloadcms/plugin-mcp` está registrado y expone colecciones configuradas. Eso no significa que exista una integración de IA conectada al workspace: el sidecar de chat simulado (`HermesAiSidecar`) que existía en el shell propio se retiró al migrar a custom admin views, y todavía no hay ruta de IA real. La vista `/admin/dashboard` ("Dashboard (Hermes)") usa datos reales del tenant, pero es un dashboard, no un agente conversacional. Tampoco todo el MCP es de solo lectura; la configuración actual permite crear y actualizar en varias colecciones.
 
 La integración futura requiere:
 
 ```text
-HermesAiSidecar
+Panel o vista de chat de Hermes (por definir dónde vive)
   -> route AI autenticada
   -> agente/modelo server-side
   -> herramientas allowlisted por rol y tenant
@@ -121,7 +124,7 @@ HermesAiSidecar
   -> respuesta streaming + deep links + auditoría
 ```
 
-Antes de habilitarla se debe definir por herramienta `find/create/update/delete`, limitar campos y resultados, impedir cruces de tenant, aplicar rate limits y registrar invocaciones. La primera versión del workspace debe presentar Hermes deshabilitado o «demo», nunca como consulta real.
+Antes de habilitarla se debe definir por herramienta `find/create/update/delete`, limitar campos y resultados, impedir cruces de tenant, aplicar rate limits y registrar invocaciones, y decidir si el chat vive como una nueva custom view o como panel embebido en una vista existente. La primera versión debe presentar Hermes deshabilitado o «demo», nunca como consulta real.
 
 ## Sistema visual funcional
 

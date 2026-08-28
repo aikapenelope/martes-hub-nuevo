@@ -3,7 +3,7 @@
 import { useRef } from 'react'
 import { Plus, X } from 'lucide-react'
 
-import { createClientAction, createLeadAction } from '../actions'
+import { createClientAction, createLeadAction } from '@/lib/crm-actions'
 
 interface CrmFormDialogProps {
   kind: 'lead' | 'client'
