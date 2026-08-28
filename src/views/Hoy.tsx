@@ -20,7 +20,7 @@ const row = (): React.CSSProperties => ({
   alignItems: 'center',
   gap: 16,
   padding: '12px 16px',
-  borderBottom: '1px solid var(--theme-elevation-150)',
+  borderBottom: '1px solid var(--color-border)',
 })
 
 const badge = (color: string): React.CSSProperties => ({
@@ -72,33 +72,33 @@ export const HoyView: React.FC = () => {
           style={{
             padding: '6px 14px',
             borderRadius: 6,
-            border: '1px solid var(--theme-elevation-200)',
+            border: '1px solid var(--color-border)',
             cursor: loading ? 'wait' : 'pointer',
-            background: 'var(--theme-elevation-50)',
+            background: 'var(--color-bg-secondary)',
           }}
         >
           {loading ? 'Cargando…' : 'Refrescar'}
         </button>
       </div>
-      <p style={{ marginTop: 0, color: 'var(--theme-elevation-500)' }}>
+      <p style={{ marginTop: 0, color: 'var(--color-text-secondary)' }}>
         A quién escribirle hoy. El primer mensaje lo abrís vos; cuando respondan, el agente sigue solo.
       </p>
 
-      {error && <div style={{ color: 'var(--theme-error-500)', marginBottom: 12 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--color-bg-danger)', marginBottom: 12 }}>{error}</div>}
       {!loading && items.length === 0 && !error && (
-        <div style={{ padding: 24, textAlign: 'center', color: 'var(--theme-elevation-400)' }}>
+        <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)' }}>
           Nada pendiente por hoy 🎉
         </div>
       )}
 
-      <div style={{ border: '1px solid var(--theme-elevation-150)', borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, overflow: 'hidden' }}>
         {items.map((item) => (
           <div key={`${item.kind}-${item.id}`} style={row()}>
-            <span style={badge(item.kind === 'lead' ? 'var(--theme-warning-500)' : 'var(--theme-success-500)')}>
+            <span style={badge(item.kind === 'lead' ? 'var(--color-bg-warning)' : 'var(--color-bg-success)')}>
               {item.kind === 'lead' ? 'Lead' : 'Cliente'}
             </span>
             <strong style={{ minWidth: 160 }}>{item.name}</strong>
-            <span style={{ color: 'var(--theme-elevation-500)', fontSize: 13 }}>{item.pipeline}</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: 13 }}>{item.pipeline}</span>
             <span style={{ flex: 1, fontSize: 13 }}>{item.reason}</span>
             <a href={item.crmUrl} style={{ fontSize: 13 }}>
               Ver ficha

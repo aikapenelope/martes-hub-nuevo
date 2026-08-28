@@ -18,7 +18,7 @@ export const Users: CollectionConfig = {
       return Boolean('roles' in req.user && req.user.roles?.includes('admin'))
     },
     delete: adminOnly,
-    admin: ({ req }) => Boolean(req.user),
+    admin: ({ req }) => Boolean(req.user && 'roles' in req.user && (req.user.roles?.includes('admin') || req.user.roles?.includes('agente'))),
   },
   fields: [
     {

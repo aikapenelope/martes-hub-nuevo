@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import { adminOnly, authenticated } from '../access'
+import { adminOnly, authenticated, fieldAdminOnly } from '../access'
 
 export const SocialAccounts: CollectionConfig = {
   slug: 'social-accounts',
@@ -54,8 +54,12 @@ export const SocialAccounts: CollectionConfig = {
       type: 'text',
       required: true,
       label: 'Access Token de larga duración',
+      access: {
+        read: fieldAdminOnly,
+      },
       admin: {
-        description: 'Token cifrado/almacenado de Graph API',
+        hidden: true,
+        description: 'Token de Graph API restringido a administradores',
       },
     },
     {

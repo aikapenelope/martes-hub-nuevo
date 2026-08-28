@@ -3,18 +3,18 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 
-// ── Paleta Hermes (negro con colores) ───────────────────────────────────────
+// ── Paleta Hermes (integrada con tokens de Payload) ─────────────────────────
 const C = {
-  bg: '#050505',
-  card: '#090909',
-  border: '#1a1a1a',
-  borderHover: '#333',
-  label: '#555',
-  faint: '#444',
-  mid: '#666',
-  title: '#888',
-  white: '#ffffff',
-  skeleton: '#111',
+  bg: 'var(--color-bg-primary, #050505)',
+  card: 'var(--color-bg-secondary, #090909)',
+  border: 'var(--color-border, #1a1a1a)',
+  borderHover: 'var(--color-border-hover, #333333)',
+  label: 'var(--color-text-secondary, #888888)',
+  faint: 'var(--color-text-muted, #555555)',
+  mid: 'var(--color-text-secondary, #777777)',
+  title: 'var(--color-text-primary, #aaaaaa)',
+  white: 'var(--color-text-primary, #ffffff)',
+  skeleton: 'var(--color-bg-tertiary, #111111)',
 } as const
 
 const RAINBOW = 'linear-gradient(to top, #ff3333, #ffaa00, #00ffaa, #00aaff, #aa00ff)'

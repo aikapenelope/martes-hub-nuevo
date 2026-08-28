@@ -25,7 +25,7 @@ const bubble = (dir: string): React.CSSProperties => ({
   padding: '8px 12px',
   borderRadius: 12,
   margin: '4px 0',
-  background: dir === 'inbound' ? 'var(--theme-elevation-100)' : 'var(--theme-success-500)',
+  background: dir === 'inbound' ? 'var(--color-border)' : 'var(--color-bg-success)',
   color: dir === 'inbound' ? 'inherit' : '#fff',
   alignSelf: dir === 'inbound' ? 'flex-start' : 'flex-end',
   wordBreak: 'break-word',
@@ -112,7 +112,7 @@ export const InboxView: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - var(--base-nav-body-offset, 120px))', minHeight: 480 }}>
-      <div style={{ width: 320, overflowY: 'auto', borderRight: '1px solid var(--theme-elevation-150)', paddingRight: 8 }}>
+      <div style={{ width: 320, overflowY: 'auto', borderRight: '1px solid var(--color-border)', paddingRight: 8 }}>
         <h2 style={{ padding: '8px 4px' }}>Conversaciones</h2>
         {convs.length === 0 && <p style={{ padding: 8 }}>Sin conversaciones todavía.</p>}
         {convs.map((c) => (
@@ -127,8 +127,8 @@ export const InboxView: React.FC = () => {
               marginBottom: 4,
               borderRadius: 8,
               cursor: 'pointer',
-              border: selected === c.id ? '2px solid var(--theme-success-500)' : '1px solid var(--theme-elevation-150)',
-              background: selected === c.id ? 'var(--theme-elevation-50)' : 'transparent',
+              border: selected === c.id ? '2px solid var(--color-bg-success)' : '1px solid var(--color-border)',
+              background: selected === c.id ? 'var(--color-bg-secondary)' : 'transparent',
             }}
           >
             <strong>{typeof c.client === 'object' && c.client?.name ? c.client.name : c.contactAddress}</strong>
@@ -158,8 +158,8 @@ export const InboxView: React.FC = () => {
                     padding: '4px 12px',
                     fontSize: 12,
                     borderRadius: 6,
-                    border: '1px solid var(--theme-elevation-200)',
-                    background: 'var(--theme-elevation-50)',
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-bg-secondary)',
                     cursor: 'pointer',
                     marginBottom: 8,
                   }}
@@ -183,9 +183,9 @@ export const InboxView: React.FC = () => {
               <div ref={messagesEndRef} />
             </div>
             {error && (
-              <div style={{ color: 'var(--theme-error-500)', padding: '4px 12px', fontSize: 13 }}>{error}</div>
+              <div style={{ color: 'var(--color-bg-danger)', padding: '4px 12px', fontSize: 13 }}>{error}</div>
             )}
-            <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid var(--theme-elevation-150)' }}>
+            <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid var(--color-border)' }}>
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
