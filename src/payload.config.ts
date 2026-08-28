@@ -71,66 +71,6 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
-    components: {
-      views: {
-        analytics: {
-          path: '/analytics',
-          exact: true,
-          Component: '/components/admin/AnalyticsView#AnalyticsView',
-        },
-        dashboardHermes: {
-          path: '/dashboard',
-          exact: true,
-          Component: '/views/Dashboard#DashboardView',
-        },
-        inbox: {
-          path: '/inbox',
-          exact: true,
-          Component: '/views/Inbox#InboxView',
-        },
-        hoy: {
-          path: '/hoy',
-          exact: true,
-          Component: '/views/Hoy#HoyView',
-        },
-        overview: {
-          path: '/overview',
-          exact: true,
-          Component: '/views/Overview#OverviewView',
-        },
-        crm: {
-          path: '/crm',
-          exact: true,
-          Component: '/components/admin/CrmView#CrmView',
-        },
-        crmDetail: {
-          path: '/crm/:type/:id',
-          exact: true,
-          Component: '/components/admin/CrmDetailView#CrmDetailView',
-        },
-        tasks: {
-          path: '/tasks',
-          exact: true,
-          Component: '/components/admin/TasksView#TasksView',
-        },
-        taskDetail: {
-          path: '/tasks/:id',
-          exact: true,
-          Component: '/components/admin/TaskDetailView#TaskDetailView',
-        },
-        billing: {
-          path: '/billing',
-          exact: true,
-          Component: '/components/admin/BillingView#BillingView',
-        },
-        social: {
-          path: '/social',
-          exact: true,
-          Component: '/components/admin/SocialView#SocialView',
-        },
-      },
-      afterNavLinks: ['/components/DashboardNavLink#DashboardNavLink'],
-    },
   },
   collections: [
     Tenants,

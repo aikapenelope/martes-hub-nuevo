@@ -100,8 +100,8 @@ export async function createLeadAction(formData: FormData): Promise<void> {
     },
   })
 
-  revalidatePath('/admin/crm')
-  redirect(`/admin/crm/leads/${lead.id}?created=1`)
+  revalidatePath('/workspace/crm')
+  redirect(`/workspace/crm/leads/${lead.id}?created=1`)
 }
 
 export async function updateLeadAction(formData: FormData): Promise<void> {
@@ -126,9 +126,9 @@ export async function updateLeadAction(formData: FormData): Promise<void> {
     },
   })
 
-  revalidatePath('/admin/crm')
-  revalidatePath(`/admin/crm/leads/${id}`)
-  redirect(`/admin/crm/leads/${id}?updated=1`)
+  revalidatePath('/workspace/crm')
+  revalidatePath(`/workspace/crm/leads/${id}`)
+  redirect(`/workspace/crm/leads/${id}?updated=1`)
 }
 
 export async function createClientAction(formData: FormData): Promise<void> {
@@ -167,8 +167,8 @@ export async function createClientAction(formData: FormData): Promise<void> {
     },
   })
 
-  revalidatePath('/admin/crm')
-  redirect(`/admin/crm/clientes/${client.id}?created=1`)
+  revalidatePath('/workspace/crm')
+  redirect(`/workspace/crm/clientes/${client.id}?created=1`)
 }
 
 export async function updateClientAction(formData: FormData): Promise<void> {
@@ -194,9 +194,9 @@ export async function updateClientAction(formData: FormData): Promise<void> {
     },
   })
 
-  revalidatePath('/admin/crm')
-  revalidatePath(`/admin/crm/clientes/${id}`)
-  redirect(`/admin/crm/clientes/${id}?updated=1`)
+  revalidatePath('/workspace/crm')
+  revalidatePath(`/workspace/crm/clientes/${id}`)
+  redirect(`/workspace/crm/clientes/${id}?updated=1`)
 }
 
 /**
@@ -211,7 +211,7 @@ export async function convertLeadAction(formData: FormData): Promise<void> {
   const existingClientId =
     typeof lead.convertedClient === 'number' ? lead.convertedClient : lead.convertedClient?.id
 
-  if (existingClientId) redirect(`/admin/crm/clientes/${existingClientId}?converted=already`)
+  if (existingClientId) redirect(`/workspace/crm/clientes/${existingClientId}?converted=already`)
 
   const client = await context.payload.create({
     collection: 'clients',
@@ -265,9 +265,9 @@ export async function convertLeadAction(formData: FormData): Promise<void> {
     }),
   ])
 
-  revalidatePath('/admin/crm')
-  revalidatePath(`/admin/crm/leads/${id}`)
-  redirect(`/admin/crm/clientes/${client.id}?converted=1`)
+  revalidatePath('/workspace/crm')
+  revalidatePath(`/workspace/crm/leads/${id}`)
+  redirect(`/workspace/crm/clientes/${client.id}?converted=1`)
 }
 
 /**
@@ -320,7 +320,7 @@ export async function createActivityAction(formData: FormData): Promise<void> {
   })
 
   // Revalidar la ficha del registro afectado
-  if (clientId) revalidatePath(`/admin/crm/clientes/${clientId}`)
-  if (leadId) revalidatePath(`/admin/crm/leads/${leadId}`)
-  revalidatePath('/admin/overview')
+  if (clientId) revalidatePath(`/workspace/crm/clientes/${clientId}`)
+  if (leadId) revalidatePath(`/workspace/crm/leads/${leadId}`)
+  revalidatePath('/workspace')
 }

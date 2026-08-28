@@ -46,7 +46,7 @@ export async function createTaskAction(form: FormData) {
   const data = taskData(form)
   await Promise.all([assertRelation('users', data.assignedTo, context.tenantId, context), assertRelation('clients', data.client, context.tenantId, context), assertRelation('leads', data.lead, context.tenantId, context)])
   const task = await context.payload.create({ collection: 'tasks', overrideAccess: false, user: context.user, data: { ...data, tenant: context.tenantId, source: 'manual' } })
-  revalidatePath('/admin/tasks'); revalidatePath('/admin/overview'); redirect(`/admin/tasks/${task.id}?created=1`)
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); redirect(`/workspace/tasks/${task.id}?created=1`)
 }
 
 export async function updateTaskAction(form: FormData) {
@@ -56,7 +56,7 @@ export async function updateTaskAction(form: FormData) {
   await Promise.all([assertRelation('users', data.assignedTo, context.tenantId, context), assertRelation('clients', data.client, context.tenantId, context), assertRelation('leads', data.lead, context.tenantId, context)])
   const existingDone = new Map((task.checklist ?? []).map((item) => [item.item, Boolean(item.done)]))
   await context.payload.update({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user, data: { ...data, checklist: data.checklist.map((item) => ({ ...item, done: existingDone.get(item.item) ?? false })) } })
-  revalidatePath('/admin/tasks'); revalidatePath('/admin/overview'); revalidatePath(`/admin/tasks/${taskId}`); redirect(`/admin/tasks/${taskId}?updated=1`)
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath(`/workspace/tasks/${taskId}`); redirect(`/workspace/tasks/${taskId}?updated=1`)
 }
 
 export async function changeTaskStatusAction(form: FormData) {
@@ -64,7 +64,7 @@ export async function changeTaskStatusAction(form: FormData) {
   if (!taskId || !TASK_STATUSES.includes(status as TaskStatus)) throw new Error('Cambio de estado inválido')
   const { context } = await scopedTask(taskId); assertEditor(context.canEdit)
   await context.payload.update({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user, data: { status: status as TaskStatus } })
-  revalidatePath('/admin/tasks'); revalidatePath('/admin/overview'); revalidatePath(`/admin/tasks/${taskId}`)
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath(`/workspace/tasks/${taskId}`)
 }
 
 export async function toggleChecklistAction(form: FormData) {
@@ -73,12 +73,12 @@ export async function toggleChecklistAction(form: FormData) {
   const { context, task } = await scopedTask(taskId); assertEditor(context.canEdit)
   const checklist = (task.checklist ?? []).map((item, position) => position === index ? { item: item.item, done: !item.done } : { item: item.item, done: Boolean(item.done) })
   await context.payload.update({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user, data: { checklist } })
-  revalidatePath('/admin/tasks'); revalidatePath(`/admin/tasks/${taskId}`)
+  revalidatePath('/workspace/tasks'); revalidatePath(`/workspace/tasks/${taskId}`)
 }
 
 export async function deleteTaskAction(form: FormData) {
   const taskId = id(form, 'id'); if (!taskId) throw new Error('Identificador inválido')
   const { context } = await scopedTask(taskId); if (!context.isAdmin) throw new Error('Solo admin puede eliminar tareas')
   await context.payload.delete({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user })
-  revalidatePath('/admin/tasks'); revalidatePath('/admin/overview'); redirect('/admin/tasks?deleted=1')
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); redirect('/workspace/tasks?deleted=1')
 }
