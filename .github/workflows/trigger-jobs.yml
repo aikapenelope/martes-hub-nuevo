@@ -1,0 +1,48 @@
+name: Payload Job Queue Trigger
+
+# Activa el job queue de Payload cada 5 minutos desde GitHub Actions (gratuito).
+#
+# Alternativa más confiable: Upstash QStash (https://upstash.com/qstash)
+# — El free tier cubre 500 msg/día (288/día con */5 * * * * = bien por debajo).
+# — Sin límite de inactividad (GitHub deshabilita este workflow tras 60 días
+#   sin actividad en el repo). Si el repo va a estar sin commits por más de
+#   60 días, configurar QStash y reemplazar este workflow.
+#
+# Secrets necesarios en GitHub (Settings → Secrets → Actions):
+#   APP_URL      → URL de Vercel, ej: https://martes-hub.vercel.app
+#   CRON_SECRET  → Mismo valor que CRON_SECRET en las variables de Vercel
+#                  (el endpoint /api/cron lo valida antes de ejecutar jobs)
+
+on:
+  schedule:
+    # Cada 5 minutos — mínimo de GitHub Actions.
+    # Nota: GitHub puede tener hasta ~5 min de retraso bajo carga alta.
+    # Los jobs con cron diario (payment-reminders, daily-digest) no se ven
+    # afectados porque Payload los ejecuta solo cuando su propio schedule lo indica.
+    - cron: '*/5 * * * *'
+
+  # Trigger manual: también reinicia el contador de 60 días de inactividad.
+  workflow_dispatch:
+
+jobs:
+  run-jobs:
+    name: Run Payload Job Queue
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger job queue
+        run: |
+          HTTP_STATUS=$(curl -sf -o /tmp/cron_response.json -w "%{http_code}" \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron")
+
+          cat /tmp/cron_response.json
+          echo ""
+          echo "HTTP status: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "Error: el endpoint devolvió $HTTP_STATUS"
+            exit 1
+          fi
