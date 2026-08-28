@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { Notification } from '@/payload-types'
 import { WorkspaceShell } from './components/WorkspaceShell'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import '../(frontend)/styles.css'
@@ -14,8 +15,29 @@ export const metadata = {
 }
 
 export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
-  const { user, tenant, isAdmin } = await getWorkspaceContext()
+  const { user, tenant, tenantId, isAdmin, payload } = await getWorkspaceContext()
   const userName = user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : undefined
+
+  // Notificaciones no leídas del tenant — se pasan al header para el bell badge.
+  // limit: 5 para el panel; el totalDocs da el count real. overrideAccess: false + user
+  // respeta el aislamiento por tenant del plugin multi-tenant (QUERIES.md).
+  const notifsResult = await payload.find({
+    collection: 'notifications',
+    where: {
+      and: [
+        { tenant: { equals: tenantId } },
+        { read: { equals: false } },
+      ],
+    },
+    limit: 5,
+    sort: '-createdAt',
+    depth: 0,
+    overrideAccess: false,
+    user,
+  })
+
+  const notifications = notifsResult.docs as Pick<Notification, 'id' | 'title' | 'severity' | 'createdAt'>[]
+  const unreadCount = notifsResult.totalDocs
 
   return (
     <html lang="es">
@@ -25,6 +47,8 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
           userName={userName}
           tenantName={tenant.name}
           isAdmin={isAdmin}
+          notifications={notifications}
+          unreadCount={unreadCount}
         >
           {children}
         </WorkspaceShell>

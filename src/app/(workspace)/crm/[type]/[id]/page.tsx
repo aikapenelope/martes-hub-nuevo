@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, CircleDot, ExternalLink, Mail, MessageCircle, Phone, UserRound } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, CircleDot, ExternalLink, Mail, MessageCircle, Phone, Plus, UserRound } from 'lucide-react'
 
-import { convertLeadAction, updateClientAction, updateLeadAction } from '../../../crm/actions'
+import { convertLeadAction, createActivityAction, updateClientAction, updateLeadAction } from '../../../crm/actions'
 import { getCrmRecord, type CrmView } from '@/lib/crm-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import type { Segment, User } from '@/payload-types'
@@ -138,6 +138,43 @@ export default async function CrmRecordPage({
                 </li>
               ))}
             </ol>
+          )}
+
+          {context.canEdit && (
+            <details className="crm-activity-add">
+              <summary>
+                <Plus aria-hidden="true" size={14} /> Registrar actividad
+              </summary>
+              <form action={createActivityAction} className="crm-form crm-activity-form">
+                {isLead
+                  ? <input type="hidden" name="lead" value={record.id} />
+                  : <input type="hidden" name="client" value={record.id} />}
+                <div className="crm-form-grid">
+                  <label className="crm-field">
+                    <span>Tipo</span>
+                    <select name="type" defaultValue="nota">
+                      <option value="nota">Nota</option>
+                      <option value="llamada">Llamada</option>
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="email">Email</option>
+                      <option value="reunion">Reunión</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                  </label>
+                  <label className="crm-field">
+                    <span>Fecha y hora</span>
+                    <input type="datetime-local" name="occurredAt" />
+                  </label>
+                </div>
+                <label className="crm-field">
+                  <span>Resumen</span>
+                  <textarea name="summary" rows={3} maxLength={500} placeholder="¿Qué ocurrió? Ej: Llamada de 15 min, acordamos enviar propuesta" required />
+                </label>
+                <button className="workspace-button workspace-button-primary" type="submit">
+                  Guardar actividad
+                </button>
+              </form>
+            </details>
           )}
 
           {isLead && context.canEdit && !convertedId && (

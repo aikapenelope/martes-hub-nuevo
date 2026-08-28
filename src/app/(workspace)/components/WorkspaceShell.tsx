@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import type { Notification } from '@/payload-types'
 import { HermesAiSidecar } from './HermesAiSidecar'
 import { WorkspaceHeader } from './WorkspaceHeader'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
@@ -11,10 +12,12 @@ interface WorkspaceShellProps {
   userName?: string
   tenantName: string
   isAdmin: boolean
+  notifications: Pick<Notification, 'id' | 'title' | 'severity' | 'createdAt'>[]
+  unreadCount: number
   children: ReactNode
 }
 
-export function WorkspaceShell({ userEmail, userName, tenantName, isAdmin, children }: WorkspaceShellProps) {
+export function WorkspaceShell({ userEmail, userName, tenantName, isAdmin, notifications, unreadCount, children }: WorkspaceShellProps) {
   const router = useRouter()
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -40,7 +43,16 @@ export function WorkspaceShell({ userEmail, userName, tenantName, isAdmin, child
       <button className="workspace-mobile-overlay" data-open={isSidebarOpen} type="button" onClick={() => setIsSidebarOpen(false)} aria-label="Cerrar navegación" />
       <WorkspaceSidebar isOpen={isSidebarOpen} onNavigate={() => setIsSidebarOpen(false)} isAdmin={isAdmin} />
       <div className="workspace-content">
-        <WorkspaceHeader userEmail={userEmail} userName={userName} tenantName={tenantName} isAiDrawerOpen={isAiDrawerOpen} onToggleSidebar={() => setIsSidebarOpen((open) => !open)} onToggleAiDrawer={() => setIsAiDrawerOpen((open) => !open)} />
+        <WorkspaceHeader
+          userEmail={userEmail}
+          userName={userName}
+          tenantName={tenantName}
+          isAiDrawerOpen={isAiDrawerOpen}
+          onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
+          onToggleAiDrawer={() => setIsAiDrawerOpen((open) => !open)}
+          notifications={notifications}
+          unreadCount={unreadCount}
+        />
         <div style={{ display: 'flex', minWidth: 0 }}>
           <main className="workspace-main" style={{ flex: 1, minWidth: 0 }}>{children}</main>
           <HermesAiSidecar isOpen={isAiDrawerOpen} onClose={() => setIsAiDrawerOpen(false)} />
