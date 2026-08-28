@@ -48,6 +48,7 @@ import { resendWebhookHandler } from './endpoints/resendWebhook'
 import { tallyWebhookHandler } from './endpoints/tallyWebhook'
 import { dashboardStatsHandler } from './endpoints/dashboardStats'
 import { sendCampaignTask } from './jobs/sendCampaignTask'
+import { sendScheduledCampaignsTask } from './jobs/sendScheduledCampaigns'
 import { publishScheduledPostsTask } from './jobs/publishScheduledPosts'
 import { fetchSocialMetricsTask } from './jobs/fetchSocialMetrics'
 import { refreshSocialTokensTask } from './jobs/refreshSocialTokens'
@@ -310,6 +311,7 @@ export default buildConfig({
       syncTemplatesTask,
       openbspErrorsTask,
       sendCampaignTask,
+      sendScheduledCampaignsTask,
       publishScheduledPostsTask,
       fetchSocialMetricsTask,
       refreshSocialTokensTask,
