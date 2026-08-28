@@ -12,6 +12,9 @@ export default async function OverviewPage() {
   const { kpis, tasks } = await getOverviewData(context)
   const firstName = context.user.firstName || context.user.email.split('@')[0]
 
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'
+
   const cards = [
     { label: 'Clientes activos', value: kpis.activeClients, note: `${kpis.openLeads} leads en pipeline`, icon: UsersRound },
     { label: 'Cobrado este mes', value: currency.format(kpis.collected), note: `${kpis.duePayments} cobros por gestionar`, icon: CircleDollarSign },
@@ -24,7 +27,7 @@ export default async function OverviewPage() {
       <section className="workspace-page-head">
         <div>
           <div className="workspace-eyebrow"><span className="workspace-eyebrow-dot" /> Operación en vivo</div>
-          <h1 className="workspace-title">Buenos días, {firstName}</h1>
+          <h1 className="workspace-title">{greeting}, {firstName}</h1>
           <p className="workspace-subtitle">Lo importante de {context.tenant.name}, reunido en un solo lugar.</p>
         </div>
         {context.canEdit ? (
@@ -56,7 +59,7 @@ export default async function OverviewPage() {
               <div className="workspace-list">
                 {tasks.map((task) => (
                   <div className="workspace-list-row" key={task.id}>
-                    <div className="workspace-list-copy"><strong>{task.title}</strong><span>{task.dueDate ? `Vence ${date.format(new Date(task.dueDate))}` : 'Sin fecha límite'} · {task.status.replace('_', ' ')}</span></div>
+                    <div className="workspace-list-copy"><strong>{task.title}</strong><span>{task.dueDate ? `Vence ${date.format(new Date(task.dueDate))}` : 'Sin fecha límite'} · {task.status.replaceAll('_', ' ')}</span></div>
                     <span className="workspace-badge" data-tone={task.priority === 'urgente' ? 'danger' : undefined}>{task.priority}</span>
                   </div>
                 ))}

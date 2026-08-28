@@ -40,7 +40,7 @@ export const CompanySettings: CollectionConfig = {
       required: true,
       defaultValue: 'USD',
       label: 'Moneda',
-      options: ['USD'],
+      options: [{ label: 'USD ($)', value: 'USD' }],
     },
     {
       name: 'digestHour',

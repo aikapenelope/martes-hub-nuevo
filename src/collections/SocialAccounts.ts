@@ -72,7 +72,11 @@ export const SocialAccounts: CollectionConfig = {
       required: true,
       defaultValue: 'conectada',
       label: 'Estado de conexión',
-      options: ['conectada', 'desconectada', 'expirada'],
+      options: [
+        { label: 'Conectada', value: 'conectada' },
+        { label: 'Desconectada', value: 'desconectada' },
+        { label: 'Expirada', value: 'expirada' },
+      ],
       admin: {
         position: 'sidebar',
       },

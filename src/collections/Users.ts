@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import { adminOnly, authenticated, editorsOnly } from '../access'
+import { adminOnly, authenticated } from '../access'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -36,7 +36,11 @@ export const Users: CollectionConfig = {
       hasMany: true,
       required: true,
       defaultValue: ['agente'],
-      options: ['admin', 'agente', 'viewer'],
+      options: [
+        { label: 'Admin', value: 'admin' },
+        { label: 'Agente', value: 'agente' },
+        { label: 'Viewer', value: 'viewer' },
+      ],
       saveToJWT: true,
       access: {
         update: ({ req }) => Boolean(req.user && 'roles' in req.user && req.user.roles?.includes('admin')),

@@ -57,7 +57,12 @@ export const ConversationSummaries: CollectionConfig = {
       required: true,
       defaultValue: 'neutral',
       label: 'Sentimiento detectado',
-      options: ['positivo', 'neutral', 'negativo', 'en_riesgo'],
+      options: [
+        { label: 'Positivo', value: 'positivo' },
+        { label: 'Neutral', value: 'neutral' },
+        { label: 'Negativo', value: 'negativo' },
+        { label: 'En Riesgo', value: 'en_riesgo' },
+      ],
       admin: {
         position: 'sidebar',
       },
@@ -98,7 +103,11 @@ export const ConversationSummaries: CollectionConfig = {
       type: 'select',
       defaultValue: 'hermes_ai',
       label: 'Generado por',
-      options: ['hermes_ai', 'openbsp_agent', 'manual'],
+      options: [
+        { label: 'Hermes AI', value: 'hermes_ai' },
+        { label: 'Agente OpenBSP', value: 'openbsp_agent' },
+        { label: 'Manual', value: 'manual' },
+      ],
       admin: {
         position: 'sidebar',
       },

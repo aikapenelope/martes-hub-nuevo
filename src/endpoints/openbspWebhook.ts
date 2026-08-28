@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import type { PayloadRequest } from 'payload'
 import type { Tenant } from '@/payload-types'
-import { checkRateLimit } from './rateLimit'
+import { checkRateLimitDistributed } from './rateLimit'
 
 interface OpenBSPEntity {
   id: string
@@ -60,7 +60,12 @@ async function resolveTenant(
 
   // Bootstrap mono-tenant: si hay exactamente un tenant, es nuestro
   const all = await req.payload.find({ collection: 'tenants', limit: 2, depth: 0, overrideAccess: true, req })
-  if (all.totalDocs === 1) return all.docs[0]
+  if (all.totalDocs === 1) {
+    req.payload.logger.warn({
+      msg: 'openbsp: resolved tenant via single-tenant fallback. Map openbspOrganizationId or openbspPhoneNumberId on Tenant for multi-tenant isolation.',
+    })
+    return all.docs[0]
+  }
   return null
 }
 
@@ -286,7 +291,7 @@ export async function openbspWebhookHandler(req: PayloadRequest): Promise<Respon
   const expected = process.env.OPENBSP_WEBHOOK_TOKEN
   if (!expected) return json({ error: 'Webhook no configurado (falta OPENBSP_WEBHOOK_TOKEN)' }, 503)
 
-  if (!checkRateLimit(req, 'openbsp-webhook')) {
+  if (!(await checkRateLimitDistributed(req, 'openbsp-webhook'))) {
     return json({ error: 'Demasiadas peticiones' }, 429)
   }
 
@@ -323,7 +328,15 @@ export async function openbspWebhookHandler(req: PayloadRequest): Promise<Respon
         return json({ ok: true, ignored: 'conversations se manejan vía messages' })
       case 'organizations_addresses':
         return json({ ok: true, ignored: 'cuentas conectadas: fase SaaS futura' })
-      case 'contacts':
+      case 'contacts': {
+        const tenant = await resolveTenant(
+          req,
+          envelope.data.organization_id,
+          envelope.data.organization_address,
+        )
+        if (!tenant) return json({ ok: true, ignored: 'organización sin mapear a tenant' })
+        return await enrichContact(req, tenant, envelope.data)
+      }
       case 'contacts_addresses': {
         const tenant = await resolveTenant(
           req,

@@ -50,7 +50,12 @@ export const Memberships: CollectionConfig = {
       required: true,
       defaultValue: 'activa',
       label: 'Estado',
-      options: ['activa', 'pausada', 'vencida', 'cancelada'],
+      options: [
+        { label: 'Activa', value: 'activa' },
+        { label: 'Pausada', value: 'pausada' },
+        { label: 'Vencida', value: 'vencida' },
+        { label: 'Cancelada', value: 'cancelada' },
+      ],
       admin: {
         position: 'sidebar',
       },

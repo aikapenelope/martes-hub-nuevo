@@ -5,7 +5,7 @@ import { authenticated, editorsOnly, adminOnly } from '../access'
 export const Payments: CollectionConfig = {
   slug: 'payments',
   admin: {
-    useAsTitle: 'id',
+    useAsTitle: 'concept',
     defaultColumns: ['client', 'amount', 'dueDate', 'status', 'method'],
     group: 'Dinero',
   },
@@ -59,7 +59,12 @@ export const Payments: CollectionConfig = {
       required: true,
       defaultValue: 'pendiente',
       label: 'Estado',
-      options: ['pendiente', 'pagado', 'vencido', 'anulado'],
+      options: [
+        { label: 'Pendiente', value: 'pendiente' },
+        { label: 'Pagado', value: 'pagado' },
+        { label: 'Vencido', value: 'vencido' },
+        { label: 'Anulado', value: 'anulado' },
+      ],
       admin: {
         position: 'sidebar',
       },
@@ -68,7 +73,14 @@ export const Payments: CollectionConfig = {
       name: 'method',
       type: 'select',
       label: 'Método de pago',
-      options: ['pago_movil', 'transferencia', 'zelle', 'binance', 'efectivo', 'otro'],
+      options: [
+        { label: 'Pago Móvil', value: 'pago_movil' },
+        { label: 'Transferencia', value: 'transferencia' },
+        { label: 'Zelle', value: 'zelle' },
+        { label: 'Binance', value: 'binance' },
+        { label: 'Efectivo', value: 'efectivo' },
+        { label: 'Otro', value: 'otro' },
+      ],
     },
     {
       name: 'paidAt',

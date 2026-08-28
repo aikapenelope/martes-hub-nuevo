@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import type { PayloadRequest } from 'payload'
 import type { Tenant } from '@/payload-types'
-import { checkRateLimit } from './rateLimit'
+import { checkRateLimitDistributed } from './rateLimit'
 
 interface TallyField {
   key: string
@@ -68,7 +68,12 @@ async function resolveTenant(req: PayloadRequest, explicitTenantId?: number | nu
   }
 
   const all = await req.payload.find({ collection: 'tenants', limit: 2, depth: 0, overrideAccess: true, req })
-  if (all.totalDocs === 1) return all.docs[0]
+  if (all.totalDocs === 1) {
+    req.payload.logger.warn({
+      msg: 'tally: resolved tenant via single-tenant fallback. Map ?tenant=ID in webhook URL or form hidden field for multi-tenant isolation.',
+    })
+    return all.docs[0]
+  }
   return null
 }
 
@@ -106,7 +111,7 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
     return Response.json({ error: 'Cuerpo requerido' }, { status: 400 })
   }
 
-  if (!checkRateLimit(req, 'tally-webhook')) {
+  if (!(await checkRateLimitDistributed(req, 'tally-webhook'))) {
     return Response.json({ error: 'Demasiadas peticiones' }, { status: 429 })
   }
 

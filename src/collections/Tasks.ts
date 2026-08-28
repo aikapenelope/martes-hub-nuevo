@@ -50,7 +50,13 @@ export const Tasks: CollectionConfig = {
       required: true,
       defaultValue: 'pendiente',
       label: 'Estado',
-      options: ['pendiente', 'en_progreso', 'completada', 'bloqueada', 'cancelada'],
+      options: [
+        { label: 'Pendiente', value: 'pendiente' },
+        { label: 'En Progreso', value: 'en_progreso' },
+        { label: 'Completada', value: 'completada' },
+        { label: 'Bloqueada', value: 'bloqueada' },
+        { label: 'Cancelada', value: 'cancelada' },
+      ],
       admin: {
         position: 'sidebar',
       },
@@ -61,7 +67,12 @@ export const Tasks: CollectionConfig = {
       required: true,
       defaultValue: 'media',
       label: 'Prioridad',
-      options: ['baja', 'media', 'alta', 'urgente'],
+      options: [
+        { label: 'Baja', value: 'baja' },
+        { label: 'Media', value: 'media' },
+        { label: 'Alta', value: 'alta' },
+        { label: 'Urgente', value: 'urgente' },
+      ],
       admin: {
         position: 'sidebar',
       },
@@ -101,11 +112,11 @@ export const Tasks: CollectionConfig = {
       defaultValue: 'manual',
       label: 'Origen',
       options: [
-        'manual',
-        'tally_complaint',
-        'payment_overdue',
-        'openbsp_error',
-        'hermes_ai',
+        { label: 'Manual', value: 'manual' },
+        { label: 'Queja Tally', value: 'tally_complaint' },
+        { label: 'Cobro Vencido', value: 'payment_overdue' },
+        { label: 'Error OpenBSP', value: 'openbsp_error' },
+        { label: 'Hermes AI', value: 'hermes_ai' },
       ],
       admin: {
         position: 'sidebar',

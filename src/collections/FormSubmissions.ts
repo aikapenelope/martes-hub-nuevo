@@ -43,7 +43,12 @@ export const FormSubmissions: CollectionConfig = {
       required: true,
       defaultValue: 'tally',
       label: 'Plataforma de origen',
-      options: ['tally', 'typeform', 'web', 'otro'],
+      options: [
+        { label: 'Tally', value: 'tally' },
+        { label: 'Typeform', value: 'typeform' },
+        { label: 'Web', value: 'web' },
+        { label: 'Otro', value: 'otro' },
+      ],
       admin: { position: 'sidebar' },
     },
     {

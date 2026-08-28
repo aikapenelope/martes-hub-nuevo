@@ -1,6 +1,6 @@
 import { getPayload } from 'payload'
 
-import config from '../payload.config.js'
+import config from '../src/payload.config.js'
 
 export async function queueJobs(): Promise<void> {
   const payload = await getPayload({ config })

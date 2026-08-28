@@ -116,31 +116,17 @@ export const DashboardView: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      const meRes = await getJson<{ user?: { name?: string; email?: string } }>('/api/users/me')
-      const name =
-        meRes?.user?.name?.split(' ')[0] ?? meRes?.user?.email?.split('@')[0] ?? 'AGENTE'
-      setMe(name.toUpperCase())
-
-      const hoyTs = Date.now()
-      const monthStart = new Date()
-      monthStart.setDate(1)
-      monthStart.setHours(0, 0, 0, 0)
-
       const [
-        leadsRes,
-        paymentsRes,
+        meRes,
+        statsRes,
         convsRes,
         notifsRes,
         followupsRes,
       ] = await Promise.all([
-        getJson<{ docs: { status: string }[]; totalItems: number }>(
-          '/api/leads?limit=500&depth=0&select=status',
-        ),
-        getJson<{
-          docs: { status: string; amount?: number; dueDate?: string; paidAt?: string }[]
-        }>('/api/payments?limit=500&depth=0&select=status,amount,dueDate,paidAt'),
+        getJson<{ user?: { firstName?: string; name?: string; email?: string } }>('/api/users/me'),
+        getJson<Stats>('/api/dashboard/stats'),
         getJson<{ docs: ConvItem[] }>(
-          '/api/conversations?limit=100&depth=0&sort=-lastMessageAt&select=contactAddress,lastInboundAt,lastMessageAt',
+          '/api/conversations?limit=4&sort=-lastInboundAt&select=contactAddress,lastInboundAt,lastMessageAt',
         ),
         getJson<{ docs: NotifItem[] }>(
           '/api/notifications?limit=5&depth=0&sort=-createdAt&where[read][equals]=false',
@@ -148,51 +134,25 @@ export const DashboardView: React.FC = () => {
         getJson<{ items: FollowUpItem[] }>('/api/followups/hoy'),
       ])
 
-      const leadDocs = leadsRes?.docs ?? []
-      const leadOrder = ['nuevo', 'contactado', 'calificado', 'descartado']
-      const leadBars = leadOrder.map(
-        (s) => leadDocs.filter((l) => l.status === s).length,
+      const name =
+        meRes?.user?.firstName ??
+        meRes?.user?.name?.split(' ')[0] ??
+        meRes?.user?.email?.split('@')[0] ??
+        'AGENTE'
+      setMe(name.toUpperCase())
+
+      setStats(
+        statsRes ?? {
+          leadsTotal: 0,
+          leadBars: [0, 0, 0, 0],
+          cobrosAbiertos: 0,
+          cobrosAbiertosUsd: 0,
+          pctCobradoMes: 0,
+          sinResponder: 0,
+          respBars: [0, 0, 0],
+        },
       )
-
-      const payDocs = paymentsRes?.docs ?? []
-      const abiertos = payDocs.filter(
-        (p) => p.status === 'pendiente' || p.status === 'vencido',
-      )
-      const cobrosAbiertosUsd = abiertos.reduce((s, p) => s + (p.amount ?? 0), 0)
-
-      const enMes = payDocs.filter((p) => {
-        const ref = p.status === 'pagado' ? p.paidAt : p.dueDate
-        if (!ref) return false
-        const t = new Date(ref).getTime()
-        return t >= monthStart.getTime() && t <= hoyTs + 7 * 86400000
-      })
-      const pagadoMes = enMes
-        .filter((p) => p.status === 'pagado')
-        .reduce((s, p) => s + (p.amount ?? 0), 0)
-      const totalMes = enMes.reduce((s, p) => s + (p.amount ?? 0), 0)
-
-      const unansweredConvs = (convsRes?.docs ?? []).filter((c) => {
-        if (!c.lastInboundAt) return false
-        return hoyTs - new Date(c.lastInboundAt).getTime() > 4 * 3600000
-      })
-      const h4 = unansweredConvs.filter(
-        (c) => hoyTs - new Date(c.lastInboundAt as string).getTime() <= 24 * 3600000,
-      ).length
-      const h24 = unansweredConvs.filter((c) => {
-        const diff = hoyTs - new Date(c.lastInboundAt as string).getTime()
-        return diff > 24 * 3600000 && diff <= 72 * 3600000
-      }).length
-
-      setStats({
-        leadsTotal: leadsRes?.totalItems ?? 0,
-        leadBars,
-        cobrosAbiertos: abiertos.length,
-        cobrosAbiertosUsd,
-        pctCobradoMes: totalMes > 0 ? Math.round((pagadoMes / totalMes) * 100) : 0,
-        sinResponder: unansweredConvs.length,
-        respBars: [h4, h24, unansweredConvs.length - h24 - h4],
-      })
-      setUnanswered(unansweredConvs.slice(0, 4))
+      setUnanswered(convsRes?.docs ?? [])
       setNotifs(notifsRes?.docs ?? [])
       setFollowups((followupsRes?.items ?? []).slice(0, 4))
       setLoading(false)

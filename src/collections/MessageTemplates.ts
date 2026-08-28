@@ -36,14 +36,24 @@ export const MessageTemplates: CollectionConfig = {
       name: 'category',
       type: 'select',
       label: 'Categoría',
-      options: ['MARKETING', 'UTILITY', 'AUTHENTICATION'],
+      options: [
+        { label: 'Marketing', value: 'MARKETING' },
+        { label: 'Utilidad', value: 'UTILITY' },
+        { label: 'Autenticación', value: 'AUTHENTICATION' },
+      ],
       admin: { position: 'sidebar' },
     },
     {
       name: 'metaStatus',
       type: 'select',
       label: 'Estado en Meta',
-      options: ['PENDING', 'APPROVED', 'REJECTED', 'PAUSED', 'DISABLED'],
+      options: [
+        { label: 'Pendiente', value: 'PENDING' },
+        { label: 'Aprobada', value: 'APPROVED' },
+        { label: 'Rechazada', value: 'REJECTED' },
+        { label: 'Pausada', value: 'PAUSED' },
+        { label: 'Deshabilitada', value: 'DISABLED' },
+      ],
       admin: { position: 'sidebar' },
     },
     {

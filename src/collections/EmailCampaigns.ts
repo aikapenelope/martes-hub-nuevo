@@ -16,7 +16,22 @@ export const EmailCampaigns: CollectionConfig = {
     update: editorsOnly,
     delete: adminOnly,
   },
-  timestamps: true,
+  hooks: {
+    beforeValidate: [
+      ({ data }) => {
+        if (typeof data?.bodyHtml === 'string') {
+          // Sanitización server-side contra XSS: elimina scripts, iframes, eval y event handlers inline
+          data.bodyHtml = data.bodyHtml
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+            .replace(/\s*on\w+\s*=\s*(['"]).*?\1/gi, '')
+            .replace(/\s*on\w+\s*=\s*[^>\s]+/gi, '')
+            .replace(/javascript:/gi, '')
+        }
+        return data
+      },
+    ],
+  },
   fields: [
     {
       name: 'name',
@@ -63,7 +78,13 @@ export const EmailCampaigns: CollectionConfig = {
       required: true,
       defaultValue: 'draft',
       label: 'Estado',
-      options: ['draft', 'sending', 'sent', 'partial', 'failed'],
+      options: [
+        { label: 'Borrador', value: 'draft' },
+        { label: 'Enviando', value: 'sending' },
+        { label: 'Enviada', value: 'sent' },
+        { label: 'Parcial', value: 'partial' },
+        { label: 'Fallida', value: 'failed' },
+      ],
       admin: {
         position: 'sidebar',
         readOnly: true,
