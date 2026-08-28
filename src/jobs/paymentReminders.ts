@@ -24,6 +24,7 @@ async function markOverdue(req: PayloadRequest): Promise<number> {
     },
     data: { status: 'vencido' },
     overrideAccess: true,
+    req,
   })
   return overdue.docs.length
 }
@@ -61,6 +62,7 @@ export const paymentRemindersTask: TaskConfig = {
         ],
       },
       overrideAccess: true,
+      req,
     })
 
     let reminded = 0
@@ -92,6 +94,7 @@ export const paymentRemindersTask: TaskConfig = {
         id: payment.id,
         data: { reminderSentAt: new Date().toISOString() },
         overrideAccess: true,
+        req,
       })
       reminded += 1
     }

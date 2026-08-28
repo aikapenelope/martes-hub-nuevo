@@ -1,5 +1,7 @@
+import crypto from 'crypto'
 import type { PayloadRequest } from 'payload'
 import type { Tenant } from '@/payload-types'
+import { checkRateLimit } from './rateLimit'
 
 interface OpenBSPEntity {
   id: string
@@ -79,6 +81,8 @@ async function matchContact(
       where: { and: [{ phone: { equals: p } }, { tenant: { equals: tenantId } }] },
       limit: 1,
       depth: 0,
+      overrideAccess: true,
+      req,
     })
     if (exact.docs[0]) {
       return collection === 'clients' ? { client: exact.docs[0].id } : { lead: exact.docs[0].id }
@@ -88,6 +92,8 @@ async function matchContact(
       where: { and: [{ phone: { like: suffix } }, { tenant: { equals: tenantId } }] },
       limit: 2,
       depth: 0,
+      overrideAccess: true,
+      req,
     })
     if (loose.docs.length === 1) {
       return collection === 'clients' ? { client: loose.docs[0].id } : { lead: loose.docs[0].id }
@@ -108,6 +114,8 @@ async function upsertConversation(
     where: { and: [{ openbspId: { equals: data.conversation_id } }, { tenant: { equals: tenant.id } }] },
     limit: 1,
     depth: 0,
+    overrideAccess: true,
+    req,
   })
 
   const isInbound = Boolean(data.sender_address)
@@ -130,6 +138,7 @@ async function upsertConversation(
       id: conv.id,
       data: patchWithLink,
       overrideAccess: true,
+      req,
     })
     return conv.id
   }
@@ -147,6 +156,7 @@ async function upsertConversation(
       tenant: tenant.id,
     },
     overrideAccess: true,
+    req,
   })
   return created.id
 }
@@ -166,6 +176,8 @@ async function handleMessage(req: PayloadRequest, action: string, data: OpenBSPE
     },
     limit: 1,
     depth: 0,
+    overrideAccess: true,
+    req,
   })
 
   const row = existing.docs[0]
@@ -175,6 +187,7 @@ async function handleMessage(req: PayloadRequest, action: string, data: OpenBSPE
       id: row.id,
       data: { statusJson: data.status ?? {} },
       overrideAccess: true,
+      req,
     })
     return json({ ok: true, merged: true })
   }
@@ -216,6 +229,7 @@ async function handleMessage(req: PayloadRequest, action: string, data: OpenBSPE
       tenant: tenant.id,
     },
     overrideAccess: true,
+    req,
   })
 
   void created
@@ -250,6 +264,7 @@ async function enrichContact(
     limit: 1,
     depth: 0,
     overrideAccess: true,
+    req,
   })
   const client = clients.docs[0]
   if (!client) return json({ ok: true, ignored: 'sin cliente asociado al teléfono' })
@@ -262,6 +277,7 @@ async function enrichContact(
     id: client.id,
     data: { name: displayName },
     overrideAccess: true,
+    req,
   })
   return json({ ok: true, enriched: true })
 }
@@ -270,8 +286,20 @@ export async function openbspWebhookHandler(req: PayloadRequest): Promise<Respon
   const expected = process.env.OPENBSP_WEBHOOK_TOKEN
   if (!expected) return json({ error: 'Webhook no configurado (falta OPENBSP_WEBHOOK_TOKEN)' }, 503)
 
-  const auth = req.headers.get('authorization')
-  if (auth !== `Bearer ${expected}`) return json({ error: 'No autorizado' }, 401)
+  if (!checkRateLimit(req, 'openbsp-webhook')) {
+    return json({ error: 'Demasiadas peticiones' }, 429)
+  }
+
+  // Comparación timing-safe del token para evitar ataques de timing
+  const authHeader = req.headers.get('authorization') ?? ''
+  const isBearerValid = (() => {
+    if (!authHeader.startsWith('Bearer ')) return false
+    const provided = Buffer.from(authHeader.slice(7))
+    const secret = Buffer.from(expected)
+    if (provided.length !== secret.length) return false
+    return crypto.timingSafeEqual(provided, secret)
+  })()
+  if (!isBearerValid) return json({ error: 'No autorizado' }, 401)
 
   let envelope: Envelope
   const readJson = req.json

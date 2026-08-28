@@ -112,6 +112,25 @@ export const sendCampaignTask: TaskConfig = {
     let failed = 0
 
     for (const recipient of recipients.values()) {
+      // Idempotencia por destinatario: si la campaña ya registró un envío
+      // (sent/delivered) para este email, no se reenvía aunque el job se reintente
+      // por timeout de Vercel o fallo de infraestructura.
+      const alreadySent = await req.payload.find({
+        collection: 'email-log',
+        where: {
+          and: [
+            { to: { equals: recipient.email } },
+            { campaign: { equals: campaignId } },
+            { status: { in: ['sent', 'delivered'] } },
+          ],
+        },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+      if (alreadySent.docs.length > 0) continue
+
       const html = renderEmailHtml({
         title: campaign.subject,
         preheader: campaign.preheader ?? undefined,

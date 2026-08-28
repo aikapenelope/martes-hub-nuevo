@@ -53,6 +53,7 @@ export async function resendWebhookHandler(req: PayloadRequest): Promise<Respons
     limit: 1,
     depth: 0,
     overrideAccess: true,
+    req,
   })
 
   const logRow = existing.docs[0]
@@ -69,6 +70,7 @@ export async function resendWebhookHandler(req: PayloadRequest): Promise<Respons
       eventsJson: { lastEvent: event.type, at: event.created_at },
     },
     overrideAccess: true,
+    req,
   })
 
   req.payload.logger.info({ msg: 'resend webhook aplicado', type: event.type, emailLogId: logRow.id })

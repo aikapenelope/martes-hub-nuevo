@@ -1,5 +1,11 @@
 import type { TaskConfig } from 'payload'
 
+// La publicación REAL requiere la integración con Meta Graph API
+// (helper `publishToMeta(account, post)`). Hasta que exista, este job NO marca
+// publicaciones como 'publicado' — eso evitaría que los usuarios crean que un
+// post se publicó cuando en realidad nunca salió a producción.
+const publishEnabled = process.env.META_GRAPH_API_ENABLED === 'true'
+
 export const publishScheduledPostsTask: TaskConfig = {
   slug: 'publish-scheduled-posts',
   label: 'Publicar posts programados en redes sociales',
@@ -11,6 +17,19 @@ export const publishScheduledPostsTask: TaskConfig = {
     { name: 'summary', type: 'text' },
   ],
   handler: async ({ req }) => {
+    if (!publishEnabled) {
+      req.payload.logger.warn({
+        msg: 'publish-scheduled-posts: META_GRAPH_API_ENABLED no está activado; posts se quedan en "programado"',
+      })
+      return {
+        output: {
+          published: 0,
+          failed: 0,
+          summary: 'Integración Meta Graph API desactivada; posts sin publicar',
+        },
+      }
+    }
+
     const now = new Date().toISOString()
 
     const tenants = await req.payload.find({
@@ -21,7 +40,6 @@ export const publishScheduledPostsTask: TaskConfig = {
       req,
     })
 
-    let totalPublished = 0
     let totalFailed = 0
 
     for (const tenant of tenants.docs) {
@@ -59,28 +77,11 @@ export const publishScheduledPostsTask: TaskConfig = {
         }
 
         try {
-          // Si hay tokens y endpoint real configurado, se invoca Graph API
-          // De lo contrario se simula la publicación exitosa para staging/pruebas
-          const simulatedPostId = `meta_${Date.now()}_${post.id}`
-          const permalink = account.platform === 'instagram'
-            ? `https://instagram.com/p/${simulatedPostId}`
-            : `https://facebook.com/${account.platformAccountId}/posts/${simulatedPostId}`
-
-          await req.payload.update({
-            collection: 'social-posts',
-            id: post.id,
-            data: {
-              status: 'publicado',
-              publishedAt: new Date().toISOString(),
-              platformPostId: simulatedPostId,
-              permalink,
-              lastError: null,
-            },
-            overrideAccess: true,
-            req,
-          })
-
-          totalPublished++
+          // TODO(meta): sustituir por la llamada real a Meta Graph API
+          // `const { id, permalink } = await publishToMeta(account, post)`
+          throw new Error(
+            'Publicación automática pendiente: integración con Meta Graph API no implementada',
+          )
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Error desconocido de publicación'
           await req.payload.update({
@@ -98,12 +99,12 @@ export const publishScheduledPostsTask: TaskConfig = {
       }
     }
 
-    const summary = `Publicados: ${totalPublished} | Fallidos: ${totalFailed}`
+    const summary = `Publicados: 0 | Fallidos: ${totalFailed}`
     req.payload.logger.info({ msg: 'publish-scheduled-posts', summary })
 
     return {
       output: {
-        published: totalPublished,
+        published: 0,
         failed: totalFailed,
         summary,
       },

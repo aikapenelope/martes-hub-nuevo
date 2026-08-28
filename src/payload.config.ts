@@ -212,25 +212,61 @@ export default buildConfig({
           description: 'Gestión de tareas internas: título, estado, prioridad y asignaciones.',
           enabled: true,
         },
-        'conversation-summaries': {
-          description: 'Resúmenes ejecutivos con sentimiento, objeciones y próximos pasos de clientes.',
-          enabled: true,
-        },
-        'social-posts': {
-          description: 'Publicaciones en redes sociales: contenido, fecha programada y estado.',
-          enabled: true,
-        },
-        'post-metrics': {
-          description: 'Métricas de rendimiento de publicaciones sociales: alcance, likes, impresiones.',
-          enabled: true,
-        },
+        // Documentos financieros: SOLO LECTURA para el agente MCP.
+        // Sin create/update el agente no puede sintetizar ni mutar cobros/facturas/cotizaciones.
         payments: {
-          description: 'Registro de pagos y cobros de clientes.',
+          description:
+            'Registro de pagos y cobros de clientes. SOLO LECTURA: el agente no crea ni modifica pagos.',
           enabled: {
             delete: false,
             find: true,
-            create: true,
-            update: true,
+            create: false,
+            update: false,
+          },
+        },
+        invoices: {
+          description: 'Facturas emitidas. SOLO LECTURA para el agente.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: false,
+            update: false,
+          },
+        },
+        quotes: {
+          description: 'Cotizaciones enviadas y en negociación. SOLO LECTURA para el agente.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: false,
+            update: false,
+          },
+        },
+        'conversation-summaries': {
+          description: 'Resúmenes ejecutivos con sentimiento, objeciones y próximos pasos de clientes.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: false,
+            update: false,
+          },
+        },
+        'social-posts': {
+          description: 'Publicaciones en redes sociales: contenido, fecha programada y estado.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: false,
+            update: false,
+          },
+        },
+        'post-metrics': {
+          description: 'Métricas de rendimiento de publicaciones sociales: alcance, likes, impresiones.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: false,
+            update: false,
           },
         },
         users: {

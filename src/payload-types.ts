@@ -1143,73 +1143,41 @@ export interface PayloadMcpApiKey {
      */
     delete?: boolean | null;
   };
+  payments?: {
+    /**
+     * Allow clients to find payments.
+     */
+    find?: boolean | null;
+  };
+  invoices?: {
+    /**
+     * Allow clients to find invoices.
+     */
+    find?: boolean | null;
+  };
+  quotes?: {
+    /**
+     * Allow clients to find quotes.
+     */
+    find?: boolean | null;
+  };
   conversationSummaries?: {
     /**
      * Allow clients to find conversation-summaries.
      */
     find?: boolean | null;
-    /**
-     * Allow clients to create conversation-summaries.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update conversation-summaries.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete conversation-summaries.
-     */
-    delete?: boolean | null;
   };
   socialPosts?: {
     /**
      * Allow clients to find social-posts.
      */
     find?: boolean | null;
-    /**
-     * Allow clients to create social-posts.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update social-posts.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete social-posts.
-     */
-    delete?: boolean | null;
   };
   postMetrics?: {
     /**
      * Allow clients to find post-metrics.
      */
     find?: boolean | null;
-    /**
-     * Allow clients to create post-metrics.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update post-metrics.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete post-metrics.
-     */
-    delete?: boolean | null;
-  };
-  payments?: {
-    /**
-     * Allow clients to find payments.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create payments.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update payments.
-     */
-    update?: boolean | null;
   };
   users?: {
     /**
@@ -2186,36 +2154,35 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         update?: T;
         delete?: T;
       };
+  payments?:
+    | T
+    | {
+        find?: T;
+      };
+  invoices?:
+    | T
+    | {
+        find?: T;
+      };
+  quotes?:
+    | T
+    | {
+        find?: T;
+      };
   conversationSummaries?:
     | T
     | {
         find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
       };
   socialPosts?:
     | T
     | {
         find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
       };
   postMetrics?:
     | T
     | {
         find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  payments?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
       };
   users?:
     | T
