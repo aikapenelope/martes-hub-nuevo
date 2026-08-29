@@ -1,7 +1,10 @@
 import Link from 'next/link'
-import { Inbox, MessageSquare, MessageSquareText } from 'lucide-react'
+import { Inbox, MessageSquare, Plus } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import type { Conversation, Message } from '@/payload-types'
+import { isWindowActiveServer } from './actions'
+import { InboxChatView } from './components/InboxChatView'
 
 const CHANNEL_LABEL: Record<string, string> = {
   whatsapp: 'WhatsApp',
@@ -24,13 +27,13 @@ const fmtDate = (v: string | null | undefined): string => {
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tenant?: string | string[] }>
+  searchParams: Promise<{ conv?: string; tenant?: string | string[] }>
 }) {
   const params = await searchParams
   const context = await getWorkspaceContext(params)
-  const { payload, user, tenantId } = context
+  const { payload, user, tenantId, canEdit } = context
 
-  const conversations = await payload.find({
+  const conversationsRes = await payload.find({
     collection: 'conversations',
     where: { tenant: { equals: tenantId } },
     depth: 1,
@@ -40,30 +43,87 @@ export default async function InboxPage({
     user,
   })
 
-  const active = conversations.docs[0]
+  const conversations = conversationsRes.docs as Conversation[]
+
+  const selectedId = params.conv ? Number(params.conv) : null
+  const active =
+    (selectedId && conversations.find((c) => c.id === selectedId)) ||
+    conversations[0] ||
+    null
+
+  let messages: Message[] = []
+  let isWindowActive = false
+
+  if (active) {
+    const [messagesRes, windowActive] = await Promise.all([
+      payload.find({
+        collection: 'messages',
+        where: {
+          and: [
+            { conversation: { equals: active.id } },
+            { tenant: { equals: tenantId } },
+          ],
+        },
+        limit: 100,
+        sort: 'sentAt',
+        overrideAccess: false,
+        user,
+      }),
+      isWindowActiveServer(active.lastInboundAt),
+    ])
+
+    messages = messagesRes.docs as Message[]
+    isWindowActive = windowActive
+  }
 
   return (
     <div className="workspace-page">
       <section className="workspace-page-head">
         <div>
-          <div className="workspace-eyebrow"><span className="workspace-eyebrow-dot" /> Mensajería omnicanal</div>
+          <div className="workspace-eyebrow">
+            <span className="workspace-eyebrow-dot" /> Mensajería omnicanal
+          </div>
           <h1 className="workspace-title">Unified Inbox</h1>
-          <p className="workspace-subtitle">Conversaciones de WhatsApp e Instagram sincronizadas con OpenBSP.</p>
+          <p className="workspace-subtitle">
+            Conversaciones de WhatsApp e Instagram sincronizadas con OpenBSP para {context.tenant.name}.
+          </p>
+        </div>
+        <div className="workspace-actions">
+          <Link className="workspace-button" href="/crm">
+            Ver CRM
+          </Link>
+          <Link className="workspace-button workspace-button-primary" href="/admin/collections/conversations">
+            <Plus size={16} /> Abrir en Admin
+          </Link>
         </div>
       </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(22rem, 0.8fr) minmax(0, 1.6fr)', gap: '1rem', alignItems: 'start' }}>
-        <section className="workspace-card" style={{ overflow: 'hidden' }}>
-          <header className="workspace-card-head">
-            <div><h2 className="workspace-card-title">Conversaciones</h2><p className="workspace-card-description">{conversations.totalDocs} activas en {context.tenant.name}.</p></div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(20rem, 0.85fr) minmax(0, 1.55fr)',
+          gap: '1rem',
+          alignItems: 'start',
+        }}
+      >
+        {/* LISTA DE CONVERSACIONES */}
+        <section className="workspace-card" style={{ overflow: 'hidden', height: '640px', display: 'flex', flexDirection: 'column' }}>
+          <header className="workspace-card-head" style={{ padding: '1rem 1.25rem' }}>
+            <div>
+              <h2 className="workspace-card-title">Conversaciones</h2>
+              <p className="workspace-card-description">{conversationsRes.totalDocs} activas en este tenant.</p>
+            </div>
             <Inbox size={18} />
           </header>
-          <div className="workspace-card-body">
-            {conversations.docs.length === 0 ? (
-              <div className="workspace-empty">Sin conversaciones sincronizadas todavía. Los mensajes entrantes de OpenBSP aparecen aquí.</div>
+          <div className="workspace-card-body" style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
+            {conversations.length === 0 ? (
+              <div className="workspace-empty">
+                Sin conversaciones sincronizadas todavía. Los mensajes entrantes de OpenBSP aparecerán aquí automáticamente.
+              </div>
             ) : (
-              <div className="workspace-list">
-                {conversations.docs.map((conv, idx) => {
+              <div className="workspace-list" style={{ gap: '0.25rem' }}>
+                {conversations.map((conv) => {
+                  const isSelected = active?.id === conv.id
                   const client = conv.client && typeof conv.client === 'object' ? conv.client : null
                   const lead = conv.lead && typeof conv.lead === 'object' ? conv.lead : null
                   const contactName =
@@ -71,17 +131,27 @@ export default async function InboxPage({
                     (lead && 'fullName' in lead ? (lead as { fullName?: string }).fullName : null) ||
                     conv.contactAddress
                   const kind = client ? 'Cliente' : lead ? 'Lead' : 'Contacto'
+
                   return (
                     <Link
-                      className="workspace-list-row"
-                      data-active={idx === 0 ? 'true' : undefined}
-                      style={idx === 0 ? { background: 'var(--workspace-raised)' } : undefined}
-                      href={`/admin/collections/conversations/${conv.id}`}
                       key={conv.id}
+                      className="workspace-list-row"
+                      data-active={isSelected ? 'true' : undefined}
+                      style={{
+                        padding: '0.75rem 1rem',
+                        borderRadius: '6px',
+                        background: isSelected ? 'var(--workspace-raised, #161616)' : 'transparent',
+                        border: isSelected ? '1px solid var(--workspace-border, #333)' : '1px solid transparent',
+                        textDecoration: 'none',
+                        color: 'inherit',
+                      }}
+                      href={`/inbox?conv=${conv.id}`}
                     >
                       <div className="workspace-list-copy">
-                        <strong>{contactName}</strong>
-                        <span>{kind} · {CHANNEL_LABEL[conv.channel] ?? conv.channel} · último {fmtDate(conv.lastMessageAt)}</span>
+                        <strong style={{ fontSize: '0.875rem' }}>{contactName}</strong>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--workspace-muted, #777)' }}>
+                          {kind} · {CHANNEL_LABEL[conv.channel] ?? conv.channel} · {fmtDate(conv.lastMessageAt)}
+                        </span>
                       </div>
                     </Link>
                   )
@@ -91,34 +161,25 @@ export default async function InboxPage({
           </div>
         </section>
 
-        <section className="workspace-card" style={{ minHeight: '24rem' }}>
-          {active ? (
-            <>
-              <header className="workspace-card-head">
-                <div>
-                  <h2 className="workspace-card-title">{active.contactAddress}</h2>
-                  <p className="workspace-card-description">Última actividad: {fmtDate(active.lastMessageAt)}</p>
-                </div>
-                <Link className="workspace-button" href={`/admin/collections/conversations/${active.id}`}>Ver conversación</Link>
-              </header>
-              <div className="workspace-drawer-copy" style={{ height: '100%' }}>
-                <div>
-                  <MessageSquareText size={28} />
-                  <strong>{active.contactAddress}</strong>
-                  <p>El historial de mensajes se sincroniza con OpenBSP. Responde desde el admin de Payload respetando la ventana de 24h (o con plantillas aprobadas).</p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="workspace-drawer-copy" style={{ height: '100%' }}>
+        {/* DETALLE Y CHAT VIEW */}
+        {active ? (
+          <InboxChatView
+            conversation={active}
+            messages={messages}
+            canEdit={canEdit}
+            isWindowActive={isWindowActive}
+          />
+        ) : (
+          <section className="workspace-card" style={{ height: '640px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="workspace-drawer-copy">
               <div>
-                <MessageSquare size={28} />
+                <MessageSquare size={32} />
                 <strong>Sin conversación seleccionada</strong>
-                <p>Selecciona una conversación para ver su detalle y responder.</p>
+                <p>Selecciona una conversación del panel izquierdo para ver el historial y responder.</p>
               </div>
             </div>
-          )}
-        </section>
+          </section>
+        )}
       </div>
     </div>
   )
