@@ -7,3 +7,14 @@
  * completo sin conflicto con ningún otro sistema de estilos.
  */
 @import 'tailwindcss';
+
+/*
+ * Primitiva Dialog (src/components/workspace/ui.tsx): estiliza el
+ * ::backdrop nativo del elemento <dialog>. Tailwind no expone un variant
+ * `backdrop:` estable para pseudo-elementos de <dialog>, así que se define
+ * aquí en vez de depender de una utility class.
+ */
+.workspace-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+

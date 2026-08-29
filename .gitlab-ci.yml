@@ -1,0 +1,82 @@
+# GitLab CI/CD pipeline for Martes Hub.
+#
+# El repo trae workflows de GitHub Actions (.github/workflows/) que no se
+# ejecutan en GitLab — este proyecto no tenía ningún pipeline de CI real.
+# Este archivo migra la verificación de tipos/lint/build (ya cubierta por
+# los workflows de GitHub) y agrega lo que faltaba: ejecutar la suite de
+# integración (incluyendo tests/int/tenant-isolation.int.spec.ts) contra un
+# Postgres real, para que las pruebas de aislamiento multi-tenant realmente
+# bloqueen un merge si se rompen.
+#
+# test:e2e (Playwright) queda fuera de este pipeline: requiere navegadores
+# y un servidor de la app corriendo, y no es el hallazgo que este pipeline
+# resuelve. Puede añadirse como job separado en una iteración futura.
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+stages:
+  - verify
+
+.pnpm_base:
+  image: node:24-slim
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.34.5 --activate
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  variables:
+    PNPM_HOME: '$CI_PROJECT_DIR/.pnpm-store'
+
+typecheck:
+  extends: .pnpm_base
+  stage: verify
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm typecheck
+
+lint:
+  extends: .pnpm_base
+  stage: verify
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm lint
+
+build:
+  extends: .pnpm_base
+  stage: verify
+  variables:
+    # Espejo del build de Vercel: next build no requiere una conexión real a
+    # Postgres porque todas las rutas de /workspace y /admin son dinámicas
+    # (verificado manualmente: `next build` compila sin un Postgres vivo).
+    PAYLOAD_SECRET: ci-secret-for-payload-build-check-only-0123456789
+    DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci_build_placeholder
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm build
+
+test:
+  extends: .pnpm_base
+  stage: verify
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: martes_hub_ci
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    POSTGRES_HOST_AUTH_METHOD: trust
+    PAYLOAD_SECRET: ci-secret-for-payload-test-check-only-0123456789
+    DATABASE_URL: postgresql://postgres:postgres@postgres:5432/martes_hub_ci
+  script:
+    - pnpm install --frozen-lockfile
+    # Aplica todas las migraciones (incluida la nueva de tenant_id en
+    # invoices/quotes) contra el Postgres del servicio antes de correr tests.
+    - pnpm migrate
+    - pnpm test:int
