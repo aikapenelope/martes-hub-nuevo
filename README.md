@@ -111,6 +111,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 | Servicio | Credencial | Notas |
 |---|---|---|
 | Neon | `DATABASE_URL` (pooled, SSL) | Proyecto nuevo; activar pgvector |
+| Cloudflare R2 (opcional, storage de media/documentos) | `S3_BUCKET` + `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY` + `S3_ENDPOINT` | Vía `@payloadcms/storage-s3` (compatible S3); sin `S3_BUCKET` los archivos se guardan localmente. `S3_REGION=auto` y `forcePathStyle: true` ya configurados para R2 |
 | OpenBSP | Org + `api-key` (+ `apikey` pública Supabase) | Webhook con `callback_url` + `verify_token`; envío por REST |
 | Resend | `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` | Verificar dominio de envío; webhook de bounce/complaint en dashboard Resend → `/api/webhooks/resend` |
 | Apify | `APIFY_TOKEN` | Webhook de fin de actor → `/api/webhooks/apify` |
@@ -118,6 +119,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 | Google Calendar | OAuth client JSON | Solo lectura del calendario de citas |
 | LLM del agente reactivo | API key del proveedor elegido (opcional) | Se configura en el dashboard de OpenBSP (`AgentExtra.api_key`); sin ella consume los AI credits hosted ($1 incluidos) |
 | Metricool o Composio (opcional, para publicar en redes) | Cuenta propia en cualquiera de los dos + su MCP conectado en el cliente del agente | No vive en este repo: el agente que conectes a `/api/mcp` de este sistema conecta también su propio MCP de Metricool/Composio y hace la publicación real |
+| Upstash Redis (opcional, rate limiting distribuido) | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | Sin esto, el rate limiting de webhooks y de las Server Actions de IA/email/WhatsApp cae a memoria local por-instancia (no compartida entre lambdas de Vercel) |
 | Scheduler externo | cuenta gratuita (cron-job.org / Upstash QStash) | Llama endpoint runner mientras no haya Vercel Pro |
 
 ## Sprints
@@ -232,6 +234,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 3. **Configurar Webhook Tally**: apuntar a `https://tu-dominio/api/webhooks/tally` y configurar `TALLY_SIGNING_SECRET`.
 4. **Endurecer el MCP externo** (`@payloadcms/plugin-mcp`, expuesto en `/api/mcp` para cualquier cliente MCP que conectes — Claude Desktop, Cursor, un agente propio): `clients`, `leads`, `tasks`, `conversation-summaries`, `social-posts`, `post-metrics` y `media` tienen `enabled: true` o create/update abiertos. Antes de entregar una API key de este endpoint a alguien fuera del equipo, restringir por operación/rol/tenant, igual que ya se hizo con `payments`/`invoices`/`quotes`.
 5. **Backups PITR de Neon**: verificar que estén activos y probar un restore real — no se puede confirmar desde el código.
+6. **Actualizar `sharp`** de `0.34.2` a `>=0.35.0`: vulnerabilidad alta (CVEs heredados de libvips) en la dependencia que procesa las imágenes subidas por usuarios (`pnpm audit`). Cambio de versión simple, sin riesgo de breaking changes conocido.
 
 No bloquean v1: multi-tenant real (SaaS). F7 Social ya no bloquea nada de código — solo falta que conectes un agente MCP a Metricool/Composio cuando quieras publicar de verdad.
 
