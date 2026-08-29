@@ -1,16 +1,20 @@
 export const LEAD_STATUSES = ['nuevo', 'contactado', 'calificado', 'descartado'] as const
 export const CLIENT_STAGES = ['nuevo', 'activo', 'inactivo', 'perdido'] as const
 export const CRM_VIEWS = ['leads', 'clientes'] as const
+export const CRM_MODES = ['pipeline', 'tabla'] as const
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number]
 export type ClientStage = (typeof CLIENT_STAGES)[number]
 export type CrmView = (typeof CRM_VIEWS)[number]
+/** Solo aplica a la vista `leads`: `clientes` siempre se muestra en tabla. */
+export type CrmMode = (typeof CRM_MODES)[number]
 
 const MAX_PAGE = 500
 const MAX_QUERY_LENGTH = 120
 
 export interface CrmSearchParams {
   vista?: string | string[]
+  modo?: string | string[]
   q?: string | string[]
   estado?: string | string[]
   page?: string | string[]
@@ -18,6 +22,7 @@ export interface CrmSearchParams {
 
 export interface CrmFilters {
   view: CrmView
+  mode: CrmMode
   query: string
   status: LeadStatus | 'todos'
   stage: ClientStage | 'todos'
@@ -33,6 +38,8 @@ function firstValue(value?: string | string[]): string | undefined {
 export function parseCrmFilters(params: CrmSearchParams): CrmFilters {
   const rawView = firstValue(params.vista)
   const view: CrmView = CRM_VIEWS.includes(rawView as CrmView) ? (rawView as CrmView) : 'leads'
+  const rawMode = firstValue(params.modo)
+  const mode: CrmMode = CRM_MODES.includes(rawMode as CrmMode) ? (rawMode as CrmMode) : 'pipeline'
   const query = (firstValue(params.q) ?? '').trim().slice(0, MAX_QUERY_LENGTH)
   const rawStatus = firstValue(params.estado)
   const status: LeadStatus | 'todos' =
@@ -41,5 +48,5 @@ export function parseCrmFilters(params: CrmSearchParams): CrmFilters {
     view === 'clientes' && CLIENT_STAGES.includes(rawStatus as ClientStage) ? (rawStatus as ClientStage) : 'todos'
   const parsedPage = Number.parseInt(firstValue(params.page) ?? '1', 10)
   const page = Number.isFinite(parsedPage) ? Math.min(Math.max(parsedPage, 1), MAX_PAGE) : 1
-  return { view, query, status, stage, page }
+  return { view, mode, query, status, stage, page }
 }

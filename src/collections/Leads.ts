@@ -2,6 +2,8 @@ import type { CollectionConfig } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
 
+const AGENT_ROLES = ['admin', 'agente']
+
 export const Leads: CollectionConfig = {
   slug: 'leads',
   admin: {
@@ -73,6 +75,29 @@ export const Leads: CollectionConfig = {
       type: 'relationship',
       relationTo: 'segments',
       label: 'Rubro',
+    },
+    {
+      name: 'estimatedValue',
+      type: 'number',
+      min: 0,
+      label: 'Valor estimado (USD)',
+      admin: {
+        position: 'sidebar',
+        description: 'Estimación de la oportunidad; alimenta el pipeline del workspace',
+      },
+    },
+    {
+      name: 'assignedTo',
+      type: 'relationship',
+      relationTo: 'users',
+      label: 'Agente asignado',
+      filterOptions: {
+        roles: { in: AGENT_ROLES },
+        active: { equals: true },
+      },
+      admin: {
+        position: 'sidebar',
+      },
     },
     {
       name: 'notes',

@@ -10,7 +10,9 @@ import Link from 'next/link'
 import { ArrowRight, Download, Search, UsersRound } from 'lucide-react'
 
 import { CrmFormDialog } from '@/components/workspace/CrmFormDialog'
+import { CrmPipelineWorkspace } from '@/components/workspace/CrmPipelineWorkspace'
 import { getCrmData, parseCrmFilters, type CrmSearchParams } from '@/lib/crm-data'
+import { getCrmPipelineData } from '@/lib/crm-pipeline-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import type { Lead, Segment, User } from '@/payload-types'
 
@@ -47,6 +49,7 @@ function relationName(value: number | Segment | User | null | undefined): string
 function buildHref(filters: ReturnType<typeof parseCrmFilters>, changes: Record<string, string | number | undefined>) {
   const params = new URLSearchParams()
   params.set('vista', filters.view)
+  if (filters.view === 'leads' && filters.mode !== 'pipeline') params.set('modo', filters.mode)
   if (filters.query) params.set('q', filters.query)
   const status = filters.view === 'leads' ? filters.status : filters.stage
   if (status !== 'todos') params.set('estado', status)
@@ -72,6 +75,35 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
     tenantId: context.tenantId,
     filters,
   })
+
+  const showPipeline = filters.view === 'leads' && filters.mode === 'pipeline'
+
+  const [agentsResult, segmentsResult] = showPipeline
+    ? await Promise.all([
+        context.payload.find({
+          collection: 'users',
+          where: { and: [{ roles: { in: ['admin', 'agente'] } }, { active: { equals: true } }] },
+          limit: 100,
+          depth: 0,
+          overrideAccess: false,
+          user: context.user,
+        }),
+        context.payload.find({
+          collection: 'segments',
+          where: { tenant: { equals: context.tenantId } },
+          limit: 200,
+          depth: 0,
+          overrideAccess: false,
+          user: context.user,
+        }),
+      ])
+    : [{ docs: [] as User[] }, { docs: [] as Segment[] }]
+
+  const agents = agentsResult.docs as User[]
+  const segmentsList = segmentsResult.docs as Segment[]
+  const pipelineColumns = showPipeline
+    ? await getCrmPipelineData({ payload: context.payload, user: context.user, tenantId: context.tenantId })
+    : []
 
   const statusOptions = data.view === 'leads' ? leadLabels : clientLabels
 
@@ -121,35 +153,58 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
         </div>
       </section>
 
-      <nav className="inline-flex border border-zinc-800 bg-zinc-950 p-0.5" aria-label="Vista CRM">
-        <Link
-          href={buildHref(filters, { vista: 'leads', estado: undefined, page: 1 })}
-          className={data.view === 'leads' ? 'px-3.5 py-1.5 text-xs font-bold bg-white text-black uppercase tracking-wider' : 'px-3.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-white uppercase tracking-wider transition'}
-        >
-          Leads
-        </Link>
-        <Link
-          href={buildHref(filters, { vista: 'clientes', estado: undefined, page: 1 })}
-          className={data.view === 'clientes' ? 'px-3.5 py-1.5 text-xs font-bold bg-white text-black uppercase tracking-wider' : 'px-3.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-white uppercase tracking-wider transition'}
-        >
-          Clientes
-        </Link>
-      </nav>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <nav className="inline-flex border border-zinc-800 bg-zinc-950 p-0.5" aria-label="Vista CRM">
+          <Link
+            href={buildHref(filters, { vista: 'leads', modo: undefined, estado: undefined, page: 1 })}
+            className={data.view === 'leads' ? 'px-3.5 py-1.5 text-xs font-bold bg-white text-black uppercase tracking-wider' : 'px-3.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-white uppercase tracking-wider transition'}
+          >
+            Leads
+          </Link>
+          <Link
+            href={buildHref(filters, { vista: 'clientes', modo: undefined, estado: undefined, page: 1 })}
+            className={data.view === 'clientes' ? 'px-3.5 py-1.5 text-xs font-bold bg-white text-black uppercase tracking-wider' : 'px-3.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-white uppercase tracking-wider transition'}
+          >
+            Clientes
+          </Link>
+        </nav>
 
-      {data.view === 'leads' && (
-        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Pipeline de leads">
-          {data.pipeline.map((column) => (
+        {filters.view === 'leads' && (
+          <nav className="inline-flex border border-zinc-800 bg-zinc-950 p-0.5" aria-label="Modo de vista del pipeline">
             <Link
-              key={column.status}
-              href={buildHref(filters, { estado: column.status, page: 1 })}
-              className={`border p-3 transition ${filters.status === column.status ? 'border-white bg-zinc-900' : 'border-zinc-800 bg-zinc-950 hover:border-zinc-600'}`}
+              href={buildHref(filters, { modo: undefined })}
+              className={filters.mode === 'pipeline' ? 'px-3.5 py-1.5 text-xs font-bold bg-white text-black uppercase tracking-wider' : 'px-3.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-white uppercase tracking-wider transition'}
             >
-              <span className="block text-[10px] font-mono uppercase tracking-wider text-zinc-400">{leadLabels[column.status]}</span>
-              <strong className="mt-1 block text-xl font-bold text-white font-mono">{column.total}</strong>
+              Pipeline Kanban
             </Link>
-          ))}
-        </section>
-      )}
+            <Link
+              href={buildHref(filters, { modo: 'tabla' })}
+              className={filters.mode === 'tabla' ? 'px-3.5 py-1.5 text-xs font-bold bg-white text-black uppercase tracking-wider' : 'px-3.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-white uppercase tracking-wider transition'}
+            >
+              Tabla
+            </Link>
+          </nav>
+        )}
+      </div>
+
+      {showPipeline ? (
+        <CrmPipelineWorkspace columns={pipelineColumns} canEdit={context.canEdit} assignees={agents} segments={segmentsList} />
+      ) : (
+        <>
+          {data.view === 'leads' && (
+            <section className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Pipeline de leads">
+              {data.pipeline.map((column) => (
+                <Link
+                  key={column.status}
+                  href={buildHref(filters, { estado: column.status, page: 1 })}
+                  className={`border p-3 transition ${filters.status === column.status ? 'border-white bg-zinc-900' : 'border-zinc-800 bg-zinc-950 hover:border-zinc-600'}`}
+                >
+                  <span className="block text-[10px] font-mono uppercase tracking-wider text-zinc-400">{leadLabels[column.status]}</span>
+                  <strong className="mt-1 block text-xl font-bold text-white font-mono">{column.total}</strong>
+                </Link>
+              ))}
+            </section>
+          )}
 
       <section className="border border-zinc-800 bg-zinc-950">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 p-4">
@@ -285,6 +340,8 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
           </div>
         </footer>
       </section>
+        </>
+      )}
     </>
   )
 }
