@@ -174,7 +174,7 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
       waLink: `https://wa.me/${digits(lead.phone)}?text=${encodeURIComponent(
         `Hola ${firstName(lead.fullName)}, ¿cómo estás?`,
       )}`,
-      crmUrl: `/admin/collections/leads/${lead.id}`,
+      crmUrl: `/workspace/crm/leads/${lead.id}`,
     })
   }
 
@@ -226,7 +226,7 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
       waLink: `https://wa.me/${digits(client.phone)}?text=${encodeURIComponent(
         `Hola ${firstName(client.name)}, ¿cómo estás?`,
       )}`,
-      crmUrl: `/admin/collections/clients/${client.id}`,
+      crmUrl: `/workspace/crm/clientes/${client.id}`,
     })
   }
 

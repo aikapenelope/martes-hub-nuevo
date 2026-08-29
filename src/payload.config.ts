@@ -48,6 +48,7 @@ import { resendWebhookHandler } from './endpoints/resendWebhook'
 import { tallyWebhookHandler } from './endpoints/tallyWebhook'
 import { dashboardStatsHandler } from './endpoints/dashboardStats'
 import { sendCampaignTask } from './jobs/sendCampaignTask'
+import { sendScheduledCampaignsTask } from './jobs/sendScheduledCampaigns'
 import { publishScheduledPostsTask } from './jobs/publishScheduledPosts'
 import { fetchSocialMetricsTask } from './jobs/fetchSocialMetrics'
 import { refreshSocialTokensTask } from './jobs/refreshSocialTokens'
@@ -69,26 +70,6 @@ export default buildConfig({
     user: Users.slug,
     importMap: {
       baseDir: path.resolve(dirname),
-    },
-    components: {
-      views: {
-        dashboardHermes: {
-          path: '/dashboard',
-          exact: true,
-          Component: '/views/Dashboard#DashboardView',
-        },
-        inbox: {
-          path: '/inbox',
-          exact: true,
-          Component: '/views/Inbox#InboxView',
-        },
-        hoy: {
-          path: '/hoy',
-          exact: true,
-          Component: '/views/Hoy#HoyView',
-        },
-      },
-      afterNavLinks: ['/components/DashboardNavLink#DashboardNavLink'],
     },
   },
   collections: [
@@ -310,6 +291,7 @@ export default buildConfig({
       syncTemplatesTask,
       openbspErrorsTask,
       sendCampaignTask,
+      sendScheduledCampaignsTask,
       publishScheduledPostsTask,
       fetchSocialMetricsTask,
       refreshSocialTokensTask,

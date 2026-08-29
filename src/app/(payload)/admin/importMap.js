@@ -27,13 +27,9 @@ import { RelatedQuote as RelatedQuote_5c138208fc6a6657e86a40fe5d8ab8c0 } from 'p
 import { ConvertToInvoiceButton as ConvertToInvoiceButton_5c138208fc6a6657e86a40fe5d8ab8c0 } from 'payload-invoicepdf/client'
 import { RelatedInvoices as RelatedInvoices_5c138208fc6a6657e86a40fe5d8ab8c0 } from 'payload-invoicepdf/client'
 import { GlobalViewRedirect as GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
-import { DashboardNavLink as DashboardNavLink_77ac04268210385bfd3e07c6c763f3ac } from '../../../components/DashboardNavLink'
 import { TenantSelector as TenantSelector_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { ImportExportProvider as ImportExportProvider_cdf7e044479f899a31f804427d568b36 } from '@payloadcms/plugin-import-export/rsc'
 import { TenantSelectionProvider as TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
-import { DashboardView as DashboardView_883c31e5a2819bb83d4b37435313e9bf } from '../../../views/Dashboard'
-import { InboxView as InboxView_f42111018d29697a143333087a42b27d } from '../../../views/Inbox'
-import { HoyView as HoyView_b55d5afcc889648b4ed3cc8c954e93be } from '../../../views/Hoy'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
 /** @type import('payload').ImportMap */
@@ -67,12 +63,8 @@ export const importMap = {
   "payload-invoicepdf/client#ConvertToInvoiceButton": ConvertToInvoiceButton_5c138208fc6a6657e86a40fe5d8ab8c0,
   "payload-invoicepdf/client#RelatedInvoices": RelatedInvoices_5c138208fc6a6657e86a40fe5d8ab8c0,
   "@payloadcms/plugin-multi-tenant/rsc#GlobalViewRedirect": GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62,
-  "/components/DashboardNavLink#DashboardNavLink": DashboardNavLink_77ac04268210385bfd3e07c6c763f3ac,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelector": TenantSelector_d6d5f193a167989e2ee7d14202901e62,
   "@payloadcms/plugin-import-export/rsc#ImportExportProvider": ImportExportProvider_cdf7e044479f899a31f804427d568b36,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelectionProvider": TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62,
-  "/views/Dashboard#DashboardView": DashboardView_883c31e5a2819bb83d4b37435313e9bf,
-  "/views/Inbox#InboxView": InboxView_f42111018d29697a143333087a42b27d,
-  "/views/Hoy#HoyView": HoyView_b55d5afcc889648b4ed3cc8c954e93be,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }
