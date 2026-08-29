@@ -168,6 +168,7 @@ export interface Config {
       'sync-templates': TaskSyncTemplates;
       'openbsp-error-poll': TaskOpenbspErrorPoll;
       'send-campaign-batch': TaskSendCampaignBatch;
+      'send-scheduled-campaigns': TaskSendScheduledCampaigns;
       'publish-scheduled-posts': TaskPublishScheduledPosts;
       'fetch-social-metrics': TaskFetchSocialMetrics;
       'refresh-social-tokens': TaskRefreshSocialTokens;
@@ -1268,6 +1269,7 @@ export interface PayloadJob {
           | 'sync-templates'
           | 'openbsp-error-poll'
           | 'send-campaign-batch'
+          | 'send-scheduled-campaigns'
           | 'publish-scheduled-posts'
           | 'fetch-social-metrics'
           | 'refresh-social-tokens'
@@ -1313,6 +1315,7 @@ export interface PayloadJob {
         | 'sync-templates'
         | 'openbsp-error-poll'
         | 'send-campaign-batch'
+        | 'send-scheduled-campaigns'
         | 'publish-scheduled-posts'
         | 'fetch-social-metrics'
         | 'refresh-social-tokens'
@@ -2418,6 +2421,18 @@ export interface TaskSendCampaignBatch {
   output: {
     sent?: number | null;
     failed?: number | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSend-scheduled-campaigns".
+ */
+export interface TaskSendScheduledCampaigns {
+  input?: unknown;
+  output: {
+    queued?: number | null;
+    skipped?: number | null;
+    summary?: string | null;
   };
 }
 /**
