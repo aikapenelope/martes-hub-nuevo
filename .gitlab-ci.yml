@@ -6,11 +6,8 @@
 # los workflows de GitHub) y agrega lo que faltaba: ejecutar la suite de
 # integración (incluyendo tests/int/tenant-isolation.int.spec.ts) contra un
 # Postgres real, para que las pruebas de aislamiento multi-tenant realmente
-# bloqueen un merge si se rompen.
-#
-# test:e2e (Playwright) queda fuera de este pipeline: requiere navegadores
-# y un servidor de la app corriendo, y no es el hallazgo que este pipeline
-# resuelve. Puede añadirse como job separado en una iteración futura.
+# bloqueen un merge si se rompen, más un job de e2e (Playwright) contra un
+# servidor real de la app.
 
 workflow:
   rules:
@@ -80,3 +77,32 @@ test:
     # invoices/quotes) contra el Postgres del servicio antes de correr tests.
     - pnpm migrate
     - pnpm test:int
+
+e2e:
+  extends: .pnpm_base
+  stage: verify
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: martes_hub_ci
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    POSTGRES_HOST_AUTH_METHOD: trust
+    PAYLOAD_SECRET: ci-secret-for-payload-e2e-check-only-0123456789
+    DATABASE_URL: postgresql://postgres:postgres@postgres:5432/martes_hub_ci
+  # Primer job con navegador real en este pipeline: allow_failure hasta
+  # confirmar estabilidad en ejecuciones reales (arranque de `pnpm dev` +
+  # Chromium en el runner compartido). Quitar allow_failure una vez que
+  # corra verde de forma consistente.
+  allow_failure: true
+  script:
+    - pnpm install --frozen-lockfile
+    - npx playwright install --with-deps chromium
+    - pnpm migrate
+    - pnpm test:e2e
+  artifacts:
+    when: always
+    paths:
+      - playwright-report/
+    expire_in: 3 days

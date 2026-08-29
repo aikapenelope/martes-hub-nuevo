@@ -37,5 +37,8 @@ export default defineConfig({
     command: 'pnpm dev',
     reuseExistingServer: true,
     url: 'http://localhost:3000',
+    // Next dev en un runner de CI recién provisionado puede tardar más que
+    // el default (60s) en arrancar la primera vez.
+    timeout: 120_000,
   },
 })

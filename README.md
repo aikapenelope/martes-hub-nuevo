@@ -1,28 +1,28 @@
 # Martes Hub
 
-CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, publicaciones en redes con métricas, formularios, citas y agente de IA conectado por MCP.
+CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, publicaciones en redes con métricas, formularios, citas, pipeline de ventas conversacional y agente de IA (Hermes) con copiloto in-app y MCP.
 
-**Estado actual:** backend y modelo de F0–F9 implementados; F7 Social sigue bloqueada por Meta. El workspace operativo (`/overview`, `/crm`, `/tasks`, `/inbox`, `/social`, `/billing`, `/analytics`) tiene arquitectura y scaffold, pero su UI todavía usa datos demo y Hermes aún no tiene una ruta AI real. El próximo desarrollo visual se rige por [`docs/WORKSPACE_ARCHITECTURE.md`](docs/WORKSPACE_ARCHITECTURE.md) y [`docs/WORKSPACE_UI_SPRINT.md`](docs/WORKSPACE_UI_SPRINT.md). Siguen pendientes las credenciales/E2E de OpenBSP, Resend y Tally.
+**Estado actual:** backend y modelo de F0–F9 implementados; workspace operativo (`/workspace/*`) con datos reales — CRM (tabla + pipeline Kanban), tareas, inbox, hoy, billing, analytics, social. CI real en GitLab (typecheck + lint + build + tests de integración contra Postgres) está verde. Panel de Hermes embebido en el workspace y drawer 360° del pipeline con copiloto IA, email y chat WhatsApp/Instagram funcionando de punta a punta. F7 Social sigue bloqueada por revisión de app de Meta — ver nota en la tabla de decisiones. Siguen pendientes las credenciales reales de OpenBSP, Resend y Tally (las provee el dueño del negocio, no requieren más código).
 
 | Fase | Estado |
 |---|---|
 | F0 Fundaciones (scaffold + Neon + Vercel + migraciones en build) | ✅ |
 | F1 CRM core (colecciones, RBAC, timeline, kanban, CSV) | ✅ |
-| F1b Multi-tenant SaaS-ready (plugin oficial, isolation endurecido en #21, S3 storage) | ✅ #21 |
+| F1b Multi-tenant SaaS-ready (plugin oficial, isolation endurecido, S3 storage) | ✅ |
 | F2 Dinero (payments/memberships, recordatorios, digest multi-tenant) | ✅ |
-| F3 WhatsApp/IG completo (modelo + webhook + inbox + plantillas + errores + contactos) | ✅ #10/#11 |
-| F4 Seguimiento proactivo determinista (lista "Hoy" + click-to-chat) · agente reactivo vive en OpenBSP | ✅ código (#13) — ⏳ requiere conexión real del número y agente |
-| F5 Email (Resend: adaptador oficial + campaigns async con Jobs Queue + log + webhooks) | ✅ código (#14/#21) — ⏳ requiere credenciales Resend |
-| F6 Leads por Apify | ❌ descartada — import manual CSV/JSON con plugin oficial (#15); opción futura: Hermes + MCP de Apify en F9 |
-| F6b Facturación y cotizaciones (`payload-invoicepdf` + `offers` + aislamiento multi-tenant) | ✅ #16/#21 |
-| **Dashboard admin legado** (`/admin/dashboard`) | ✅ #18/#19 — se conserva; no será la UI operativa |
-| **Martes Workspace** (`/overview` y módulos separados) | 🟡 arquitectura + scaffold #25; datos reales, seguridad por operación y UI funcional pendientes |
-| **F8 Formularios y ciclo de vida** (Tally webhook firmado + `form-submissions` + matching lead/cliente + alertas) | ✅ #22 |
-| **F9 Hermes + MCP + Task manager** (`@payloadcms/plugin-mcp` + `tasks` kanban + `conversation-summaries`) | ✅ #23 |
-| F7 Social (IG/FB publicaciones + métricas) | ⬜ bloqueada por app Meta |
-| F10 Hardening (CI GitHub Actions + suite de pruebas + seguridad PITR) | ⬜ siguiente código |
+| F3 WhatsApp/IG completo (modelo + webhook + inbox + plantillas + errores + contactos) | ✅ |
+| F4 Seguimiento proactivo determinista (lista "Hoy" + click-to-chat) · agente reactivo vive en OpenBSP | ✅ código — ⏳ requiere conexión real del número y agente |
+| F5 Email (Resend: adaptador oficial + campaigns async con Jobs Queue + log + webhooks) | ✅ código — ⏳ requiere credenciales Resend |
+| F6 Leads por Apify | ❌ descartada — import manual CSV/JSON con plugin oficial |
+| F6b Facturación y cotizaciones (`payload-invoicepdf` + `offers` + aislamiento multi-tenant) | ✅ |
+| **Martes Workspace** (`/workspace/*`: overview, CRM, tasks, inbox, hoy, social, billing, analytics) | ✅ datos reales, seguridad por operación, UI funcional — ver pendientes en "Qué falta" |
+| **Pipeline de Ventas Conversacional 360°** (Kanban + drawer omnicanal + copiloto IA + emailing) | ✅ — auto-creación de leads desde OpenBSP, drag-and-drop, chat/email/IA/timeline/datos por lead |
+| **F8 Formularios y ciclo de vida** (Tally webhook firmado + `form-submissions` + matching lead/cliente + alertas) | ✅ |
+| **F9 Hermes + MCP + Task manager** (`@payloadcms/plugin-mcp` + `tasks` kanban + `conversation-summaries` + panel Hermes en `/workspace`) | 🟡 panel Hermes in-app solo-lectura ✅ — MCP externo (`/api/mcp` para Claude Desktop/Cursor) sin endurecer por rol/tenant en `clients`/`leads`/`tasks` ⬜ |
+| F7 Social (IG/FB publicaciones + métricas) | ⬜ bloqueada por app Meta — ninguna alternativa evita la Graph API de Meta (ver tabla de decisiones) |
+| F10 Hardening (CI real + suite de pruebas + rate limiting + seguridad PITR) | 🟡 CI GitLab + tests de integración con Postgres real ✅ · rate limiting en Server Actions de IA/email/WhatsApp ✅ · e2e Playwright en CI ✅ · MCP externo y backups PITR ⬜ |
 
-**Cómo vamos:** infraestructura, CRM, facturación, seguimiento diario, jobs, formularios, colecciones de tareas y plugin MCP están implementados. El MCP debe endurecerse por operación/rol/tenant antes de conectarlo a Hermes; el sidecar del workspace es actualmente una demo. El workspace será la aplicación diaria integrada y `/admin` seguirá como backoffice técnico.
+**Cómo vamos:** infraestructura, CRM, facturación, seguimiento diario, jobs, formularios, pipeline conversacional 360°, colecciones de tareas y CI real están implementados y verificados contra Postgres real en cada merge request. El MCP externo (para clientes MCP de terceros, distinto del panel Hermes in-app) sigue permitiendo crear/editar en `clients`/`leads`/`tasks` y debe endurecerse por operación/rol/tenant antes de entregar una API key a nadie fuera del equipo. El workspace es la aplicación diaria integrada; `/admin` sigue como backoffice técnico.
 
 ---
 
@@ -52,7 +52,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | Decisión | Elegido | Descartado / motivo |
 |---|---|---|
 | Multi-tenancy | Plugin oficial `@payloadcms/plugin-multi-tenant` desde F1: colección `tenants`, campo tenant en todas las colecciones de negocio, `company-settings` como global por empresa (`isGlobal`). Producto opera **mono-tenant** (tenant "Martes") pero el esquema queda SaaS-ready | Retrofit posterior (migrar datos vivos + rehacer access control en cada colección, job y webhook). DB-per-tenant en Neon descartado: sobrecosto operativo para muchas pymes |
-| Publicación social | Meta Graph directo + OAuth embebido (app en Development Mode: cuentas propias, sin App Review) | Metricool API (requiere plan Advanced); Composio (tercero en camino crítico) queda como expansión futura a otras redes |
+| Publicación social | Meta Graph directo + OAuth embebido (app en Development Mode: cuentas propias, sin App Review). **Investigado de nuevo:** no existe ninguna alternativa que evite la Graph API de Meta para publicar en Instagram/Facebook — ni el plugin comunitario `payload-plugin-socials` (no oficial de Payload, nunca instalado en este repo) ni agregadores como Ayrshare/Metricool/Buffer la evitan; todos son "Meta Business Partners" que llaman a la misma Graph API por debajo. Lo único que cambia es quién absorbe la complejidad de credenciales/rate limits, no si se depende de Meta | Metricool API (requiere plan Advanced, sigue siendo Meta por debajo); Composio (tercero en camino crítico) queda como expansión futura a otras redes (LinkedIn/TikTok, que no son de Meta) |
 | Orquestación interna | Payload Jobs Queue + cron externo | n8n / ActivePieces (duplican lógica y webhooks; se pueden añadir después sin rediseño) |
 | IA en background | Fuera de martes-hub: el agente reactivo vive en OpenBSP (dispara en cada entrante, LLM propio o AI credits). El proactivo es una lista determinista sin IA. La IA interna propia (resúmenes, reportes) llega con Hermes vía MCP en F9 · pgvector para búsqueda semántica | Jobs propios llamando LLM (más código que mantener y rígido); "IA en Neon" (Neon es Postgres puro, no tiene IA nativa) |
 | MCP hacia Hermes | `@payloadcms/plugin-mcp` (oficial, sincronizado con core) | `payload-plugin-mcp` de Antler Digital (buena alternativa si falta algo) |
@@ -68,7 +68,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 |---|---|
 | `users` | Auth + roles: admin / agente / viewer (RBAC por colección y campo) |
 | `clients` | Cliente: datos, etapa de ciclo de vida, agente asignado, consentimiento/opt-out |
-| `leads` | Prospects crudos (fuente: Apify, Tally, manual, DM) con pipeline y rubro |
+| `leads` | Prospects crudos (fuente: Apify, Tally, manual, DM, auto-creados por mensaje entrante de OpenBSP) con pipeline, rubro, valor estimado y agente asignado |
 | `activities` | Log unificado de interacciones |
 | `conversations` / `messages` | Hilos por canal (whatsapp / instagram_dm / email) y mensajes con estado Meta |
 | `message-templates` | Plantillas WhatsApp aprobadas + respuestas rápidas |
@@ -206,29 +206,33 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 ### F9 — Hermes + Task manager
 - Objetivo: IA interna residente en el CRM y gestión de tareas interconectada.
 - Construido:
-  - Integración oficial de `@payloadcms/plugin-mcp` registrada para clientes, leads, tareas, resúmenes y pagos. Antes de conectarla a Hermes se deben restringir operaciones, rol y tenant según el blueprint del workspace.
+  - Integración oficial de `@payloadcms/plugin-mcp` registrada para clientes, leads, tareas, resúmenes y pagos — expuesta en `/api/mcp` para clientes MCP externos (Claude Desktop, Cursor). Sigue pendiente restringir operaciones/rol/tenant en `clients`/`leads`/`tasks` antes de entregar una API key fuera del equipo (ver "Qué falta").
+  - Panel de Hermes embebido en el workspace (`/api/ai/chat` + drawer del lead): solo lectura del CRM del tenant activo, sin relación con el MCP externo.
   - Colección `tasks` (título, descripción, estados kanban, prioridad, checklist, fechas límite, cliente y lead vinculados).
-  - Colección `conversation-summaries` (resúmenes ejecutivos, sentimiento, objeciones y próximos pasos).
+  - Colección `conversation-summaries` (resúmenes ejecutivos, sentimiento, objeciones y próximos pasos) — generable desde el copiloto IA del drawer del lead.
   - Creación automática de tareas ante quejas en formularios (`tally_complaint`).
-- Done when: herramientas MCP operativas en el backend y tareas gestionables vía vista kanban (✅ PR #23).
+- Done when: herramientas MCP operativas en el backend, tareas gestionables vía vista kanban y copiloto IA generando resúmenes desde el pipeline (✅).
 
 ### F10 — Hardening
 - Objetivo: producción confiable.
-- Tareas: revisión seguridad (webhooks firmados, secrets, tokens cifrados), tests de webhooks y jobs, manejo de rate limits/reintentos, backups PITR Neon, CI GitHub Actions.
-- Done when: suite de webhooks verde; auditoría de seguridad sin hallazgos High/Critical.
+- Tareas: revisión seguridad (webhooks firmados, secrets, tokens cifrados), tests de webhooks y jobs, manejo de rate limits/reintentos, backups PITR Neon, CI real.
+- Construido:
+  - CI real en GitLab (`.gitlab-ci.yml`): typecheck + lint + build + tests de integración contra un Postgres de servicio, más un job de e2e (Playwright) con navegador headless.
+  - Rate limiting por usuario en las Server Actions de costo variable del pipeline (resumen de IA, envío de email, respuesta WhatsApp) — mismo mecanismo (Upstash Redis con fallback en memoria) que ya protegía los webhooks públicos.
+- Pendiente: endurecer MCP externo (ver "Qué falta"), backups PITR verificados por el dueño.
+- Done when: suite de webhooks e integración verde en CI con Postgres real (✅); auditoría de seguridad sin hallazgos High/Critical abiertos salvo el MCP externo (pendiente).
 
 ## Qué falta para estar LISTO (v1 operativa)
 
 > Criterio de "listo": el dueño corre su negocio desde el CRM sin herramientas externas.
 
-1. **Construir el workspace operativo** según [`docs/WORKSPACE_UI_SPRINT.md`](docs/WORKSPACE_UI_SPRINT.md): contexto seguro, design system, shell, overview y módulos con datos reales.
-2. **Conectar OpenBSP real**: org + número + API keys + agente LLM en dashboard → E2E: lead contactado desde «Hoy» responde y el agente continúa.
-3. **Activar Resend**: dominio verificado + `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` → E2E: campaña enviada, registrada y bounce detectado.
-4. **Configurar Webhook Tally**: apuntar a `https://tu-dominio/api/webhooks/tally` y configurar `TALLY_SIGNING_SECRET`.
-5. **Endurecer Hermes/MCP**: ruta AI autenticada, herramientas inicialmente read-only, allowlist por rol/tenant, límites y auditoría.
-6. **Hardening básico**: pruebas de aislamiento, revisión de secrets/webhooks y backups PITR verificados.
+1. **Conectar OpenBSP real** (modo hosted, sin infraestructura propia): org + número + API keys + agente LLM en el dashboard de OpenBSP → E2E: lead contactado desde el pipeline responde y el agente continúa. El código ya asume hosted-only (REST + webhook, cero acceso a su Supabase); solo faltan las credenciales.
+2. **Activar Resend**: dominio verificado + `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` → E2E: campaña y email directo desde el drawer del lead enviados, registrados y bounce detectado.
+3. **Configurar Webhook Tally**: apuntar a `https://tu-dominio/api/webhooks/tally` y configurar `TALLY_SIGNING_SECRET`.
+4. **Endurecer el MCP externo** (`@payloadcms/plugin-mcp`, expuesto en `/api/mcp` para clientes MCP de terceros como Claude Desktop/Cursor — **distinto** del panel Hermes in-app, que ya es solo-lectura): `clients`, `leads` y `tasks` siguen con `enabled: true` (create/update/delete abiertos). Antes de entregar una API key de este endpoint a alguien fuera del equipo, restringir a solo-lectura o por operación/rol/tenant, igual que ya se hizo con `payments`/`invoices`/`quotes`.
+5. **Backups PITR de Neon**: verificar que estén activos y probar un restore real — no se puede confirmar desde el código.
 
-No bloquean v1: F7 Social (espera app Meta), multi-tenant real (SaaS), limpiar warnings de lint (~46).
+No bloquean v1: F7 Social (espera app Meta — sin alternativa posible, ver tabla de decisiones), multi-tenant real (SaaS).
 
 ## Convenciones de trabajo
 
@@ -241,4 +245,6 @@ No bloquean v1: F7 Social (espera app Meta), multi-tenant real (SaaS), limpiar w
 
 ## Roadmap opcional (post-F10)
 
-Composio para LinkedIn/TikTok vía Hermes · Metricool API si algún día hay plan Advanced · self-host de OpenBSP en Supabase propio · Sentry si crece el equipo · multi-red desde un mismo editor.
+Composio para LinkedIn/TikTok vía Hermes (redes que no dependen de Meta) · self-host de OpenBSP en Supabase propio · Sentry si crece el equipo · multi-red desde un mismo editor.
+
+> Explícitamente descartado, no solo diferido: cualquier ruta de publicación en Instagram/Facebook que evite la Graph API de Meta. No existe — ver tabla de decisiones.
