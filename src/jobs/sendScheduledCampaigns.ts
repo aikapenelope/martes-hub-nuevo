@@ -1,7 +1,7 @@
 /**
  * Job: enviar campañas de email programadas cuya scheduledAt ya pasó.
  *
- * Patrón idéntico a publishScheduledPostsTask (ADVANCED.md > Jobs Queue):
+ * Patrón (ADVANCED.md > Jobs Queue):
  *  1. Itera todos los tenants.
  *  2. Busca campañas en estado 'draft' con scheduledAt <= now.
  *  3. Las marca como 'sending' para evitar doble-envío.
@@ -12,7 +12,7 @@
  *   EMAIL_CAMPAIGNS_AUTO_SEND=true
  *
  * Mientras sea false (defecto), el job hace early-return con un warning
- * sin alterar los datos — igual que META_GRAPH_API_ENABLED en publishScheduledPosts.
+ * sin alterar los datos.
  */
 
 import type { TaskConfig } from 'payload'

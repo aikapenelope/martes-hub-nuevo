@@ -104,7 +104,7 @@ export const Tasks: CollectionConfig = {
         { label: 'Queja Tally', value: 'tally_complaint' },
         { label: 'Cobro Vencido', value: 'payment_overdue' },
         { label: 'Error OpenBSP', value: 'openbsp_error' },
-        { label: 'Hermes AI', value: 'hermes_ai' },
+        { label: 'IA (resumen automático)', value: 'hermes_ai' },
       ],
       admin: {
         position: 'sidebar',

@@ -317,8 +317,11 @@ const AI_SUMMARY_SCHEMA = z.object({
 /**
  * Copiloto IA: resume los últimos 20 mensajes de la conversación activa
  * del lead (sentimiento, objeciones, próximos pasos), guarda el resultado
- * en `conversation-summaries` y lo anexa a las notas del lead. Solo
- * lectura del CRM del tenant activo, igual que `/api/ai/chat` (Hermes).
+ * en `conversation-summaries` y lo anexa a las notas del lead. Única
+ * llamada directa a un LLM que mantiene el sistema (Anthropic/OpenAI vía
+ * env var) — es una acción puntual y de un solo propósito, no un chat de
+ * uso general. Cualquier análisis más abierto se hace conectando un
+ * cliente MCP externo a `/api/mcp` con el modelo que prefieras.
  */
 export async function summarizeLeadWithAIAction(leadId: number): Promise<ActionResult<{ summaryId: number }>> {
   try {

@@ -49,9 +49,6 @@ import { tallyWebhookHandler } from './endpoints/tallyWebhook'
 import { dashboardStatsHandler } from './endpoints/dashboardStats'
 import { sendCampaignTask } from './jobs/sendCampaignTask'
 import { sendScheduledCampaignsTask } from './jobs/sendScheduledCampaigns'
-import { publishScheduledPostsTask } from './jobs/publishScheduledPosts'
-import { fetchSocialMetricsTask } from './jobs/fetchSocialMetrics'
-import { refreshSocialTokensTask } from './jobs/refreshSocialTokens'
 import type { User } from './payload-types'
 
 const filename = fileURLToPath(import.meta.url)
@@ -225,7 +222,28 @@ export default buildConfig({
           },
         },
         'conversation-summaries': {
-          description: 'Resúmenes ejecutivos con sentimiento, objeciones y próximos pasos de clientes.',
+          description:
+            'Resúmenes ejecutivos con sentimiento, objeciones y próximos pasos de clientes. El agente puede crear/actualizar resúmenes (p. ej. tras analizar una conversación), no puede borrarlos.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: true,
+            update: true,
+          },
+        },
+        media: {
+          description:
+            'Imágenes y videos subidos (incluidos los adjuntos de publicaciones sociales). El agente puede subir/consultar archivos; no puede sobrescribir ni borrar los existentes.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: true,
+            update: false,
+          },
+        },
+        'social-accounts': {
+          description:
+            'Cuentas de redes sociales conectadas en Metricool/Composio (referencia, no credenciales). SOLO LECTURA: la cuenta se administra en /admin, el agente solo la consulta para saber a qué cuenta publicar.',
           enabled: {
             delete: false,
             find: true,
@@ -234,21 +252,23 @@ export default buildConfig({
           },
         },
         'social-posts': {
-          description: 'Publicaciones en redes sociales: contenido, fecha programada y estado.',
+          description:
+            'Publicaciones en redes sociales: copy, imágenes adjuntas, cuenta destino, estado (borrador/programado/publicado/fallido) y calendario. El agente crea/programa el contenido aquí; la publicación real la hace conectado además al MCP de Metricool o Composio, y marca el resultado (publicado/fallido, enlace público) de vuelta en este mismo documento.',
           enabled: {
             delete: false,
             find: true,
-            create: false,
-            update: false,
+            create: true,
+            update: true,
           },
         },
         'post-metrics': {
-          description: 'Métricas de rendimiento de publicaciones sociales: alcance, likes, impresiones.',
+          description:
+            'Métricas de rendimiento de publicaciones sociales: alcance, likes, impresiones, comentarios. El agente las escribe aquí tras consultarlas en Metricool/Composio.',
           enabled: {
             delete: false,
             find: true,
-            create: false,
-            update: false,
+            create: true,
+            update: true,
           },
         },
         users: {
@@ -292,9 +312,6 @@ export default buildConfig({
       openbspErrorsTask,
       sendCampaignTask,
       sendScheduledCampaignsTask,
-      publishScheduledPostsTask,
-      fetchSocialMetricsTask,
-      refreshSocialTokensTask,
     ],
   },
   editor: lexicalEditor(),

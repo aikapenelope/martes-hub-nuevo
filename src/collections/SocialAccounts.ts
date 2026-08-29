@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import { adminOnly, authenticated, fieldAdminOnly } from '../access'
+import { adminOnly, authenticated } from '../access'
 
 export const SocialAccounts: CollectionConfig = {
   slug: 'social-accounts',
@@ -10,7 +10,7 @@ export const SocialAccounts: CollectionConfig = {
   },
   admin: {
     useAsTitle: 'accountName',
-    defaultColumns: ['accountName', 'platform', 'status', 'tokenExpiresAt', 'createdAt'],
+    defaultColumns: ['accountName', 'platform', 'status', 'createdAt'],
     group: 'Social',
   },
   access: {
@@ -44,30 +44,9 @@ export const SocialAccounts: CollectionConfig = {
       name: 'platformAccountId',
       type: 'text',
       required: true,
-      label: 'ID de la cuenta en Meta',
+      label: 'ID de la cuenta en la plataforma',
       admin: {
-        description: 'Page ID o Instagram Business Account ID',
-      },
-    },
-    {
-      name: 'accessToken',
-      type: 'text',
-      required: true,
-      label: 'Access Token de larga duración',
-      access: {
-        read: fieldAdminOnly,
-      },
-      admin: {
-        hidden: true,
-        description: 'Token de Graph API restringido a administradores',
-      },
-    },
-    {
-      name: 'tokenExpiresAt',
-      type: 'date',
-      label: 'Expiración del token',
-      admin: {
-        position: 'sidebar',
+        description: 'Page ID, Instagram Business Account ID, o el identificador equivalente en tu gestor de redes (p. ej. Metricool)',
       },
     },
     {

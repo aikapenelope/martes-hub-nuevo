@@ -1,8 +1,8 @@
 # Martes Hub
 
-CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, publicaciones en redes con métricas, formularios, citas, pipeline de ventas conversacional y agente de IA (Hermes) con copiloto in-app y MCP.
+CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, planificación de publicaciones en redes con métricas, formularios, citas y pipeline de ventas conversacional. La IA es una sola acción puntual dentro del CRM (resumen de conversaciones) — cualquier análisis o automatización más abierta (incluida la publicación real en redes sociales) se hace conectando un agente MCP externo (el modelo/cliente que prefieras) a `/api/mcp`.
 
-**Estado actual:** backend y modelo de F0–F9 implementados; workspace operativo (`/workspace/*`) con datos reales — CRM (tabla + pipeline Kanban), tareas, inbox, hoy, billing, analytics, social. CI real en GitLab (typecheck + lint + build + tests de integración contra Postgres) está verde. Panel de Hermes embebido en el workspace y drawer 360° del pipeline con copiloto IA, email y chat WhatsApp/Instagram funcionando de punta a punta. F7 Social sigue bloqueada por revisión de app de Meta — ver nota en la tabla de decisiones. Siguen pendientes las credenciales reales de OpenBSP, Resend y Tally (las provee el dueño del negocio, no requieren más código).
+**Estado actual:** backend y modelo de F0–F9 implementados; workspace operativo (`/workspace/*`) con datos reales — CRM (tabla + pipeline Kanban), tareas, inbox, hoy, billing, analytics, social. CI real en GitLab (typecheck + lint + build + tests de integración contra Postgres) está verde. Drawer 360° del pipeline con copiloto IA (resumen puntual), email y chat WhatsApp/Instagram funcionando de punta a punta. F7 Social ya no depende de construir la Graph API de Meta nosotros mismos: este sistema planifica el contenido (Kanban, calendario, copy, imágenes) y la publicación real la hace un agente MCP conectado además al MCP oficial de Metricool o Composio — ver nota en la tabla de decisiones. Siguen pendientes las credenciales reales de OpenBSP, Resend y Tally (las provee el dueño del negocio, no requieren más código).
 
 | Fase | Estado |
 |---|---|
@@ -18,11 +18,11 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | **Martes Workspace** (`/workspace/*`: overview, CRM, tasks, inbox, hoy, social, billing, analytics) | ✅ datos reales, seguridad por operación, UI funcional — ver pendientes en "Qué falta" |
 | **Pipeline de Ventas Conversacional 360°** (Kanban + drawer omnicanal + copiloto IA + emailing) | ✅ — auto-creación de leads desde OpenBSP, drag-and-drop, chat/email/IA/timeline/datos por lead |
 | **F8 Formularios y ciclo de vida** (Tally webhook firmado + `form-submissions` + matching lead/cliente + alertas) | ✅ |
-| **F9 Hermes + MCP + Task manager** (`@payloadcms/plugin-mcp` + `tasks` kanban + `conversation-summaries` + panel Hermes en `/workspace`) | 🟡 panel Hermes in-app solo-lectura ✅ — MCP externo (`/api/mcp` para Claude Desktop/Cursor) sin endurecer por rol/tenant en `clients`/`leads`/`tasks` ⬜ |
-| F7 Social (IG/FB publicaciones + métricas) | ⬜ bloqueada por app Meta — ninguna alternativa evita la Graph API de Meta (ver tabla de decisiones) |
+| **F9 MCP + Task manager** (`@payloadcms/plugin-mcp` + `tasks` kanban + `conversation-summaries`) | 🟡 copiloto IA in-app (solo resumen puntual) ✅ — MCP externo (`/api/mcp`) ahora con create/update en `conversation-summaries`/`social-posts`/`post-metrics`/`media` además de `clients`/`leads`/`tasks`: endurecer por rol/tenant antes de repartir API keys ⬜ |
+| F7 Social (planificación + publicación vía agente MCP) | ✅ planificación (Kanban, calendario, copy, imágenes) — publicación real delegada a un agente MCP conectado a Metricool/Composio, fuera de este repo |
 | F10 Hardening (CI real + suite de pruebas + rate limiting + seguridad PITR) | 🟡 CI GitLab + tests de integración con Postgres real ✅ · rate limiting en Server Actions de IA/email/WhatsApp ✅ · e2e Playwright en CI ✅ · MCP externo y backups PITR ⬜ |
 
-**Cómo vamos:** infraestructura, CRM, facturación, seguimiento diario, jobs, formularios, pipeline conversacional 360°, colecciones de tareas y CI real están implementados y verificados contra Postgres real en cada merge request. El MCP externo (para clientes MCP de terceros, distinto del panel Hermes in-app) sigue permitiendo crear/editar en `clients`/`leads`/`tasks` y debe endurecerse por operación/rol/tenant antes de entregar una API key a nadie fuera del equipo. El workspace es la aplicación diaria integrada; `/admin` sigue como backoffice técnico.
+**Cómo vamos:** infraestructura, CRM, facturación, seguimiento diario, jobs, formularios, pipeline conversacional 360°, colecciones de tareas y CI real están implementados y verificados contra Postgres real en cada merge request. El MCP externo (para clientes MCP de terceros) tiene ahora más superficie de escritura (`clients`/`leads`/`tasks`/`conversation-summaries`/`social-posts`/`post-metrics`/`media`) y debe endurecerse por operación/rol/tenant antes de entregar una API key a nadie fuera del equipo. El workspace es la aplicación diaria integrada; `/admin` sigue como backoffice técnico.
 
 ---
 
@@ -38,8 +38,8 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | Ingesta de leads | Apify (actors → webhook → colección `leads`) |
 | Formularios | Tally (webhooks firmados → `form-submissions`) |
 | Citas | Google Calendar API v3 (solo lectura; el agente de OpenBSP crea las citas) |
-| Publicación social | Meta Graph API directa, flujo determinístico (Jobs Queue), OAuth embebido en el admin |
-| Agente IA / MCP | Protocolo MCP nativo vía `@payloadcms/plugin-mcp` (expone clientes, leads, tareas, resúmenes) · Reactivo (entrantes): agente nativo de OpenBSP |
+| Publicación social | Este sistema solo planifica (Kanban, calendario, copy, imágenes en `social-posts`/`media`); la publicación real la hace un agente conectado por MCP a `/api/mcp` (este sistema) + al MCP oficial de Metricool o Composio (gestionan OAuth/tokens de Meta/TikTok/etc.) |
+| Agente IA / MCP | Protocolo MCP nativo vía `@payloadcms/plugin-mcp` (expone clientes, leads, tareas, resúmenes, publicaciones sociales y métricas) · Copiloto IA in-app: una sola acción puntual (resumen de conversación) vía Vercel AI SDK · Reactivo (entrantes): agente nativo de OpenBSP |
 
 ## Configuración regional
 
@@ -52,15 +52,15 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | Decisión | Elegido | Descartado / motivo |
 |---|---|---|
 | Multi-tenancy | Plugin oficial `@payloadcms/plugin-multi-tenant` desde F1: colección `tenants`, campo tenant en todas las colecciones de negocio, `company-settings` como global por empresa (`isGlobal`). Producto opera **mono-tenant** (tenant "Martes") pero el esquema queda SaaS-ready | Retrofit posterior (migrar datos vivos + rehacer access control en cada colección, job y webhook). DB-per-tenant en Neon descartado: sobrecosto operativo para muchas pymes |
-| Publicación social | Meta Graph directo + OAuth embebido (app en Development Mode: cuentas propias, sin App Review). **Investigado de nuevo:** no existe ninguna alternativa que evite la Graph API de Meta para publicar en Instagram/Facebook — ni el plugin comunitario `payload-plugin-socials` (no oficial de Payload, nunca instalado en este repo) ni agregadores como Ayrshare/Metricool/Buffer la evitan; todos son "Meta Business Partners" que llaman a la misma Graph API por debajo. Lo único que cambia es quién absorbe la complejidad de credenciales/rate limits, no si se depende de Meta | Metricool API (requiere plan Advanced, sigue siendo Meta por debajo); Composio (tercero en camino crítico) queda como expansión futura a otras redes (LinkedIn/TikTok, que no son de Meta) |
+| Publicación social | **Decisión revisada:** delegar la publicación real a un agente conectado por MCP a `/api/mcp` (este sistema) + al MCP oficial de Metricool o Composio, en vez de construir el conector con la Graph API de Meta nosotros mismos. Este sistema solo planifica el contenido (`social-posts`, Kanban, calendario, `media`, `post-metrics`) y lo expone por MCP con create/update; el agente externo lee de ahí, publica de verdad con su propia conexión a Metricool/Composio (que resuelven OAuth, refresco de tokens y rate limits de forma oficial), y escribe el resultado de vuelta. **Sigue confirmado:** ninguna vía evita que Instagram/Facebook dependan en algún punto de la Graph API de Meta — lo que cambia es que ya no la mantenemos nosotros | Construir y mantener el conector de la Graph API de Meta a mano (OAuth propio, expiración de tokens, cambios de versión de API) — descartado por sobrecarga operativa frente a delegar en un MCP ya oficial y mantenido por terceros (Metricool/Composio) |
 | Orquestación interna | Payload Jobs Queue + cron externo | n8n / ActivePieces (duplican lógica y webhooks; se pueden añadir después sin rediseño) |
-| IA en background | Fuera de martes-hub: el agente reactivo vive en OpenBSP (dispara en cada entrante, LLM propio o AI credits). El proactivo es una lista determinista sin IA. La IA interna propia (resúmenes, reportes) llega con Hermes vía MCP en F9 · pgvector para búsqueda semántica | Jobs propios llamando LLM (más código que mantener y rígido); "IA en Neon" (Neon es Postgres puro, no tiene IA nativa) |
-| MCP hacia Hermes | `@payloadcms/plugin-mcp` (oficial, sincronizado con core) | `payload-plugin-mcp` de Antler Digital (buena alternativa si falta algo) |
+| IA en background | Fuera de martes-hub: el agente reactivo vive en OpenBSP (dispara en cada entrante, LLM propio o AI credits). El proactivo es una lista determinista sin IA. Dentro del CRM la única llamada directa a un LLM es el resumen puntual de conversación (copiloto del drawer); cualquier análisis más abierto se conecta por MCP · pgvector para búsqueda semántica | Un chat de IA de uso general propio (redundante con conectar cualquier cliente MCP externo); jobs propios llamando LLM (más código que mantener y rígido); "IA en Neon" (Neon es Postgres puro, no tiene IA nativa) |
+| MCP hacia agentes externos | `@payloadcms/plugin-mcp` (oficial, sincronizado con core) | `payload-plugin-mcp` de Antler Digital (buena alternativa si falta algo) |
 | Observabilidad | Logs/métricas nativas Vercel + Neon | Sentry (opcional futuro; sistema privado) |
 | Task manager | Colección `tasks` propia + vista kanban (plugin `payload-kanban-board` interconectado al CRM) | Ningún equivalente ClickUp existe sobre Payload; la ventaja es la interconexión nativa con todo el CRM |
 | Import/Export de datos | Plugin oficial `@payloadcms/plugin-import-export` (UI en admin, CSV/JSON, preview, upsert) sobre leads/clients/payments | Endpoint casero `importCsv` queda como respaldo hasta validar el plugin con multi-tenant; community plugins de import/export descartados (menor mantenimiento) |
 | Facturas y cotizaciones | Plugin `payload-invoicepdf`: colecciones invoices/quotes, PDF vía `@react-pdf/renderer` (serverless sin Chrome), autofill desde `clients`/`offers`, envío por email con adjunto (Resend), link de aceptación de cotizaciones. **Solo documento comercial interno — sin cumplimiento fiscal SENIAT** | Construir facturación propia sobre pdfkit (más código, mismo resultado); e-factura fiscal (no requerido) |
-| Scraping de leads (Apify / F6) | Fase descartada: import manual de datasets CSV/JSON cubre el volumen actual. Opción futura documentada: Hermes corre actores vía MCP oficial de Apify (`mcp.apify.com`) cuando exista (F9) | Webhook automático actor→CRM (over-engineering para el volumen actual) |
+| Scraping de leads (Apify / F6) | Fase descartada: import manual de datasets CSV/JSON cubre el volumen actual. Opción futura documentada: un agente conectado por MCP corre actores vía el MCP oficial de Apify (`mcp.apify.com`) cuando exista | Webhook automático actor→CRM (over-engineering para el volumen actual) |
 
 ## Modelo de datos (colecciones)
 
@@ -78,7 +78,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | `appointments` | Citas sincronizadas de Google Calendar |
 | `offers` | Catálogo de productos/servicios (alimenta cotizaciones, facturas y sugerencias del agente) |
 | `invoices` / `quotes` / `shop-info` (plugin invoicepdf) | Facturación comercial interna: line items, IVA, numeración automática, PDFs versionados en Media, envío por email y aceptación de cotizaciones por link |
-| `social-accounts` | Cuentas IG/FB (tokens cifrados, expiración) |
+| `social-accounts` | Referencia de cuentas IG/FB/TikTok/etc. conectadas en Metricool/Composio — sin credenciales propias, solo nombre/plataforma/estado |
 | `social-posts` / `post-metrics` | Contenido: draft→scheduled→published/failed; métricas diarias (views, reach, likes…) |
 | `scrape-runs` | Ejecuciones Apify (actor, run ID, dataset, estado) |
 | `form-submissions` | Entradas Tally: queja / comentario / sugerencia / NPS |
@@ -91,7 +91,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 ### Para ofrecer como servicio (SaaS) — pendiente, NO bloquea F2+
 El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide más adelante:
 - Onboarding/self-signup de nuevas empresas
-- Credenciales por tenant (app Meta propia, dominio Resend verificado, OAuth GCal) → fases F3–F7 se construyen tenant-aware desde el inicio
+- Credenciales por tenant (dominio Resend verificado, OAuth GCal, cuenta propia de Metricool/Composio) → fases F3–F7 se construyen tenant-aware desde el inicio
 - Billing: suscripciones, límites de uso
 - Roles diferenciados por membresía (hoy: rol global del usuario + aislamiento por pertenencia al tenant)
 
@@ -99,13 +99,12 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 
 | Job | Frecuencia | Función |
 |---|---|---|
-| `publish-scheduled-posts` | 5 min | Publica `social-posts` vencidos vía Graph API |
 | `sync-gcal` | 15 min | Sincroniza citas de Google Calendar |
 | `payment-reminders` | diario 08:00 UTC-4 | Cobros por vencer/vencidos → WhatsApp plantilla + email |
-| `fetch-social-metrics` | diario | Métricas IG/FB → `post-metrics` |
-| `refresh-tokens` | diario | Renueva long-lived tokens Meta (~55 días) |
 | `daily-digest` | diario 08:00 UTC-4 | Resumen interno: citas del día, pagos, leads nuevos, tareas vencidas |
-| `weekly-report` | lunes 08:00 | Reporte generado por Hermes vía MCP |
+| `weekly-report` | lunes 08:00 | Reporte generado vía MCP por el agente que conectes |
+
+> La publicación y las métricas de redes sociales ya no son jobs internos: las ejecuta un agente conectado por MCP a este sistema + al MCP de Metricool/Composio (ver tabla de decisiones).
 
 ## Integraciones y credenciales requeridas
 
@@ -113,12 +112,12 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 |---|---|---|
 | Neon | `DATABASE_URL` (pooled, SSL) | Proyecto nuevo; activar pgvector |
 | OpenBSP | Org + `api-key` (+ `apikey` pública Supabase) | Webhook con `callback_url` + `verify_token`; envío por REST |
-| Meta (Graph API) | App propia: `META_APP_ID`, `META_APP_SECRET` | Registro único guiado; OAuth embebido después; Development Mode |
 | Resend | `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` | Verificar dominio de envío; webhook de bounce/complaint en dashboard Resend → `/api/webhooks/resend` |
 | Apify | `APIFY_TOKEN` | Webhook de fin de actor → `/api/webhooks/apify` |
 | Tally | Webhook firmado por formulario | HMAC compartido en env |
 | Google Calendar | OAuth client JSON | Solo lectura del calendario de citas |
 | LLM del agente reactivo | API key del proveedor elegido (opcional) | Se configura en el dashboard de OpenBSP (`AgentExtra.api_key`); sin ella consume los AI credits hosted ($1 incluidos) |
+| Metricool o Composio (opcional, para publicar en redes) | Cuenta propia en cualquiera de los dos + su MCP conectado en el cliente del agente | No vive en este repo: el agente que conectes a `/api/mcp` de este sistema conecta también su propio MCP de Metricool/Composio y hace la publicación real |
 | Scheduler externo | cuenta gratuita (cron-job.org / Upstash QStash) | Llama endpoint runner mientras no haya Vercel Pro |
 
 ## Sprints
@@ -148,7 +147,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 
 ### F4 — Seguimiento proactivo + agente reactivo (OpenBSP hosted)
 - Objetivo: saber a quién escribirle cada día sin pagar conversaciones business-initiated, y que las conversaciones se atiendan solas.
-- Principio: OpenBSP es dueño del canal y del agente; martes-hub solo jala información (webhook), envía por API y calcula listas deterministas. Sin IA interna — eso llega con Hermes en F9.
+- Principio: OpenBSP es dueño del canal y del agente; martes-hub solo jala información (webhook), envía por API y calcula listas deterministas. Sin IA interna — la única IA dentro del CRM es el resumen puntual de conversación del pipeline (F9).
 - Estrategia de contacto:
   - **Primer mensaje lo escribe el humano** desde su WhatsApp vía link click-to-chat (`wa.me/<tel>?text=<borrador>`) en la lista "Hoy" del admin → conversación user-initiated, sin costo de plantilla Meta.
   - **Cuando el lead responde, el agente de OpenBSP continúa solo** (ventana 24h abierta). El webhook F3 ya espeja entrantes Y salientes (incluidos los del agente) a `conversations`/`messages`.
@@ -190,9 +189,11 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 - Done when: el dueño abre el admin y en una pantalla decide qué hacer hoy.
 
 ### F7 — Publicaciones sociales + métricas
-- Objetivo: calendario editorial con publicación determinística y medición.
-- Tareas: app Meta (registro guiado) + OAuth embebido "Conectar cuenta", media library, `social-posts` draft→scheduled→published, job 5 min, `post-metrics` diario, evaluación de `payload-plugin-socials` como acelerador.
-- Done when: post precargado se publica solo en su hora y sus métricas aparecen al día siguiente.
+- Objetivo: calendario editorial de contenido, con publicación y métricas resueltas fuera de este repo.
+- Decisión (revisada): no se construye un conector propio a la Graph API de Meta. Este sistema es la fuente de verdad del contenido — `social-posts` (copy, imágenes vía `media`, cuenta destino, estado draft→scheduled→published/failed) y `post-metrics` — expuesta por `/api/mcp` con create/update. Un agente MCP externo (el cliente/modelo que conectes) lee el contenido listo desde aquí, publica de verdad usando su propia conexión al MCP oficial de Metricool o Composio (ambos resuelven OAuth/tokens de Meta, TikTok, LinkedIn, etc. de forma oficial), y escribe el resultado (publicado/fallido, enlace público, métricas) de vuelta en `social-posts`/`post-metrics`.
+- Construido: colecciones `social-accounts`/`social-posts`/`post-metrics` con su migración, UI de Kanban/calendario en `/workspace/social`, exposición MCP con create/update.
+- Pendiente (usuario): conectar un agente MCP a este sistema y, en el mismo agente, al MCP de Metricool o Composio.
+- Done when: un agente conectado por MCP crea un post aquí, lo publica de verdad vía Metricool/Composio, y el estado/métricas quedan reflejados en `/workspace/social`.
 
 ### F8 — Formularios y ciclo de vida (Tally)
 - Objetivo: voz del cliente y transiciones automáticas de etapa.
@@ -203,13 +204,13 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
   - Detección de quejas / bajo NPS (≤6) con disparo automático de notificaciones de advertencia y creación de tareas urgentes.
 - Done when: envío desde Tally crea `form-submissions`, asocia cliente/lead y alerta quejas en `notifications` (✅ PR #22).
 
-### F9 — Hermes + Task manager
-- Objetivo: IA interna residente en el CRM y gestión de tareas interconectada.
+### F9 — MCP + Task manager
+- Objetivo: acceso externo por MCP y gestión de tareas interconectada; la IA interna se limita a una acción puntual.
 - Construido:
-  - Integración oficial de `@payloadcms/plugin-mcp` registrada para clientes, leads, tareas, resúmenes y pagos — expuesta en `/api/mcp` para clientes MCP externos (Claude Desktop, Cursor). Sigue pendiente restringir operaciones/rol/tenant en `clients`/`leads`/`tasks` antes de entregar una API key fuera del equipo (ver "Qué falta").
-  - Panel de Hermes embebido en el workspace (`/api/ai/chat` + drawer del lead): solo lectura del CRM del tenant activo, sin relación con el MCP externo.
+  - Integración oficial de `@payloadcms/plugin-mcp` registrada para clientes, leads, tareas, resúmenes, pagos, publicaciones sociales y métricas — expuesta en `/api/mcp` para clientes MCP externos (Claude Desktop, Cursor, o cualquier agente que conectes). Sigue pendiente restringir operaciones/rol/tenant antes de entregar una API key fuera del equipo (ver "Qué falta").
+  - Copiloto IA in-app: una sola acción puntual (botón "Generar resumen IA" del drawer del lead, vía Anthropic/OpenAI), no un chat de uso general — cualquier análisis más abierto se hace conectando un cliente MCP externo.
   - Colección `tasks` (título, descripción, estados kanban, prioridad, checklist, fechas límite, cliente y lead vinculados).
-  - Colección `conversation-summaries` (resúmenes ejecutivos, sentimiento, objeciones y próximos pasos) — generable desde el copiloto IA del drawer del lead.
+  - Colección `conversation-summaries` (resúmenes ejecutivos, sentimiento, objeciones y próximos pasos) — generable desde el copiloto IA del drawer del lead o por un agente MCP externo.
   - Creación automática de tareas ante quejas en formularios (`tally_complaint`).
 - Done when: herramientas MCP operativas en el backend, tareas gestionables vía vista kanban y copiloto IA generando resúmenes desde el pipeline (✅).
 
@@ -229,10 +230,10 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 1. **Conectar OpenBSP real** (modo hosted, sin infraestructura propia): org + número + API keys + agente LLM en el dashboard de OpenBSP → E2E: lead contactado desde el pipeline responde y el agente continúa. El código ya asume hosted-only (REST + webhook, cero acceso a su Supabase); solo faltan las credenciales.
 2. **Activar Resend**: dominio verificado + `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` → E2E: campaña y email directo desde el drawer del lead enviados, registrados y bounce detectado.
 3. **Configurar Webhook Tally**: apuntar a `https://tu-dominio/api/webhooks/tally` y configurar `TALLY_SIGNING_SECRET`.
-4. **Endurecer el MCP externo** (`@payloadcms/plugin-mcp`, expuesto en `/api/mcp` para clientes MCP de terceros como Claude Desktop/Cursor — **distinto** del panel Hermes in-app, que ya es solo-lectura): `clients`, `leads` y `tasks` siguen con `enabled: true` (create/update/delete abiertos). Antes de entregar una API key de este endpoint a alguien fuera del equipo, restringir a solo-lectura o por operación/rol/tenant, igual que ya se hizo con `payments`/`invoices`/`quotes`.
+4. **Endurecer el MCP externo** (`@payloadcms/plugin-mcp`, expuesto en `/api/mcp` para cualquier cliente MCP que conectes — Claude Desktop, Cursor, un agente propio): `clients`, `leads`, `tasks`, `conversation-summaries`, `social-posts`, `post-metrics` y `media` tienen `enabled: true` o create/update abiertos. Antes de entregar una API key de este endpoint a alguien fuera del equipo, restringir por operación/rol/tenant, igual que ya se hizo con `payments`/`invoices`/`quotes`.
 5. **Backups PITR de Neon**: verificar que estén activos y probar un restore real — no se puede confirmar desde el código.
 
-No bloquean v1: F7 Social (espera app Meta — sin alternativa posible, ver tabla de decisiones), multi-tenant real (SaaS).
+No bloquean v1: multi-tenant real (SaaS). F7 Social ya no bloquea nada de código — solo falta que conectes un agente MCP a Metricool/Composio cuando quieras publicar de verdad.
 
 ## Convenciones de trabajo
 
@@ -245,6 +246,6 @@ No bloquean v1: F7 Social (espera app Meta — sin alternativa posible, ver tabl
 
 ## Roadmap opcional (post-F10)
 
-Composio para LinkedIn/TikTok vía Hermes (redes que no dependen de Meta) · self-host de OpenBSP en Supabase propio · Sentry si crece el equipo · multi-red desde un mismo editor.
+self-host de OpenBSP en Supabase propio · Sentry si crece el equipo · multi-red desde un mismo editor (ya cubierto en la práctica por Metricool/Composio vía MCP, no requiere código nuevo aquí).
 
-> Explícitamente descartado, no solo diferido: cualquier ruta de publicación en Instagram/Facebook que evite la Graph API de Meta. No existe — ver tabla de decisiones.
+> Explícitamente descartado, no solo diferido: construir un conector propio a la Graph API de Meta. La publicación real se delega siempre a un agente MCP conectado a Metricool o Composio — ver tabla de decisiones.
