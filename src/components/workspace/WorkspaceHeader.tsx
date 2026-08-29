@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { label: 'Inbox', href: '/workspace/inbox' },
   { label: 'Social', href: '/workspace/social' },
   { label: 'Facturación', href: '/workspace/billing' },
+  { label: 'Analíticas', href: '/workspace/analytics' },
 ] as const
 
 interface WorkspaceHeaderProps {

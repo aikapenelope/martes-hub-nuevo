@@ -8,7 +8,7 @@
  * Proveedor: ANTHROPIC_API_KEY → Claude 3.5 Haiku | OPENAI_API_KEY → GPT-4o-mini.
  */
 
-import { convertToModelMessages, isStepCount, streamText, tool, type UIMessage } from 'ai'
+import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
@@ -79,7 +79,7 @@ export async function POST(req: Request): Promise<Response> {
     model,
     system: `Eres Hermes, el asistente de Martes Hub. Acceso de solo lectura al CRM (tenant: ${tenantId ?? 'sin asignar'}). Responde en español, sé conciso. Consulta datos antes de dar cifras.`,
     messages: await convertToModelMessages(uiMessages),
-    stopWhen: isStepCount(4),
+    stopWhen: stepCountIs(4),
     tools: {
       buscarClientes: tool({
         description: 'Busca clientes del CRM por nombre, email o teléfono.',

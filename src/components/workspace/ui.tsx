@@ -104,3 +104,13 @@ export function Badge({ tone, children }: { tone?: 'default' | 'danger' | 'succe
         : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
   return <span className={`text-[10px] font-mono px-1.5 py-0.5 ${toneClass}`}>{children}</span>
 }
+
+/**
+ * Skeleton — placeholder de carga. No lleva `aria-busy` propio: el
+ * contenedor que lo usa (una sección/página con estado `loading`) es quien
+ * debe anunciar el estado de carga a lectores de pantalla, típicamente vía
+ * un `<span className="sr-only">Cargando…</span>` junto a los skeletons.
+ */
+export function Skeleton({ className = '' }: { className?: string }) {
+  return <div aria-hidden="true" className={`animate-pulse bg-zinc-800/60 ${className}`} />
+}
