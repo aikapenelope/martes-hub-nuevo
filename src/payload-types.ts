@@ -349,6 +349,11 @@ export interface Lead {
   phone?: string | null;
   email?: string | null;
   segment?: (number | null) | Segment;
+  /**
+   * Estimación de la oportunidad; alimenta el pipeline del workspace
+   */
+  estimatedValue?: number | null;
+  assignedTo?: (number | null) | User;
   notes?: string | null;
   /**
    * Se llena automáticamente al convertir el lead
@@ -1580,6 +1585,8 @@ export interface LeadsSelect<T extends boolean = true> {
   phone?: T;
   email?: T;
   segment?: T;
+  estimatedValue?: T;
+  assignedTo?: T;
   notes?: T;
   convertedClient?: T;
   kanbanStatus?: T;

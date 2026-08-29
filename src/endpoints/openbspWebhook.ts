@@ -71,6 +71,73 @@ async function resolveTenant(
 
 const digits = (v: string | undefined | null): string => (v ?? '').replace(/\D/g, '')
 
+const CHANNEL_LABEL: Record<string, string> = {
+  whatsapp: 'WhatsApp',
+  instagram_dm: 'Instagram',
+  whatsapp_web: 'WhatsApp',
+}
+
+/**
+ * Crea un Lead a partir de un contacto entrante sin match en clients/leads
+ * y registra la actividad correspondiente. El nombre se basa en el
+ * teléfono; `enrichContact` (evento `contacts`/`contacts_addresses` de
+ * OpenBSP) lo reemplaza por el nombre real del perfil cuando llega.
+ */
+async function autoCreateLeadFromContact(
+  req: PayloadRequest,
+  tenant: Tenant,
+  phone: string,
+  channel: string,
+): Promise<number> {
+  const label = CHANNEL_LABEL[channel] ?? 'WhatsApp'
+  const source = channel === 'instagram_dm' ? 'instagram_dm' : 'whatsapp'
+
+  const lead = await req.payload.create({
+    collection: 'leads',
+    data: {
+      fullName: `${label} +${phone}`,
+      phone,
+      status: 'nuevo',
+      source,
+      tenant: tenant.id,
+    },
+    overrideAccess: true,
+    req,
+  })
+
+  await req.payload.create({
+    collection: 'activities',
+    data: {
+      tenant: tenant.id,
+      type: channel === 'instagram_dm' ? 'otro' : 'whatsapp',
+      occurredAt: new Date().toISOString(),
+      summary: `Lead creado automáticamente por mensaje entrante de ${label}`,
+      lead: lead.id,
+    },
+    overrideAccess: true,
+    req,
+  })
+
+  return lead.id
+}
+
+/**
+ * Busca cliente/lead existente por teléfono; si el mensaje es entrante y
+ * no hay match, crea un Lead nuevo en vez de dejar la conversación huérfana.
+ */
+async function matchOrCreateLead(
+  req: PayloadRequest,
+  tenant: Tenant,
+  phone: string,
+  channel: string,
+  isInbound: boolean,
+): Promise<{ client?: number; lead?: number }> {
+  const match = await matchContact(req, tenant.id, phone)
+  if (match.client || match.lead || !isInbound || !phone) return match
+  const leadId = await autoCreateLeadFromContact(req, tenant, phone, channel)
+  return { lead: leadId }
+}
+
 async function matchContact(
   req: PayloadRequest,
   tenantId: number,
@@ -135,7 +202,7 @@ async function upsertConversation(
     const conv = existing.docs[0]
     const patchWithLink: typeof patch & { client?: number; lead?: number } = { ...patch }
     if (!conv.client && !conv.lead) {
-      const relink = await matchContact(req, tenant.id, digits(conv.contactAddress))
+      const relink = await matchOrCreateLead(req, tenant, digits(conv.contactAddress), patch.channel, isInbound)
       Object.assign(patchWithLink, relink)
     }
     await req.payload.update({
@@ -149,7 +216,7 @@ async function upsertConversation(
   }
 
   const contactPhone = digits(data.conversation_address || data.sender_address)
-  const match = await matchContact(req, tenant.id, contactPhone)
+  const match = await matchOrCreateLead(req, tenant, contactPhone, patch.channel, isInbound)
 
   const created = await req.payload.create({
     collection: 'conversations',

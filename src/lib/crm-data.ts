@@ -13,8 +13,8 @@ import {
 
 const PAGE_SIZE = 20
 
-export type { ClientStage, CrmFilters, CrmSearchParams, CrmView, LeadStatus } from '@/lib/crm-filters'
-export { CLIENT_STAGES, CRM_VIEWS, LEAD_STATUSES, parseCrmFilters } from '@/lib/crm-filters'
+export type { ClientStage, CrmFilters, CrmMode, CrmSearchParams, CrmView, LeadStatus } from '@/lib/crm-filters'
+export { CLIENT_STAGES, CRM_MODES, CRM_VIEWS, LEAD_STATUSES, parseCrmFilters } from '@/lib/crm-filters'
 
 function tenantWhere(tenantId: number, extra: Where[]): Where {
   return { and: [{ tenant: { equals: tenantId } }, ...extra] }

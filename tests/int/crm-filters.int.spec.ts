@@ -6,6 +6,7 @@ describe('parseCrmFilters', () => {
   it('usa una configuración segura por defecto', () => {
     expect(parseCrmFilters({})).toEqual({
       view: 'leads',
+      mode: 'pipeline',
       query: '',
       status: 'todos',
       stage: 'todos',

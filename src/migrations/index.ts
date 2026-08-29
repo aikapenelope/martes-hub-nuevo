@@ -9,6 +9,7 @@ import * as migration_20260825_071209_f5_email_collections from './20260825_0712
 import * as migration_20260825_073712_import_export_plugin from './20260825_073712_import_export_plugin';
 import * as migration_20260825_074436_facturacion_cotizaciones from './20260825_074436_facturacion_cotizaciones';
 import * as migration_20260829_210000_fix_invoices_quotes_tenant from './20260829_210000_fix_invoices_quotes_tenant';
+import * as migration_20260829_220000_lead_pipeline_fields from './20260829_220000_lead_pipeline_fields';
 
 export const migrations = [
   {
@@ -65,5 +66,10 @@ export const migrations = [
     up: migration_20260829_210000_fix_invoices_quotes_tenant.up,
     down: migration_20260829_210000_fix_invoices_quotes_tenant.down,
     name: '20260829_210000_fix_invoices_quotes_tenant'
+  },
+  {
+    up: migration_20260829_220000_lead_pipeline_fields.up,
+    down: migration_20260829_220000_lead_pipeline_fields.down,
+    name: '20260829_220000_lead_pipeline_fields'
   },
 ];
