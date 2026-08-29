@@ -11,6 +11,7 @@ import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { sendText } from '@/integrations/openbsp/client'
 import { renderEmailHtml } from '@/email/layout'
+import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
 
 const WINDOW_MS = 24 * 60 * 60 * 1000
 
@@ -99,6 +100,9 @@ export async function quickReplyLeadChatAction(
     if (!trimmed) throw new Error('El mensaje no puede estar vacío')
     const { context } = await scopedLead(leadId)
     if (!context.canEdit) throw new Error('No tienes permiso para responder conversaciones')
+    if (!(await checkUserActionRateLimit(context.user.id, 'whatsapp-reply'))) {
+      return { ok: false, error: 'Demasiados mensajes seguidos — espera un minuto e intenta de nuevo' }
+    }
 
     const conversations = await context.payload.find({
       collection: 'conversations',
@@ -185,6 +189,9 @@ export async function sendLeadEmailAction(
     const scoped = await scopedLead(leadId)
     context = scoped.context
     if (!context.canEdit) throw new Error('No tienes permiso para enviar correos')
+    if (!(await checkUserActionRateLimit(context.user.id, 'send-email'))) {
+      return { ok: false, error: 'Demasiados correos seguidos — espera un minuto e intenta de nuevo' }
+    }
     if (!process.env.RESEND_API_KEY) {
       return { ok: false, error: 'Email no configurado (falta RESEND_API_KEY)' }
     }
@@ -317,6 +324,9 @@ export async function summarizeLeadWithAIAction(leadId: number): Promise<ActionR
   try {
     const { lead, context } = await scopedLead(leadId)
     if (!context.canEdit) throw new Error('No tienes permiso para generar resúmenes de IA')
+    if (!(await checkUserActionRateLimit(context.user.id, 'ai-summary'))) {
+      return { ok: false, error: 'Demasiados resúmenes de IA seguidos — espera un minuto e intenta de nuevo' }
+    }
 
     const model = process.env.ANTHROPIC_API_KEY
       ? anthropic('claude-3-5-haiku-latest')
