@@ -2,9 +2,10 @@
 
 /**
  * Overlays interactivos del workspace — Dialog (modal centrado) y Drawer
- * (panel lateral, usado por el panel de Hermes). Van en un archivo separado
- * de `ui.tsx` porque requieren estado de cliente (foco, teclado); las
- * primitivas puramente presentacionales de `ui.tsx` no necesitan `'use client'`.
+ * (panel lateral, usado por el drawer 360° del lead en el pipeline). Van en
+ * un archivo separado de `ui.tsx` porque requieren estado de cliente (foco,
+ * teclado); las primitivas puramente presentacionales de `ui.tsx` no
+ * necesitan `'use client'`.
  */
 
 import { useEffect, useRef } from 'react'
@@ -102,7 +103,7 @@ export function Dialog({
   )
 }
 
-/** Panel lateral deslizante (usado por el chat de Hermes). Foco atrapado dentro mientras está abierto. */
+/** Panel lateral deslizante (usado por el drawer 360° del lead). Foco atrapado dentro mientras está abierto. */
 export function Drawer({
   open,
   onClose,

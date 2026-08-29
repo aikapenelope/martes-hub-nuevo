@@ -169,9 +169,6 @@ export interface Config {
       'openbsp-error-poll': TaskOpenbspErrorPoll;
       'send-campaign-batch': TaskSendCampaignBatch;
       'send-scheduled-campaigns': TaskSendScheduledCampaigns;
-      'publish-scheduled-posts': TaskPublishScheduledPosts;
-      'fetch-social-metrics': TaskFetchSocialMetrics;
-      'refresh-social-tokens': TaskRefreshSocialTokens;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -784,14 +781,9 @@ export interface SocialAccount {
   accountName: string;
   platform: 'instagram' | 'facebook';
   /**
-   * Page ID o Instagram Business Account ID
+   * Page ID, Instagram Business Account ID, o el identificador equivalente en tu gestor de redes (p. ej. Metricool)
    */
   platformAccountId: string;
-  /**
-   * Token de Graph API restringido a administradores
-   */
-  accessToken: string;
-  tokenExpiresAt?: string | null;
   status: 'conectada' | 'desconectada' | 'expirada';
   profilePictureUrl?: string | null;
   updatedAt: string;
@@ -1275,9 +1267,6 @@ export interface PayloadJob {
           | 'openbsp-error-poll'
           | 'send-campaign-batch'
           | 'send-scheduled-campaigns'
-          | 'publish-scheduled-posts'
-          | 'fetch-social-metrics'
-          | 'refresh-social-tokens'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -1321,9 +1310,6 @@ export interface PayloadJob {
         | 'openbsp-error-poll'
         | 'send-campaign-batch'
         | 'send-scheduled-campaigns'
-        | 'publish-scheduled-posts'
-        | 'fetch-social-metrics'
-        | 'refresh-social-tokens'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -1895,8 +1881,6 @@ export interface SocialAccountsSelect<T extends boolean = true> {
   accountName?: T;
   platform?: T;
   platformAccountId?: T;
-  accessToken?: T;
-  tokenExpiresAt?: T;
   status?: T;
   profilePictureUrl?: T;
   updatedAt?: T;
@@ -2439,41 +2423,6 @@ export interface TaskSendScheduledCampaigns {
   output: {
     queued?: number | null;
     skipped?: number | null;
-    summary?: string | null;
-  };
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "TaskPublish-scheduled-posts".
- */
-export interface TaskPublishScheduledPosts {
-  input?: unknown;
-  output: {
-    published?: number | null;
-    failed?: number | null;
-    summary?: string | null;
-  };
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "TaskFetch-social-metrics".
- */
-export interface TaskFetchSocialMetrics {
-  input?: unknown;
-  output: {
-    metricsRecorded?: number | null;
-    summary?: string | null;
-  };
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "TaskRefresh-social-tokens".
- */
-export interface TaskRefreshSocialTokens {
-  input?: unknown;
-  output: {
-    accountsChecked?: number | null;
-    alertsGenerated?: number | null;
     summary?: string | null;
   };
 }

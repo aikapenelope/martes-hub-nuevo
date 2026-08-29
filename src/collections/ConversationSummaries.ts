@@ -104,7 +104,7 @@ export const ConversationSummaries: CollectionConfig = {
       defaultValue: 'hermes_ai',
       label: 'Generado por',
       options: [
-        { label: 'Hermes AI', value: 'hermes_ai' },
+        { label: 'IA (resumen automático)', value: 'hermes_ai' },
         { label: 'Agente OpenBSP', value: 'openbsp_agent' },
         { label: 'Manual', value: 'manual' },
       ],

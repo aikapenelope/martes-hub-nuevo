@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { WorkspaceHeader } from '@/components/workspace/WorkspaceHeader'
-import { HermesLauncher } from '@/components/workspace/HermesPanel'
 import '@/styles/workspace.css'
 
 // Arquitectura de múltiples root layouts: no existe app/layout.tsx compartido.
@@ -38,7 +37,6 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
           isAdmin={isAdmin}
         />
         <main className="mx-auto max-w-[1600px] space-y-5 px-4 py-5 sm:px-6 xl:px-8">{children}</main>
-        <HermesLauncher />
       </body>
     </html>
   )
