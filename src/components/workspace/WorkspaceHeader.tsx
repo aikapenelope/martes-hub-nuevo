@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { label: 'Facturación', href: '/workspace/billing' },
   { label: 'Membresías', href: '/workspace/memberships' },
   { label: 'Documentos', href: '/workspace/documents' },
+  { label: 'Email', href: '/workspace/email' },
   { label: 'Rubros', href: '/workspace/segments' },
   { label: 'Plantillas', href: '/workspace/templates' },
   { label: 'Analíticas', href: '/workspace/analytics' },
