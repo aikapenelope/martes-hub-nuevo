@@ -42,6 +42,7 @@ export interface AnalyticsData {
     satisfactionRate: number
   }
   sources: Array<{ source: string; label: string; count: number; pct: number }>
+  clientsByStage: Array<{ label: string; value: number }>
   activities: {
     totalMonth: number
     byType: {
@@ -79,6 +80,10 @@ export async function getAnalyticsData({ payload, user, tenantId }: AnalyticsOpt
     paidMonthAgg,
     pendingAgg,
     allLeadsForSources,
+    clientsNuevoRes,
+    clientsActivoRes,
+    clientsInactivoRes,
+    clientsPerdidoRes,
   ] = await Promise.all([
     payload.find({ collection: 'leads', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId) }),
     payload.find({ collection: 'leads', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { status: { equals: 'nuevo' } }) }),
@@ -108,6 +113,10 @@ export async function getAnalyticsData({ payload, user, tenantId }: AnalyticsOpt
       select: { source: true },
       where: tenantWhere(tenantId),
     }),
+    payload.find({ collection: 'clients', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { stage: { equals: 'nuevo' } }) }),
+    payload.find({ collection: 'clients', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { stage: { equals: 'activo' } }) }),
+    payload.find({ collection: 'clients', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { stage: { equals: 'inactivo' } }) }),
+    payload.find({ collection: 'clients', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { stage: { equals: 'perdido' } }) }),
   ])
 
   const totalLeads = leadsTotalRes.totalDocs
@@ -176,6 +185,12 @@ export async function getAnalyticsData({ payload, user, tenantId }: AnalyticsOpt
       satisfactionRate,
     },
     sources,
+    clientsByStage: [
+      { label: 'Nuevo', value: clientsNuevoRes.totalDocs },
+      { label: 'Activo', value: clientsActivoRes.totalDocs },
+      { label: 'Inactivo', value: clientsInactivoRes.totalDocs },
+      { label: 'Perdido', value: clientsPerdidoRes.totalDocs },
+    ].filter((s) => s.value > 0),
     activities: {
       totalMonth: activitiesMonthRes.totalDocs,
       byType,

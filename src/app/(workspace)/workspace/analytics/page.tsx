@@ -19,6 +19,7 @@ import {
 import { getAnalyticsData } from '@/lib/analytics-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { EmptyState, HeroAction, KpiCard, OledCard, PageHero, SectionHeader } from '@/components/workspace/oled'
+import { DonutChart } from '@/components/workspace/charts'
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
@@ -26,7 +27,7 @@ export default async function AnalyticsPage() {
   const context = await getWorkspaceContext()
   const data = await getAnalyticsData(context)
 
-  const { funnel, satisfaction, sources, activities, financials } = data
+  const { funnel, satisfaction, sources, clientsByStage, activities, financials } = data
 
   const kpis = [
     {
@@ -194,6 +195,25 @@ export default async function AnalyticsPage() {
             </div>
           </OledCard>
         </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2">
+        <OledCard>
+          <SectionHeader eyebrow="Composición" title="Leads por Canal" />
+          {sources.length === 0 ? (
+            <EmptyState>Sin datos suficientes todavía.</EmptyState>
+          ) : (
+            <DonutChart data={sources.map((s) => ({ label: s.label, value: s.count }))} />
+          )}
+        </OledCard>
+        <OledCard>
+          <SectionHeader eyebrow="Composición" title="Clientes por Etapa" />
+          {clientsByStage.length === 0 ? (
+            <EmptyState>Sin clientes registrados todavía.</EmptyState>
+          ) : (
+            <DonutChart data={clientsByStage} />
+          )}
+        </OledCard>
       </section>
 
       <OledCard>
