@@ -5,13 +5,17 @@ if (process.env.DATABASE_URL_DIRECT) {
   process.env.DATABASE_URL = process.env.DATABASE_URL_DIRECT
 }
 
+if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_SEED_DEV_USER) {
+  throw new Error('FATAL: seed-dev-user cannot be executed in production environment without explicit ALLOW_SEED_DEV_USER=1.')
+}
+
 import { getPayload } from 'payload'
 
 import config from '../src/payload.config.js'
 
 export const DEV_USER = {
   email: 'dev@martes.local',
-  password: 'test',
+  password: process.env.DEV_USER_PASSWORD || 'test',
   roles: ['admin'] as ('admin' | 'agente' | 'viewer')[],
 }
 

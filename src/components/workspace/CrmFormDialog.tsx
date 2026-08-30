@@ -28,7 +28,8 @@ export function CrmFormDialog({ kind }: CrmFormDialogProps) {
       </button>
 
       <dialog
-        className="w-full max-w-lg border border-zinc-800 bg-zinc-950 p-0 text-white backdrop:bg-black/70"
+        className="workspace-dialog m-auto w-full max-w-lg border border-zinc-800 bg-zinc-950 p-0 text-white"
+        aria-label={isLead ? 'Nuevo lead' : 'Nuevo cliente'}
         ref={dialogRef}
         onCancel={() => dialogRef.current?.close()}
       >

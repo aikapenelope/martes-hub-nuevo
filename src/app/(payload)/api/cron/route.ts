@@ -14,6 +14,7 @@
  *   CRON_SECRET=<random-secret> (Vercel lo añade automáticamente en proyectos Vercel Cron)
  */
 
+import crypto from 'crypto'
 import configPromise from '@payload-config'
 import { timingSafeEqual } from 'crypto'
 import { getPayload } from 'payload'
@@ -26,13 +27,11 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const authHeader = request.headers.get('authorization')
+  const authHeader = request.headers.get('authorization') ?? ''
   const cronSecret = process.env.CRON_SECRET
 
   // Fail-closed: sin CRON_SECRET configurado, el endpoint rechaza todo en
-  // vez de ejecutar sin autenticación. Antes, sin el secret configurado
-  // (p. ej. un despliegue mal configurado), cualquiera podía disparar el
-  // job queue completo llamando a /api/cron sin credenciales.
+  // vez de ejecutar sin autenticación.
   if (!cronSecret) {
     return Response.json({ error: 'CRON_SECRET no configurado' }, { status: 503 })
   }

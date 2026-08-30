@@ -1,5 +1,5 @@
 import type { PayloadRequest } from 'payload'
-import type { User } from '@/payload-types'
+import { resolveUserTenantId } from './tenantResolution'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -38,38 +38,6 @@ export interface FollowUpItem {
   crmUrl: string
 }
 
-async function resolveTenantId(req: PayloadRequest): Promise<number | null> {
-  const user = req.user as User | null
-  if (!user) return null
-
-  const isAdmin = user.roles?.includes('admin') ?? false
-  const userTenantIds = new Set(
-    (user.tenants ?? [])
-      .map((t) => (typeof t.tenant === 'object' && t.tenant !== null ? t.tenant.id : t.tenant))
-      .filter((id): id is number => typeof id === 'number'),
-  )
-
-  const url = new URL(req.url ?? 'http://local.payload/api/followups/hoy')
-  const qTenant = url.searchParams.get('tenant')
-  if (qTenant) {
-    const parsed = Number(qTenant)
-    // BOLA/IDOR: sin esta validación, cualquier usuario autenticado podía pasar
-    // ?tenant=<id de otro tenant> y leer sus leads/clientes/teléfonos, porque el
-    // resto del handler usa overrideAccess:true. Solo se honra si es admin o si
-    // el usuario realmente pertenece a ese tenant.
-    if (Number.isInteger(parsed) && (isAdmin || userTenantIds.has(parsed))) return parsed
-  }
-
-  const first = [...userTenantIds][0]
-  if (typeof first === 'number') return first
-
-  if (isAdmin) {
-    const all = await req.payload.find({ collection: 'tenants', limit: 2, depth: 0, overrideAccess: true, req })
-    if (all.totalDocs === 1) return all.docs[0].id
-  }
-
-  return null
-}
 
 function digits(v: string | undefined | null): string {
   return (v ?? '').replace(/\D/g, '')
@@ -85,7 +53,7 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
     return Response.json({ error: 'No autenticado' }, { status: 401 })
   }
 
-  const tenantId = await resolveTenantId(req)
+  const tenantId = await resolveUserTenantId(req, 'http://local.payload/api/followups/hoy')
   if (!tenantId) {
     return Response.json({ error: 'Tenant no resoluble' }, { status: 422 })
   }

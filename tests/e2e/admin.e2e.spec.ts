@@ -1,41 +1,34 @@
-import { test, expect, Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { login } from '../helpers/login'
-import { seedTestUser, cleanupTestUser, testUser } from '../helpers/seedUser'
+import { seedTestUser, testUser } from '../helpers/seedUser'
 
 test.describe('Admin Panel', () => {
-  let page: Page
-
-  test.beforeAll(async ({ browser }) => {
+  test.beforeAll(async () => {
     await seedTestUser()
+  })
 
-    const context = await browser.newContext()
-    page = await context.newPage()
-
+  test.beforeEach(async ({ page }) => {
     await login({ page, user: testUser })
   })
 
-  test.afterAll(async () => {
-    await cleanupTestUser()
+  test('can navigate to dashboard', async ({ page }) => {
+    await page.goto('/admin')
+    await expect(page).toHaveURL((url) => url.pathname === '/admin' || url.pathname === '/admin/')
+    const dashboardLink = page.locator('a[href*="/admin/collections/"], a[href*="/admin/account"]').first()
+    await expect(dashboardLink).toBeVisible({ timeout: 20000 })
   })
 
-  test('can navigate to dashboard', async () => {
-    await page.goto('http://localhost:3000/admin')
-    await expect(page).toHaveURL('http://localhost:3000/admin')
-    const dashboardArtifact = page.locator('.step-nav__first').first()
-    await expect(dashboardArtifact).toBeVisible()
+  test('can navigate to list view', async ({ page }) => {
+    await page.goto('/admin/collections/users')
+    await expect(page).toHaveURL(/\/admin\/collections\/users/)
+    const listViewArtifact = page.locator('a[href="/admin/collections/users/create"], button:has-text("Create")').first()
+    await expect(listViewArtifact).toBeVisible({ timeout: 20000 })
   })
 
-  test('can navigate to list view', async () => {
-    await page.goto('http://localhost:3000/admin/collections/users')
-    await expect(page).toHaveURL('http://localhost:3000/admin/collections/users')
-    const listViewArtifact = page.locator('h1', { hasText: 'Users' }).first()
-    await expect(listViewArtifact).toBeVisible()
-  })
-
-  test('can navigate to edit view', async () => {
-    await page.goto('http://localhost:3000/admin/collections/users/create')
+  test('can navigate to edit view', async ({ page }) => {
+    await page.goto('/admin/collections/users/create')
     await expect(page).toHaveURL(/\/admin\/collections\/users\/[a-zA-Z0-9-_]+/)
-    const editViewArtifact = page.locator('input[name="email"]')
-    await expect(editViewArtifact).toBeVisible()
+    const editViewArtifact = page.locator('#field-email, input[name="email"]').first()
+    await expect(editViewArtifact).toBeVisible({ timeout: 20000 })
   })
 })

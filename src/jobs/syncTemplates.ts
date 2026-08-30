@@ -83,7 +83,7 @@ export const syncTemplatesTask: TaskConfig = {
             (t.status as 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAUSED' | 'DISABLED' | undefined) ||
             undefined,
           openbspTemplateId: String(t.id ?? ''),
-          componentsJson: (t.components as unknown as Record<string, unknown>) ?? {},
+          componentsJson: t.components ?? {},
           tenant: tenant.id,
         }
 

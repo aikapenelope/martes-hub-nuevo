@@ -40,7 +40,12 @@ function TaskCard({ task, canEdit }: { task: Task; canEdit: boolean }) {
       {progress.total > 0 && (
         <div className="mt-2">
           <div className="flex justify-between text-[10px] font-mono text-zinc-500"><span>{progress.done}/{progress.total} subtareas</span><span>{progress.percent}%</span></div>
-          <progress max="100" value={progress.percent} className="mt-1 h-1 w-full accent-white" />
+          <progress
+            max="100"
+            value={progress.percent}
+            aria-label={`Progreso del checklist: ${progress.done} de ${progress.total} (${progress.percent}%)`}
+            className="mt-1 h-1 w-full accent-white"
+          />
         </div>
       )}
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-zinc-800 pt-2">

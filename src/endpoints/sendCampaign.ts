@@ -1,5 +1,5 @@
 import type { PayloadRequest } from 'payload'
-import type { EmailCampaign, User } from '@/payload-types'
+import type { User } from '@/payload-types'
 
 const EDITOR_ROLES = ['admin', 'agente']
 
@@ -22,14 +22,14 @@ export async function sendCampaignHandler(req: PayloadRequest): Promise<Response
     return Response.json({ error: 'id de campaña inválido' }, { status: 400 })
   }
 
-  const campaign = (await req.payload.findByID({
+  const campaign = await req.payload.findByID({
     collection: 'email-campaigns',
     id: campaignId,
     depth: 0,
     overrideAccess: false,
     user,
     req,
-  })) as unknown as EmailCampaign
+  })
 
   if (!campaign) return Response.json({ error: 'Campaña no encontrada' }, { status: 404 })
 

@@ -61,6 +61,11 @@ export async function importCsvHandler(req: PayloadRequest): Promise<Response> {
     return Response.json({ error: `El archivo excede el máximo permitido (${MAX_FILE_BYTES / 1024 / 1024} MB)` }, { status: 413 })
   }
 
+  const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
+  if (file.size > MAX_FILE_SIZE) {
+    return Response.json({ error: 'El archivo excede el tamaño máximo permitido (5MB)' }, { status: 413 })
+  }
+
   let rows: CsvRow[]
   try {
     rows = parse(await file.text(), {
@@ -74,6 +79,14 @@ export async function importCsvHandler(req: PayloadRequest): Promise<Response> {
   }
   if (rows.length > MAX_ROWS) {
     return Response.json({ error: `El CSV excede el máximo de ${MAX_ROWS} filas por importación` }, { status: 413 })
+  }
+
+  const MAX_ROWS = 1000
+  if (rows.length > MAX_ROWS) {
+    return Response.json(
+      { error: `El archivo contiene ${rows.length} filas. El límite por importación es de ${MAX_ROWS} filas.` },
+      { status: 400 },
+    )
   }
 
   const createdIds: Array<number | string> = []

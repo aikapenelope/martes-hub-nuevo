@@ -8,14 +8,27 @@
  */
 @import 'tailwindcss';
 
+:root {
+  --oled-bg: #000000;
+  --oled-card-bg: #08080a;
+  --oled-card-border: #16161c;
+  --oled-card-border-hover: #272732;
+  --oled-subcard-bg: #0d0d12;
+  --oled-subcard-border: #1a1a22;
+  --oled-subcard-border-hover: #2e2e3d;
+  --oled-accent-cyan: #38bdf8;
+  --oled-accent-indigo: #818cf8;
+}
+
 /*
- * Primitiva Dialog (src/components/workspace/ui.tsx): estiliza el
+ * Primitiva Dialog (src/components/workspace/ui.tsx y overlays.tsx): estiliza el
  * ::backdrop nativo del elemento <dialog>. Tailwind no expone un variant
  * `backdrop:` estable para pseudo-elementos de <dialog>, así que se define
  * aquí en vez de depender de una utility class.
  */
 .workspace-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
 }
 
 /* Torre de Control Comercial (/workspace, página de inicio): tarjetas OLED
@@ -23,20 +36,20 @@
  * Definidas aquí porque son efectos visuales puntuales (pseudo-elementos,
  * keyframes) que Tailwind no expresa limpiamente como utility classes. */
 .oled-card {
-  background-color: #08080a;
-  border: 1px solid #16161c;
+  background-color: var(--oled-card-bg);
+  border: 1px solid var(--oled-card-border);
   border-radius: 0px;
   position: relative;
 }
 .oled-card:hover {
-  border-color: #272732;
+  border-color: var(--oled-card-border-hover);
 }
 .oled-subcard {
-  background-color: #0d0d12;
-  border: 1px solid #1a1a22;
+  background-color: var(--oled-subcard-bg);
+  border: 1px solid var(--oled-subcard-border);
 }
 .oled-subcard:hover {
-  border-color: #2e2e3d;
+  border-color: var(--oled-subcard-border-hover);
 }
 
 .bracket-accent {
@@ -49,8 +62,8 @@
   left: -1px;
   width: 8px;
   height: 8px;
-  border-top: 2px solid #38bdf8;
-  border-left: 2px solid #38bdf8;
+  border-top: 2px solid var(--oled-accent-cyan);
+  border-left: 2px solid var(--oled-accent-cyan);
   pointer-events: none;
 }
 .bracket-accent::after {
@@ -60,8 +73,8 @@
   right: -1px;
   width: 8px;
   height: 8px;
-  border-bottom: 2px solid #818cf8;
-  border-right: 2px solid #818cf8;
+  border-bottom: 2px solid var(--oled-accent-indigo);
+  border-right: 2px solid var(--oled-accent-indigo);
   pointer-events: none;
 }
 
@@ -71,7 +84,8 @@
   border-radius: 0px;
   transition: transform 0.1s ease, outline 0.1s ease, filter 0.1s ease;
 }
-.heat-cell:hover {
+.heat-cell:hover,
+.heat-cell:focus-visible {
   transform: scale(1.45);
   outline: 1.5px solid #ffffff;
   filter: brightness(1.25);
@@ -109,5 +123,12 @@
 .pulse-glow {
   animation: pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Kanban column active drop target indicator */
+.kanban-column-drop-active {
+  border-color: #38bdf8 !important;
+  background-color: rgba(56, 189, 248, 0.04) !important;
+}
+
 
 

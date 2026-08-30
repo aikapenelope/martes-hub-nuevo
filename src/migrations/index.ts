@@ -91,9 +91,7 @@ export const migrations = [
     down: migration_20260830_030000_tasks_forms_summaries_ready.down,
     name: '20260830_030000_tasks_forms_summaries_ready'
   },
-  {
     up: migration_20260830_050000_performance_indexes_and_segments_unique.up,
     down: migration_20260830_050000_performance_indexes_and_segments_unique.down,
     name: '20260830_050000_performance_indexes_and_segments_unique'
-  },
 ];
