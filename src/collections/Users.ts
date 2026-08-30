@@ -1,6 +1,6 @@
-import type { CollectionConfig } from 'payload'
+import { APIError, type CollectionConfig } from 'payload'
 
-import { adminOnly } from '../access'
+import { adminOnly, fieldAdminOnly } from '../access'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -43,7 +43,7 @@ export const Users: CollectionConfig = {
     beforeLogin: [
       ({ user }) => {
         if (user.active === false) {
-          throw new Error('Esta cuenta está desactivada. Contacta a un administrador.')
+          throw new APIError('Esta cuenta está desactivada. Contacta a un administrador.', 403)
         }
       },
     ],
@@ -86,7 +86,9 @@ export const Users: CollectionConfig = {
       access: {
         // Antes cualquiera podía reactivarse a sí mismo (el `update` general
         // de la colección permite self-update sin restringir este campo).
-        update: ({ req }) => Boolean(req.user && 'roles' in req.user && req.user.roles?.includes('admin')),
+        // fieldAdminOnly ya existe en access/index.ts — reusado en vez de
+        // reimplementar el mismo check inline.
+        update: fieldAdminOnly,
       },
       admin: {
         position: 'sidebar',
