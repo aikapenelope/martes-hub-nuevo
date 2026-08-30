@@ -1100,10 +1100,6 @@ export interface PayloadMcpApiKey {
      * Allow clients to update clients.
      */
     update?: boolean | null;
-    /**
-     * Allow clients to delete clients.
-     */
-    delete?: boolean | null;
   };
   leads?: {
     /**
@@ -1118,10 +1114,6 @@ export interface PayloadMcpApiKey {
      * Allow clients to update leads.
      */
     update?: boolean | null;
-    /**
-     * Allow clients to delete leads.
-     */
-    delete?: boolean | null;
   };
   tasks?: {
     /**
@@ -1136,10 +1128,6 @@ export interface PayloadMcpApiKey {
      * Allow clients to update tasks.
      */
     update?: boolean | null;
-    /**
-     * Allow clients to delete tasks.
-     */
-    delete?: boolean | null;
   };
   payments?: {
     /**
@@ -2170,7 +2158,6 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         find?: T;
         create?: T;
         update?: T;
-        delete?: T;
       };
   leads?:
     | T
@@ -2178,7 +2165,6 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         find?: T;
         create?: T;
         update?: T;
-        delete?: T;
       };
   tasks?:
     | T
@@ -2186,7 +2172,6 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         find?: T;
         create?: T;
         update?: T;
-        delete?: T;
       };
   payments?:
     | T

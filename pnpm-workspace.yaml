@@ -14,4 +14,10 @@ onlyBuiltDependencies:
 overrides:
   dompurify: ^3.4.14
   esbuild: ^0.28.2
-  undici: ^8.10.0
+  # jsdom@28 (dependencia de vitest para tests con entorno DOM) requiere
+  # undici@^7.20.0 internamente (jsdom-dispatcher.js). Forzar la última
+  # mayor (8.x) rompe la resolución de módulos de jsdom en CI
+  # ("Cannot find module 'undici/lib/handler/wrap-handler.js'") — el
+  # layout interno de undici cambió entre 7.x y 8.x. Se fija a la última
+  # patch de la 7.x, que sigue resolviendo los CVEs relevantes.
+  undici: ^7.29.0
