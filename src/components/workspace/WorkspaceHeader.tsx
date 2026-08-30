@@ -10,6 +10,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ExternalLink } from 'lucide-react'
 
+import { NotificationBell } from '@/components/workspace/NotificationBell'
+
 const NAV_ITEMS = [
   { label: 'Resumen', href: '/workspace' },
   { label: 'CRM', href: '/workspace/crm' },
@@ -18,6 +20,8 @@ const NAV_ITEMS = [
   { label: 'Inbox', href: '/workspace/inbox' },
   { label: 'Social', href: '/workspace/social' },
   { label: 'Facturación', href: '/workspace/billing' },
+  { label: 'Membresías', href: '/workspace/memberships' },
+  { label: 'Documentos', href: '/workspace/documents' },
   { label: 'Analíticas', href: '/workspace/analytics' },
 ] as const
 
@@ -81,17 +85,20 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
           )}
         </nav>
 
-        {/* User chip */}
-        <div className="flex items-center gap-2 border border-zinc-800 bg-zinc-900 p-1 pr-3">
-          <span className="w-6 h-6 bg-white text-black font-extrabold text-xs flex items-center justify-center shrink-0">
-            {userInitials || 'MH'}
-          </span>
-          <span className="hidden text-left xl:block">
-            <span className="block text-xs font-bold text-white leading-tight">{userHandle}</span>
-            <span className="block text-[9px] text-zinc-400 font-mono">
-              {isAdmin ? 'ADMIN' : 'AGENTE'}
+        {/* Notificaciones + User chip */}
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <div className="flex items-center gap-2 border border-zinc-800 bg-zinc-900 p-1 pr-3">
+            <span className="w-6 h-6 bg-white text-black font-extrabold text-xs flex items-center justify-center shrink-0">
+              {userInitials || 'MH'}
             </span>
-          </span>
+            <span className="hidden text-left xl:block">
+              <span className="block text-xs font-bold text-white leading-tight">{userHandle}</span>
+              <span className="block text-[9px] text-zinc-400 font-mono">
+                {isAdmin ? 'ADMIN' : 'AGENTE'}
+              </span>
+            </span>
+          </div>
         </div>
       </div>
     </header>
