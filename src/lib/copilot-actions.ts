@@ -63,6 +63,92 @@ export async function copilotSearchCrm(query: string): Promise<CopilotSearchResu
   ]
 }
 
+/** Crea un nuevo prospecto (lead) enriquecido directamente desde el chat del asistente. */
+export async function copilotCreateLead(args: {
+  fullName: string
+  phone?: string
+  email?: string
+  companyName?: string
+  source?: 'manual' | 'google_maps' | 'puerta_fria' | 'whatsapp' | 'instagram_dm' | 'linkedin' | 'tally' | 'apify' | 'referido'
+  city?: string
+  estimatedValue?: number
+  commercialNotes?: string
+}): Promise<{ ok: true; leadId: number } | { ok: false; error: string }> {
+  try {
+    const context = await getWorkspaceContext()
+    if (!context.canEdit) return { ok: false, error: 'No tienes permiso para crear leads' }
+
+    const fullName = args.fullName.trim().slice(0, 150)
+    if (!fullName) return { ok: false, error: 'El nombre del prospecto es obligatorio' }
+
+    const lead = await context.payload.create({
+      collection: 'leads',
+      overrideAccess: false,
+      user: context.user,
+      data: {
+        fullName,
+        phone: args.phone?.trim(),
+        email: args.email?.trim(),
+        companyName: args.companyName?.trim(),
+        source: args.source || 'manual',
+        city: args.city?.trim(),
+        estimatedValue: typeof args.estimatedValue === 'number' && args.estimatedValue > 0 ? args.estimatedValue : undefined,
+        commercialNotes: args.commercialNotes?.trim(),
+        status: 'nuevo',
+      },
+    })
+
+    revalidatePath('/workspace/crm')
+    revalidatePath('/workspace')
+    return { ok: true, leadId: lead.id }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al crear prospecto' }
+  }
+}
+
+/** Actualiza la etapa o notas comerciales de un lead desde el asistente. */
+export async function copilotUpdateLeadStage(args: {
+  leadId: number
+  status: 'nuevo' | 'contactado' | 'calificado' | 'descartado'
+  notes?: string
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const context = await getWorkspaceContext()
+    if (!context.canEdit) return { ok: false, error: 'No tienes permiso para modificar leads' }
+
+    const check = await context.payload.find({
+      collection: 'leads',
+      limit: 1,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+      where: { and: [{ id: { equals: args.leadId } }, { tenant: { equals: context.tenantId } }] },
+    })
+    if (check.docs.length === 0) return { ok: false, error: 'Ese lead no existe en el tenant activo' }
+
+    const currentNotes = (check.docs[0] as Lead).commercialNotes || ''
+    const newNotes = args.notes ? (currentNotes ? `${currentNotes}\n[${new Date().toISOString().slice(0, 10)}] ${args.notes}` : args.notes) : currentNotes
+
+    await context.payload.update({
+      collection: 'leads',
+      id: args.leadId,
+      overrideAccess: false,
+      user: context.user,
+      data: {
+        status: args.status,
+        commercialNotes: newNotes,
+        lastContactedAt: new Date().toISOString(),
+      },
+    })
+
+    revalidatePath('/workspace/crm')
+    revalidatePath('/workspace')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al actualizar lead' }
+  }
+}
+
 /** Crea una tarea. `clientId`/`leadId` deben venir de un resultado real de copilotSearchCrm — nunca inventados por el modelo. */
 export async function copilotCreateTask(args: {
   title: string

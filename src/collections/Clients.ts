@@ -6,7 +6,7 @@ export const Clients: CollectionConfig = {
   slug: 'clients',
   admin: {
     useAsTitle: 'name',
-    defaultColumns: ['name', 'stage', 'assignedAgent', 'phone', 'updatedAt'],
+    defaultColumns: ['name', 'companyName', 'stage', 'city', 'assignedAgent', 'phone', 'updatedAt'],
     group: 'CRM',
   },
   access: {
@@ -74,6 +74,20 @@ export const Clients: CollectionConfig = {
       name: 'name',
       type: 'text',
       required: true,
+      label: 'Nombre del cliente o Contacto principal',
+    },
+    {
+      name: 'companyName',
+      type: 'text',
+      label: 'Empresa / Razón Social',
+    },
+    {
+      name: 'taxId',
+      type: 'text',
+      label: 'Documento fiscal / RIF / CIF',
+      admin: {
+        position: 'sidebar',
+      },
     },
     {
       name: 'stage',
@@ -107,20 +121,65 @@ export const Clients: CollectionConfig = {
       },
     },
     {
+      name: 'city',
+      type: 'text',
+      label: 'Ciudad',
+    },
+    {
+      name: 'state',
+      type: 'text',
+      label: 'Estado / Región',
+    },
+    {
+      name: 'address',
+      type: 'text',
+      label: 'Dirección física / Local comercial',
+    },
+    {
+      name: 'googleMapsUrl',
+      type: 'text',
+      label: 'Enlace Google Maps',
+    },
+    {
+      name: 'socialHandle',
+      type: 'text',
+      label: 'Usuario Red Social (IG/LinkedIn)',
+    },
+    {
       name: 'segment',
       type: 'relationship',
       relationTo: 'segments',
       label: 'Rubro / Segmento',
     },
     {
+      name: 'lastContactChannel',
+      type: 'select',
+      label: 'Último canal de contacto',
+      options: [
+        { label: 'WhatsApp', value: 'whatsapp' },
+        { label: 'Instagram DM', value: 'instagram_dm' },
+        { label: 'Llamada telefónica', value: 'llamada' },
+        { label: 'En persona / Visita', value: 'en_persona' },
+        { label: 'Correo electrónico', value: 'email' },
+        { label: 'Otro', value: 'otro' },
+      ],
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'lastContactedAt',
+      type: 'date',
+      label: 'Fecha de último contacto',
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'assignedAgent',
       type: 'relationship',
       relationTo: 'users',
       label: 'Agente asignado',
-      // `users` no está en el plugin multi-tenant (usa su propio array
-      // `tenants`, no una tenant plana) — sin este filtro por tenant, el
-      // desplegable de "Agente asignado" mostraba agentes de CUALQUIER
-      // tenant, no solo el del cliente que se está creando/editando.
       filterOptions: ({ data, siblingData }) => {
         const rawTenant = (data as { tenant?: number | { id: number } } | undefined)?.tenant
           ?? (siblingData as { tenant?: number | { id: number } } | undefined)?.tenant
@@ -130,6 +189,14 @@ export const Clients: CollectionConfig = {
           active: { equals: true },
           ...(tenantId ? { 'tenants.tenant': { in: [tenantId] } } : {}),
         }
+      },
+    },
+    {
+      name: 'commercialNotes',
+      type: 'textarea',
+      label: 'Comentarios comerciales y feedback presencial / WhatsApp',
+      admin: {
+        description: 'Notas de reuniones, requerimientos específicos, acuerdos y feedback del cliente.',
       },
     },
     {
@@ -150,7 +217,7 @@ export const Clients: CollectionConfig = {
     {
       name: 'notes',
       type: 'textarea',
-      label: 'Notas internas',
+      label: 'Notas internas generales',
     },
     {
       name: 'activities',

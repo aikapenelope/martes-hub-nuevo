@@ -9,7 +9,6 @@ import type {
   Lead,
   Message,
   Payment,
-  Task,
   User,
 } from '@/payload-types'
 import {
@@ -18,7 +17,14 @@ import {
   startOfLastMonthIso,
   type PaymentAggregate,
 } from './db-aggregates'
-import type { DayBucket, WorkspaceOverviewData, WorkspaceOverviewMetrics } from '@/components/workspace/overview/types'
+import type {
+  ChannelSourceMetric,
+  CockpitOperationalAlert,
+  DayBucket,
+  MonthlyCashflowPoint,
+  WorkspaceOverviewData,
+  WorkspaceOverviewMetrics,
+} from '@/components/workspace/overview/types'
 
 export { paymentsAggregate, startOfMonthIso, type PaymentAggregate }
 
@@ -56,6 +62,18 @@ function buildEmptyDayBuckets(): DayBucket[] {
   }))
 }
 
+const SOURCE_LABELS: Record<string, string> = {
+  google_maps: 'Google Maps / Local',
+  puerta_fria: 'Puerta Fría / Visita',
+  whatsapp: 'WhatsApp Directo',
+  instagram_dm: 'Instagram DM',
+  tally: 'Formulario Web / Tally',
+  apify: 'Apify Scraper',
+  referido: 'Referidos',
+  linkedin: 'LinkedIn',
+  manual: 'Ingreso Manual',
+}
+
 export async function getWorkspaceOverviewData({
   payload,
   user,
@@ -87,6 +105,8 @@ export async function getWorkspaceOverviewData({
     revenueLastMonth,
     revenuePending,
     overdueTasks,
+    overduePaymentsRes,
+    allLeadsRes,
     yearActivities,
     yearMessages,
     yearPaidPayments,
@@ -104,7 +124,7 @@ export async function getWorkspaceOverviewData({
       depth: 1,
       where: tenantWhere(tenantId, { status: { equals: 'pagado' } }),
     }),
-    q({ collection: 'conversations', limit: 20, sort: '-updatedAt', depth: 1, where: tenantWhere(tenantId) }),
+    q({ collection: 'conversations', limit: 30, sort: '-updatedAt', depth: 1, where: tenantWhere(tenantId) }),
     q({ collection: 'conversation-summaries', limit: 5, sort: '-createdAt', depth: 1, where: tenantWhere(tenantId) }),
     q({ collection: 'email-log', limit: 5, sort: '-createdAt', depth: 0, where: tenantWhere(tenantId) }),
     paymentsAggregate(payload, tenantId, ['pagado'], startOfMonth),
@@ -116,6 +136,17 @@ export async function getWorkspaceOverviewData({
       where: tenantWhere(tenantId, {
         and: [{ dueDate: { less_than: now.toISOString() } }, { status: { not_in: ['completada', 'cancelada'] } }],
       }),
+    }),
+    q({
+      collection: 'payments',
+      limit: 0,
+      where: tenantWhere(tenantId, { status: { equals: 'vencido' } }),
+    }),
+    q({
+      collection: 'leads',
+      limit: 500,
+      depth: 0,
+      where: tenantWhere(tenantId),
     }),
     q({ collection: 'activities', limit: 3000, depth: 0, where: tenantWhere(tenantId, { createdAt: { greater_than_equal: yearAgo } }) }),
     q({ collection: 'messages', limit: 3000, depth: 0, where: tenantWhere(tenantId, { createdAt: { greater_than_equal: yearAgo } }) }),
@@ -171,6 +202,72 @@ export async function getWorkspaceOverviewData({
   const rateNewToContacted = stageRate(leadsContactado.totalDocs, leadsNuevo.totalDocs)
   const rateContactedToQualified = stageRate(leadsCalificado.totalDocs, leadsContactado.totalDocs)
   const rateQualifiedToWon = stageRate(totalConvertedClients, leadsCalificado.totalDocs)
+
+  // Desglose de canales de origen (Google Maps, Puerta Fría, WhatsApp, etc.)
+  const sourceCounts: Record<string, number> = {}
+  const allLeads = allLeadsRes.docs as Lead[]
+  for (const l of allLeads) {
+    const s = l.source || 'manual'
+    sourceCounts[s] = (sourceCounts[s] || 0) + 1
+  }
+  const totalLeadsCount = allLeads.length || 1
+  const sourceBreakdown: ChannelSourceMetric[] = Object.entries(sourceCounts)
+    .map(([source, count]) => ({
+      source,
+      label: SOURCE_LABELS[source] || source,
+      count,
+      percentage: Math.round((count / totalLeadsCount) * 100),
+    }))
+    .sort((a, b) => b.count - a.count)
+
+  // Generación de Alertas Operativas Proactivas
+  const operationalAlerts: CockpitOperationalAlert[] = []
+
+  if (critical24hCount > 0) {
+    operationalAlerts.push({
+      id: 'whatsapp-24h-sla',
+      title: `${critical24hCount} conversación${critical24hCount > 1 ? 'es' : ''} de WhatsApp con ventana por expirar`,
+      subtitle: 'La ventana de atención de 24 horas de Meta está próxima a vencer (< 4h restantes). Responde ahora para evitar tarifas de plantilla.',
+      severity: 'critical',
+      href: '/workspace/inbox',
+      actionText: 'Abrir Inbox',
+      badge: 'Meta SLA',
+    })
+  }
+
+  if (overduePaymentsRes.totalDocs > 0) {
+    operationalAlerts.push({
+      id: 'payments-overdue',
+      title: `${overduePaymentsRes.totalDocs} cobro${overduePaymentsRes.totalDocs > 1 ? 's' : ''} vencido${overduePaymentsRes.totalDocs > 1 ? 's' : ''} pendiente${overduePaymentsRes.totalDocs > 1 ? 's' : ''}`,
+      subtitle: 'Hay cuentas por cobrar que han superado su fecha límite de pago acordada con el cliente.',
+      severity: 'warning',
+      href: '/workspace/billing',
+      actionText: 'Ver Facturación',
+      badge: 'Cobranza',
+    })
+  }
+
+  if (overdueTasks.totalDocs > 0) {
+    operationalAlerts.push({
+      id: 'tasks-overdue',
+      title: `${overdueTasks.totalDocs} tarea${overdueTasks.totalDocs > 1 ? 's' : ''} con fecha límite vencida`,
+      subtitle: 'Tareas operativas atrasadas que requieren reprogramación o seguimiento inmediato.',
+      severity: 'warning',
+      href: '/workspace/tasks',
+      actionText: 'Revisar Tareas',
+      badge: 'Operación',
+    })
+  }
+
+  // Puntos mensuales de flujo de caja simplificados
+  const currentMonthName = now.toLocaleDateString('es-ES', { month: 'short' }).toUpperCase()
+  const cashflowPoints: MonthlyCashflowPoint[] = [
+    {
+      monthName: currentMonthName,
+      paid: revenueMonth.total,
+      pending: revenuePending.total,
+    },
+  ]
 
   // Matriz de actividad de 364 días
   const dayBuckets = buildEmptyDayBuckets()
@@ -229,46 +326,10 @@ export async function getWorkspaceOverviewData({
     recentConversations: convList,
     recentSummaries: summaries,
     recentEmails: emails,
+    sourceBreakdown,
+    operationalAlerts,
+    cashflowPoints,
     nowTime,
     dateTitle,
-  }
-}
-
-/** Legacy helper para consultas directas de KPI si se requieren */
-export async function getOverviewData({ payload, user, tenantId }: OverviewOptions) {
-  const now = new Date()
-  const startOfMonth = startOfMonthIso()
-  const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString()
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
-
-  const query = <T extends Parameters<typeof payload.find>[0]>(options: T) =>
-    payload.find({ ...options, overrideAccess: false, user } as T)
-
-  const [clients, leads, newLeads, pendingTasks, urgentTasks, conversations, staleConversations, paidAggregate, duePayments, recentTasks] = await Promise.all([
-    query({ collection: 'clients', limit: 0, where: tenantWhere(tenantId, { stage: { equals: 'activo' } }) }),
-    query({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { status: { not_equals: 'descartado' } }) }),
-    query({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { createdAt: { greater_than_equal: sevenDaysAgo } }) }),
-    query({ collection: 'tasks', limit: 0, where: tenantWhere(tenantId, { status: { in: ['pendiente', 'en_progreso', 'bloqueada'] } }) }),
-    query({ collection: 'tasks', limit: 0, where: tenantWhere(tenantId, { and: [{ priority: { in: ['alta', 'urgente'] } }, { status: { in: ['pendiente', 'en_progreso', 'bloqueada'] } }] }) }),
-    query({ collection: 'conversations', limit: 0, where: tenantWhere(tenantId) }),
-    query({ collection: 'conversations', limit: 0, where: tenantWhere(tenantId, { lastInboundAt: { less_than_equal: fourHoursAgo } }) }),
-    paymentsAggregate(payload, tenantId, ['pagado'], startOfMonth),
-    query({ collection: 'payments', limit: 0, where: tenantWhere(tenantId, { status: { in: ['pendiente', 'vencido'] } }) }),
-    query({ collection: 'tasks', limit: 5, depth: 1, sort: 'dueDate', where: tenantWhere(tenantId, { status: { in: ['pendiente', 'en_progreso', 'bloqueada'] } }) }),
-  ])
-
-  return {
-    kpis: {
-      activeClients: clients.totalDocs,
-      openLeads: leads.totalDocs,
-      newLeads: newLeads.totalDocs,
-      pendingTasks: pendingTasks.totalDocs,
-      urgentTasks: urgentTasks.totalDocs,
-      conversations: conversations.totalDocs,
-      staleConversations: staleConversations.totalDocs,
-      collected: paidAggregate.total,
-      duePayments: duePayments.totalDocs,
-    },
-    tasks: recentTasks.docs as Task[],
   }
 }

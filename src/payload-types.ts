@@ -283,14 +283,27 @@ export interface Client {
   id: number;
   tenant?: (number | null) | Tenant;
   name: string;
+  companyName?: string | null;
+  taxId?: string | null;
   stage: 'nuevo' | 'activo' | 'inactivo' | 'perdido';
   email?: string | null;
   /**
    * Formato internacional sin +: ej 584121234567
    */
   phone?: string | null;
+  city?: string | null;
+  state?: string | null;
+  address?: string | null;
+  googleMapsUrl?: string | null;
+  socialHandle?: string | null;
   segment?: (number | null) | Segment;
+  lastContactChannel?: ('whatsapp' | 'instagram_dm' | 'llamada' | 'en_persona' | 'email' | 'otro') | null;
+  lastContactedAt?: string | null;
   assignedAgent?: (number | null) | User;
+  /**
+   * Notas de reuniones, requerimientos específicos, acuerdos y feedback del cliente.
+   */
+  commercialNotes?: string | null;
   consent?: boolean | null;
   /**
    * Si tiene fecha, no se le debe contactar
@@ -341,16 +354,41 @@ export interface Lead {
   id: number;
   tenant?: (number | null) | Tenant;
   fullName: string;
+  companyName?: string | null;
+  position?: string | null;
   status: 'nuevo' | 'contactado' | 'calificado' | 'descartado';
-  source: 'manual' | 'apify' | 'tally' | 'whatsapp' | 'instagram_dm' | 'referido';
+  source:
+    | 'manual'
+    | 'google_maps'
+    | 'puerta_fria'
+    | 'whatsapp'
+    | 'instagram_dm'
+    | 'linkedin'
+    | 'tally'
+    | 'apify'
+    | 'referido';
   phone?: string | null;
   email?: string | null;
+  city?: string | null;
+  state?: string | null;
+  address?: string | null;
+  /**
+   * URL de la ficha del negocio en Google Maps
+   */
+  googleMapsUrl?: string | null;
+  socialHandle?: string | null;
   segment?: (number | null) | Segment;
   /**
    * Estimación de la oportunidad; alimenta el pipeline del workspace
    */
   estimatedValue?: number | null;
+  lastContactChannel?: ('whatsapp' | 'instagram_dm' | 'llamada' | 'en_persona' | 'email' | 'otro') | null;
+  lastContactedAt?: string | null;
   assignedTo?: (number | null) | User;
+  /**
+   * Notas de reuniones, objeciones expresadas, acuerdos verbales y contexto comercial clave.
+   */
+  commercialNotes?: string | null;
   notes?: string | null;
   /**
    * Se llena automáticamente al convertir el lead
@@ -1575,11 +1613,21 @@ export interface UsersSelect<T extends boolean = true> {
 export interface ClientsSelect<T extends boolean = true> {
   tenant?: T;
   name?: T;
+  companyName?: T;
+  taxId?: T;
   stage?: T;
   email?: T;
   phone?: T;
+  city?: T;
+  state?: T;
+  address?: T;
+  googleMapsUrl?: T;
+  socialHandle?: T;
   segment?: T;
+  lastContactChannel?: T;
+  lastContactedAt?: T;
   assignedAgent?: T;
+  commercialNotes?: T;
   consent?: T;
   optOutAt?: T;
   notes?: T;
@@ -1594,13 +1642,23 @@ export interface ClientsSelect<T extends boolean = true> {
 export interface LeadsSelect<T extends boolean = true> {
   tenant?: T;
   fullName?: T;
+  companyName?: T;
+  position?: T;
   status?: T;
   source?: T;
   phone?: T;
   email?: T;
+  city?: T;
+  state?: T;
+  address?: T;
+  googleMapsUrl?: T;
+  socialHandle?: T;
   segment?: T;
   estimatedValue?: T;
+  lastContactChannel?: T;
+  lastContactedAt?: T;
   assignedTo?: T;
+  commercialNotes?: T;
   notes?: T;
   convertedClient?: T;
   kanbanStatus?: T;

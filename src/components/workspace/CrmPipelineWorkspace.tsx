@@ -13,7 +13,7 @@
  */
 
 import { useState, useTransition, type DragEvent } from 'react'
-import { Camera, CircleAlert, DollarSign, MessageCircle, UserRound } from 'lucide-react'
+import { Camera, CircleAlert, DollarSign, MapPin, MessageCircle, UserRound, Building2 } from 'lucide-react'
 
 import { EmptyState } from '@/components/workspace/ui'
 import { Drawer } from '@/components/workspace/overlays'
@@ -105,7 +105,14 @@ function PipelineCardView({
         </span>
         <div className="min-w-0 flex-1">
           <strong className="block truncate text-xs font-semibold text-white">{card.fullName}</strong>
-          <span className="block truncate text-[10px] font-mono text-zinc-500">{card.phone || 'Sin teléfono'}</span>
+          {card.companyName ? (
+            <span className="flex items-center gap-1 truncate text-[10px] font-medium text-zinc-300">
+              <Building2 size={10} className="shrink-0 text-zinc-500" />
+              {card.companyName}
+            </span>
+          ) : (
+            <span className="block truncate text-[10px] font-mono text-zinc-500">{card.phone || 'Sin teléfono'}</span>
+          )}
         </div>
         {showInactivityAlert && (
           <CircleAlert size={14} className="shrink-0 text-red-400" aria-label="Más de 30 minutos sin respuesta" />
@@ -113,6 +120,12 @@ function PipelineCardView({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {card.city && (
+          <span className="inline-flex items-center gap-1 border border-zinc-800 bg-zinc-900/60 px-1.5 py-0.5 text-[9px] font-mono text-zinc-400">
+            <MapPin size={9} />
+            {card.city}
+          </span>
+        )}
         {card.channel && (
           <span className="inline-flex items-center gap-1 border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[9px] font-mono text-zinc-300">
             {card.channel === 'instagram_dm' ? <Camera size={10} /> : <MessageCircle size={10} className="text-[#25d366]" />}

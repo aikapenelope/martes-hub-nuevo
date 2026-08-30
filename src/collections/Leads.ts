@@ -8,7 +8,7 @@ export const Leads: CollectionConfig = {
   slug: 'leads',
   admin: {
     useAsTitle: 'fullName',
-    defaultColumns: ['fullName', 'status', 'source', 'segment', 'createdAt'],
+    defaultColumns: ['fullName', 'status', 'source', 'segment', 'city', 'createdAt'],
     group: 'CRM',
   },
   access: {
@@ -23,7 +23,20 @@ export const Leads: CollectionConfig = {
       name: 'fullName',
       type: 'text',
       required: true,
-      label: 'Nombre',
+      label: 'Nombre completo o Contacto',
+    },
+    {
+      name: 'companyName',
+      type: 'text',
+      label: 'Empresa / Negocio',
+    },
+    {
+      name: 'position',
+      type: 'text',
+      label: 'Cargo / Rol',
+      admin: {
+        position: 'sidebar',
+      },
     },
     {
       name: 'status',
@@ -46,13 +59,16 @@ export const Leads: CollectionConfig = {
       type: 'select',
       required: true,
       defaultValue: 'manual',
-      label: 'Origen',
+      label: 'Origen / Canal de captación',
       options: [
         { label: 'Manual', value: 'manual' },
-        { label: 'Apify', value: 'apify' },
-        { label: 'Tally', value: 'tally' },
-        { label: 'WhatsApp', value: 'whatsapp' },
+        { label: 'Google Maps / Local', value: 'google_maps' },
+        { label: 'Puerta Fría / En Persona', value: 'puerta_fria' },
+        { label: 'WhatsApp Directo', value: 'whatsapp' },
         { label: 'Instagram DM', value: 'instagram_dm' },
+        { label: 'LinkedIn', value: 'linkedin' },
+        { label: 'Formulario Web / Tally', value: 'tally' },
+        { label: 'Apify Scraper', value: 'apify' },
         { label: 'Referido', value: 'referido' },
       ],
       admin: {
@@ -69,12 +85,41 @@ export const Leads: CollectionConfig = {
       name: 'email',
       type: 'email',
       index: true,
+      label: 'Correo Electrónico',
+    },
+    {
+      name: 'city',
+      type: 'text',
+      label: 'Ciudad',
+    },
+    {
+      name: 'state',
+      type: 'text',
+      label: 'Estado / Región',
+    },
+    {
+      name: 'address',
+      type: 'text',
+      label: 'Dirección física',
+    },
+    {
+      name: 'googleMapsUrl',
+      type: 'text',
+      label: 'Enlace Google Maps',
+      admin: {
+        description: 'URL de la ficha del negocio en Google Maps',
+      },
+    },
+    {
+      name: 'socialHandle',
+      type: 'text',
+      label: 'Usuario de Red Social (IG/LinkedIn)',
     },
     {
       name: 'segment',
       type: 'relationship',
       relationTo: 'segments',
-      label: 'Rubro',
+      label: 'Rubro / Segmento',
     },
     {
       name: 'estimatedValue',
@@ -87,14 +132,34 @@ export const Leads: CollectionConfig = {
       },
     },
     {
+      name: 'lastContactChannel',
+      type: 'select',
+      label: 'Último canal de contacto',
+      options: [
+        { label: 'WhatsApp', value: 'whatsapp' },
+        { label: 'Instagram DM', value: 'instagram_dm' },
+        { label: 'Llamada telefónica', value: 'llamada' },
+        { label: 'En persona / Visita', value: 'en_persona' },
+        { label: 'Correo electrónico', value: 'email' },
+        { label: 'Otro', value: 'otro' },
+      ],
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'lastContactedAt',
+      type: 'date',
+      label: 'Fecha de último contacto',
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'assignedTo',
       type: 'relationship',
       relationTo: 'users',
       label: 'Agente asignado',
-      // `users` no está en el plugin multi-tenant (usa su propio array
-      // `tenants`, no una tenant plana) — sin este filtro por tenant, el
-      // desplegable de "Agente asignado" mostraba agentes de CUALQUIER
-      // tenant, no solo el del lead que se está creando/editando.
       filterOptions: ({ data, siblingData }) => {
         const rawTenant = (data as { tenant?: number | { id: number } } | undefined)?.tenant
           ?? (siblingData as { tenant?: number | { id: number } } | undefined)?.tenant
@@ -110,8 +175,17 @@ export const Leads: CollectionConfig = {
       },
     },
     {
+      name: 'commercialNotes',
+      type: 'textarea',
+      label: 'Comentarios comerciales y feedback presencial / WhatsApp',
+      admin: {
+        description: 'Notas de reuniones, objeciones expresadas, acuerdos verbales y contexto comercial clave.',
+      },
+    },
+    {
       name: 'notes',
       type: 'textarea',
+      label: 'Notas internas generales',
     },
     {
       name: 'convertedClient',

@@ -5,6 +5,29 @@ export interface DayBucket {
   count: number
 }
 
+export interface ChannelSourceMetric {
+  source: string
+  label: string
+  count: number
+  percentage: number
+}
+
+export interface CockpitOperationalAlert {
+  id: string
+  title: string
+  subtitle: string
+  severity: 'critical' | 'warning' | 'info'
+  href: string
+  actionText: string
+  badge?: string
+}
+
+export interface MonthlyCashflowPoint {
+  monthName: string
+  paid: number
+  pending: number
+}
+
 export interface WorkspaceOverviewMetrics {
   totalLeadsActive: number
   totalConvertedClients: number
@@ -49,6 +72,9 @@ export interface WorkspaceOverviewData {
   recentConversations: Conversation[]
   recentSummaries: ConversationSummary[]
   recentEmails: EmailLog[]
+  sourceBreakdown: ChannelSourceMetric[]
+  operationalAlerts: CockpitOperationalAlert[]
+  cashflowPoints: MonthlyCashflowPoint[]
   nowTime: number
   dateTitle: string
 }
