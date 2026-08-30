@@ -30,7 +30,7 @@ function TaskCard({ task, canEdit }: { task: Task; canEdit: boolean }) {
   const progress = checklistProgress(task.checklist)
   const due = dueState(task.dueDate)
   return (
-    <article className="border border-zinc-800 bg-zinc-950 p-3">
+    <article className="oled-card p-3">
       <div className="flex items-center justify-between gap-2">
         <span className={`text-[10px] font-mono px-1.5 py-0.5 ${priorityCls[task.priority]}`}>{priorityLabel[task.priority]}</span>
         <span className={`flex items-center gap-1 text-[10px] font-mono ${dueCls[due]}`}><Clock3 size={12} />{dateLabel(task.dueDate)}</span>
@@ -90,7 +90,7 @@ export function TasksWorkspace({
 
   return (
     <>
-      <section className="border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
+      <section className="oled-card p-5 shadow-2xl">
         <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
           <div>
             <div className="mb-2 flex items-center gap-2 text-xs font-mono text-zinc-400 uppercase tracking-wider">
@@ -105,7 +105,7 @@ export function TasksWorkspace({
               <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono">
                 <Plus size={16} />Nueva tarea
               </summary>
-              <div className="mt-3 border border-zinc-800 bg-zinc-950 p-4">
+              <div className="mt-3 oled-card p-4">
                 <strong className="block text-sm text-white">Nueva tarea</strong>
                 <span className="text-xs text-zinc-400">Define el resultado y quién lo llevará.</span>
                 <TaskForm assignees={data.assignees} clients={data.clients} leads={data.leads} />
@@ -123,7 +123,7 @@ export function TasksWorkspace({
 
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-4" aria-label="Resumen de tareas">
         {metricCards.map(([value, label, note]) => (
-          <article key={label} className="border border-zinc-800 bg-zinc-950 p-4">
+          <article key={label} className="oled-card p-4">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-zinc-400 font-mono uppercase tracking-wider">{label}</span>
               {label === 'Vencidas' ? <CircleAlert size={16} className="text-red-400" /> : <CheckCircle2 size={16} className="text-zinc-500" />}
@@ -134,7 +134,7 @@ export function TasksWorkspace({
         ))}
       </section>
 
-      <form className="flex flex-wrap items-center gap-2 border border-zinc-800 bg-zinc-950 p-3">
+      <form className="flex flex-wrap items-center gap-2 oled-card p-3">
         <div className="inline-flex border border-zinc-800">
           <Link href="/workspace/tasks?vista=tablero" className={filters.view === 'tablero' ? 'px-3 py-1.5 text-xs font-bold bg-white text-black uppercase tracking-wider' : 'px-3 py-1.5 text-xs text-zinc-400 hover:text-white uppercase tracking-wider'}>Tablero</Link>
           <Link href="/workspace/tasks?vista=lista" className={filters.view === 'lista' ? 'px-3 py-1.5 text-xs font-bold bg-white text-black uppercase tracking-wider' : 'px-3 py-1.5 text-xs text-zinc-400 hover:text-white uppercase tracking-wider'}>Lista</Link>
@@ -170,7 +170,7 @@ export function TasksWorkspace({
       </form>
 
       {data.tasks.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 border border-zinc-800 bg-zinc-950 py-12 text-zinc-500">
+        <div className="flex flex-col items-center gap-2 oled-card py-12 text-zinc-500">
           <CheckCircle2 size={28} />
           <h2 className="text-sm text-white">No hay tareas en esta vista</h2>
           <p className="text-xs font-mono">Ajusta los filtros o crea la primera tarea para empezar.</p>
@@ -178,7 +178,7 @@ export function TasksWorkspace({
       ) : filters.view === 'tablero' ? (
         <section className="grid gap-3 lg:grid-cols-5" aria-label="Tablero de tareas">
           {data.columns.map((column) => (
-            <section key={column.status} className="border border-zinc-800 bg-zinc-950">
+            <section key={column.status} className="oled-card">
               <header className="flex items-center gap-2 border-b border-zinc-800 p-3">
                 <span className="h-2 w-2 rounded-full bg-white" />
                 <h2 className="flex-1 text-xs font-bold text-white uppercase tracking-wider">{statusLabel[column.status]}</h2>
@@ -191,7 +191,7 @@ export function TasksWorkspace({
           ))}
         </section>
       ) : (
-        <section className="border border-zinc-800 bg-zinc-950">
+        <section className="oled-card">
           <div className="grid grid-cols-5 gap-2 border-b border-zinc-800 px-4 py-2 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
             <span>Tarea</span><span>Estado</span><span>Prioridad</span><span>Responsable</span><span>Vencimiento</span>
           </div>
