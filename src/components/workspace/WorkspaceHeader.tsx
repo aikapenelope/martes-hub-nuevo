@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { label: 'Email', href: '/workspace/email' },
   { label: 'Rubros', href: '/workspace/segments' },
   { label: 'Plantillas', href: '/workspace/templates' },
+  { label: 'Equipo', href: '/workspace/team' },
   { label: 'Analíticas', href: '/workspace/analytics' },
 ] as const
 
