@@ -19,6 +19,15 @@ export function startOfMonthIso(): string {
   return `${y}-${m}-01T00:00:00.000Z`
 }
 
+/** Primer día del mes anterior, en UTC ISO — para comparativas mes contra mes. */
+export function startOfLastMonthIso(): string {
+  const now = new Date()
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const y = lastMonth.getFullYear()
+  const m = String(lastMonth.getMonth() + 1).padStart(2, '0')
+  return `${y}-${m}-01T00:00:00.000Z`
+}
+
 /**
  * Suma agregada de pagos por tenant usando SQL directo sobre el pool de
  * Postgres (en lugar de traer todas las filas a memoria). Devuelve 0 cuando
@@ -29,6 +38,7 @@ export async function paymentsAggregate(
   tenantId: number,
   statuses: string[],
   paidAfter?: string,
+  paidBefore?: string,
 ): Promise<PaymentAggregate> {
   const db = payload.db as { pool?: PoolLike }
   if (!db.pool || typeof db.pool.query !== 'function' || statuses.length === 0) {
@@ -40,6 +50,10 @@ export async function paymentsAggregate(
   if (paidAfter) {
     params.push(paidAfter)
     where += ` AND paid_at >= $${params.length}`
+  }
+  if (paidBefore) {
+    params.push(paidBefore)
+    where += ` AND paid_at < $${params.length}`
   }
 
   try {
