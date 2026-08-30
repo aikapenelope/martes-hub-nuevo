@@ -25,6 +25,7 @@ import { Messages } from './collections/Messages'
 import { MessageTemplates } from './collections/MessageTemplates'
 import { importCsvHandler } from './endpoints/importCsv'
 import { exportCsvHandler } from './endpoints/exportCsv'
+import { workspaceSearchHandler } from './endpoints/workspaceSearch'
 import { paymentRemindersTask } from './jobs/paymentReminders'
 import { dailyDigestTask } from './jobs/dailyDigest'
 import { syncTemplatesTask } from './jobs/syncTemplates'
@@ -326,6 +327,11 @@ export default buildConfig({
       path: '/export-csv',
       method: 'get',
       handler: exportCsvHandler,
+    },
+    {
+      path: '/workspace-search',
+      method: 'get',
+      handler: workspaceSearchHandler,
     },
     {
       path: '/webhooks/openbsp',

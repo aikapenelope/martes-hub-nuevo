@@ -8,7 +8,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Search } from 'lucide-react'
 
 import { NotificationBell } from '@/components/workspace/NotificationBell'
 
@@ -85,8 +85,18 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
           )}
         </nav>
 
-        {/* Notificaciones + User chip */}
+        {/* Notificaciones + Búsqueda + User chip */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Buscar (Ctrl/Cmd+K)"
+            onClick={() => window.dispatchEvent(new Event('workspace:open-search'))}
+            className="hidden sm:flex items-center gap-2 border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-400 hover:text-white"
+          >
+            <Search size={13} />
+            <span className="font-mono">Buscar</span>
+            <kbd className="border border-zinc-700 bg-zinc-950 px-1 text-[9px] font-mono">⌘K</kbd>
+          </button>
           <NotificationBell />
           <div className="flex items-center gap-2 border border-zinc-800 bg-zinc-900 p-1 pr-3">
             <span className="w-6 h-6 bg-white text-black font-extrabold text-xs flex items-center justify-center shrink-0">
