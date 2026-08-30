@@ -4,6 +4,8 @@ import type { User } from '@/payload-types'
 
 const IMPORTABLE = new Set(['clients', 'leads'])
 const EDITOR_ROLES = ['admin', 'agente']
+const MAX_FILE_BYTES = 5 * 1024 * 1024 // 5 MB
+const MAX_ROWS = 1000
 
 type CsvRow = Record<string, string>
 
@@ -54,6 +56,10 @@ export async function importCsvHandler(req: PayloadRequest): Promise<Response> {
   if (!(file instanceof File)) {
     return Response.json({ error: 'Falta el archivo CSV en el campo "file"' }, { status: 400 })
   }
+  // DoS: sin este límite, un archivo enorme podía agotar memoria/CPU parseándolo entero.
+  if (file.size > MAX_FILE_BYTES) {
+    return Response.json({ error: `El archivo excede el máximo permitido (${MAX_FILE_BYTES / 1024 / 1024} MB)` }, { status: 413 })
+  }
 
   let rows: CsvRow[]
   try {
@@ -65,6 +71,9 @@ export async function importCsvHandler(req: PayloadRequest): Promise<Response> {
     }) as CsvRow[]
   } catch {
     return Response.json({ error: 'CSV inválido' }, { status: 400 })
+  }
+  if (rows.length > MAX_ROWS) {
+    return Response.json({ error: `El CSV excede el máximo de ${MAX_ROWS} filas por importación` }, { status: 413 })
   }
 
   const createdIds: Array<number | string> = []

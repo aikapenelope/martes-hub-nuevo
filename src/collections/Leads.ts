@@ -91,9 +91,19 @@ export const Leads: CollectionConfig = {
       type: 'relationship',
       relationTo: 'users',
       label: 'Agente asignado',
-      filterOptions: {
-        roles: { in: AGENT_ROLES },
-        active: { equals: true },
+      // `users` no está en el plugin multi-tenant (usa su propio array
+      // `tenants`, no una tenant plana) — sin este filtro por tenant, el
+      // desplegable de "Agente asignado" mostraba agentes de CUALQUIER
+      // tenant, no solo el del lead que se está creando/editando.
+      filterOptions: ({ data, siblingData }) => {
+        const rawTenant = (data as { tenant?: number | { id: number } } | undefined)?.tenant
+          ?? (siblingData as { tenant?: number | { id: number } } | undefined)?.tenant
+        const tenantId = typeof rawTenant === 'object' && rawTenant !== null ? rawTenant.id : rawTenant
+        return {
+          roles: { in: AGENT_ROLES },
+          active: { equals: true },
+          ...(tenantId ? { 'tenants.tenant': { in: [tenantId] } } : {}),
+        }
       },
       admin: {
         position: 'sidebar',

@@ -374,8 +374,8 @@ export default buildConfig({
   ],
   secret: (() => {
     const secret = process.env.PAYLOAD_SECRET
-    if (!secret && process.env.VERCEL) {
-      throw new Error('FATAL: PAYLOAD_SECRET environment variable is required on Vercel deployments.')
+    if (!secret && (process.env.VERCEL || process.env.NODE_ENV === 'production')) {
+      throw new Error('FATAL: PAYLOAD_SECRET environment variable is required in production.')
     }
     return secret || 'martes-hub-build-secret-key-32chars-min'
   })(),
@@ -385,9 +385,16 @@ export default buildConfig({
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
-      max: 10,
+      // En Vercel Serverless cada invocación puede abrir su propio pool;
+      // con muchas invocaciones concurrentes, max:10 por instancia agota
+      // rápido el límite de conexiones del pooler de Neon. DB_POOL_MAX
+      // permite ajustar sin redeploy si el límite real del plan cambia.
+      max: process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX, 10) : process.env.VERCEL ? 3 : 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 15000,
+      // Reduce desconexiones por inactividad del pooler en conexiones serverless.
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
       ...(process.env.SUPABASE_CA_CERT || process.env.DATABASE_CA_CERT
         ? {
             ssl: {

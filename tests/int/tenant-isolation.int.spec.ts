@@ -50,4 +50,56 @@ describe('Seguridad de Aislamiento y Filtros Multi-Tenant', () => {
       expect(filters.assignee).toBe(42)
     })
   })
+
+  describe('Control de Acceso Multi-Tenant en Colecciones', () => {
+    it('Users.access.read restringe la visibilidad de usuarios no-admin a sus mismos tenants', async () => {
+      const { Users } = await import('@/collections/Users')
+      const readAccess = Users.access?.read
+      expect(typeof readAccess).toBe('function')
+      if (typeof readAccess !== 'function') return
+
+      // No autenticado -> false
+      expect(readAccess({ req: {} as never })).toBe(false)
+
+      // Admin global -> true (ve todo)
+      expect(
+        readAccess({ req: { user: { id: 1, roles: ['admin'] } } } as never),
+      ).toBe(true)
+
+      // Agente en tenant 10 -> acotado a sí mismo + usuarios de su tenant.
+      // El `or` con el propio id existe para que un usuario sin tenant
+      // asignado todavía no pierda la capacidad de leer su propio registro.
+      const agentConstraint = readAccess({
+        req: { user: { id: 42, roles: ['agente'], tenants: [{ tenant: 10 }] } },
+      } as never)
+      expect(agentConstraint).toEqual({
+        or: [{ id: { equals: 42 } }, { 'tenants.tenant': { in: [10] } }],
+      })
+    })
+
+    it('Clients.assignedAgent y Leads.assignedTo acotan el desplegable de agentes al tenant activo', async () => {
+      const { Clients } = await import('@/collections/Clients')
+      const { Leads } = await import('@/collections/Leads')
+
+      const assignedAgentField = Clients.fields.find(
+        (f) => 'name' in f && f.name === 'assignedAgent',
+      ) as { filterOptions?: (args: { data?: { tenant?: number } }) => unknown } | undefined
+      const assignedToField = Leads.fields.find(
+        (f) => 'name' in f && f.name === 'assignedTo',
+      ) as { filterOptions?: (args: { data?: { tenant?: number } }) => unknown } | undefined
+
+      expect(typeof assignedAgentField?.filterOptions).toBe('function')
+      expect(typeof assignedToField?.filterOptions).toBe('function')
+
+      expect(assignedAgentField?.filterOptions?.({ data: { tenant: 5 } })).toEqual({
+        roles: { in: ['admin', 'agente'] },
+        active: { equals: true },
+        'tenants.tenant': { in: [5] },
+      })
+      expect(assignedToField?.filterOptions?.({ data: { tenant: 5 } })).toMatchObject({
+        active: { equals: true },
+        'tenants.tenant': { in: [5] },
+      })
+    })
+  })
 })

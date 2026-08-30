@@ -53,7 +53,7 @@
     "react-dom": "19.2.6",
     "recharts": "^3.10.1",
     "server-only": "^0.0.1",
-    "sharp": "0.34.2",
+    "sharp": "^0.35.4",
     "svix": "^2.0.0",
     "tailwindcss": "^4.3.3",
     "zod": "^4.4.3"
@@ -77,13 +77,6 @@
   "engines": {
     "node": ">=24.15.0",
     "pnpm": "^9 || ^10 || ^11"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp",
-      "esbuild",
-      "unrs-resolver"
-    ]
   },
   "packageManager": "pnpm@10.34.5"
 }

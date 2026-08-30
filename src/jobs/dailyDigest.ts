@@ -1,6 +1,7 @@
 import type { TaskConfig } from 'payload'
 
 import { caracasDayRange, caracasIsoDate } from './paymentReminders'
+import { escapeHtml } from '@/lib/html-escape'
 
 export const dailyDigestTask: TaskConfig = {
   slug: 'daily-digest',
@@ -114,7 +115,7 @@ export const dailyDigestTask: TaskConfig = {
         const overdueLines = overdueToday.docs
           .map((p) => {
             const client = typeof p.client === 'object' ? p.client : null
-            return `<li>${client?.name ?? 'Cliente'} — $${p.amount?.toFixed(2)} — vencía ${String(p.dueDate).slice(0, 10)}</li>`
+            return `<li>${escapeHtml(client?.name ?? 'Cliente')} — $${p.amount?.toFixed(2)} — vencía ${String(p.dueDate).slice(0, 10)}</li>`
           })
           .join('')
 
@@ -122,7 +123,7 @@ export const dailyDigestTask: TaskConfig = {
           to,
           subject: `[${tenant.name}] Digest diario ${caracasIsoDate(0)}`,
           html: `
-            <h2>Digest diario — ${tenant.name}</h2>
+            <h2>Digest diario — ${escapeHtml(tenant.name)}</h2>
             <ul>
               <li>Pagos por vencer en los próximos 7 días: <strong>${dueSoon.totalDocs}</strong></li>
               <li>Pagos vencidos: <strong>${overdueToday.totalDocs}</strong></li>

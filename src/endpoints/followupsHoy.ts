@@ -42,22 +42,31 @@ async function resolveTenantId(req: PayloadRequest): Promise<number | null> {
   const user = req.user as User | null
   if (!user) return null
 
+  const isAdmin = user.roles?.includes('admin') ?? false
+  const userTenantIds = new Set(
+    (user.tenants ?? [])
+      .map((t) => (typeof t.tenant === 'object' && t.tenant !== null ? t.tenant.id : t.tenant))
+      .filter((id): id is number => typeof id === 'number'),
+  )
+
   const url = new URL(req.url ?? 'http://local.payload/api/followups/hoy')
   const qTenant = url.searchParams.get('tenant')
   if (qTenant) {
     const parsed = Number(qTenant)
-    if (Number.isInteger(parsed)) return parsed
+    // BOLA/IDOR: sin esta validación, cualquier usuario autenticado podía pasar
+    // ?tenant=<id de otro tenant> y leer sus leads/clientes/teléfonos, porque el
+    // resto del handler usa overrideAccess:true. Solo se honra si es admin o si
+    // el usuario realmente pertenece a ese tenant.
+    if (Number.isInteger(parsed) && (isAdmin || userTenantIds.has(parsed))) return parsed
   }
 
-  const userTenants = user.tenants
-  if (Array.isArray(userTenants) && userTenants.length > 0) {
-    const first = userTenants[0]?.tenant
-    const id = typeof first === 'object' && first !== null ? first.id : first
-    if (typeof id === 'number') return id
-  }
+  const first = [...userTenantIds][0]
+  if (typeof first === 'number') return first
 
-  const all = await req.payload.find({ collection: 'tenants', limit: 2, depth: 0, overrideAccess: true, req })
-  if (all.totalDocs === 1) return all.docs[0].id
+  if (isAdmin) {
+    const all = await req.payload.find({ collection: 'tenants', limit: 2, depth: 0, overrideAccess: true, req })
+    if (all.totalDocs === 1) return all.docs[0].id
+  }
 
   return null
 }

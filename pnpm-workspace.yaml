@@ -1,0 +1,23 @@
+packages:
+  - '.'
+
+# pnpm >=10.34 ya no lee `pnpm.onlyBuiltDependencies`/`pnpm.overrides` desde
+# package.json — con pnpm 11 el silencio es total (sin warning, el override
+# simplemente no se aplica y el lockfile revierte la versión vulnerable sin
+# aviso). Ver github.com/pnpm/pnpm/issues/11536. Esta es la ubicación
+# canónica desde pnpm 10.x en adelante.
+onlyBuiltDependencies:
+  - sharp
+  - esbuild
+  - unrs-resolver
+
+overrides:
+  dompurify: ^3.4.14
+  esbuild: ^0.28.2
+  # jsdom@28 (dependencia de vitest para tests con entorno DOM) requiere
+  # undici@^7.20.0 internamente (jsdom-dispatcher.js). Forzar la última
+  # mayor (8.x) rompe la resolución de módulos de jsdom en CI
+  # ("Cannot find module 'undici/lib/handler/wrap-handler.js'") — el
+  # layout interno de undici cambió entre 7.x y 8.x. Se fija a la última
+  # patch de la 7.x, que sigue resolviendo los CVEs relevantes.
+  undici: ^7.29.0

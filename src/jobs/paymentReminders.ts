@@ -1,5 +1,6 @@
 import type { PayloadRequest, TaskConfig } from 'payload'
 import type { Payment } from '@/payload-types'
+import { escapeHtml } from '@/lib/html-escape'
 
 export function caracasIsoDate(offsetDays: number): string {
   return new Date(Date.now() - 4 * 3_600_000 + offsetDays * 86_400_000).toISOString().slice(0, 10)
@@ -80,9 +81,9 @@ export const paymentRemindersTask: TaskConfig = {
         to: email,
         subject: `Recordatorio: pago de $${payment.amount?.toFixed(2)} vence mañana`,
         html: `
-          <p>Hola ${client?.name ?? ''},</p>
+          <p>Hola ${escapeHtml(client?.name ?? '')},</p>
           <p>Te recordamos que tu pago de <strong>$${payment.amount?.toFixed(2)} USD</strong>${
-            payment.concept ? ` (${payment.concept})` : ''
+            payment.concept ? ` (${escapeHtml(payment.concept)})` : ''
           } vence <strong>mañana</strong>.</p>
           <p>Quedamos atentos a tu confirmación.</p>
           <p style="color:#888">— Martes Hub</p>

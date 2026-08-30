@@ -16,6 +16,15 @@ export const DEV_USER = {
 }
 
 export async function seedDevUser(): Promise<void> {
+  // Guardia dura: este usuario tiene credenciales fijas y conocidas
+  // (dev@martes.local / "test") con rol admin. Ejecutarlo contra producción
+  // por accidente (un hook de deploy mal configurado, correrlo localmente
+  // con env vars de prod cargadas) crearía/mantendría una puerta trasera de
+  // superusuario con contraseña trivial.
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+    throw new Error('FATAL: seed-dev-user no puede ejecutarse en producción (NODE_ENV=production o VERCEL).')
+  }
+
   const payload = await getPayload({ config })
 
   const existing = await payload.find({
