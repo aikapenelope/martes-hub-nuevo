@@ -1,4 +1,4 @@
-import { APIError, type CollectionConfig } from 'payload'
+import { APIError, type CollectionConfig, type Where } from 'payload'
 
 import { adminOnly, fieldAdminOnly } from '../access'
 
@@ -23,8 +23,12 @@ export const Users: CollectionConfig = {
       const tenantIds = (('tenants' in req.user && req.user.tenants) || [])
         .map((t) => (typeof t.tenant === 'object' && t.tenant !== null ? t.tenant.id : t.tenant))
         .filter((id): id is number => typeof id === 'number')
-      if (tenantIds.length === 0) return false
-      return { 'tenants.tenant': { in: tenantIds } }
+      // El `or` con el propio id es a propósito: un usuario sin tenant
+      // asignado todavía (p. ej. recién creado, antes de onboarding) no
+      // debe perder la capacidad de leer su propio registro (/me, admin UI)
+      // solo porque `tenantIds` está vacío.
+      const orConditions: Where[] = [{ id: { equals: req.user.id } }, { 'tenants.tenant': { in: tenantIds } }]
+      return { or: orConditions }
     },
     create: adminOnly,
     update: ({ req, id }) => {
