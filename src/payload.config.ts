@@ -368,6 +368,8 @@ export default buildConfig({
       max: process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX, 10) : process.env.VERCEL ? 3 : 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 15000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
       ...(process.env.SUPABASE_CA_CERT || process.env.DATABASE_CA_CERT
         ? {
             ssl: {

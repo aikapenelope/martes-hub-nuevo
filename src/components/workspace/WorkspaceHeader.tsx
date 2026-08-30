@@ -52,13 +52,14 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
         </Link>
 
         {/* Nav */}
-        <nav className="order-3 flex w-full overflow-x-auto border border-zinc-800 bg-zinc-950 p-0.5 lg:order-none lg:mx-auto lg:w-auto">
+        <nav aria-label="Navegación principal del workspace" className="order-3 flex w-full overflow-x-auto border border-zinc-800 bg-zinc-950 p-0.5 lg:order-none lg:mx-auto lg:w-auto">
           {NAV_ITEMS.map(({ label, href }) => {
             const active = pathname === href || (href !== '/workspace' && pathname.startsWith(`${href}/`))
             return (
               <Link
                 key={href}
                 href={href}
+                aria-current={active ? 'page' : undefined}
                 className={
                   active
                     ? 'shrink-0 px-3.5 py-1 text-xs font-bold bg-white text-black uppercase tracking-wider'
@@ -74,9 +75,10 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
               href="/admin"
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="Panel de administración de Payload CMS (abre en nueva pestaña)"
               className="shrink-0 px-3.5 py-1 text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-900 uppercase tracking-wider transition inline-flex items-center gap-1"
             >
-              Admin <ExternalLink className="w-3 h-3" />
+              Admin <ExternalLink className="w-3 h-3" aria-hidden="true" />
             </a>
           )}
         </nav>

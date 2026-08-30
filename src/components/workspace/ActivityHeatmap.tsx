@@ -72,9 +72,13 @@ export function ActivityHeatmap({ daysData, totalInteractions }: ActivityHeatmap
                 {week.map((day) => (
                   <div
                     key={day.dateStr}
-                    className={`heat-cell heat-${levelFor(day.count, maxCount)}`}
+                    tabIndex={0}
+                    role="img"
+                    className={`heat-cell heat-${levelFor(day.count, maxCount)} cursor-pointer`}
                     onMouseEnter={() => setHovered(day)}
                     onMouseLeave={() => setHovered(null)}
+                    onFocus={() => setHovered(day)}
+                    onBlur={() => setHovered(null)}
                     aria-label={`${day.count} interacciones el ${day.dateStr}`}
                   />
                 ))}

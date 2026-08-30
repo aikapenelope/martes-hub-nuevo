@@ -5,6 +5,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react'
+import { Skeleton } from '@/components/workspace/ui'
 
 interface FollowUpItem {
   kind: 'lead' | 'client'
@@ -76,33 +77,43 @@ export default function HoyPage() {
         <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300">{error}</div>
       )}
 
+      {loading && items.length === 0 && (
+        <div className="border border-zinc-800 bg-zinc-950 p-4 space-y-3" aria-hidden="true">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+      )}
+
       {!loading && items.length === 0 && !error && (
         <div className="border border-zinc-800 bg-zinc-950 py-12 text-center text-sm text-zinc-400">
           Nada pendiente por hoy 🎉
         </div>
       )}
 
-      <div className="border border-zinc-800 bg-zinc-950">
-        {items.map((item) => (
-          <div key={`${item.kind}-${item.id}`} className="flex flex-wrap items-center gap-4 border-b border-zinc-900 px-4 py-3 last:border-0">
-            <span className={`shrink-0 text-[10px] font-mono px-1.5 py-0.5 ${item.kind === 'lead' ? 'bg-amber-900/50 text-amber-300 border border-amber-800' : 'bg-emerald-900/50 text-emerald-400 border border-emerald-800'}`}>
-              {item.kind === 'lead' ? 'Lead' : 'Cliente'}
-            </span>
-            <strong className="min-w-[10rem] text-sm text-white">{item.name}</strong>
-            <span className="text-xs text-zinc-400">{item.pipeline}</span>
-            <span className="flex-1 text-xs text-zinc-300">{item.reason}</span>
-            <a href={item.crmUrl} className="text-xs text-zinc-400 hover:text-white underline">Ver ficha</a>
-            <a
-              href={item.waLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 px-3 py-1.5 bg-[#25d366] text-black text-xs font-bold uppercase tracking-wider font-mono"
-            >
-              WhatsApp
-            </a>
-          </div>
-        ))}
-      </div>
+      {items.length > 0 && (
+        <div className="border border-zinc-800 bg-zinc-950">
+          {items.map((item) => (
+            <div key={`${item.kind}-${item.id}`} className="flex flex-wrap items-center gap-4 border-b border-zinc-900 px-4 py-3 last:border-0">
+              <span className={`shrink-0 text-[10px] font-mono px-1.5 py-0.5 ${item.kind === 'lead' ? 'bg-amber-900/50 text-amber-300 border border-amber-800' : 'bg-emerald-900/50 text-emerald-400 border border-emerald-800'}`}>
+                {item.kind === 'lead' ? 'Lead' : 'Cliente'}
+              </span>
+              <strong className="min-w-[10rem] text-sm text-white">{item.name}</strong>
+              <span className="text-xs text-zinc-400">{item.pipeline}</span>
+              <span className="flex-1 text-xs text-zinc-300">{item.reason}</span>
+              <a href={item.crmUrl} className="text-xs text-zinc-400 hover:text-white underline">Ver ficha</a>
+              <a
+                href={item.waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 px-3 py-1.5 bg-[#25d366] text-black text-xs font-bold uppercase tracking-wider font-mono"
+              >
+                WhatsApp
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   )
 }

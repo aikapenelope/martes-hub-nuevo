@@ -80,21 +80,24 @@ export function CrmLeadDrawer({
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <nav className="flex flex-wrap gap-1 border-b border-zinc-800 pb-2" aria-label="Secciones de la ficha">
+      <div role="tablist" className="flex flex-wrap gap-1 border-b border-zinc-800 pb-2" aria-label="Secciones de la ficha">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
+            id={`lead-tab-${key}`}
+            role="tab"
             type="button"
             onClick={() => setTab(key)}
-            aria-current={tab === key}
+            aria-selected={tab === key}
+            aria-controls={`lead-panel-${key}`}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider transition ${
               tab === key ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            <Icon size={12} /> {label}
+            <Icon size={12} aria-hidden="true" /> {label}
           </button>
         ))}
-      </nav>
+      </div>
 
       {loading && <p className="text-xs font-mono text-zinc-500">Cargando ficha…</p>}
       {error && (
@@ -104,7 +107,7 @@ export function CrmLeadDrawer({
       )}
 
       {data && !loading && (
-        <div className="flex-1 overflow-y-auto">
+        <div id={`lead-panel-${tab}`} role="tabpanel" aria-labelledby={`lead-tab-${tab}`} className="flex-1 overflow-y-auto">
           {tab === 'datos' && (
             <LeadDrawerDataTab lead={data.lead} canEdit={canEdit} assignees={assignees} segments={segments} onSaved={onUpdated} />
           )}

@@ -158,12 +158,14 @@ export function CrmPipelineWorkspace({
 }) {
   const [columns, setColumns] = useState(initialColumns)
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null)
+  const [dragOverStatus, setDragOverStatus] = useState<LeadStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
   function moveCard(leadId: number, newStatus: LeadStatus): void {
     if (!canEdit) return
     setError(null)
+    setDragOverStatus(null)
     const previousColumns = columns
 
     let moved: PipelineCard | undefined
@@ -206,11 +208,24 @@ export function CrmPipelineWorkspace({
         {columns.map((column) => (
           <section
             key={column.status}
-            className="flex flex-col border border-zinc-800 bg-zinc-950"
-            onDragOver={(event) => canEdit && event.preventDefault()}
+            className={`flex flex-col border bg-zinc-950 transition-colors ${
+              dragOverStatus === column.status
+                ? 'kanban-column-drop-active'
+                : 'border-zinc-800'
+            }`}
+            onDragOver={(event) => {
+              if (canEdit) {
+                event.preventDefault()
+                if (dragOverStatus !== column.status) setDragOverStatus(column.status)
+              }
+            }}
+            onDragLeave={() => {
+              if (dragOverStatus === column.status) setDragOverStatus(null)
+            }}
             onDrop={(event) => {
               if (!canEdit) return
               event.preventDefault()
+              setDragOverStatus(null)
               const leadId = Number(event.dataTransfer.getData('text/plain'))
               if (Number.isInteger(leadId)) moveCard(leadId, column.status)
             }}

@@ -2,8 +2,8 @@ import React from 'react'
 import './styles.css'
 
 export const metadata = {
-  description: 'A blank template using Payload in a Next.js app.',
-  title: 'Payload Blank Template',
+  title: 'Martes Hub — CRM & Operaciones',
+  description: 'CRM integral privado Martes Hub - Payload 3 + Neon + Vercel.',
 }
 
 export default async function RootLayout(props: { children: React.ReactNode }) {

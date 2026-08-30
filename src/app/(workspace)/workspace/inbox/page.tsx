@@ -6,6 +6,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react'
+import { Skeleton } from '@/components/workspace/ui'
 
 interface ConvItem {
   id: number
@@ -27,6 +28,7 @@ interface MsgItem {
 
 export default function InboxPage() {
   const [convs, setConvs] = useState<ConvItem[]>([])
+  const [loadingConvs, setLoadingConvs] = useState(true)
   const [selected, setSelected] = useState<number | null>(null)
   const [messages, setMessages] = useState<MsgItem[]>([])
   const [hasMore, setHasMore] = useState(false)
@@ -37,12 +39,16 @@ export default function InboxPage() {
   const messagesContainerRef = React.useRef<HTMLDivElement>(null)
 
   const loadConversations = useCallback(async () => {
-    const res = await fetch('/api/conversations?limit=50&sort=-lastMessageAt&depth=1', {
-      credentials: 'include',
-    })
-    if (res.ok) {
-      const data = (await res.json()) as { docs: ConvItem[] }
-      setConvs(data.docs)
+    try {
+      const res = await fetch('/api/conversations?limit=50&sort=-lastMessageAt&depth=1', {
+        credentials: 'include',
+      })
+      if (res.ok) {
+        const data = (await res.json()) as { docs: ConvItem[] }
+        setConvs(data.docs)
+      }
+    } finally {
+      setLoadingConvs(false)
     }
   }, [])
 
@@ -66,15 +72,14 @@ export default function InboxPage() {
     setLoadingOlder(false)
   }
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadConversations()
-  }, [loadConversations])
+  const handleSelect = (id: number) => {
+    setSelected(id)
+    void loadThread(id)
+  }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (selected !== null) void loadThread(selected)
-  }, [selected, loadThread])
+    void loadConversations()
+  }, [loadConversations])
 
   useEffect(() => {
     if (messagesContainerRef.current) {
@@ -117,11 +122,18 @@ export default function InboxPage() {
       <div className="grid gap-3 lg:grid-cols-[20rem_1fr]" style={{ minHeight: 'calc(100vh - 20rem)' }}>
         <div className="border border-zinc-800 bg-zinc-950 overflow-y-auto">
           <h2 className="border-b border-zinc-800 px-4 py-2.5 text-xs font-bold text-white uppercase tracking-wider">Conversaciones</h2>
-          {convs.length === 0 && <p className="p-4 text-xs text-zinc-500">Sin conversaciones todavía.</p>}
-          {convs.map((c) => (
+          {loadingConvs && (
+            <div className="p-4 space-y-3" aria-hidden="true">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          )}
+          {!loadingConvs && convs.length === 0 && <p className="p-4 text-xs text-zinc-500">Sin conversaciones todavía.</p>}
+          {!loadingConvs && convs.map((c) => (
             <button
               key={c.id}
-              onClick={() => setSelected(c.id)}
+              onClick={() => handleSelect(c.id)}
               className={`block w-full border-b border-zinc-900 px-4 py-3 text-left last:border-0 ${selected === c.id ? 'bg-zinc-900' : 'hover:bg-zinc-900/50'}`}
             >
               <strong className="block text-sm text-white">{typeof c.client === 'object' && c.client?.name ? c.client.name : c.contactAddress}</strong>
@@ -171,6 +183,7 @@ export default function InboxPage() {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder="Escribe tu respuesta…"
+                  aria-label="Escribe tu respuesta"
                   className="min-h-[3rem] flex-1 border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
