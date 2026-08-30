@@ -12,6 +12,7 @@ import * as migration_20260829_210000_fix_invoices_quotes_tenant from './2026082
 import * as migration_20260829_220000_lead_pipeline_fields from './20260829_220000_lead_pipeline_fields';
 import * as migration_20260830_010000_social_mcp_ready from './20260830_010000_social_mcp_ready';
 import * as migration_20260830_020000_mcp_api_keys_ready from './20260830_020000_mcp_api_keys_ready';
+import * as migration_20260830_030000_tasks_forms_summaries_ready from './20260830_030000_tasks_forms_summaries_ready';
 
 export const migrations = [
   {
@@ -83,5 +84,10 @@ export const migrations = [
     up: migration_20260830_020000_mcp_api_keys_ready.up,
     down: migration_20260830_020000_mcp_api_keys_ready.down,
     name: '20260830_020000_mcp_api_keys_ready'
+  },
+  {
+    up: migration_20260830_030000_tasks_forms_summaries_ready.up,
+    down: migration_20260830_030000_tasks_forms_summaries_ready.down,
+    name: '20260830_030000_tasks_forms_summaries_ready'
   },
 ];
