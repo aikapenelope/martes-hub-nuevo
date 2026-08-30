@@ -111,18 +111,20 @@ export const dailyDigestTask: TaskConfig = {
       req.payload.logger.info({ msg: 'daily-digest', tenant: tenant.name, summary })
 
       if (to) {
+        const safeTenantName = escapeHtml(tenant.name ?? '')
         const overdueLines = overdueToday.docs
           .map((p) => {
             const client = typeof p.client === 'object' ? p.client : null
-            return `<li>${client?.name ?? 'Cliente'} — $${p.amount?.toFixed(2)} — vencía ${String(p.dueDate).slice(0, 10)}</li>`
+            const safeClientName = escapeHtml(client?.name ?? 'Cliente')
+            return `<li>${safeClientName} — $${p.amount?.toFixed(2)} — vencía ${escapeHtml(String(p.dueDate).slice(0, 10))}</li>`
           })
           .join('')
 
         await req.payload.sendEmail({
           to,
-          subject: `[${tenant.name}] Digest diario ${caracasIsoDate(0)}`,
+          subject: `[${safeTenantName}] Digest diario ${caracasIsoDate(0)}`,
           html: `
-            <h2>Digest diario — ${tenant.name}</h2>
+            <h2>Digest diario — ${safeTenantName}</h2>
             <ul>
               <li>Pagos por vencer en los próximos 7 días: <strong>${dueSoon.totalDocs}</strong></li>
               <li>Pagos vencidos: <strong>${overdueToday.totalDocs}</strong></li>
@@ -144,5 +146,14 @@ export const dailyDigestTask: TaskConfig = {
       },
     }
   },
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
 }
 

@@ -49,7 +49,7 @@
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "server-only": "^0.0.1",
-    "sharp": "0.34.2",
+    "sharp": "^0.35.4",
     "svix": "^2.0.0",
     "tailwindcss": "^4.3.3",
     "zod": "^4.4.3"
@@ -75,6 +75,10 @@
     "pnpm": "^9 || ^10 || ^11"
   },
   "pnpm": {
+    "overrides": {
+      "dompurify": "^3.4.14",
+      "esbuild": "^0.25.0"
+    },
     "onlyBuiltDependencies": [
       "sharp",
       "esbuild",

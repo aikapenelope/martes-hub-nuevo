@@ -76,14 +76,15 @@ export const paymentRemindersTask: TaskConfig = {
         continue
       }
 
+      const safeClientName = escapeHtml(client?.name ?? '')
+      const safeConcept = payment.concept ? ` (${escapeHtml(payment.concept)})` : ''
+
       await req.payload.sendEmail({
         to: email,
         subject: `Recordatorio: pago de $${payment.amount?.toFixed(2)} vence mañana`,
         html: `
-          <p>Hola ${client?.name ?? ''},</p>
-          <p>Te recordamos que tu pago de <strong>$${payment.amount?.toFixed(2)} USD</strong>${
-            payment.concept ? ` (${payment.concept})` : ''
-          } vence <strong>mañana</strong>.</p>
+          <p>Hola ${safeClientName},</p>
+          <p>Te recordamos que tu pago de <strong>$${payment.amount?.toFixed(2)} USD</strong>${safeConcept} vence <strong>mañana</strong>.</p>
           <p>Quedamos atentos a tu confirmación.</p>
           <p style="color:#888">— Martes Hub</p>
         `,
@@ -108,4 +109,13 @@ export const paymentRemindersTask: TaskConfig = {
 
     return { output: { reminded, markedOverdue, skippedNoEmail } }
   },
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
 }

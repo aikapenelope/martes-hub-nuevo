@@ -354,8 +354,8 @@ export default buildConfig({
   ],
   secret: (() => {
     const secret = process.env.PAYLOAD_SECRET
-    if (!secret && process.env.VERCEL) {
-      throw new Error('FATAL: PAYLOAD_SECRET environment variable is required on Vercel deployments.')
+    if (!secret && (process.env.VERCEL || process.env.NODE_ENV === 'production')) {
+      throw new Error('FATAL: PAYLOAD_SECRET environment variable is required in production deployments.')
     }
     return secret || 'martes-hub-build-secret-key-32chars-min'
   })(),

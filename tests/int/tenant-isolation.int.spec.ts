@@ -50,4 +50,20 @@ describe('Seguridad de Aislamiento y Filtros Multi-Tenant', () => {
       expect(filters.assignee).toBe(42)
     })
   })
+
+  describe('Validación de Aislamiento y Timing-Safety', () => {
+    it('compara buffers de forma constante para evitar ataques de timing', async () => {
+      const crypto = await import('crypto')
+      const secret = 'super-secret-token-value-12345678'
+      const provided = 'super-secret-token-value-12345678'
+      const attacker = 'wrong-secret-token-value-12345678'
+
+      const bufSecret = Buffer.from(secret)
+      const bufProvided = Buffer.from(provided)
+      const bufAttacker = Buffer.from(attacker)
+
+      expect(crypto.timingSafeEqual(bufSecret, bufProvided)).toBe(true)
+      expect(crypto.timingSafeEqual(bufSecret, bufAttacker)).toBe(false)
+    })
+  })
 })

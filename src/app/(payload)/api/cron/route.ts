@@ -14,17 +14,30 @@
  *   CRON_SECRET=<random-secret> (Vercel lo añade automáticamente en proyectos Vercel Cron)
  */
 
+import crypto from 'crypto'
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 
 export async function GET(request: Request): Promise<Response> {
-  const authHeader = request.headers.get('authorization')
+  const authHeader = request.headers.get('authorization') ?? ''
   const cronSecret = process.env.CRON_SECRET
 
-  // En desarrollo sin CRON_SECRET configurado, permitir ejecución local.
-  // En producción el secret es obligatorio.
+  // Fail-closed en producción: si falta CRON_SECRET, bloquear el endpoint
+  if (process.env.NODE_ENV === 'production' && !cronSecret) {
+    return Response.json(
+      { error: 'CRON_SECRET no configurado en el servidor' },
+      { status: 503 },
+    )
+  }
+
   if (cronSecret) {
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    const expectedAuth = `Bearer ${cronSecret}`
+    const provided = Buffer.from(authHeader)
+    const expected = Buffer.from(expectedAuth)
+    const isAuthorized =
+      provided.length === expected.length && crypto.timingSafeEqual(provided, expected)
+
+    if (!isAuthorized) {
       return Response.json({ error: 'No autorizado' }, { status: 401 })
     }
   }

@@ -1,6 +1,6 @@
-import type { CollectionConfig } from 'payload'
+import { APIError, type CollectionConfig } from 'payload'
 
-import { adminOnly, authenticated } from '../access'
+import { adminOnly, authenticated, fieldAdminOnly } from '../access'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -19,6 +19,16 @@ export const Users: CollectionConfig = {
     },
     delete: adminOnly,
     admin: ({ req }) => Boolean(req.user && 'roles' in req.user && (req.user.roles?.includes('admin') || req.user.roles?.includes('agente'))),
+  },
+  hooks: {
+    afterLogin: [
+      ({ user }) => {
+        if (user.active === false) {
+          throw new APIError('Tu cuenta ha sido desactivada. Contacta a un administrador.', 403)
+        }
+        return user
+      },
+    ],
   },
   fields: [
     {
@@ -55,6 +65,9 @@ export const Users: CollectionConfig = {
       type: 'checkbox',
       defaultValue: true,
       label: 'Activo',
+      access: {
+        update: fieldAdminOnly,
+      },
       admin: {
         position: 'sidebar',
       },

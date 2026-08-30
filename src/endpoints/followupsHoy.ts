@@ -42,22 +42,26 @@ async function resolveTenantId(req: PayloadRequest): Promise<number | null> {
   const user = req.user as User | null
   if (!user) return null
 
+  const userTenants = (user.tenants || [])
+    .map((t) => (typeof t.tenant === 'object' && t.tenant ? t.tenant.id : t.tenant))
+    .filter((id): id is number => typeof id === 'number')
+
   const url = new URL(req.url ?? 'http://local.payload/api/followups/hoy')
   const qTenant = url.searchParams.get('tenant')
-  if (qTenant) {
-    const parsed = Number(qTenant)
-    if (Number.isInteger(parsed)) return parsed
+  const parsedTenantId = qTenant && Number.isInteger(Number(qTenant)) ? Number(qTenant) : null
+
+  if (parsedTenantId && (user.roles?.includes('admin') || userTenants.includes(parsedTenantId))) {
+    return parsedTenantId
   }
 
-  const userTenants = user.tenants
-  if (Array.isArray(userTenants) && userTenants.length > 0) {
-    const first = userTenants[0]?.tenant
-    const id = typeof first === 'object' && first !== null ? first.id : first
-    if (typeof id === 'number') return id
+  if (userTenants.length > 0) {
+    return userTenants[0]
   }
 
-  const all = await req.payload.find({ collection: 'tenants', limit: 2, depth: 0, overrideAccess: true, req })
-  if (all.totalDocs === 1) return all.docs[0].id
+  if (user.roles?.includes('admin')) {
+    const all = await req.payload.find({ collection: 'tenants', limit: 1, depth: 0, overrideAccess: true, req })
+    if (all.docs[0]) return all.docs[0].id
+  }
 
   return null
 }
