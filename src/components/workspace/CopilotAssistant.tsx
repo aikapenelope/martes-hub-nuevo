@@ -8,20 +8,26 @@
  *
  * Las herramientas (`useFrontendTool`) llaman Server Actions reales —
  * `copilot-actions.ts` — no son un chat de solo lectura: el asistente
- * puede buscar en el CRM, crear tareas y registrar cobros de verdad,
- * siempre respetando `overrideAccess:false` + el usuario autenticado.
+ * puede buscar en el CRM, registrar prospectos, actualizar estados,
+ * crear tareas y registrar cobros de verdad.
  */
 
 import { z } from 'zod'
 import { CopilotKit, CopilotSidebar, useFrontendTool } from '@copilotkit/react-core/v2'
 import '@copilotkit/react-core/v2/styles.css'
 
-import { copilotCreateTask, copilotRegisterPayment, copilotSearchCrm } from '@/lib/copilot-actions'
+import {
+  copilotCreateLead,
+  copilotCreateTask,
+  copilotRegisterPayment,
+  copilotSearchCrm,
+  copilotUpdateLeadStage,
+} from '@/lib/copilot-actions'
 
 function AssistantTools() {
   useFrontendTool({
     name: 'buscarEnCrm',
-    description: 'Busca leads o clientes por nombre, email o teléfono. Usa esto siempre antes de crear una tarea o cobro si no tienes el ID exacto.',
+    description: 'Busca prospectos (leads) o clientes por nombre, email o teléfono. Usa esto siempre antes de crear una tarea o cobro si no tienes el ID exacto.',
     parameters: z.object({ query: z.string().min(2).describe('Texto a buscar: nombre, email o teléfono') }),
     handler: async ({ query }) => {
       const results = await copilotSearchCrm(query)
@@ -31,8 +37,45 @@ function AssistantTools() {
   })
 
   useFrontendTool({
+    name: 'crearProspecto',
+    description: 'Crea un nuevo prospecto (lead) en el CRM con datos de contacto, empresa, origen (Google Maps, puerta fría, WhatsApp, etc.), ciudad y valor estimado.',
+    parameters: z.object({
+      fullName: z.string().min(1).describe('Nombre de la persona o contacto'),
+      companyName: z.string().optional().describe('Nombre de la empresa o negocio'),
+      phone: z.string().optional().describe('Teléfono / WhatsApp internacional sin +'),
+      email: z.string().optional().describe('Correo electrónico'),
+      source: z.enum([
+        'manual',
+        'google_maps',
+        'puerta_fria',
+        'whatsapp',
+        'instagram_dm',
+        'linkedin',
+        'tally',
+        'apify',
+        'referido',
+      ]).optional().describe('Canal de origen donde se descubrió el prospecto'),
+      city: z.string().optional().describe('Ciudad donde opera el negocio'),
+      estimatedValue: z.number().positive().optional().describe('Valor estimado de la oportunidad en USD'),
+      commercialNotes: z.string().optional().describe('Comentarios comerciales, objeciones o acuerdos'),
+    }),
+    handler: async (args) => copilotCreateLead(args),
+  })
+
+  useFrontendTool({
+    name: 'actualizarEtapaLead',
+    description: 'Actualiza la etapa de un lead (nuevo, contactado, calificado, descartado) y agrega notas comerciales tras una llamada, reunión o chat.',
+    parameters: z.object({
+      leadId: z.number().int().positive().describe('ID numérico del lead en el CRM'),
+      status: z.enum(['nuevo', 'contactado', 'calificado', 'descartado']).describe('Nueva etapa del pipeline'),
+      notes: z.string().optional().describe('Notas o comentarios de lo conversado'),
+    }),
+    handler: async (args) => copilotUpdateLeadStage(args),
+  })
+
+  useFrontendTool({
     name: 'crearTarea',
-    description: 'Crea una tarea en el workspace. Si la tarea es para un cliente o lead específico, usa buscarEnCrm primero para obtener el ID real.',
+    description: 'Crea una tarea interna en el workspace vinculada opcionalmente a un cliente o lead.',
     parameters: z.object({
       title: z.string().min(1).describe('Título de la tarea'),
       dueDate: z.string().optional().describe('Fecha límite en formato YYYY-MM-DD'),
@@ -64,9 +107,9 @@ export function CopilotAssistant() {
       <AssistantTools />
       <CopilotSidebar
         labels={{
-          modalHeaderTitle: 'Asistente del workspace',
-          welcomeMessageText: '¿Qué necesitas? Puedo buscar en el CRM, crear tareas o registrar cobros.',
-          chatInputPlaceholder: 'Ej: busca a Juan Pérez, o créale una tarea de seguimiento',
+          modalHeaderTitle: 'Copiloto Comercial Martes Hub',
+          welcomeMessageText: '¡Hola! Soy tu asistente de operaciones y CRM. Puedo crear prospectos, buscar en el CRM, cambiar etapas de leads, crear tareas o registrar cobros.',
+          chatInputPlaceholder: 'Ej: Registra un lead de Google Maps llamado Restaurante La Terraza, o busca a María',
         }}
       />
     </CopilotKit>

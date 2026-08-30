@@ -20,10 +20,13 @@ const clientLabels = {
 
 const sourceLabels: Record<Lead['source'], string> = {
   manual: 'Manual',
-  apify: 'Apify',
-  tally: 'Tally',
+  google_maps: 'Google Maps',
+  puerta_fria: 'Puerta Fría',
   whatsapp: 'WhatsApp',
   instagram_dm: 'Instagram',
+  linkedin: 'LinkedIn',
+  tally: 'Tally / Web',
+  apify: 'Apify',
   referido: 'Referido',
 }
 

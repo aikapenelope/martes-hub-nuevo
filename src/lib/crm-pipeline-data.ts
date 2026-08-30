@@ -10,10 +10,14 @@ const MAX_CARDS = LEAD_STATUSES.length * 60
 export interface PipelineCard {
   id: number
   fullName: string
+  companyName: string | null
+  city: string | null
+  source: string | null
   phone: string | null
   email: string | null
   estimatedValue: number | null
   assignedTo: { id: number; name: string } | null
+  commercialNotes: string | null
   notes: string | null
   status: LeadStatus
   createdAt: string
@@ -75,6 +79,10 @@ export async function getCrmPipelineData({
     where: { tenant: { equals: tenantId } },
     select: {
       fullName: true,
+      companyName: true,
+      city: true,
+      source: true,
+      commercialNotes: true,
       status: true,
       phone: true,
       email: true,
@@ -161,10 +169,14 @@ export async function getCrmPipelineData({
     return {
       id: lead.id,
       fullName: lead.fullName,
+      companyName: lead.companyName ?? null,
+      city: lead.city ?? null,
+      source: lead.source ?? null,
       phone: lead.phone ?? null,
       email: lead.email ?? null,
       estimatedValue: lead.estimatedValue ?? null,
       assignedTo: agentName(lead.assignedTo),
+      commercialNotes: lead.commercialNotes ?? null,
       notes: lead.notes ?? null,
       status: lead.status,
       createdAt: lead.createdAt,

@@ -90,5 +90,7 @@ describe('Torre de Control Comercial — getWorkspaceOverviewData', () => {
     expect(result.metrics.revenueTrendPct).toBeNull()
     expect(result.metrics.revenueMonthTotal).toBe(0)
     expect(result.hotLeads).toEqual([])
+    expect(result.sourceBreakdown).toEqual([])
+    expect(result.operationalAlerts).toEqual([])
   })
 })

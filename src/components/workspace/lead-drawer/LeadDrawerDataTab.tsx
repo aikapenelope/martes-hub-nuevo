@@ -5,7 +5,7 @@ import { updateLeadFieldsAction } from '@/lib/crm-pipeline-actions'
 import type { Lead, Segment, User } from '@/payload-types'
 
 const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
+  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600 font-sans'
 const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
 
 function relId(value: number | { id: number } | null | undefined): number | null {
@@ -41,11 +41,19 @@ export function LeadDrawerDataTab({
     const form = new FormData(event.currentTarget)
     const result = await updateLeadFieldsAction(lead.id, {
       fullName: String(form.get('fullName') ?? ''),
+      companyName: String(form.get('companyName') ?? ''),
+      position: String(form.get('position') ?? ''),
       phone: String(form.get('phone') ?? ''),
       email: String(form.get('email') ?? ''),
+      city: String(form.get('city') ?? ''),
+      address: String(form.get('address') ?? ''),
+      googleMapsUrl: String(form.get('googleMapsUrl') ?? ''),
+      socialHandle: String(form.get('socialHandle') ?? ''),
+      source: form.get('source') as 'manual' | 'google_maps' | 'puerta_fria' | 'whatsapp' | 'instagram_dm' | 'linkedin' | 'tally' | 'apify' | 'referido',
       segment: form.get('segment') ? Number(form.get('segment')) : null,
       estimatedValue: form.get('estimatedValue') ? Number(form.get('estimatedValue')) : null,
       assignedTo: form.get('assignedTo') ? Number(form.get('assignedTo')) : null,
+      commercialNotes: String(form.get('commercialNotes') ?? ''),
       notes: String(form.get('notes') ?? ''),
     })
     setSaving(false)
@@ -53,27 +61,77 @@ export function LeadDrawerDataTab({
       setError(result.error)
       return
     }
-    setFeedback('Cambios guardados.')
+    setFeedback('Cambios comerciales guardados.')
     onSaved?.()
   }
 
   return (
-    <form onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-3">
+    <form onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-3 pb-6">
       <fieldset disabled={!canEdit || saving} className="flex flex-col gap-3">
-        <label className={labelCls}>
-          Nombre
-          <input name="fullName" defaultValue={lead.fullName} maxLength={160} required className={inputCls} />
-        </label>
+        {/* Identidad y Empresa */}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={labelCls}>
-            Teléfono
-            <input name="phone" defaultValue={lead.phone ?? ''} className={inputCls} />
+            Nombre de Contacto
+            <input name="fullName" defaultValue={lead.fullName} maxLength={160} required className={inputCls} />
+          </label>
+          <label className={labelCls}>
+            Empresa / Negocio
+            <input name="companyName" defaultValue={lead.companyName ?? ''} placeholder="Ej: Restaurant La Terraza" className={inputCls} />
+          </label>
+        </div>
+
+        {/* Origen y Canal */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={labelCls}>
+            Canal de Origen
+            <select name="source" defaultValue={lead.source ?? 'manual'} className={inputCls}>
+              <option value="manual">Manual</option>
+              <option value="google_maps">Google Maps / Local</option>
+              <option value="puerta_fria">Puerta Fría / En Persona</option>
+              <option value="whatsapp">WhatsApp Directo</option>
+              <option value="instagram_dm">Instagram DM</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="tally">Formulario Web / Tally</option>
+              <option value="apify">Apify Scraper</option>
+              <option value="referido">Referido</option>
+            </select>
+          </label>
+          <label className={labelCls}>
+            Cargo / Rol
+            <input name="position" defaultValue={lead.position ?? ''} placeholder="Ej: Gerente General" className={inputCls} />
+          </label>
+        </div>
+
+        {/* Contacto */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={labelCls}>
+            Teléfono (WhatsApp)
+            <input name="phone" defaultValue={lead.phone ?? ''} placeholder="58412..." className={inputCls} />
           </label>
           <label className={labelCls}>
             Email
             <input name="email" type="email" defaultValue={lead.email ?? ''} className={inputCls} />
           </label>
         </div>
+
+        {/* Ubicación y Enlaces */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={labelCls}>
+            Ciudad
+            <input name="city" defaultValue={lead.city ?? ''} placeholder="Ej: Caracas" className={inputCls} />
+          </label>
+          <label className={labelCls}>
+            Red Social (IG / LinkedIn)
+            <input name="socialHandle" defaultValue={lead.socialHandle ?? ''} placeholder="@usuario" className={inputCls} />
+          </label>
+        </div>
+
+        <label className={labelCls}>
+          Enlace Google Maps
+          <input name="googleMapsUrl" defaultValue={lead.googleMapsUrl ?? ''} placeholder="https://maps.google.com/..." className={inputCls} />
+        </label>
+
+        {/* Segmento y Oportunidad */}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={labelCls}>
             Rubro
@@ -91,6 +149,7 @@ export function LeadDrawerDataTab({
             <input name="estimatedValue" type="number" min={0} defaultValue={lead.estimatedValue ?? ''} className={inputCls} />
           </label>
         </div>
+
         <label className={labelCls}>
           Agente asignado
           <select name="assignedTo" defaultValue={assignedToId ?? ''} className={inputCls}>
@@ -102,9 +161,21 @@ export function LeadDrawerDataTab({
             ))}
           </select>
         </label>
+
         <label className={labelCls}>
-          Notas internas
-          <textarea name="notes" rows={4} defaultValue={lead.notes ?? ''} className={inputCls} />
+          Comentarios Comerciales (WhatsApp / Presencial)
+          <textarea
+            name="commercialNotes"
+            rows={3}
+            defaultValue={lead.commercialNotes ?? ''}
+            placeholder="Feedback directo, objeciones expresadas, acuerdos verbales de reuniones..."
+            className={inputCls}
+          />
+        </label>
+
+        <label className={labelCls}>
+          Notas internas generales
+          <textarea name="notes" rows={2} defaultValue={lead.notes ?? ''} className={inputCls} />
         </label>
 
         {error && (
@@ -121,9 +192,9 @@ export function LeadDrawerDataTab({
           <button
             type="submit"
             disabled={saving}
-            className="self-start px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono disabled:opacity-50"
+            className="mt-2 self-start border border-white bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-black transition hover:bg-zinc-200 disabled:opacity-50"
           >
-            {saving ? 'Guardando…' : 'Guardar cambios'}
+            {saving ? 'Guardando...' : 'Guardar Cambios'}
           </button>
         )}
       </fieldset>

@@ -257,11 +257,21 @@ export async function updateLeadFieldsAction(
   leadId: number,
   input: {
     fullName: string
+    companyName?: string
+    position?: string
     phone?: string
     email?: string
+    city?: string
+    state?: string
+    address?: string
+    googleMapsUrl?: string
+    socialHandle?: string
+    source?: 'manual' | 'google_maps' | 'puerta_fria' | 'whatsapp' | 'instagram_dm' | 'linkedin' | 'tally' | 'apify' | 'referido'
     segment?: number | null
     estimatedValue?: number | null
     assignedTo?: number | null
+    lastContactChannel?: 'whatsapp' | 'instagram_dm' | 'llamada' | 'en_persona' | 'email' | 'otro'
+    commercialNotes?: string
     notes?: string
   },
 ): Promise<ActionResult> {
@@ -279,11 +289,21 @@ export async function updateLeadFieldsAction(
       user: context.user,
       data: {
         fullName,
+        companyName: input.companyName?.trim() || undefined,
+        position: input.position?.trim() || undefined,
         phone: input.phone?.trim() || undefined,
         email: input.email?.trim() || undefined,
+        city: input.city?.trim() || undefined,
+        state: input.state?.trim() || undefined,
+        address: input.address?.trim() || undefined,
+        googleMapsUrl: input.googleMapsUrl?.trim() || undefined,
+        socialHandle: input.socialHandle?.trim() || undefined,
+        source: input.source || undefined,
         segment: input.segment ?? undefined,
         estimatedValue: input.estimatedValue ?? undefined,
         assignedTo: input.assignedTo ?? undefined,
+        lastContactChannel: input.lastContactChannel || undefined,
+        commercialNotes: input.commercialNotes?.trim() || undefined,
         notes: input.notes?.trim() || undefined,
       },
     })
