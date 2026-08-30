@@ -1,3 +1,10 @@
+import { config as loadDotenv } from 'dotenv'
+loadDotenv()
+
+if (process.env.DATABASE_URL_DIRECT) {
+  process.env.DATABASE_URL = process.env.DATABASE_URL_DIRECT
+}
+
 import { getPayload } from 'payload'
 
 import config from '../src/payload.config.js'
@@ -51,3 +58,4 @@ export async function seedDevUser(): Promise<void> {
 }
 
 await seedDevUser()
+process.exit(0)

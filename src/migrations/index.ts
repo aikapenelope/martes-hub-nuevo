@@ -11,6 +11,7 @@ import * as migration_20260825_074436_facturacion_cotizaciones from './20260825_
 import * as migration_20260829_210000_fix_invoices_quotes_tenant from './20260829_210000_fix_invoices_quotes_tenant';
 import * as migration_20260829_220000_lead_pipeline_fields from './20260829_220000_lead_pipeline_fields';
 import * as migration_20260830_010000_social_mcp_ready from './20260830_010000_social_mcp_ready';
+import * as migration_20260830_013015_workspace_collections_sync from './20260830_013015_workspace_collections_sync';
 import * as migration_20260830_020000_mcp_api_keys_ready from './20260830_020000_mcp_api_keys_ready';
 
 export const migrations = [
@@ -57,12 +58,17 @@ export const migrations = [
   {
     up: migration_20260825_073712_import_export_plugin.up,
     down: migration_20260825_073712_import_export_plugin.down,
-    name: '20260825_073712_import_export_plugin'
+    name: '20260825_073712_import_export_plugin',
   },
   {
     up: migration_20260825_074436_facturacion_cotizaciones.up,
     down: migration_20260825_074436_facturacion_cotizaciones.down,
-    name: '20260825_074436_facturacion_cotizaciones'
+    name: '20260825_074436_facturacion_cotizaciones',
+  },
+  {
+    up: migration_20260830_013015_workspace_collections_sync.up,
+    down: migration_20260830_013015_workspace_collections_sync.down,
+    name: '20260830_013015_workspace_collections_sync'
   },
   {
     up: migration_20260829_210000_fix_invoices_quotes_tenant.up,

@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Martes Hub — Master Commercial Cockpit (Impeccable 10x Edition)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background-color: #070709;
+      color: #f1f5f9;
+      letter-spacing: -0.015em;
+    }
+    .font-mono {
+      font-family: var(--font-mono);
+      font-feature-settings: 'tnum' on, 'zero' on;
+    }
+    /* Deep Obsidian Surface Cards */
+    .card-surface {
+      background-color: #0f0f13;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 8px;
+      box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.6);
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    .card-surface:hover {
+      border-color: rgba(255, 255, 255, 0.13);
+    }
+    .card-subsurface {
+      background-color: #14141a;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+    }
+    .card-subsurface:hover {
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Icon Containers */
+    .icon-box {
+      width: 34px;
+      height: 34px;
+      background-color: #191922;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      transition: all 0.15s ease;
+    }
+    .icon-box:hover {
+      color: #ff5722;
+      border-color: rgba(255, 87, 34, 0.4);
+      background-color: #221a1f;
+    }
+
+    /* VU Equalizer Bar */
+    .vu-segment {
+      height: 4px;
+      border-radius: 1px;
+      background-color: #1e1e28;
+      margin-bottom: 2px;
+      transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .vu-active-orange {
+      background-color: #ff5722;
+      box-shadow: 0 0 8px rgba(255, 87, 34, 0.65);
+    }
+    .vu-active-cyan {
+      background-color: #38bdf8;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.65);
+    }
+    .vu-active-purple {
+      background-color: #a855f7;
+      box-shadow: 0 0 8px rgba(168, 85, 247, 0.65);
+    }
+    .vu-active-emerald {
+      background-color: #22c55e;
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.65);
+    }
+
+    /* Heatmap Square Matrix */
+    .heat-cell {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), outline 0.12s ease;
+    }
+    .heat-cell:hover {
+      transform: scale(1.5);
+      outline: 1.5px solid #ffffff;
+      z-index: 30;
+      box-shadow: 0 0 10px rgba(255, 87, 34, 0.8);
+    }
+    .heat-0 { background-color: #14141c; }
+    .heat-1 { background-color: #431407; }
+    .heat-2 { background-color: #9a3412; }
+    .heat-3 { background-color: #ea580c; }
+    .heat-4 { background-color: #ff5722; box-shadow: 0 0 8px rgba(255, 87, 34, 0.7); }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #070709;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #23232f;
+      border-radius: 2px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #ff5722;
+    }
+
+    /* Subtle Pulsing Beacon */
+    .pulse-beacon {
+      animation: pulseBeacon 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulseBeacon {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.85); }
+    }
+  </style>
+</head>
+<body class="min-h-screen selection:bg-orange-500 selection:text-black">
+
+  <div class="flex min-h-screen">
+
+    <!-- SIDEBAR DE NAVEGACIÓN (Obsidian Dark CloudGuard Edition) -->
+    <aside class="w-64 border-r border-white/[0.07] bg-[#09090c] p-4 flex flex-col justify-between hidden md:flex shrink-0">
+      <div class="space-y-6">
+        <!-- Logo & Brand Header -->
+        <div class="flex items-center gap-3 px-2">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#ff5722] to-[#ff7043] flex items-center justify-center text-black font-black text-sm font-mono shadow-[0_0_16px_rgba(255,87,34,0.5)]">
+            <i data-lucide="shield" class="w-4.5 h-4.5 text-black stroke-[2.5]"></i>
+          </div>
+          <div>
+            <span class="font-extrabold tracking-tight text-white uppercase font-mono text-sm block leading-tight">Martes Hub</span>
+            <span class="text-[9px] font-mono text-zinc-500 tracking-widest leading-none">COMMERCIAL OS</span>
+          </div>
+        </div>
+
+        <!-- Search Input with Keyboard Shortcut -->
+        <div class="relative">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-2.5"></i>
+          <input type="text" placeholder="Buscar en el CRM..." class="w-full bg-[#121217] border border-white/[0.06] rounded-md py-1.5 pl-8.5 pr-8 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#ff5722]/50 font-mono transition" />
+          <span class="absolute right-2.5 top-2 text-[10px] text-zinc-500 font-mono bg-[#1a1a22] px-1 py-0.2 rounded border border-white/[0.04]">⌘K</span>
+        </div>
+
+        <!-- Navigation Links -->
+        <div class="space-y-1">
+          <p class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest px-2 mb-2">Navegación Principal</p>
+          <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md bg-[#15151c] text-white font-semibold text-xs border-l-2 border-[#ff5722] transition shadow-sm">
+            <i data-lucide="layout-dashboard" class="w-4 h-4 text-[#ff5722]"></i> Dashboard
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-white hover:bg-[#15151c] text-xs transition">
+            <i data-lucide="kanban" class="w-4 h-4 text-zinc-500"></i> Pipeline de Ventas
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-white hover:bg-[#15151c] text-xs transition">
+            <i data-lucide="message-square" class="w-4 h-4 text-zinc-500"></i> Inbox Omnicanal <span class="ml-auto px-1.5 py-0.2 rounded bg-orange-500/20 text-[#ff5722] text-[10px] font-mono font-bold">4</span>
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-white hover:bg-[#15151c] text-xs transition">
+            <i data-lucide="check-square" class="w-4 h-4 text-zinc-500"></i> Tareas Operativas
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-white hover:bg-[#15151c] text-xs transition">
+            <i data-lucide="receipt" class="w-4 h-4 text-zinc-500"></i> Cobros & Finanzas
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-white hover:bg-[#15151c] text-xs transition">
+            <i data-lucide="bar-chart-3" class="w-4 h-4 text-zinc-500"></i> Analítica & KPIs
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-indigo-400 hover:text-white hover:bg-indigo-950/30 text-xs transition border-t border-white/[0.05] mt-2 pt-2.5">
+            <i data-lucide="bot" class="w-4 h-4"></i> Copiloto Hermes IA
+          </a>
+        </div>
+      </div>
+
+      <!-- User Profile Card -->
+      <div class="pt-4 border-t border-white/[0.06] flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-md bg-[#191922] border border-white/[0.08] flex items-center justify-center font-bold text-xs text-white font-mono shadow-inner">
+            AP
+          </div>
+          <div class="flex flex-col">
+            <span class="text-xs font-bold text-white leading-tight">Angel Peñalver</span>
+            <span class="text-[10px] text-zinc-500 font-mono leading-tight">Aika Penelope</span>
+          </div>
+        </div>
+        <i data-lucide="log-out" class="w-4 h-4 text-zinc-500 hover:text-white cursor-pointer transition"></i>
+      </div>
+    </aside>
+
+    <!-- ÁREA DE CONTENIDO PRINCIPAL -->
+    <div class="flex-1 overflow-y-auto">
+      
+      <!-- Top Status Strip -->
+      <header class="border-b border-white/[0.07] bg-[#0b0b0e] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 text-[10px] font-mono text-zinc-400 uppercase tracking-widest mb-0.5">
+            <span class="w-2 h-2 rounded-full bg-[#ff5722] pulse-beacon"></span>
+            <span>TELEMETRÍA EN VIVO · NODO CARACAS-01</span>
+          </div>
+          <h1 class="text-xl font-bold tracking-tight text-white">
+            Bienvenido de vuelta, <span class="text-[#ff5722]">Angel</span>
+          </h1>
+          <p class="text-xs text-zinc-400 font-mono mt-0.5">
+            Salud operativa de canales en <strong class="text-[#ff5722]">99.93%</strong> · 0 incidentes en 24h.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Range Filter -->
+          <div class="flex items-center gap-1 bg-[#121217] border border-white/[0.07] rounded-md p-1 font-mono text-xs">
+            <button onclick="setRange('week')" id="btn-week" class="px-2.5 py-1 rounded bg-[#1c1c24] text-white font-bold transition">Semana</button>
+            <button onclick="setRange('month')" id="btn-month" class="px-2.5 py-1 text-zinc-400 hover:text-white transition">Mes</button>
+            <button onclick="setRange('quarter')" id="btn-quarter" class="px-2.5 py-1 text-zinc-400 hover:text-white transition">Trimestre</button>
+          </div>
+          <!-- Action Button -->
+          <button class="px-4 py-2 rounded-md bg-[#ff5722] hover:bg-[#f4511e] text-black font-extrabold text-xs font-mono flex items-center gap-2 transition shadow-[0_0_16px_rgba(255,87,34,0.45)]">
+            <i data-lucide="plus" class="w-4 h-4 stroke-[2.5]"></i> + Nuevo Lead
+          </button>
+        </div>
+      </header>
+
+      <main class="p-6 space-y-6 max-w-[1680px] mx-auto">
+
+        <!-- 4 TOP HIGH-DENSITY KPI CARDS -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <!-- Card 1: Chats Activos -->
+          <div class="p-4 card-surface space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="icon-box">
+                  <i data-lucide="message-circle" class="w-4 h-4"></i>
+                </div>
+                <span class="text-xs font-semibold text-zinc-300">Chats WhatsApp Activos</span>
+              </div>
+              <i data-lucide="more-vertical" class="w-4 h-4 text-zinc-500 hover:text-white cursor-pointer transition"></i>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="text-3xl font-extrabold text-white font-mono">54</span>
+              <span class="text-xs text-zinc-500 font-mono">en conversación</span>
+            </div>
+            <div class="flex items-center justify-between text-[11px] font-mono pt-2 border-t border-white/[0.06]">
+              <span class="text-zinc-500">Tendencia estable</span>
+              <span class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold flex items-center gap-0.5 border border-emerald-500/20">
+                ▲ +8.2%
+              </span>
+            </div>
+          </div>
+
+          <!-- Card 2: SLA Primer Contacto -->
+          <div class="p-4 card-surface space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="icon-box">
+                  <i data-lucide="zap" class="w-4 h-4 text-[#ff5722]"></i>
+                </div>
+                <span class="text-xs font-semibold text-zinc-300">SLA Primer Contacto</span>
+              </div>
+              <i data-lucide="more-vertical" class="w-4 h-4 text-zinc-500 hover:text-white cursor-pointer transition"></i>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="text-3xl font-extrabold text-white font-mono">3.8 min</span>
+              <span class="text-xs text-zinc-500 font-mono">tiempo medio</span>
+            </div>
+            <div class="flex items-center justify-between text-[11px] font-mono pt-2 border-t border-white/[0.06]">
+              <span class="text-zinc-500">Objetivo &lt; 8 min</span>
+              <span class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold flex items-center gap-0.5 border border-emerald-500/20">
+                ▼ -2.1m veloz
+              </span>
+            </div>
+          </div>
+
+          <!-- Card 3: Facturación Cobrada -->
+          <div class="p-4 card-surface space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="icon-box">
+                  <i data-lucide="badge-dollar-sign" class="w-4 h-4 text-sky-400"></i>
+                </div>
+                <span class="text-xs font-semibold text-zinc-300">Facturación Cobrada</span>
+              </div>
+              <i data-lucide="more-vertical" class="w-4 h-4 text-zinc-500 hover:text-white cursor-pointer transition"></i>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="text-3xl font-extrabold text-white font-mono">$24,850</span>
+              <span class="text-xs text-zinc-500 font-mono">USD</span>
+            </div>
+            <div class="flex items-center justify-between text-[11px] font-mono pt-2 border-t border-white/[0.06]">
+              <span class="text-zinc-500">82.8% de meta mensual</span>
+              <span class="px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 font-bold flex items-center gap-0.5 border border-sky-500/20">
+                ▲ +14.5%
+              </span>
+            </div>
+          </div>
+
+          <!-- Card 4: Salud Ventana Meta 24h -->
+          <div class="p-4 card-surface space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="icon-box">
+                  <i data-lucide="shield-alert" class="w-4 h-4 text-[#ff5722]"></i>
+                </div>
+                <span class="text-xs font-semibold text-zinc-300">Salud Ventana Meta 24h</span>
+              </div>
+              <i data-lucide="more-vertical" class="w-4 h-4 text-zinc-500 hover:text-white cursor-pointer transition"></i>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="text-3xl font-extrabold text-white font-mono">96.4%</span>
+              <span class="text-xs text-zinc-500 font-mono">abiertas</span>
+            </div>
+            <div class="flex items-center justify-between text-[11px] font-mono pt-2 border-t border-white/[0.06]">
+              <span class="text-zinc-500">2 chats por vencer</span>
+              <span class="px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 font-bold flex items-center gap-0.5 border border-amber-500/20">
+                ⚠️ Requiere Acción
+              </span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- MAIN INTERACTIVE MULTI-SERIE CHART + VU-METERS (CloudGuard Core System) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          
+          <!-- Chart (8 Cols) -->
+          <div class="lg:col-span-8 p-5 card-surface space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
+              <div class="flex items-center gap-3">
+                <div class="icon-box">
+                  <i data-lucide="activity" class="w-4 h-4 text-[#ff5722]"></i>
+                </div>
+                <div>
+                  <h2 class="text-sm font-bold text-white">Velocidad Comercial & Tráfico de Interacciones</h2>
+                  <!-- Dynamic Clickable Legend -->
+                  <div class="flex flex-wrap items-center gap-4 text-[11px] font-mono text-zinc-400 mt-1">
+                    <button onclick="toggleDataset(0)" class="flex items-center gap-1.5 hover:text-white transition cursor-pointer">
+                      <span class="w-2.5 h-2.5 rounded-full bg-[#ff5722] shadow-[0_0_6px_rgba(255,87,34,0.6)]"></span> WhatsApp Inbound
+                    </button>
+                    <button onclick="toggleDataset(1)" class="flex items-center gap-1.5 hover:text-white transition cursor-pointer">
+                      <span class="w-2.5 h-2.5 rounded-full bg-[#38bdf8] shadow-[0_0_6px_rgba(56,189,248,0.6)]"></span> Leads Calificados
+                    </button>
+                    <button onclick="toggleDataset(2)" class="flex items-center gap-1.5 hover:text-white transition cursor-pointer">
+                      <span class="w-2.5 h-2.5 rounded-full bg-[#a855f7] shadow-[0_0_6px_rgba(168,85,247,0.6)]"></span> Emails Resend
+                    </button>
+                    <button onclick="toggleDataset(3)" class="flex items-center gap-1.5 hover:text-white transition cursor-pointer">
+                      <span class="w-2.5 h-2.5 rounded-full bg-[#22c55e] shadow-[0_0_6px_rgba(34,197,94,0.6)]"></span> Cobros ($)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- View Switch -->
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest hidden sm:inline">LIVE STREAM</span>
+                <div class="flex items-center border border-white/[0.07] bg-[#121217] rounded p-0.5">
+                  <button class="p-1.5 rounded bg-[#1c1c24] text-white"><i data-lucide="line-chart" class="w-3.5 h-3.5 text-[#ff5722]"></i></button>
+                  <button class="p-1.5 text-zinc-500 hover:text-white"><i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i></button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Canvas -->
+            <div class="h-64 w-full relative">
+              <canvas id="commercialChart"></canvas>
+            </div>
+          </div>
+
+          <!-- VU-Meters Equalizer & Telemetry (4 Cols) -->
+          <div class="lg:col-span-4 p-5 card-surface space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+              <div class="flex items-center gap-2.5">
+                <div class="icon-box">
+                  <i data-lucide="sliders" class="w-4 h-4 text-[#ff5722]"></i>
+                </div>
+                <div>
+                  <h3 class="text-sm font-bold text-white">Canales & Carga Operativa</h3>
+                  <p class="text-[10px] font-mono text-zinc-500">Capacidad de respuesta en tiempo real</p>
+                </div>
+              </div>
+              <span class="w-2 h-2 rounded-full bg-[#ff5722] pulse-beacon"></span>
+            </div>
+
+            <!-- 4 Equalizers / VU Meters -->
+            <div class="grid grid-cols-4 gap-2.5 text-center">
+              
+              <!-- WhatsApp -->
+              <div class="space-y-1.5">
+                <p class="text-[10px] font-mono text-zinc-400 truncate">WhatsApp</p>
+                <div class="bg-[#14141a] p-1.5 rounded border border-white/[0.05] flex flex-col-reverse justify-start h-32">
+                  <div class="vu-segment vu-active-orange"></div>
+                  <div class="vu-segment vu-active-orange"></div>
+                  <div class="vu-segment vu-active-orange"></div>
+                  <div class="vu-segment vu-active-orange"></div>
+                  <div class="vu-segment vu-active-orange"></div>
+                  <div class="vu-segment vu-active-orange"></div>
+                  <div class="vu-segment vu-active-orange"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                </div>
+                <span class="text-xs font-mono font-bold text-[#ff5722] block">72%</span>
+              </div>
+
+              <!-- Emails -->
+              <div class="space-y-1.5">
+                <p class="text-[10px] font-mono text-zinc-400 truncate">Emails</p>
+                <div class="bg-[#14141a] p-1.5 rounded border border-white/[0.05] flex flex-col-reverse justify-start h-32">
+                  <div class="vu-segment vu-active-purple"></div>
+                  <div class="vu-segment vu-active-purple"></div>
+                  <div class="vu-segment vu-active-purple"></div>
+                  <div class="vu-segment vu-active-purple"></div>
+                  <div class="vu-segment vu-active-purple"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                </div>
+                <span class="text-xs font-mono font-bold text-purple-400 block">50%</span>
+              </div>
+
+              <!-- Pipeline -->
+              <div class="space-y-1.5">
+                <p class="text-[10px] font-mono text-zinc-400 truncate">Pipeline</p>
+                <div class="bg-[#14141a] p-1.5 rounded border border-white/[0.05] flex flex-col-reverse justify-start h-32">
+                  <div class="vu-segment vu-active-cyan"></div>
+                  <div class="vu-segment vu-active-cyan"></div>
+                  <div class="vu-segment vu-active-cyan"></div>
+                  <div class="vu-segment vu-active-cyan"></div>
+                  <div class="vu-segment vu-active-cyan"></div>
+                  <div class="vu-segment vu-active-cyan"></div>
+                  <div class="vu-segment vu-active-cyan"></div>
+                  <div class="vu-segment vu-active-cyan"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                </div>
+                <span class="text-xs font-mono font-bold text-sky-400 block">84%</span>
+              </div>
+
+              <!-- Copiloto IA -->
+              <div class="space-y-1.5">
+                <p class="text-[10px] font-mono text-zinc-400 truncate">Hermes IA</p>
+                <div class="bg-[#14141a] p-1.5 rounded border border-white/[0.05] flex flex-col-reverse justify-start h-32">
+                  <div class="vu-segment vu-active-emerald"></div>
+                  <div class="vu-segment vu-active-emerald"></div>
+                  <div class="vu-segment vu-active-emerald"></div>
+                  <div class="vu-segment vu-active-emerald"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                  <div class="vu-segment"></div>
+                </div>
+                <span class="text-xs font-mono font-bold text-emerald-400 block">40%</span>
+              </div>
+
+            </div>
+
+            <!-- Warning Box with Critical Alerts -->
+            <div class="p-2.5 rounded bg-orange-950/20 border border-orange-900/40 text-[11px] font-mono flex items-center justify-between text-orange-300">
+              <span class="flex items-center gap-2">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-[#ff5722]"></i> 2 Alertas Críticas de SLA
+              </span>
+              <a href="#" class="text-[10px] text-zinc-400 hover:text-white underline">Atender →</a>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- GITHUB-STYLE ACTIVITY HEATMAP MATRIX (Charcoal & Warm Amber Edition) -->
+        <div class="p-5 card-surface space-y-3.5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
+            <div class="flex items-center gap-3">
+              <div class="icon-box">
+                <i data-lucide="grid" class="w-4 h-4 text-[#ff5722]"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white font-mono uppercase tracking-wider">
+                  Matriz de Actividad e Interacciones Anuales (52 Semanas × 7 Días)
+                </h3>
+                <p class="text-xs text-zinc-400 mt-0.5">364 días de registro continuo de WhatsApp (OpenBSP), llamadas comerciales, correos Resend y cobros.</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 text-xs font-mono">
+              <div class="flex items-center gap-1.5 text-zinc-400">
+                <span>Menor</span>
+                <div class="heat-cell heat-0"></div>
+                <div class="heat-cell heat-1"></div>
+                <div class="heat-cell heat-2"></div>
+                <div class="heat-cell heat-3"></div>
+                <div class="heat-cell heat-4"></div>
+                <span>Mayor</span>
+              </div>
+              <span class="px-2.5 py-1 bg-[#14141a] border border-white/[0.06] text-[#ff5722] font-bold rounded">2,140 eventos anuales</span>
+            </div>
+          </div>
+
+          <!-- Heatmap Canvas -->
+          <div class="overflow-x-auto pb-1.5">
+            <div class="inline-grid grid-rows-7 grid-flow-col gap-1" id="heatmap-container">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+
+        <!-- BOTTOM CRM & CONVERSATIONS SUMMARY TABLE (CloudGuard Table System) -->
+        <div class="p-5 card-surface space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
+            <div class="flex items-center gap-3">
+              <div class="icon-box">
+                <i data-lucide="list" class="w-4 h-4 text-[#ff5722]"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white">Monitoreo de Conversaciones & Pipeline Activo</h3>
+                <p class="text-[10px] font-mono text-zinc-500">Últimas interacciones sincronizadas con OpenBSP</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 font-mono text-xs">
+              <button class="px-2.5 py-1 rounded bg-[#14141a] border border-white/[0.06] text-zinc-300 hover:text-white transition">Región: Todas ▾</button>
+              <button class="px-2.5 py-1 rounded bg-[#14141a] border border-white/[0.06] text-zinc-300 hover:text-white transition">Estado: Activas ▾</button>
+            </div>
+          </div>
+
+          <!-- Table with High Legibility & Crisp Dividers -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+              <thead class="text-[11px] text-zinc-500 uppercase tracking-wider border-b border-white/[0.07]">
+                <tr>
+                  <th class="py-2.5 px-3">Lead / Contacto</th>
+                  <th class="py-2.5 px-3">Canal</th>
+                  <th class="py-2.5 px-3">Estado Pipeline</th>
+                  <th class="py-2.5 px-3">SLA / Carga</th>
+                  <th class="py-2.5 px-3">Monto Estimado</th>
+                  <th class="py-2.5 px-3">Último Mensaje</th>
+                  <th class="py-2.5 px-3 text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/[0.04] text-zinc-300">
+                <!-- Row 1 -->
+                <tr class="hover:bg-[#14141c] transition">
+                  <td class="py-3 px-3 flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-[10px] text-white">DC</span>
+                    <div>
+                      <strong class="text-white text-xs block leading-tight">Distribuidora Caracas C.A.</strong>
+                      <span class="text-[10px] text-zinc-500">+58 412 884 1920</span>
+                    </div>
+                  </td>
+                  <td class="py-3 px-3">
+                    <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold">WhatsApp</span>
+                  </td>
+                  <td class="py-3 px-3">
+                    <span class="px-2 py-0.5 rounded bg-orange-500/10 text-[#ff5722] border border-orange-500/20 text-[10px] font-bold">Calificado</span>
+                  </td>
+                  <td class="py-3 px-3">
+                    <div class="flex items-center gap-2">
+                      <div class="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-[#ff5722]" style="width: 85%"></div>
+                      </div>
+                      <span class="text-[10px] text-zinc-400 font-bold">1.8 min</span>
+                    </div>
+                  </td>
+                  <td class="py-3 px-3 font-bold text-white">$6,500 USD</td>
+                  <td class="py-3 px-3 text-zinc-400 truncate max-w-xs">"Presupuesto aceptado, favor enviar datos..."</td>
+                  <td class="py-3 px-3 text-right">
+                    <button class="px-2.5 py-1 rounded bg-[#191922] hover:bg-[#ff5722] hover:text-black text-white text-[10px] font-bold transition">Abrir Chat</button>
+                  </td>
+                </tr>
+
+                <!-- Row 2 -->
+                <tr class="hover:bg-[#14141c] transition">
+                  <td class="py-3 px-3 flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-[10px] text-white">GM</span>
+                    <div>
+                      <strong class="text-white text-xs block leading-tight">Grupo Médico Metropolitano</strong>
+                      <span class="text-[10px] text-zinc-500">@grupomedico_ve</span>
+                    </div>
+                  </td>
+                  <td class="py-3 px-3">
+                    <span class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-semibold">Instagram DM</span>
+                  </td>
+                  <td class="py-3 px-3">
+                    <span class="px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-bold">En Conversación</span>
+                  </td>
+                  <td class="py-3 px-3">
+                    <div class="flex items-center gap-2">
+                      <div class="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-sky-400" style="width: 60%"></div>
+                      </div>
+                      <span class="text-[10px] text-zinc-400 font-bold">3.4 min</span>
+                    </div>
+                  </td>
+                  <td class="py-3 px-3 font-bold text-white">$4,200 USD</td>
+                  <td class="py-3 px-3 text-zinc-400 truncate max-w-xs">"¿Tienen disponibilidad para demo hoy a las 3pm?"</td>
+                  <td class="py-3 px-3 text-right">
+                    <button class="px-2.5 py-1 rounded bg-[#191922] hover:bg-[#ff5722] hover:text-black text-white text-[10px] font-bold transition">Abrir Chat</button>
+                  </td>
+                </tr>
+
+                <!-- Row 3 -->
+                <tr class="hover:bg-[#14141c] transition">
+                  <td class="py-3 px-3 flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-[10px] text-white">CL</span>
+                    <div>
+                      <strong class="text-white text-xs block leading-tight">Constructora Los Andes</strong>
+                      <span class="text-[10px] text-zinc-500">ricardo@losandes.com</span>
+                    </div>
+                  </td>
+                  <td class="py-3 px-3">
+                    <span class="px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-semibold">Email Resend</span>
+                  </td>
+                  <td class="py-3 px-3">
+                    <span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">Cotización</span>
+                  </td>
+                  <td class="py-3 px-3">
+                    <div class="flex items-center gap-2">
+                      <div class="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-amber-400" style="width: 45%"></div>
+                      </div>
+                      <span class="text-[10px] text-zinc-400 font-bold">5.1 min</span>
+                    </div>
+                  </td>
+                  <td class="py-3 px-3 font-bold text-white">$8,900 USD</td>
+                  <td class="py-3 px-3 text-zinc-400 truncate max-w-xs">"Abrió la cotización #COT-44 4 veces."</td>
+                  <td class="py-3 px-3 text-right">
+                    <button class="px-2.5 py-1 rounded bg-[#191922] hover:bg-[#ff5722] hover:text-black text-white text-[10px] font-bold transition">Ver Ficha</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
+
+    </div>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    // 1. ChartJS Setup with Smooth Curves & Gradient Fills
+    const ctx = document.getElementById('commercialChart').getContext('2d');
+    
+    const gradientOrange = ctx.createLinearGradient(0, 0, 0, 250);
+    gradientOrange.addColorStop(0, 'rgba(255, 87, 34, 0.28)');
+    gradientOrange.addColorStop(1, 'rgba(255, 87, 34, 0.0)');
+
+    const chartData = {
+      week: {
+        labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+        data1: [180, 220, 195, 265, 210, 190, 230],
+        data2: [65, 85, 75, 110, 95, 80, 105],
+        data3: [40, 55, 50, 70, 60, 45, 65],
+        data4: [25, 30, 28, 45, 38, 20, 35]
+      },
+      month: {
+        labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'],
+        data1: [820, 950, 1100, 1250],
+        data2: [310, 380, 420, 490],
+        data3: [180, 220, 260, 290],
+        data4: [95, 120, 145, 180]
+      },
+      quarter: {
+        labels: ['Q1 Ene-Mar', 'Q2 Abr-Jun', 'Q3 Jul-Sep', 'Q4 Oct-Dic'],
+        data1: [2800, 3400, 4100, 4900],
+        data2: [1100, 1350, 1680, 2050],
+        data3: [680, 820, 990, 1200],
+        data4: [350, 440, 560, 710]
+      }
+    };
+
+    let chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.week.labels,
+        datasets: [
+          {
+            label: 'WhatsApp Inbound',
+            data: chartData.week.data1,
+            borderColor: '#ff5722',
+            borderWidth: 2.2,
+            backgroundColor: gradientOrange,
+            fill: true,
+            tension: 0.35,
+            pointBackgroundColor: '#ff5722',
+            pointRadius: 3,
+            pointHoverRadius: 6,
+          },
+          {
+            label: 'Leads Calificados',
+            data: chartData.week.data2,
+            borderColor: '#38bdf8',
+            borderWidth: 1.8,
+            tension: 0.35,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+          },
+          {
+            label: 'Emails Resend',
+            data: chartData.week.data3,
+            borderColor: '#a855f7',
+            borderWidth: 1.8,
+            tension: 0.35,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+          },
+          {
+            label: 'Cobros Confirmados',
+            data: chartData.week.data4,
+            borderColor: '#22c55e',
+            borderWidth: 1.8,
+            tension: 0.35,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#121218',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            titleFont: { family: "'JetBrains Mono', monospace", size: 11, weight: 'bold' },
+            bodyFont: { family: "'JetBrains Mono', monospace", size: 11 },
+            padding: 12,
+            boxPadding: 6,
+            usePointStyle: true,
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(255, 255, 255, 0.03)' },
+            ticks: { color: '#64748b', font: { family: "'JetBrains Mono', monospace", size: 10 } }
+          },
+          y: {
+            grid: { color: 'rgba(255, 255, 255, 0.04)' },
+            ticks: { color: '#64748b', font: { family: "'JetBrains Mono', monospace", size: 10 } }
+          }
+        }
+      }
+    });
+
+    function toggleDataset(index) {
+      const meta = chartInstance.getDatasetMeta(index);
+      meta.hidden = meta.hidden === null ? !chartInstance.data.datasets[index].hidden : null;
+      chartInstance.update();
+    }
+
+    function setRange(range) {
+      ['week', 'month', 'quarter'].forEach(r => {
+        const el = document.getElementById(`btn-${r}`);
+        if (r === range) {
+          el.className = 'px-2.5 py-1 rounded bg-[#1c1c24] text-white font-bold transition';
+        } else {
+          el.className = 'px-2.5 py-1 text-zinc-400 hover:text-white transition';
+        }
+      });
+
+      chartInstance.data.labels = chartData[range].labels;
+      chartInstance.data.datasets[0].data = chartData[range].data1;
+      chartInstance.data.datasets[1].data = chartData[range].data2;
+      chartInstance.data.datasets[2].data = chartData[range].data3;
+      chartInstance.data.datasets[3].data = chartData[range].data4;
+      chartInstance.update();
+    }
+
+    // 2. Heatmap Generation in CloudGuard Warm Ember Palette
+    const container = document.getElementById('heatmap-container');
+    const totalWeeks = 52;
+    const daysPerWeek = 7;
+
+    for (let w = 0; w < totalWeeks; w++) {
+      for (let d = 0; d < daysPerWeek; d++) {
+        const cell = document.createElement('div');
+        cell.className = 'heat-cell';
+        
+        const recencyWeight = (w / totalWeeks);
+        const rand = Math.random() * (0.35 + recencyWeight * 0.65);
+        
+        let level = 0;
+        if (rand > 0.82) level = 4;
+        else if (rand > 0.60) level = 3;
+        else if (rand > 0.36) level = 2;
+        else if (rand > 0.16) level = 1;
+        
+        if ((d === 0 || d === 6) && Math.random() > 0.5) level = Math.max(0, level - 1);
+
+        cell.classList.add(`heat-${level}`);
+        
+        const count = level === 4 ? Math.floor(Math.random() * 12 + 16) : level === 3 ? Math.floor(Math.random() * 6 + 8) : level === 2 ? Math.floor(Math.random() * 4 + 3) : level === 1 ? Math.floor(Math.random() * 2 + 1) : 0;
+        cell.title = `Semana ${w + 1}, Día ${d + 1}: ${count} interacciones registradas`;
+        
+        container.appendChild(cell);
+      }
+    }
+  </script>
+</body>
+</html>
