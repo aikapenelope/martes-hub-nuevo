@@ -1164,18 +1164,58 @@ export interface PayloadMcpApiKey {
      * Allow clients to find conversation-summaries.
      */
     find?: boolean | null;
+    /**
+     * Allow clients to create conversation-summaries.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update conversation-summaries.
+     */
+    update?: boolean | null;
+  };
+  media?: {
+    /**
+     * Allow clients to find media.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create media.
+     */
+    create?: boolean | null;
+  };
+  socialAccounts?: {
+    /**
+     * Allow clients to find social-accounts.
+     */
+    find?: boolean | null;
   };
   socialPosts?: {
     /**
      * Allow clients to find social-posts.
      */
     find?: boolean | null;
+    /**
+     * Allow clients to create social-posts.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update social-posts.
+     */
+    update?: boolean | null;
   };
   postMetrics?: {
     /**
      * Allow clients to find post-metrics.
      */
     find?: boolean | null;
+    /**
+     * Allow clients to create post-metrics.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update post-metrics.
+     */
+    update?: boolean | null;
   };
   users?: {
     /**
@@ -2167,16 +2207,33 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
     | T
     | {
         find?: T;
+        create?: T;
+        update?: T;
+      };
+  media?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+      };
+  socialAccounts?:
+    | T
+    | {
+        find?: T;
       };
   socialPosts?:
     | T
     | {
         find?: T;
+        create?: T;
+        update?: T;
       };
   postMetrics?:
     | T
     | {
         find?: T;
+        create?: T;
+        update?: T;
       };
   users?:
     | T
