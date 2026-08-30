@@ -110,7 +110,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 
 | Servicio | Credencial | Notas |
 |---|---|---|
-| Neon | `DATABASE_URL` (pooled, SSL) | Proyecto nuevo; activar pgvector |
+| Neon | `DATABASE_URL` (pooled, SSL) + `DATABASE_URL_DIRECT` (sin pooler, para `pnpm migrate`) | Proyecto nuevo; activar pgvector. Neon recomienda no correr migraciones por el pooler (rompe estado de sesión) — `scripts/migrate.mjs` ya usa `DATABASE_URL_DIRECT` si está presente |
 | Cloudflare R2 (opcional, storage de media/documentos) | `S3_BUCKET` + `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY` + `S3_ENDPOINT` | Vía `@payloadcms/storage-s3` (compatible S3); sin `S3_BUCKET` los archivos se guardan localmente. `S3_REGION=auto` y `forcePathStyle: true` ya configurados para R2 |
 | OpenBSP | Org + `api-key` (+ `apikey` pública Supabase) | Webhook con `callback_url` + `verify_token`; envío por REST |
 | Resend | `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` | Verificar dominio de envío; webhook de bounce/complaint en dashboard Resend → `/api/webhooks/resend` |
@@ -235,6 +235,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 4. **Endurecer el MCP externo** (`@payloadcms/plugin-mcp`, expuesto en `/api/mcp` para cualquier cliente MCP que conectes — Claude Desktop, Cursor, un agente propio): `clients`, `leads`, `tasks`, `conversation-summaries`, `social-posts`, `post-metrics` y `media` tienen `enabled: true` o create/update abiertos. Antes de entregar una API key de este endpoint a alguien fuera del equipo, restringir por operación/rol/tenant, igual que ya se hizo con `payments`/`invoices`/`quotes`.
 5. **Backups PITR de Neon**: verificar que estén activos y probar un restore real — no se puede confirmar desde el código.
 6. **Actualizar `sharp`** de `0.34.2` a `>=0.35.0`: vulnerabilidad alta (CVEs heredados de libvips) en la dependencia que procesa las imágenes subidas por usuarios (`pnpm audit`). Cambio de versión simple, sin riesgo de breaking changes conocido.
+7. **Configurar `DATABASE_URL_DIRECT` en Vercel**: copiar la connection string directa de Neon (sin `-pooler`, sin `pgbouncer=true`) y ponerla como esa variable — el código ya la usa para migraciones si existe (`scripts/migrate.mjs`), solo falta configurarla. Sin ella, `pnpm migrate` corre por el pooler, que Neon mismo desrecomienda para migraciones.
 
 No bloquean v1: multi-tenant real (SaaS). F7 Social ya no bloquea nada de código — solo falta que conectes un agente MCP a Metricool/Composio cuando quieras publicar de verdad.
 
