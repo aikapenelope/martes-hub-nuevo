@@ -14,7 +14,6 @@
  *   CRON_SECRET=<random-secret> (Vercel lo añade automáticamente en proyectos Vercel Cron)
  */
 
-import crypto from 'crypto'
 import configPromise from '@payload-config'
 import { timingSafeEqual } from 'crypto'
 import { getPayload } from 'payload'

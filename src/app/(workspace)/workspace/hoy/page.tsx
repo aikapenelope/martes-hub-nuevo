@@ -5,8 +5,9 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { Skeleton } from '@/components/workspace/ui'
-import { HeroAction, PageHero } from '@/components/workspace/oled'
+import { HeroAction, OledCard, PageHero } from '@/components/workspace/oled'
 
 interface FollowUpItem {
   kind: 'lead' | 'client'

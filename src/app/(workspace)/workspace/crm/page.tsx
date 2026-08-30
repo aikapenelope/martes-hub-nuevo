@@ -6,16 +6,8 @@
 
 import 'server-only'
 
-<<<<<<< HEAD
-import Link from 'next/link'
-import { ArrowRight, Search, UsersRound } from 'lucide-react'
 
-import { CrmFormDialog } from '@/components/workspace/CrmFormDialog'
-import { CrmImportExportDialog } from '@/components/workspace/CrmImportExportDialog'
-=======
->>>>>>> origin/polish/frontend-modern-ux-tests
 import { CrmPipelineWorkspace } from '@/components/workspace/CrmPipelineWorkspace'
-import { PageHero } from '@/components/workspace/oled'
 import { getCrmData, parseCrmFilters, type CrmSearchParams } from '@/lib/crm-data'
 import { getCrmPipelineData } from '@/lib/crm-pipeline-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'

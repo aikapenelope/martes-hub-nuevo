@@ -45,6 +45,7 @@ export async function paymentsAggregate(
     return { total: 0, count: 0 }
   }
 
+  const params: unknown[] = [tenantId, statuses]
   // `status` es un ENUM nativo de Postgres (enum_payments_status), no texto.
   // Comparar con status::text = ANY($2::text[]) para evitar error de tipos en node-postgres.
   let where = 'tenant_id = $1 AND status::text = ANY($2::text[])'
