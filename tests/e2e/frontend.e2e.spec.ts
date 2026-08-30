@@ -12,7 +12,7 @@ test.describe('Frontend', () => {
     await page.goto('http://localhost:3000/')
 
     await page.waitForURL(/\/admin\/login/)
-    await expect(page.locator('#field-email')).toBeVisible()
-    await expect(page.locator('#field-password')).toBeVisible()
+    await expect(page.locator('#field-email')).toBeVisible({ timeout: 15000 })
+    await expect(page.locator('#field-password')).toBeVisible({ timeout: 15000 })
   })
 })

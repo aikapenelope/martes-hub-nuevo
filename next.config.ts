@@ -14,13 +14,13 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Headers HTTP de seguridad — ausentes hasta ahora (sin HSTS, sin
-  // protección de clickjacking/MIME-sniffing). Aplican a todas las rutas.
+  // Headers HTTP de seguridad aplicados a todas las rutas
   async headers() {
     return [
       {
         source: '/:path*',
         headers: [
+          { key: 'X-DNS-Prefetch-Control', value: 'on' },
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },

@@ -1,11 +1,6 @@
 import type { TaskConfig } from 'payload'
 import { renderEmailHtml } from '../email/layout'
 
-interface CampaignInput {
-  campaignId: number
-  tenantId: number
-}
-
 function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] ?? name
 }
@@ -22,7 +17,13 @@ export const sendCampaignTask: TaskConfig = {
     { name: 'failed', type: 'number' },
   ],
   handler: async ({ input, req }) => {
-    const { campaignId, tenantId } = input as unknown as CampaignInput
+    const rawInput = (input ?? {}) as Record<string, unknown>
+    const campaignId = Number(rawInput.campaignId)
+    const tenantId = Number(rawInput.tenantId)
+
+    if (!Number.isInteger(campaignId) || !Number.isInteger(tenantId)) {
+      throw new Error('Parámetros de campaña inválidos (campaignId y tenantId requeridos)')
+    }
 
     const campaign = await req.payload.findByID({
       collection: 'email-campaigns',

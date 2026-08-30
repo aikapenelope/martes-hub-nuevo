@@ -1,5 +1,5 @@
 import type { PayloadRequest } from 'payload'
-import type { User, Conversation, Tenant } from '@/payload-types'
+import type { User, Tenant } from '@/payload-types'
 import { sendText } from '../integrations/openbsp/client'
 
 const EDITOR_ROLES = ['admin', 'agente']
@@ -33,13 +33,13 @@ export async function replyConversationHandler(req: PayloadRequest): Promise<Res
   }
 
   // findByID respeta el aislamiento por tenant vía access del plugin multiTenant
-  const conversation = (await req.payload.findByID({
+  const conversation = await req.payload.findByID({
     collection: 'conversations',
     id: conversationId,
     depth: 1,
     overrideAccess: false,
     user,
-  })) as unknown as Conversation
+  })
 
   if (!conversation) {
     return Response.json({ error: 'Conversación no encontrada' }, { status: 404 })

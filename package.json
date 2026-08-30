@@ -78,5 +78,16 @@
     "node": ">=24.15.0",
     "pnpm": "^9 || ^10 || ^11"
   },
+  "pnpm": {
+    "overrides": {
+      "dompurify": "^3.4.14",
+      "esbuild": "^0.25.0"
+    },
+    "onlyBuiltDependencies": [
+      "sharp",
+      "esbuild",
+      "unrs-resolver"
+    ]
+  },
   "packageManager": "pnpm@10.34.5"
 }

@@ -47,12 +47,7 @@ export async function paymentsAggregate(
 
   const params: unknown[] = [tenantId, statuses]
   // `status` es un ENUM nativo de Postgres (enum_payments_status), no texto.
-  // Desde Postgres 8.3 los casts implícitos entre tipos distintos se
-  // quitaron — comparar el enum directo contra un array `text[]` vía
-  // ANY() puede fallar con "operator does not exist: enum_payments_status
-  // = text" según cómo node-postgres infiera el tipo del parámetro. El
-  // catch de abajo se traga ese error silenciosamente (devuelve 0), así
-  // que sin este cast explícito el agregado podría reportar 0 sin avisar.
+  // Comparar con status::text = ANY($2::text[]) para evitar error de tipos en node-postgres.
   let where = 'tenant_id = $1 AND status::text = ANY($2::text[])'
   if (paidAfter) {
     params.push(paidAfter)

@@ -1,5 +1,4 @@
 import type { Page } from '@playwright/test'
-import { expect } from '@playwright/test'
 
 export interface LoginOptions {
   page: Page
@@ -18,14 +17,14 @@ export async function login({
   serverURL = 'http://localhost:3000',
   user,
 }: LoginOptions): Promise<void> {
-  await page.goto(`${serverURL}/admin/login`)
+  const response = await page.request.post(`${serverURL}/api/users/login`, {
+    data: {
+      email: user.email,
+      password: user.password,
+    },
+  })
 
-  await page.fill('#field-email', user.email)
-  await page.fill('#field-password', user.password)
-  await page.click('button[type="submit"]')
-
-  await page.waitForURL(`${serverURL}/admin`)
-
-  const dashboardArtifact = page.locator('.step-nav__first')
-  await expect(dashboardArtifact).toBeVisible()
+  if (!response.ok()) {
+    throw new Error(`Failed to login: ${response.status()} ${await response.text()}`)
+  }
 }

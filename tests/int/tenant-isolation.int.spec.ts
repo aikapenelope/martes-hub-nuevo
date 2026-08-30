@@ -51,6 +51,22 @@ describe('Seguridad de Aislamiento y Filtros Multi-Tenant', () => {
     })
   })
 
+  describe('Validación de Aislamiento y Timing-Safety', () => {
+    it('compara buffers de forma constante para evitar ataques de timing', async () => {
+      const crypto = await import('crypto')
+      const secret = 'super-secret-token-value-12345678'
+      const provided = 'super-secret-token-value-12345678'
+      const attacker = 'wrong-secret-token-value-12345678'
+
+      const bufSecret = Buffer.from(secret)
+      const bufProvided = Buffer.from(provided)
+      const bufAttacker = Buffer.from(attacker)
+
+      expect(crypto.timingSafeEqual(bufSecret, bufProvided)).toBe(true)
+      expect(crypto.timingSafeEqual(bufSecret, bufAttacker)).toBe(false)
+    })
+  })
+
   describe('Control de Acceso Multi-Tenant en Colecciones', () => {
     it('Users.access.read restringe la visibilidad de usuarios no-admin a sus mismos tenants', async () => {
       const { Users } = await import('@/collections/Users')
@@ -66,9 +82,7 @@ describe('Seguridad de Aislamiento y Filtros Multi-Tenant', () => {
         readAccess({ req: { user: { id: 1, roles: ['admin'] } } } as never),
       ).toBe(true)
 
-      // Agente en tenant 10 -> acotado a sí mismo + usuarios de su tenant.
-      // El `or` con el propio id existe para que un usuario sin tenant
-      // asignado todavía no pierda la capacidad de leer su propio registro.
+      // Agente en tenant 10 -> acotado a sí mismo + usuarios de su tenant
       const agentConstraint = readAccess({
         req: { user: { id: 42, roles: ['agente'], tenants: [{ tenant: 10 }] } },
       } as never)
@@ -96,7 +110,8 @@ describe('Seguridad de Aislamiento y Filtros Multi-Tenant', () => {
         active: { equals: true },
         'tenants.tenant': { in: [5] },
       })
-      expect(assignedToField?.filterOptions?.({ data: { tenant: 5 } })).toMatchObject({
+      expect(assignedToField?.filterOptions?.({ data: { tenant: 5 } })).toEqual({
+        roles: { in: ['admin', 'agente'] },
         active: { equals: true },
         'tenants.tenant': { in: [5] },
       })

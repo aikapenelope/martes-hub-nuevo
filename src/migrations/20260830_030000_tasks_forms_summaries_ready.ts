@@ -21,27 +21,51 @@ import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'
  * 4. Agrega los índices de `clients.email`/`clients.phone`/`leads.phone`/
  *    `leads.email`/`conversations.contactAddress` — declarados con
  *    `index: true` en el código desde antes pero nunca creados en la BD.
- *
- * Idempotente a propósito (`CREATE TYPE`/`ADD CONSTRAINT` envueltos en
- * `DO $$ ... EXCEPTION WHEN duplicate_object`, `IF NOT EXISTS` en
- * tablas/índices/columnas): en producción (Neon) estos mismos objetos ya
- * existían por fuera del historial de migraciones de esta rama — probable
- * despliegue preview de una rama externa que corrió su propia migración
- * equivalente con otro nombre contra la misma base. `payload_migrations`
- * identifica migraciones por nombre de archivo, no por el SQL que
- * ejecutan, así que no hay forma de que Payload detecte la equivalencia
- * por sí solo; hay que hacer que el propio SQL tolere que el objeto ya
- * exista.
  */
 export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.execute(sql`
-   DO $$ BEGIN CREATE TYPE "public"."enum_form_submissions_source" AS ENUM('tally', 'typeform', 'web', 'otro'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN CREATE TYPE "public"."enum_tasks_status" AS ENUM('pendiente', 'en_progreso', 'completada', 'bloqueada', 'cancelada'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN CREATE TYPE "public"."enum_tasks_priority" AS ENUM('baja', 'media', 'alta', 'urgente'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN CREATE TYPE "public"."enum_tasks_source" AS ENUM('manual', 'tally_complaint', 'payment_overdue', 'openbsp_error', 'hermes_ai'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN CREATE TYPE "public"."enum_tasks_kanban_status" AS ENUM('pendiente', 'en_progreso', 'completada', 'bloqueada', 'cancelada'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN CREATE TYPE "public"."enum_conversation_summaries_sentiment" AS ENUM('positivo', 'neutral', 'negativo', 'en_riesgo'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN CREATE TYPE "public"."enum_conversation_summaries_generated_by" AS ENUM('hermes_ai', 'openbsp_agent', 'manual'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+  DO $$ BEGIN
+    CREATE TYPE "public"."enum_form_submissions_source" AS ENUM('tally', 'typeform', 'web', 'otro');
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    CREATE TYPE "public"."enum_tasks_status" AS ENUM('pendiente', 'en_progreso', 'completada', 'bloqueada', 'cancelada');
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    CREATE TYPE "public"."enum_tasks_priority" AS ENUM('baja', 'media', 'alta', 'urgente');
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    CREATE TYPE "public"."enum_tasks_source" AS ENUM('manual', 'tally_complaint', 'payment_overdue', 'openbsp_error', 'hermes_ai');
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    CREATE TYPE "public"."enum_tasks_kanban_status" AS ENUM('pendiente', 'en_progreso', 'completada', 'bloqueada', 'cancelada');
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    CREATE TYPE "public"."enum_conversation_summaries_sentiment" AS ENUM('positivo', 'neutral', 'negativo', 'en_riesgo');
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    CREATE TYPE "public"."enum_conversation_summaries_generated_by" AS ENUM('hermes_ai', 'openbsp_agent', 'manual');
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
   ALTER TYPE "public"."enum_payload_jobs_task_slug" ADD VALUE IF NOT EXISTS 'send-campaign-batch';
   ALTER TYPE "public"."enum_payload_jobs_task_slug" ADD VALUE IF NOT EXISTS 'send-scheduled-campaigns';
   ALTER TYPE "public"."enum_payload_jobs_log_task_slug" ADD VALUE IF NOT EXISTS 'send-campaign-batch';
@@ -64,9 +88,25 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
    "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
    "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
-  DO $$ BEGIN ALTER TABLE "form_submissions" ADD CONSTRAINT "form_submissions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN ALTER TABLE "form_submissions" ADD CONSTRAINT "form_submissions_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN ALTER TABLE "form_submissions" ADD CONSTRAINT "form_submissions_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "form_submissions" ADD CONSTRAINT "form_submissions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "form_submissions" ADD CONSTRAINT "form_submissions_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "form_submissions" ADD CONSTRAINT "form_submissions_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
   CREATE INDEX IF NOT EXISTS "form_submissions_tenant_idx" ON "form_submissions" USING btree ("tenant_id");
   CREATE INDEX IF NOT EXISTS "form_submissions_form_id_idx" ON "form_submissions" USING btree ("form_id");
   CREATE INDEX IF NOT EXISTS "form_submissions_client_idx" ON "form_submissions" USING btree ("client_id");
@@ -92,10 +132,31 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
    "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
    "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
-  DO $$ BEGIN ALTER TABLE "tasks" ADD CONSTRAINT "tasks_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN ALTER TABLE "tasks" ADD CONSTRAINT "tasks_assigned_to_id_users_id_fk" FOREIGN KEY ("assigned_to_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN ALTER TABLE "tasks" ADD CONSTRAINT "tasks_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN ALTER TABLE "tasks" ADD CONSTRAINT "tasks_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "tasks" ADD CONSTRAINT "tasks_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "tasks" ADD CONSTRAINT "tasks_assigned_to_id_users_id_fk" FOREIGN KEY ("assigned_to_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "tasks" ADD CONSTRAINT "tasks_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "tasks" ADD CONSTRAINT "tasks_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
   CREATE INDEX IF NOT EXISTS "tasks_tenant_idx" ON "tasks" USING btree ("tenant_id");
   CREATE INDEX IF NOT EXISTS "tasks_assigned_to_idx" ON "tasks" USING btree ("assigned_to_id");
   CREATE INDEX IF NOT EXISTS "tasks_client_idx" ON "tasks" USING btree ("client_id");
@@ -110,7 +171,13 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
    "item" varchar NOT NULL,
    "done" boolean DEFAULT false
   );
-  DO $$ BEGIN ALTER TABLE "tasks_checklist" ADD CONSTRAINT "tasks_checklist_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."tasks"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "tasks_checklist" ADD CONSTRAINT "tasks_checklist_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."tasks"("id") ON DELETE cascade ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
   CREATE INDEX IF NOT EXISTS "tasks_checklist_order_idx" ON "tasks_checklist" USING btree ("_order");
   CREATE INDEX IF NOT EXISTS "tasks_checklist_parent_id_idx" ON "tasks_checklist" USING btree ("_parent_id");
 
@@ -131,10 +198,31 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
    "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
    "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
-  DO $$ BEGIN ALTER TABLE "conversation_summaries" ADD CONSTRAINT "conversation_summaries_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN ALTER TABLE "conversation_summaries" ADD CONSTRAINT "conversation_summaries_conversation_id_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."conversations"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN ALTER TABLE "conversation_summaries" ADD CONSTRAINT "conversation_summaries_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN ALTER TABLE "conversation_summaries" ADD CONSTRAINT "conversation_summaries_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "conversation_summaries" ADD CONSTRAINT "conversation_summaries_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "conversation_summaries" ADD CONSTRAINT "conversation_summaries_conversation_id_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."conversations"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "conversation_summaries" ADD CONSTRAINT "conversation_summaries_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "conversation_summaries" ADD CONSTRAINT "conversation_summaries_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
   CREATE INDEX IF NOT EXISTS "conversation_summaries_tenant_idx" ON "conversation_summaries" USING btree ("tenant_id");
   CREATE INDEX IF NOT EXISTS "conversation_summaries_conversation_idx" ON "conversation_summaries" USING btree ("conversation_id");
   CREATE INDEX IF NOT EXISTS "conversation_summaries_client_idx" ON "conversation_summaries" USING btree ("client_id");
@@ -148,16 +236,38 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
    "id" varchar PRIMARY KEY NOT NULL,
    "topic" varchar NOT NULL
   );
-  DO $$ BEGIN ALTER TABLE "conversation_summaries_key_topics" ADD CONSTRAINT "conversation_summaries_key_topics_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."conversation_summaries"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "conversation_summaries_key_topics" ADD CONSTRAINT "conversation_summaries_key_topics_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."conversation_summaries"("id") ON DELETE cascade ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
   CREATE INDEX IF NOT EXISTS "conversation_summaries_key_topics_order_idx" ON "conversation_summaries_key_topics" USING btree ("_order");
   CREATE INDEX IF NOT EXISTS "conversation_summaries_key_topics_parent_id_idx" ON "conversation_summaries_key_topics" USING btree ("_parent_id");
 
   ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "form_submissions_id" integer;
   ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "tasks_id" integer;
   ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "conversation_summaries_id" integer;
-  DO $$ BEGIN ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_form_submissions_fk" FOREIGN KEY ("form_submissions_id") REFERENCES "public"."form_submissions"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_tasks_fk" FOREIGN KEY ("tasks_id") REFERENCES "public"."tasks"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
-  DO $$ BEGIN ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_conversation_summaries_fk" FOREIGN KEY ("conversation_summaries_id") REFERENCES "public"."conversation_summaries"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_form_submissions_fk" FOREIGN KEY ("form_submissions_id") REFERENCES "public"."form_submissions"("id") ON DELETE cascade ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_tasks_fk" FOREIGN KEY ("tasks_id") REFERENCES "public"."tasks"("id") ON DELETE cascade ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_conversation_summaries_fk" FOREIGN KEY ("conversation_summaries_id") REFERENCES "public"."conversation_summaries"("id") ON DELETE cascade ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
+
   CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_form_submissions_id_idx" ON "payload_locked_documents_rels" USING btree ("form_submissions_id");
   CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_tasks_id_idx" ON "payload_locked_documents_rels" USING btree ("tasks_id");
   CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_conversation_summaries_id_idx" ON "payload_locked_documents_rels" USING btree ("conversation_summaries_id");
@@ -171,43 +281,43 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
 
 export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
-   DROP INDEX "conversations_contact_address_idx";
-  DROP INDEX "leads_email_idx";
-  DROP INDEX "leads_phone_idx";
-  DROP INDEX "clients_phone_idx";
-  DROP INDEX "clients_email_idx";
+   DROP INDEX IF EXISTS "conversations_contact_address_idx";
+  DROP INDEX IF EXISTS "leads_email_idx";
+  DROP INDEX IF EXISTS "leads_phone_idx";
+  DROP INDEX IF EXISTS "clients_phone_idx";
+  DROP INDEX IF EXISTS "clients_email_idx";
 
-  ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT "payload_locked_documents_rels_conversation_summaries_fk";
-  ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT "payload_locked_documents_rels_tasks_fk";
-  ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT "payload_locked_documents_rels_form_submissions_fk";
-  DROP INDEX "payload_locked_documents_rels_conversation_summaries_id_idx";
-  DROP INDEX "payload_locked_documents_rels_tasks_id_idx";
-  DROP INDEX "payload_locked_documents_rels_form_submissions_id_idx";
-  ALTER TABLE "payload_locked_documents_rels" DROP COLUMN "conversation_summaries_id";
-  ALTER TABLE "payload_locked_documents_rels" DROP COLUMN "tasks_id";
-  ALTER TABLE "payload_locked_documents_rels" DROP COLUMN "form_submissions_id";
+  ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT IF EXISTS "payload_locked_documents_rels_conversation_summaries_fk";
+  ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT IF EXISTS "payload_locked_documents_rels_tasks_fk";
+  ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT IF EXISTS "payload_locked_documents_rels_form_submissions_fk";
+  DROP INDEX IF EXISTS "payload_locked_documents_rels_conversation_summaries_id_idx";
+  DROP INDEX IF EXISTS "payload_locked_documents_rels_tasks_id_idx";
+  DROP INDEX IF EXISTS "payload_locked_documents_rels_form_submissions_id_idx";
+  ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "conversation_summaries_id";
+  ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "tasks_id";
+  ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "form_submissions_id";
 
-  DROP TABLE "conversation_summaries_key_topics";
-  DROP TABLE "conversation_summaries";
-  DROP TABLE "tasks_checklist";
-  DROP TABLE "tasks";
-  DROP TABLE "form_submissions";
+  DROP TABLE IF EXISTS "conversation_summaries_key_topics";
+  DROP TABLE IF EXISTS "conversation_summaries";
+  DROP TABLE IF EXISTS "tasks_checklist";
+  DROP TABLE IF EXISTS "tasks";
+  DROP TABLE IF EXISTS "form_submissions";
 
   ALTER TABLE "payload_jobs_log" ALTER COLUMN "task_slug" SET DATA TYPE text;
-  DROP TYPE "public"."enum_payload_jobs_log_task_slug";
+  DROP TYPE IF EXISTS "public"."enum_payload_jobs_log_task_slug";
   CREATE TYPE "public"."enum_payload_jobs_log_task_slug" AS ENUM('inline', 'payment-reminders', 'daily-digest', 'sync-templates', 'openbsp-error-poll', 'createCollectionExport', 'createCollectionImport');
   ALTER TABLE "payload_jobs_log" ALTER COLUMN "task_slug" SET DATA TYPE "public"."enum_payload_jobs_log_task_slug" USING "task_slug"::"public"."enum_payload_jobs_log_task_slug";
   ALTER TABLE "payload_jobs" ALTER COLUMN "task_slug" SET DATA TYPE text;
-  DROP TYPE "public"."enum_payload_jobs_task_slug";
+  DROP TYPE IF EXISTS "public"."enum_payload_jobs_task_slug";
   CREATE TYPE "public"."enum_payload_jobs_task_slug" AS ENUM('inline', 'payment-reminders', 'daily-digest', 'sync-templates', 'openbsp-error-poll', 'createCollectionExport', 'createCollectionImport');
   ALTER TABLE "payload_jobs" ALTER COLUMN "task_slug" SET DATA TYPE "public"."enum_payload_jobs_task_slug" USING "task_slug"::"public"."enum_payload_jobs_task_slug";
 
-  DROP TYPE "public"."enum_conversation_summaries_generated_by";
-  DROP TYPE "public"."enum_conversation_summaries_sentiment";
-  DROP TYPE "public"."enum_tasks_kanban_status";
-  DROP TYPE "public"."enum_tasks_source";
-  DROP TYPE "public"."enum_tasks_priority";
-  DROP TYPE "public"."enum_tasks_status";
-  DROP TYPE "public"."enum_form_submissions_source";`)
+  DROP TYPE IF EXISTS "public"."enum_conversation_summaries_generated_by";
+  DROP TYPE IF EXISTS "public"."enum_conversation_summaries_sentiment";
+  DROP TYPE IF EXISTS "public"."enum_tasks_kanban_status";
+  DROP TYPE IF EXISTS "public"."enum_tasks_source";
+  DROP TYPE IF EXISTS "public"."enum_tasks_priority";
+  DROP TYPE IF EXISTS "public"."enum_tasks_status";
+  DROP TYPE IF EXISTS "public"."enum_form_submissions_source";`)
 }
 

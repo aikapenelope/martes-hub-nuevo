@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
-import type { Activity, Client, Lead } from '@/payload-types'
+import type { Activity } from '@/payload-types'
 import { CLIENT_STAGES, LEAD_STATUSES, type ClientStage, type LeadStatus } from '@/lib/crm-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
@@ -36,33 +36,10 @@ function assertEditor(canEdit: boolean): void {
   if (!canEdit) throw new Error('No tienes permiso para modificar el CRM')
 }
 
-async function scopedLead(id: number): Promise<{ lead: Lead; context: Awaited<ReturnType<typeof getWorkspaceContext>> }> {
-  const context = await getWorkspaceContext()
-  const result = await context.payload.find({
-    collection: 'leads',
-    limit: 1,
-    overrideAccess: false,
-    user: context.user,
-    where: { and: [{ id: { equals: id } }, { tenant: { equals: context.tenantId } }] },
-  })
-  const lead = result.docs[0] as Lead | undefined
-  if (!lead) throw new Error('Lead no encontrado en el tenant activo')
-  return { lead, context }
-}
+import { getScopedClient, getScopedLead } from '@/lib/crm-scoped-entities'
 
-async function scopedClient(id: number): Promise<{ client: Client; context: Awaited<ReturnType<typeof getWorkspaceContext>> }> {
-  const context = await getWorkspaceContext()
-  const result = await context.payload.find({
-    collection: 'clients',
-    limit: 1,
-    overrideAccess: false,
-    user: context.user,
-    where: { and: [{ id: { equals: id } }, { tenant: { equals: context.tenantId } }] },
-  })
-  const client = result.docs[0] as Client | undefined
-  if (!client) throw new Error('Cliente no encontrado en el tenant activo')
-  return { client, context }
-}
+const scopedLead = getScopedLead
+const scopedClient = getScopedClient
 
 export async function createLeadAction(formData: FormData): Promise<void> {
   const context = await getWorkspaceContext()

@@ -1,4 +1,5 @@
-import { APIError, type CollectionConfig, type Where } from 'payload'
+import { APIError, type AccessResult, type CollectionConfig, type Where } from 'payload'
+import type { User } from '@/payload-types'
 
 import { adminOnly, fieldAdminOnly } from '../access'
 
@@ -10,24 +11,20 @@ export const Users: CollectionConfig = {
   },
   auth: true,
   access: {
-    // Antes: cualquier usuario autenticado veía el directorio COMPLETO de
-    // usuarios de TODOS los tenants (nombre, email, roles) — `users` no
-    // está en el plugin multi-tenant, así que `authenticated` a secas no
-    // filtraba nada. Ahora: admins ven todo; el resto solo ve usuarios
-    // que comparten al menos un tenant (constraint-based access — ver
-    // QUERIES.md: una Access function puede devolver un Where en vez de
-    // boolean para acotar la lista).
-    read: ({ req }) => {
-      if (!req.user) return false
-      if ('roles' in req.user && req.user.roles?.includes('admin')) return true
-      const tenantIds = (('tenants' in req.user && req.user.tenants) || [])
-        .map((t) => (typeof t.tenant === 'object' && t.tenant !== null ? t.tenant.id : t.tenant))
-        .filter((id): id is number => typeof id === 'number')
-      // El `or` con el propio id es a propósito: un usuario sin tenant
-      // asignado todavía (p. ej. recién creado, antes de onboarding) no
-      // debe perder la capacidad de leer su propio registro (/me, admin UI)
-      // solo porque `tenantIds` está vacío.
-      const orConditions: Where[] = [{ id: { equals: req.user.id } }, { 'tenants.tenant': { in: tenantIds } }]
+    // Admins ven todo; el resto solo ve usuarios que comparten al menos un tenant
+    read: ({ req }): AccessResult => {
+      const user = req.user as User | null
+      if (!user) return false
+      if (user.roles?.includes('admin')) return true
+
+      const userTenants = (user.tenants || [])
+        .map((t) => (typeof t.tenant === 'object' && t.tenant ? t.tenant.id : t.tenant))
+        .filter((tId): tId is number => typeof tId === 'number')
+
+      const orConditions: Where[] = [{ id: { equals: user.id } }]
+      if (userTenants.length > 0) {
+        orConditions.push({ 'tenants.tenant': { in: userTenants } })
+      }
       return { or: orConditions }
     },
     create: adminOnly,
@@ -40,15 +37,12 @@ export const Users: CollectionConfig = {
     admin: ({ req }) => Boolean(req.user && 'roles' in req.user && (req.user.roles?.includes('admin') || req.user.roles?.includes('agente'))),
   },
   hooks: {
-    // beforeLogin (no afterLogin: el login ya se completó para ese punto)
-    // rechaza el intento antes de emitir sesión/JWT. Antes, el checkbox
-    // `active` era puramente cosmético: desactivar a alguien no le impedía
-    // seguir usando el sistema con su sesión/credenciales existentes.
     beforeLogin: [
       ({ user }) => {
         if (user.active === false) {
           throw new APIError('Esta cuenta está desactivada. Contacta a un administrador.', 403)
         }
+        return user
       },
     ],
   },
@@ -88,10 +82,6 @@ export const Users: CollectionConfig = {
       defaultValue: true,
       label: 'Activo',
       access: {
-        // Antes cualquiera podía reactivarse a sí mismo (el `update` general
-        // de la colección permite self-update sin restringir este campo).
-        // fieldAdminOnly ya existe en access/index.ts — reusado en vez de
-        // reimplementar el mismo check inline.
         update: fieldAdminOnly,
       },
       admin: {
@@ -100,4 +90,3 @@ export const Users: CollectionConfig = {
     },
   ],
 }
-

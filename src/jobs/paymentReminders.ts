@@ -77,14 +77,15 @@ export const paymentRemindersTask: TaskConfig = {
         continue
       }
 
+      const safeClientName = escapeHtml(client?.name ?? '')
+      const safeConcept = payment.concept ? ` (${escapeHtml(payment.concept)})` : ''
+
       await req.payload.sendEmail({
         to: email,
         subject: `Recordatorio: pago de $${payment.amount?.toFixed(2)} vence mañana`,
         html: `
-          <p>Hola ${escapeHtml(client?.name ?? '')},</p>
-          <p>Te recordamos que tu pago de <strong>$${payment.amount?.toFixed(2)} USD</strong>${
-            payment.concept ? ` (${escapeHtml(payment.concept)})` : ''
-          } vence <strong>mañana</strong>.</p>
+          <p>Hola ${safeClientName},</p>
+          <p>Te recordamos que tu pago de <strong>$${payment.amount?.toFixed(2)} USD</strong>${safeConcept} vence <strong>mañana</strong>.</p>
           <p>Quedamos atentos a tu confirmación.</p>
           <p style="color:#888">— Martes Hub</p>
         `,
