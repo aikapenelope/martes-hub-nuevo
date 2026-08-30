@@ -126,7 +126,12 @@ export const EmailCampaigns: CollectionConfig = {
   ],
   endpoints: [
     {
-      path: '/send',
+      // El handler lee req.routeParams.id — path SIN `:id` nunca lo puebla
+      // (payloadcms.com/docs/rest-api > Custom Endpoints: params vienen de
+      // segmentos `:nombre` en el path). Antes de este fix, POST a este
+      // endpoint devolvía siempre 400 "id de campaña inválido": nunca
+      // funcionó enviar una campaña de email desde ningún lado.
+      path: '/:id/send',
       method: 'post',
       handler: sendCampaignHandler,
     },
