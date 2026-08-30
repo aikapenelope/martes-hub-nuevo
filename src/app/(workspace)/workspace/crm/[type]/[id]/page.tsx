@@ -6,7 +6,7 @@
 
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, CircleDot, ExternalLink, Mail, MessageCircle, Phone, Plus, UserRound } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, CircleDot, Mail, MessageCircle, Phone, Plus, UserRound } from 'lucide-react'
 
 import { convertLeadAction, createActivityAction, updateClientAction, updateLeadAction } from '@/lib/crm-actions'
 import { getCrmRecord, type CrmView } from '@/lib/crm-data'
@@ -63,7 +63,7 @@ export default async function CrmRecordPage({
         </div>
       )}
 
-      <header className="flex flex-col justify-between gap-4 border border-zinc-800 bg-zinc-950 p-5 sm:flex-row sm:items-center">
+      <header className="flex flex-col justify-between gap-4 oled-card p-5 sm:flex-row sm:items-center bracket-accent">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center border border-zinc-700 bg-zinc-900 text-white"><UserRound className="w-5 h-5" aria-hidden="true" /></span>
           <div>
@@ -84,7 +84,7 @@ export default async function CrmRecordPage({
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_.9fr]">
-        <section className="border border-zinc-800 bg-zinc-950 p-5">
+        <section className="oled-card p-5">
           <h2 className="text-base font-bold text-white">Ficha 360</h2>
           <p className="mt-1 text-xs text-zinc-400">Datos de contacto, estado y contexto interno.</p>
 
@@ -131,13 +131,12 @@ export default async function CrmRecordPage({
           )}
         </section>
 
-        <aside className="border border-zinc-800 bg-zinc-950 p-5">
+        <aside className="oled-card p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-white">Timeline</h2>
               <p className="text-xs text-zinc-400">Últimas {detail.activities.length} interacciones.</p>
             </div>
-            <a className="text-zinc-500 hover:text-white" aria-label="Abrir actividades en admin" href={`/admin/collections/activities?where[${isLead ? 'lead' : 'client'}][equals]=${record.id}`}><ExternalLink className="w-4 h-4" aria-hidden="true" /></a>
           </div>
 
           {detail.activities.length === 0 ? (

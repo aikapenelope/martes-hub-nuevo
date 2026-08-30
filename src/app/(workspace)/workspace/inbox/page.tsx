@@ -7,6 +7,8 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 
+import { PageHero } from '@/components/workspace/oled'
+
 interface ConvItem {
   id: number
   contactAddress: string
@@ -104,18 +106,15 @@ export default function InboxPage() {
   }
 
   return (
-    <>
-      <section className="border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
-        <div className="mb-2 flex items-center gap-2 text-xs font-mono text-zinc-400 uppercase tracking-wider">
-          <span className="w-2 h-2 bg-white inline-block" />
-          <span>Mensajería omnicanal</span>
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">Unified Inbox</h1>
-        <p className="mt-1 text-xs text-zinc-400">Conversaciones de WhatsApp e Instagram sincronizadas con OpenBSP.</p>
-      </section>
+    <div className="space-y-4">
+      <PageHero
+        eyebrow="Mensajería omnicanal"
+        title="Unified Inbox"
+        description="Conversaciones de WhatsApp e Instagram sincronizadas con OpenBSP."
+      />
 
       <div className="grid gap-3 lg:grid-cols-[20rem_1fr]" style={{ minHeight: 'calc(100vh - 20rem)' }}>
-        <div className="border border-zinc-800 bg-zinc-950 overflow-y-auto">
+        <div className="oled-card overflow-y-auto">
           <h2 className="border-b border-zinc-800 px-4 py-2.5 text-xs font-bold text-white uppercase tracking-wider">Conversaciones</h2>
           {convs.length === 0 && <p className="p-4 text-xs text-zinc-500">Sin conversaciones todavía.</p>}
           {convs.map((c) => (
@@ -132,7 +131,7 @@ export default function InboxPage() {
           ))}
         </div>
 
-        <div className="flex flex-col border border-zinc-800 bg-zinc-950">
+        <div className="flex flex-col oled-card !p-0">
           {selected == null ? (
             <p className="p-6 text-sm text-zinc-500">Selecciona una conversación.</p>
           ) : (
@@ -191,6 +190,6 @@ export default function InboxPage() {
           )}
         </div>
       </div>
-    </>
+    </div>
   )
 }

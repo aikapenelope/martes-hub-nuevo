@@ -22,7 +22,6 @@ import {
   MailCheck,
   MessageCircle,
   PieChart,
-  Receipt,
   Send,
   ShieldAlert,
   Sparkles,
@@ -36,6 +35,7 @@ import {
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { paymentsAggregate, startOfMonthIso, startOfLastMonthIso } from '@/lib/db-aggregates'
 import { ActivityHeatmap } from '@/components/workspace/ActivityHeatmap'
+import { PaymentCreateDialog } from '@/components/workspace/PaymentCreateDialog'
 import type {
   Activity,
   Client,
@@ -132,6 +132,7 @@ export default async function WorkspacePage() {
     yearActivities,
     yearMessages,
     yearPaidPayments,
+    clientsForPayment,
   ] = await Promise.all([
     q({ collection: 'leads', limit: 0, where: tenantFilter({ status: { equals: 'nuevo' } }) }),
     q({ collection: 'leads', limit: 0, where: tenantFilter({ status: { equals: 'contactado' } }) }),
@@ -155,6 +156,7 @@ export default async function WorkspacePage() {
     q({ collection: 'activities', limit: 3000, depth: 0, where: tenantFilter({ createdAt: { greater_than_equal: yearAgo } }) }),
     q({ collection: 'messages', limit: 3000, depth: 0, where: tenantFilter({ createdAt: { greater_than_equal: yearAgo } }) }),
     q({ collection: 'payments', limit: 3000, depth: 0, where: tenantFilter({ status: { equals: 'pagado' }, paidAt: { greater_than_equal: yearAgo } }) }),
+    q({ collection: 'clients', limit: 200, depth: 0, sort: 'name', where: tenantFilter({ stage: { equals: 'activo' } }) }),
   ])
 
   const payments = recentPaymentsRes.docs as Payment[]
@@ -243,12 +245,7 @@ export default async function WorkspacePage() {
           >
             <UserPlus className="w-4 h-4 text-sky-400" /> + Lead
           </Link>
-          <Link
-            href="/admin/collections/payments/create"
-            className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold flex items-center gap-2 uppercase transition"
-          >
-            <Receipt className="w-4 h-4 text-amber-400" /> + Cobro
-          </Link>
+          <PaymentCreateDialog clients={clientsForPayment.docs as Client[]} />
           <Link
             href="/workspace/inbox"
             className="px-4 py-2 bg-sky-400 hover:bg-sky-300 text-black font-black flex items-center gap-2 uppercase transition shadow-[0_0_16px_rgba(56,189,248,0.35)]"

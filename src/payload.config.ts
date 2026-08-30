@@ -24,6 +24,7 @@ import { Conversations } from './collections/Conversations'
 import { Messages } from './collections/Messages'
 import { MessageTemplates } from './collections/MessageTemplates'
 import { importCsvHandler } from './endpoints/importCsv'
+import { exportCsvHandler } from './endpoints/exportCsv'
 import { paymentRemindersTask } from './jobs/paymentReminders'
 import { dailyDigestTask } from './jobs/dailyDigest'
 import { syncTemplatesTask } from './jobs/syncTemplates'
@@ -320,6 +321,11 @@ export default buildConfig({
       path: '/import-csv',
       method: 'post',
       handler: importCsvHandler,
+    },
+    {
+      path: '/export-csv',
+      method: 'get',
+      handler: exportCsvHandler,
     },
     {
       path: '/webhooks/openbsp',

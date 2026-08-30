@@ -5,6 +5,9 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
+
+import { EmptyState, HeroAction, OledCard, PageHero } from '@/components/workspace/oled'
 
 interface FollowUpItem {
   kind: 'lead' | 'client'
@@ -48,61 +51,62 @@ export default function HoyPage() {
   }, [load])
 
   return (
-    <>
-      <section className="border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-xs font-mono text-zinc-400 uppercase tracking-wider">
-              <span className="w-2 h-2 bg-white inline-block" />
-              <span>Seguimientos</span>
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">Hoy</h1>
-            <p className="mt-1 text-xs text-zinc-400">
-              A quién escribirle hoy. El primer mensaje lo abrís vos; cuando respondan, el agente sigue solo.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void load(true)}
-            disabled={loading}
-            className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition uppercase tracking-wider font-mono disabled:opacity-50"
-          >
+    <div className="space-y-4">
+      <PageHero
+        eyebrow="Seguimientos"
+        title="Hoy"
+        description="A quién escribirle hoy. El primer mensaje lo abrís vos; cuando respondan, el agente sigue solo."
+        actions={
+          <HeroAction type="button" onClick={() => void load(true)} icon={RefreshCw}>
             {loading ? 'Cargando…' : 'Refrescar'}
-          </button>
-        </div>
-      </section>
+          </HeroAction>
+        }
+      />
 
       {error && (
-        <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300">{error}</div>
+        <div className="oled-card border-red-900/60 px-3 py-2 text-xs text-red-300">{error}</div>
       )}
 
       {!loading && items.length === 0 && !error && (
-        <div className="border border-zinc-800 bg-zinc-950 py-12 text-center text-sm text-zinc-400">
-          Nada pendiente por hoy 🎉
-        </div>
+        <OledCard className="py-12 text-center text-sm text-zinc-400">Nada pendiente por hoy.</OledCard>
       )}
 
-      <div className="border border-zinc-800 bg-zinc-950">
-        {items.map((item) => (
-          <div key={`${item.kind}-${item.id}`} className="flex flex-wrap items-center gap-4 border-b border-zinc-900 px-4 py-3 last:border-0">
-            <span className={`shrink-0 text-[10px] font-mono px-1.5 py-0.5 ${item.kind === 'lead' ? 'bg-amber-900/50 text-amber-300 border border-amber-800' : 'bg-emerald-900/50 text-emerald-400 border border-emerald-800'}`}>
-              {item.kind === 'lead' ? 'Lead' : 'Cliente'}
-            </span>
-            <strong className="min-w-[10rem] text-sm text-white">{item.name}</strong>
-            <span className="text-xs text-zinc-400">{item.pipeline}</span>
-            <span className="flex-1 text-xs text-zinc-300">{item.reason}</span>
-            <a href={item.crmUrl} className="text-xs text-zinc-400 hover:text-white underline">Ver ficha</a>
-            <a
-              href={item.waLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 px-3 py-1.5 bg-[#25d366] text-black text-xs font-bold uppercase tracking-wider font-mono"
+      <OledCard className="!p-0">
+        {items.length === 0 && !loading ? (
+          <EmptyState>Sin seguimientos pendientes.</EmptyState>
+        ) : (
+          items.map((item) => (
+            <div
+              key={`${item.kind}-${item.id}`}
+              className="flex flex-wrap items-center gap-4 border-b border-zinc-900 px-4 py-3 last:border-0"
             >
-              WhatsApp
-            </a>
-          </div>
-        ))}
-      </div>
-    </>
+              <span
+                className={`shrink-0 text-[10px] font-mono px-1.5 py-0.5 ${
+                  item.kind === 'lead'
+                    ? 'bg-amber-900/50 text-amber-300 border border-amber-800'
+                    : 'bg-emerald-900/50 text-emerald-400 border border-emerald-800'
+                }`}
+              >
+                {item.kind === 'lead' ? 'Lead' : 'Cliente'}
+              </span>
+              <strong className="min-w-[10rem] text-sm text-white">{item.name}</strong>
+              <span className="text-xs text-zinc-400">{item.pipeline}</span>
+              <span className="flex-1 text-xs text-zinc-300">{item.reason}</span>
+              <a href={item.crmUrl} className="text-xs text-zinc-400 hover:text-white underline">
+                Ver ficha
+              </a>
+              <a
+                href={item.waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 px-3 py-1.5 bg-[#25d366] text-black text-xs font-bold uppercase tracking-wider font-mono"
+              >
+                WhatsApp
+              </a>
+            </div>
+          ))
+        )}
+      </OledCard>
+    </div>
   )
 }

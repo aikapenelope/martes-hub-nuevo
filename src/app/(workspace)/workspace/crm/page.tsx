@@ -7,10 +7,12 @@
 import 'server-only'
 
 import Link from 'next/link'
-import { ArrowRight, Download, Search, UsersRound } from 'lucide-react'
+import { ArrowRight, Search, UsersRound } from 'lucide-react'
 
 import { CrmFormDialog } from '@/components/workspace/CrmFormDialog'
+import { CrmImportExportDialog } from '@/components/workspace/CrmImportExportDialog'
 import { CrmPipelineWorkspace } from '@/components/workspace/CrmPipelineWorkspace'
+import { PageHero } from '@/components/workspace/oled'
 import { getCrmData, parseCrmFilters, type CrmSearchParams } from '@/lib/crm-data'
 import { getCrmPipelineData } from '@/lib/crm-pipeline-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
@@ -109,52 +111,36 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
 
   return (
     <>
-      <section className="border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
-        <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-xs font-mono text-zinc-400 uppercase tracking-wider">
-              <span className="w-2 h-2 bg-white inline-block" />
-              <span>CRM · {context.tenant.name}</span>
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">Relaciones que avanzan</h1>
-            <p className="mt-1 text-xs text-zinc-400">
-              Pipeline, cartera y contexto comercial del tenant activo.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <a
-              href={`/admin/collections/${data.view}`}
-              className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition inline-flex items-center gap-1.5 uppercase tracking-wider font-mono"
-            >
-              <Download className="w-4 h-4" /> Importar / exportar
-            </a>
+      <PageHero
+        eyebrow={`CRM · ${context.tenant.name}`}
+        title="Relaciones que avanzan"
+        description="Pipeline, cartera y contexto comercial del tenant activo."
+        notice={!context.canEdit ? 'Modo lectura — las modificaciones requieren rol agente o admin.' : undefined}
+        actions={
+          <>
+            <CrmImportExportDialog collection={data.view === 'leads' ? 'leads' : 'clients'} />
             {context.canEdit && <CrmFormDialog kind={data.view === 'leads' ? 'lead' : 'client'} />}
-          </div>
-        </div>
-        {!context.canEdit && (
-          <p className="mt-3 border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400 font-mono" role="status">
-            Modo lectura — las modificaciones requieren rol agente o admin.
-          </p>
-        )}
-      </section>
+          </>
+        }
+      />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="border border-zinc-800 bg-zinc-950 p-4">
+        <div className="oled-card p-4">
           <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Leads abiertos</p>
           <p className="mt-1.5 text-2xl font-bold tracking-tight text-white font-mono">{data.totals.leads}</p>
         </div>
-        <div className="border border-zinc-800 bg-zinc-950 p-4">
+        <div className="oled-card p-4">
           <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Clientes activos</p>
           <p className="mt-1.5 text-2xl font-bold tracking-tight text-white font-mono">{data.totals.clients}</p>
         </div>
-        <div className="border border-zinc-800 bg-zinc-950 p-4">
+        <div className="oled-card p-4">
           <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Vista actual</p>
           <p className="mt-1.5 text-2xl font-bold tracking-tight text-white font-mono">{data.view === 'leads' ? 'Pipeline' : 'Cartera'}</p>
         </div>
       </section>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav className="inline-flex border border-zinc-800 bg-zinc-950 p-0.5" aria-label="Vista CRM">
+        <nav className="inline-flex oled-card p-0.5" aria-label="Vista CRM">
           <Link
             href={buildHref(filters, { vista: 'leads', modo: undefined, estado: undefined, page: 1 })}
             className={data.view === 'leads' ? 'px-3.5 py-1.5 text-xs font-bold bg-white text-black uppercase tracking-wider' : 'px-3.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-white uppercase tracking-wider transition'}
@@ -170,7 +156,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
         </nav>
 
         {filters.view === 'leads' && (
-          <nav className="inline-flex border border-zinc-800 bg-zinc-950 p-0.5" aria-label="Modo de vista del pipeline">
+          <nav className="inline-flex oled-card p-0.5" aria-label="Modo de vista del pipeline">
             <Link
               href={buildHref(filters, { modo: undefined })}
               className={filters.mode === 'pipeline' ? 'px-3.5 py-1.5 text-xs font-bold bg-white text-black uppercase tracking-wider' : 'px-3.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-white uppercase tracking-wider transition'}
@@ -197,7 +183,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
                 <Link
                   key={column.status}
                   href={buildHref(filters, { estado: column.status, page: 1 })}
-                  className={`border p-3 transition ${filters.status === column.status ? 'border-white bg-zinc-900' : 'border-zinc-800 bg-zinc-950 hover:border-zinc-600'}`}
+                  className={`p-3 transition ${filters.status === column.status ? 'border border-white bg-zinc-900' : 'oled-card hover:border-zinc-600'}`}
                 >
                   <span className="block text-[10px] font-mono uppercase tracking-wider text-zinc-400">{leadLabels[column.status]}</span>
                   <strong className="mt-1 block text-xl font-bold text-white font-mono">{column.total}</strong>
@@ -206,7 +192,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             </section>
           )}
 
-      <section className="border border-zinc-800 bg-zinc-950">
+      <section className="oled-card">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 p-4">
           <form className="flex flex-wrap items-center gap-2">
             <input name="vista" type="hidden" value={data.view} />
