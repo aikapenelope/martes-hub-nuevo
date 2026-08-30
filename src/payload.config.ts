@@ -181,17 +181,25 @@ export default buildConfig({
     }),
     mcpPlugin({
       collections: {
+        // find/create/update abiertos: el agente MCP necesita poder registrar
+        // leads/clientes nuevos y actualizar su estado como parte de su
+        // trabajo normal. delete:false porque no hay ningún flujo legítimo
+        // en el que un agente externo deba borrar un registro de negocio —
+        // mismo criterio de riesgo que ya se aplicó a payments/invoices/quotes
+        // y a conversation-summaries/social-posts/post-metrics/media más abajo.
+        // Ver payloadcms.com/docs/plugins/mcp: cada operación adicional es más
+        // superficie de mutación no intencionada.
         clients: {
           description: 'Clientes del CRM: datos de contacto, etapa, notas y estado.',
-          enabled: true,
+          enabled: { find: true, create: true, update: true, delete: false },
         },
         leads: {
           description: 'Prospectos (leads) en pipeline: estado, rubro, canal y notas.',
-          enabled: true,
+          enabled: { find: true, create: true, update: true, delete: false },
         },
         tasks: {
           description: 'Gestión de tareas internas: título, estado, prioridad y asignaciones.',
-          enabled: true,
+          enabled: { find: true, create: true, update: true, delete: false },
         },
         // Documentos financieros: SOLO LECTURA para el agente MCP.
         // Sin create/update el agente no puede sintetizar ni mutar cobros/facturas/cotizaciones.
