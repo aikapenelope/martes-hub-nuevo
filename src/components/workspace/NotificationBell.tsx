@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, CircleAlert, Info, TriangleAlert } from 'lucide-react'
+import { Bell, Check, CircleAlert, Info, TriangleAlert } from 'lucide-react'
 
 interface NotificationItem {
   id: number
@@ -73,6 +73,17 @@ export function NotificationBell() {
     await load()
   }
 
+  async function markOneRead(id: number) {
+    // Optimista: la quitamos de la lista de inmediato, sin esperar la red.
+    setItems((prev) => prev.filter((n) => n.id !== id))
+    await fetch('/api/notifications/mark-read', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [id] }),
+    })
+  }
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -108,15 +119,23 @@ export function NotificationBell() {
               items.map((n) => {
                 const Icon = SEVERITY_ICON[n.severity]
                 return (
-                  <div key={n.id} className="flex gap-2.5 border-b border-zinc-900 px-3 py-2.5 last:border-0">
+                  <div key={n.id} className="flex items-start gap-2.5 border-b border-zinc-900 px-3 py-2.5 last:border-0">
                     <Icon size={14} className={`mt-0.5 shrink-0 ${SEVERITY_CLS[n.severity]}`} />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <strong className="block text-xs text-white">{n.title}</strong>
                       {n.body && <p className="mt-0.5 text-[11px] text-zinc-400 line-clamp-2">{n.body}</p>}
                       <span className="mt-1 block text-[10px] text-zinc-600 font-mono">
                         {new Date(n.createdAt).toLocaleString('es')}
                       </span>
                     </div>
+                    <button
+                      type="button"
+                      aria-label="Marcar como leída"
+                      onClick={() => void markOneRead(n.id)}
+                      className="shrink-0 text-zinc-500 hover:text-emerald-400"
+                    >
+                      <Check size={13} />
+                    </button>
                   </div>
                 )
               })
