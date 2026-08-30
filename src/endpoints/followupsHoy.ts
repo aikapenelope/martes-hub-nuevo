@@ -1,5 +1,5 @@
 import type { PayloadRequest } from 'payload'
-import type { User } from '@/payload-types'
+import { resolveUserTenantId } from './tenantResolution'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -38,34 +38,6 @@ export interface FollowUpItem {
   crmUrl: string
 }
 
-async function resolveTenantId(req: PayloadRequest): Promise<number | null> {
-  const user = req.user as User | null
-  if (!user) return null
-
-  const userTenants = (user.tenants || [])
-    .map((t) => (typeof t.tenant === 'object' && t.tenant ? t.tenant.id : t.tenant))
-    .filter((id): id is number => typeof id === 'number')
-
-  const url = new URL(req.url ?? 'http://local.payload/api/followups/hoy')
-  const qTenant = url.searchParams.get('tenant')
-  const parsedTenantId = qTenant && Number.isInteger(Number(qTenant)) ? Number(qTenant) : null
-
-  if (parsedTenantId && (user.roles?.includes('admin') || userTenants.includes(parsedTenantId))) {
-    return parsedTenantId
-  }
-
-  if (userTenants.length > 0) {
-    return userTenants[0]
-  }
-
-  if (user.roles?.includes('admin')) {
-    const all = await req.payload.find({ collection: 'tenants', limit: 1, depth: 0, overrideAccess: true, req })
-    if (all.docs[0]) return all.docs[0].id
-  }
-
-  return null
-}
-
 function digits(v: string | undefined | null): string {
   return (v ?? '').replace(/\D/g, '')
 }
@@ -80,7 +52,7 @@ export async function followupsHoyHandler(req: PayloadRequest): Promise<Response
     return Response.json({ error: 'No autenticado' }, { status: 401 })
   }
 
-  const tenantId = await resolveTenantId(req)
+  const tenantId = await resolveUserTenantId(req, 'http://local.payload/api/followups/hoy')
   if (!tenantId) {
     return Response.json({ error: 'Tenant no resoluble' }, { status: 422 })
   }

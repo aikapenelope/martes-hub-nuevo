@@ -40,3 +40,17 @@ export function relativeLabel(iso: string | null, now: number = Date.now()): str
   if (hours < 24) return `hace ${hours} h`
   return `hace ${Math.floor(hours / 24)} d`
 }
+
+/** Formateo consistente de tiempo transcurrido respecto a una marca de tiempo dada. */
+export function formatTimeAgo(isoDate?: string | null, referenceTime: number = Date.now()): string {
+  if (!isoDate) return 'reciente'
+  const targetTime = new Date(isoDate).getTime()
+  const diffMs = referenceTime > 0 ? referenceTime - targetTime : 0
+  const diffMins = Math.floor(diffMs / 60_000)
+  if (diffMins < 1) return 'hace un momento'
+  if (diffMins < 60) return `hace ${diffMins} min`
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `hace ${diffHours} h`
+  const diffDays = Math.floor(diffHours / 24)
+  return `hace ${diffDays} d`
+}

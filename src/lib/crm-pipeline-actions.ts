@@ -6,7 +6,7 @@ import { anthropic } from '@ai-sdk/anthropic'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
 
-import type { Lead, Message, Tenant } from '@/payload-types'
+import type { Message, Tenant } from '@/payload-types'
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { sendText } from '@/integrations/openbsp/client'
@@ -24,20 +24,9 @@ const STATUS_LABEL: Record<LeadStatus, string> = {
 
 type ActionResult<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string; needsTemplate?: boolean }
 
-async function scopedLead(id: number): Promise<{ lead: Lead; context: Awaited<ReturnType<typeof getWorkspaceContext>> }> {
-  const context = await getWorkspaceContext()
-  const result = await context.payload.find({
-    collection: 'leads',
-    limit: 1,
-    depth: 0,
-    overrideAccess: false,
-    user: context.user,
-    where: { and: [{ id: { equals: id } }, { tenant: { equals: context.tenantId } }] },
-  })
-  const lead = result.docs[0] as Lead | undefined
-  if (!lead) throw new Error('Lead no encontrado en el tenant activo')
-  return { lead, context }
-}
+import { getScopedLead } from '@/lib/crm-scoped-entities'
+
+const scopedLead = getScopedLead
 
 /**
  * Cambia la etapa de un lead desde el tablero Kanban (drag-and-drop) y

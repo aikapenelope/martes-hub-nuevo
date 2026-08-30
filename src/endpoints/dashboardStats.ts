@@ -1,6 +1,7 @@
 import type { PayloadRequest } from 'payload'
 import type { User } from '@/payload-types'
 import { paymentsAggregate, startOfMonthIso } from '../lib/db-aggregates'
+import { resolveUserTenantId } from './tenantResolution'
 
 export async function dashboardStatsHandler(req: PayloadRequest): Promise<Response> {
   const user = req.user as User | null
@@ -8,29 +9,7 @@ export async function dashboardStatsHandler(req: PayloadRequest): Promise<Respon
     return Response.json({ error: 'No autenticado' }, { status: 401 })
   }
 
-  const userTenants = (user.tenants || [])
-    .map((t) => (typeof t.tenant === 'object' && t.tenant ? t.tenant.id : t.tenant))
-    .filter((id): id is number => typeof id === 'number')
-
-  const url = new URL(req.url ?? 'http://localhost/api/dashboard/stats')
-  const requestedTenant = url.searchParams.get('tenant')
-  const parsedTenantId = requestedTenant && Number.isInteger(Number(requestedTenant)) ? Number(requestedTenant) : null
-
-  let tenantId: number | null = null
-  if (parsedTenantId && (user.roles?.includes('admin') || userTenants.includes(parsedTenantId))) {
-    tenantId = parsedTenantId
-  } else if (userTenants.length > 0) {
-    tenantId = userTenants[0]
-  } else if (user.roles?.includes('admin')) {
-    const allTenants = await req.payload.find({
-      collection: 'tenants',
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-      req,
-    })
-    tenantId = allTenants.docs[0]?.id ?? null
-  }
+  const tenantId = await resolveUserTenantId(req, 'http://localhost/api/dashboard/stats')
 
   if (!tenantId) {
     return Response.json({
