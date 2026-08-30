@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import { adminOnly, authenticated } from '../access'
+import { adminOnly } from '../access'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -10,7 +10,22 @@ export const Users: CollectionConfig = {
   },
   auth: true,
   access: {
-    read: authenticated,
+    // Antes: cualquier usuario autenticado veía el directorio COMPLETO de
+    // usuarios de TODOS los tenants (nombre, email, roles) — `users` no
+    // está en el plugin multi-tenant, así que `authenticated` a secas no
+    // filtraba nada. Ahora: admins ven todo; el resto solo ve usuarios
+    // que comparten al menos un tenant (constraint-based access — ver
+    // QUERIES.md: una Access function puede devolver un Where en vez de
+    // boolean para acotar la lista).
+    read: ({ req }) => {
+      if (!req.user) return false
+      if ('roles' in req.user && req.user.roles?.includes('admin')) return true
+      const tenantIds = (('tenants' in req.user && req.user.tenants) || [])
+        .map((t) => (typeof t.tenant === 'object' && t.tenant !== null ? t.tenant.id : t.tenant))
+        .filter((id): id is number => typeof id === 'number')
+      if (tenantIds.length === 0) return false
+      return { 'tenants.tenant': { in: tenantIds } }
+    },
     create: adminOnly,
     update: ({ req, id }) => {
       if (!req.user) return false
@@ -19,6 +34,19 @@ export const Users: CollectionConfig = {
     },
     delete: adminOnly,
     admin: ({ req }) => Boolean(req.user && 'roles' in req.user && (req.user.roles?.includes('admin') || req.user.roles?.includes('agente'))),
+  },
+  hooks: {
+    // beforeLogin (no afterLogin: el login ya se completó para ese punto)
+    // rechaza el intento antes de emitir sesión/JWT. Antes, el checkbox
+    // `active` era puramente cosmético: desactivar a alguien no le impedía
+    // seguir usando el sistema con su sesión/credenciales existentes.
+    beforeLogin: [
+      ({ user }) => {
+        if (user.active === false) {
+          throw new Error('Esta cuenta está desactivada. Contacta a un administrador.')
+        }
+      },
+    ],
   },
   fields: [
     {
@@ -55,9 +83,15 @@ export const Users: CollectionConfig = {
       type: 'checkbox',
       defaultValue: true,
       label: 'Activo',
+      access: {
+        // Antes cualquiera podía reactivarse a sí mismo (el `update` general
+        // de la colección permite self-update sin restringir este campo).
+        update: ({ req }) => Boolean(req.user && 'roles' in req.user && req.user.roles?.includes('admin')),
+      },
       admin: {
         position: 'sidebar',
       },
     },
   ],
 }
+
