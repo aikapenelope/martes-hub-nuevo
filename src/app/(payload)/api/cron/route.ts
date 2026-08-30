@@ -15,18 +15,29 @@
  */
 
 import configPromise from '@payload-config'
+import { timingSafeEqual } from 'crypto'
 import { getPayload } from 'payload'
+
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
+}
 
 export async function GET(request: Request): Promise<Response> {
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
 
-  // En desarrollo sin CRON_SECRET configurado, permitir ejecución local.
-  // En producción el secret es obligatorio.
-  if (cronSecret) {
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return Response.json({ error: 'No autorizado' }, { status: 401 })
-    }
+  // Fail-closed: sin CRON_SECRET configurado, el endpoint rechaza todo en
+  // vez de ejecutar sin autenticación. Antes, sin el secret configurado
+  // (p. ej. un despliegue mal configurado), cualquiera podía disparar el
+  // job queue completo llamando a /api/cron sin credenciales.
+  if (!cronSecret) {
+    return Response.json({ error: 'CRON_SECRET no configurado' }, { status: 503 })
+  }
+  if (!authHeader || !safeEqual(authHeader, `Bearer ${cronSecret}`)) {
+    return Response.json({ error: 'No autorizado' }, { status: 401 })
   }
 
   try {
