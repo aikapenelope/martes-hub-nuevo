@@ -25,6 +25,9 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.44",
     "@ai-sdk/openai": "^4.0.50",
+    "@copilotkit/react-core": "^1.69.3",
+    "@copilotkit/react-ui": "^1.69.3",
+    "@copilotkit/runtime": "^1.69.3",
     "@payloadcms/db-postgres": "3.88.0",
     "@payloadcms/email-nodemailer": "3.88.0",
     "@payloadcms/email-resend": "3.88.0",
