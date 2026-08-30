@@ -46,7 +46,7 @@ export async function paymentsAggregate(
   }
 
   const params: unknown[] = [tenantId, statuses]
-  let where = 'tenant_id = $1 AND status = ANY($2::text[])'
+  let where = 'tenant_id = $1 AND status::text = ANY($2::text[])'
   if (paidAfter) {
     params.push(paidAfter)
     where += ` AND paid_at >= $${params.length}`

@@ -13,6 +13,7 @@ import * as migration_20260829_220000_lead_pipeline_fields from './20260829_2200
 import * as migration_20260830_010000_social_mcp_ready from './20260830_010000_social_mcp_ready';
 import * as migration_20260830_020000_mcp_api_keys_ready from './20260830_020000_mcp_api_keys_ready';
 import * as migration_20260830_030000_tasks_forms_summaries_ready from './20260830_030000_tasks_forms_summaries_ready';
+import * as migration_20260830_040000_database_rls_and_performance_hardening from './20260830_040000_database_rls_and_performance_hardening';
 
 export const migrations = [
   {
@@ -89,5 +90,10 @@ export const migrations = [
     up: migration_20260830_030000_tasks_forms_summaries_ready.up,
     down: migration_20260830_030000_tasks_forms_summaries_ready.down,
     name: '20260830_030000_tasks_forms_summaries_ready'
+  },
+  {
+    up: migration_20260830_040000_database_rls_and_performance_hardening.up,
+    down: migration_20260830_040000_database_rls_and_performance_hardening.down,
+    name: '20260830_040000_database_rls_and_performance_hardening'
   },
 ];

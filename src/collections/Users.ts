@@ -1,6 +1,7 @@
-import { APIError, type CollectionConfig } from 'payload'
+import { APIError, type AccessResult, type CollectionConfig, type Where } from 'payload'
+import type { User } from '@/payload-types'
 
-import { adminOnly, authenticated, fieldAdminOnly } from '../access'
+import { adminOnly, fieldAdminOnly } from '../access'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -10,7 +11,28 @@ export const Users: CollectionConfig = {
   },
   auth: true,
   access: {
-    read: authenticated,
+    read: ({ req }): AccessResult => {
+      const user = req.user as User | null
+      if (!user) return false
+      if (user.roles?.includes('admin')) return true
+
+      const userTenants = (user.tenants || [])
+        .map((t) => (typeof t.tenant === 'object' && t.tenant ? t.tenant.id : t.tenant))
+        .filter((tId): tId is number => typeof tId === 'number')
+
+      if (userTenants.length === 0) {
+        const selfWhere: Where = { id: { equals: user.id } }
+        return selfWhere
+      }
+
+      const scopedWhere: Where = {
+        or: [
+          { id: { equals: user.id } },
+          { 'tenants.tenant': { in: userTenants } },
+        ],
+      }
+      return scopedWhere
+    },
     create: adminOnly,
     update: ({ req, id }) => {
       if (!req.user) return false

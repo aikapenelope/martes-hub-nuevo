@@ -91,9 +91,17 @@ export const Leads: CollectionConfig = {
       type: 'relationship',
       relationTo: 'users',
       label: 'Agente asignado',
-      filterOptions: {
-        roles: { in: AGENT_ROLES },
-        active: { equals: true },
+      filterOptions: ({ data, siblingData }) => {
+        const d = data as { tenant?: number | { id: number } } | undefined
+        const s = siblingData as { tenant?: number | { id: number } } | undefined
+        const rawTenant = d?.tenant || s?.tenant
+        const tenantId =
+          typeof rawTenant === 'object' && rawTenant ? rawTenant.id : rawTenant
+        return {
+          roles: { in: AGENT_ROLES },
+          active: { equals: true },
+          ...(tenantId ? { 'tenants.tenant': { in: [tenantId] } } : {}),
+        }
       },
       admin: {
         position: 'sidebar',

@@ -66,4 +66,57 @@ describe('Seguridad de Aislamiento y Filtros Multi-Tenant', () => {
       expect(crypto.timingSafeEqual(bufSecret, bufAttacker)).toBe(false)
     })
   })
+
+  describe('Control de Acceso Multi-Tenant en Colecciones', () => {
+    it('Users.access.read restringe la visibilidad de usuarios no-admin a sus mismos tenants', async () => {
+      const { Users } = await import('@/collections/Users')
+      const readAccess = Users.access?.read
+      expect(typeof readAccess).toBe('function')
+
+      if (typeof readAccess === 'function') {
+        // 1. No autenticado -> false
+        expect(readAccess({ req: {} as never })).toBe(false)
+
+        // 2. Admin global -> true
+        expect(
+          readAccess({
+            req: {
+              user: { id: 1, roles: ['admin'] },
+            } as never,
+          }),
+        ).toBe(true)
+
+        // 3. Agente en Tenant 10 -> consulta acotada a sí mismo y a usuarios de su tenant
+        const agentConstraint = readAccess({
+          req: {
+            user: { id: 42, roles: ['agente'], tenants: [{ tenant: 10 }] },
+          } as never,
+        })
+        expect(agentConstraint).toEqual({
+          or: [
+            { id: { equals: 42 } },
+            { 'tenants.tenant': { in: [10] } },
+          ],
+        })
+      }
+    })
+
+    it('Clients assignedAgent filterOptions acota los agentes al tenant activo', async () => {
+      const { Clients } = await import('@/collections/Clients')
+      const assignedAgentField = Clients.fields.find(
+        (f) => 'name' in f && f.name === 'assignedAgent',
+      ) as { filterOptions?: (args: { data?: { tenant?: number } }) => unknown } | undefined
+      expect(assignedAgentField).toBeDefined()
+      expect(typeof assignedAgentField?.filterOptions).toBe('function')
+
+      const filter = assignedAgentField?.filterOptions?.({
+        data: { tenant: 5 },
+      })
+      expect(filter).toEqual({
+        roles: { in: ['admin', 'agente'] },
+        active: { equals: true },
+        'tenants.tenant': { in: [5] },
+      })
+    })
+  })
 })
