@@ -34,10 +34,11 @@ import {
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { monthlyRevenueSeries, paymentsAggregate, startOfMonthIso, startOfLastMonthIso } from '@/lib/db-aggregates'
+import { getUpcomingAgenda } from '@/lib/agenda-data'
 import { ActivityHeatmap } from '@/components/workspace/ActivityHeatmap'
 import { PaymentCreateDialog } from '@/components/workspace/PaymentCreateDialog'
 import { RevenueTrendChart, Sparkline } from '@/components/workspace/charts'
-import { OledCard, SectionHeader } from '@/components/workspace/oled'
+import { EmptyState, OledCard, SectionHeader } from '@/components/workspace/oled'
 import type {
   Activity,
   Client,
@@ -55,6 +56,7 @@ const currency = new Intl.NumberFormat('es-VE', {
   currency: 'USD',
   maximumFractionDigits: 0,
 })
+const agendaDateFmt = new Intl.DateTimeFormat('es', { weekday: 'short', day: 'numeric', month: 'short' })
 
 function formatTimeAgo(isoDate?: string | null, referenceTime: number = 0): string {
   if (!isoDate) return 'reciente'
@@ -136,6 +138,7 @@ export default async function WorkspacePage() {
     yearPaidPayments,
     clientsForPayment,
     revenueSeries,
+    agenda,
   ] = await Promise.all([
     q({ collection: 'leads', limit: 0, where: tenantFilter({ status: { equals: 'nuevo' } }) }),
     q({ collection: 'leads', limit: 0, where: tenantFilter({ status: { equals: 'contactado' } }) }),
@@ -161,6 +164,7 @@ export default async function WorkspacePage() {
     q({ collection: 'payments', limit: 3000, depth: 0, where: tenantFilter({ status: { equals: 'pagado' }, paidAt: { greater_than_equal: yearAgo } }) }),
     q({ collection: 'clients', limit: 200, depth: 0, sort: 'name', where: tenantFilter({ stage: { equals: 'activo' } }) }),
     monthlyRevenueSeries(payload, tenantId, 7),
+    getUpcomingAgenda(payload, tenantId, 7),
   ])
 
   const payments = recentPaymentsRes.docs as Payment[]
@@ -392,6 +396,33 @@ export default async function WorkspacePage() {
           data={revenueSeries.map((p) => ({ label: p.month.slice(5), value: p.total }))}
           formatter={(v) => currency.format(v)}
         />
+      </OledCard>
+
+      {/* AGENDA DE LA SEMANA — tareas, renovaciones de membresía y cobros por vencer, unificados */}
+      <OledCard>
+        <SectionHeader eyebrow="Operación" title="Agenda de la Semana" description="Tareas, renovaciones y cobros que se vencen en los próximos 7 días" />
+        {agenda.length === 0 ? (
+          <EmptyState>Nada por vencer en los próximos 7 días.</EmptyState>
+        ) : (
+          <div className="flex flex-col">
+            {agenda.slice(0, 12).map((item, i) => {
+              const tone = item.type === 'payment' ? 'text-amber-400' : item.type === 'membership' ? 'text-sky-400' : 'text-indigo-400'
+              return (
+                <Link
+                  key={`${item.type}-${i}`}
+                  href={item.href}
+                  className="flex items-center justify-between gap-3 border-b border-zinc-900 px-1 py-2.5 last:border-0 hover:bg-zinc-900/30"
+                >
+                  <div className="min-w-0 flex-1">
+                    <strong className="block truncate text-xs text-white">{item.label}</strong>
+                    <span className="text-[10px] text-zinc-500 font-mono">{item.sublabel}</span>
+                  </div>
+                  <span className={`shrink-0 text-[10px] font-mono uppercase ${tone}`}>{agendaDateFmt.format(new Date(item.date))}</span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </OledCard>
 
       {/* MATRIZ DE ACTIVIDAD — datos reales agregados por día, ver ActivityHeatmap.tsx */}

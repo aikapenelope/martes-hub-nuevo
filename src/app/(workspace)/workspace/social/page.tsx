@@ -3,9 +3,10 @@
  * y cuentas conectadas del tenant activo.
  */
 
-import { Calendar, Share2, Radio, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Calendar, Share2, Radio, Clock, CheckCircle2, AlertCircle, Eye, Heart, TrendingUp } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { getSocialMetricsSummary } from '@/lib/social-metrics-data'
 import { SocialAccountCreateDialog } from '@/components/workspace/SocialAccountCreateDialog'
 import { SocialPostCreateDialog } from '@/components/workspace/SocialPostCreateDialog'
 import { EmptyState, KpiCard, OledCard, PageHero, SectionHeader, StatusBadge } from '@/components/workspace/oled'
@@ -22,7 +23,7 @@ export default async function SocialPage({
   const context = await getWorkspaceContext(params)
   const { payload, user, tenantId, canEdit, isAdmin } = context
 
-  const [accountsRes, postsRes] = await Promise.all([
+  const [accountsRes, postsRes, metrics] = await Promise.all([
     payload.find({
       collection: 'social-accounts',
       where: { tenant: { equals: tenantId } },
@@ -40,6 +41,7 @@ export default async function SocialPage({
       overrideAccess: false,
       user,
     }),
+    getSocialMetricsSummary(payload, user, tenantId),
   ])
 
   const accounts = accountsRes.docs as SocialAccount[]
@@ -95,6 +97,18 @@ export default async function SocialPage({
         <KpiCard label="Total histórico" value={posts.length} icon={Share2} accent="indigo" note="En el repositorio del tenant" />
       </section>
 
+      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3" aria-label="Desempeño real de publicaciones">
+        <KpiCard
+          label="Alcance total"
+          value={metrics.totals.reach.toLocaleString('es')}
+          icon={TrendingUp}
+          accent="sky"
+          note={metrics.postsWithMetrics > 0 ? `${metrics.postsWithMetrics} posts con métricas` : 'Sin métricas registradas todavía'}
+        />
+        <KpiCard label="Impresiones" value={metrics.totals.impressions.toLocaleString('es')} icon={Eye} accent="indigo" note="Suma de la última medición por post" />
+        <KpiCard label="Interacciones" value={(metrics.totals.likes + metrics.totals.comments).toLocaleString('es')} icon={Heart} accent="rose" note="Likes + comentarios" />
+      </section>
+
       <section className="grid gap-4 lg:grid-cols-[1.4fr_.8fr]">
         <div className="flex flex-col gap-4">
           <OledCard>
@@ -126,11 +140,19 @@ export default async function SocialPage({
                   const accountObj = typeof p.account === 'object' && p.account ? (p.account as SocialAccount) : null
                   const accountLabel = accountObj?.accountName || 'Cuenta Social'
                   const dateStr = p.scheduledAt || p.publishedAt || p.createdAt
+                  const snap = metrics.latestByPost.get(p.id)
                   return (
                     <div key={p.id} className="flex items-center justify-between gap-3 border-b border-zinc-900 py-2.5 last:border-0">
                       <div className="min-w-0 flex-1">
                         <strong className="block truncate text-xs text-white">{p.caption.slice(0, 80)}{p.caption.length > 80 ? '…' : ''}</strong>
                         <span className="text-[10px] text-zinc-500 font-mono">{accountLabel} · {dateStr ? dateFmt.format(new Date(dateStr)) : 'Sin fecha'}</span>
+                        {snap && (
+                          <span className="mt-0.5 flex items-center gap-2.5 text-[10px] text-zinc-400 font-mono">
+                            <span className="inline-flex items-center gap-1"><Eye size={10} /> {snap.reach.toLocaleString('es')}</span>
+                            <span className="inline-flex items-center gap-1"><Heart size={10} /> {snap.likes.toLocaleString('es')}</span>
+                            <span>{snap.comments} comentarios</span>
+                          </span>
+                        )}
                       </div>
                       <StatusBadge tone={p.status === 'fallido' ? 'danger' : p.status === 'publicado' ? 'success' : 'neutral'}>
                         {p.status}

@@ -26,6 +26,7 @@ const NAV_ITEMS = [
   { label: 'Rubros', href: '/workspace/segments' },
   { label: 'Plantillas', href: '/workspace/templates' },
   { label: 'Equipo', href: '/workspace/team' },
+  { label: 'Feedback', href: '/workspace/feedback' },
   { label: 'Analíticas', href: '/workspace/analytics' },
 ] as const
 

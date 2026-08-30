@@ -4,14 +4,14 @@
  */
 
 import Link from 'next/link'
-import { Ban, CircleDollarSign, Clock3, ShieldAlert } from 'lucide-react'
+import { Ban, CircleDollarSign, Clock3, FileText, Receipt, ShieldAlert } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { paymentsAggregate, startOfMonthIso } from '@/lib/overview-data'
 import { PaymentCreateDialog } from '@/components/workspace/PaymentCreateDialog'
 import { QuoteInvoiceCreateDialog } from '@/components/workspace/QuoteInvoiceCreateDialog'
 import { EmptyState, KpiCard, OledCard, PageHero, SectionHeader, StatusBadge } from '@/components/workspace/oled'
-import type { Client, Offer } from '@/payload-types'
+import type { Client, Invoice, Media, Offer, Quote } from '@/payload-types'
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 const date = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -25,7 +25,7 @@ export default async function BillingPage({
   const context = await getWorkspaceContext(params)
   const { payload, user, tenantId, canEdit } = context
 
-  const [collected, pending, overdue, cancelled, recent, clientsRes, offersRes] = await Promise.all([
+  const [collected, pending, overdue, cancelled, recent, clientsRes, offersRes, quotesRes, invoicesRes] = await Promise.all([
     paymentsAggregate(payload, tenantId, ['pagado'], startOfMonthIso()),
     paymentsAggregate(payload, tenantId, ['pendiente', 'vencido']),
     paymentsAggregate(payload, tenantId, ['vencido']),
@@ -57,10 +57,36 @@ export default async function BillingPage({
       overrideAccess: false,
       user,
     }),
+    payload.find({
+      collection: 'quotes',
+      where: { tenant: { equals: tenantId } },
+      depth: 1,
+      limit: 10,
+      sort: '-createdAt',
+      overrideAccess: false,
+      user,
+    }),
+    payload.find({
+      collection: 'invoices',
+      where: { tenant: { equals: tenantId } },
+      depth: 1,
+      limit: 10,
+      sort: '-createdAt',
+      overrideAccess: false,
+      user,
+    }),
   ])
 
   const clients = clientsRes.docs as Client[]
   const offers = offersRes.docs as Offer[]
+  const quotes = quotesRes.docs as Quote[]
+  const invoices = invoicesRes.docs as Invoice[]
+
+  function pdfUrl(doc: Quote | Invoice): string | null {
+    const first = doc.generatedPdfs?.[0]
+    if (first && typeof first === 'object') return (first as Media).url ?? null
+    return null
+  }
 
   const cards = [
     { label: 'Cobrado este mes', value: usd.format(collected.total), note: `${collected.count} pagos registrados`, icon: CircleDollarSign, accent: 'sky' as const },
@@ -90,6 +116,66 @@ export default async function BillingPage({
         {cards.map((card) => (
           <KpiCard key={card.label} label={card.label} value={card.value} icon={card.icon} accent={card.accent} note={card.note} />
         ))}
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2">
+        <OledCard className="!p-0">
+          <SectionHeader eyebrow="Ventas" title="Cotizaciones recientes" action={<FileText className="w-4 h-4 text-zinc-500 mr-4" />} />
+          {quotes.length === 0 ? (
+            <EmptyState>Sin cotizaciones registradas todavía.</EmptyState>
+          ) : (
+            <div className="flex flex-col">
+              {quotes.map((q) => {
+                const url = pdfUrl(q)
+                return (
+                  <div key={q.id} className="flex items-center justify-between gap-3 border-b border-zinc-900 px-4 py-2.5 last:border-0">
+                    <div className="min-w-0">
+                      <strong className="block truncate text-xs text-white">{q.quoteNumber || `Cotización #${q.id}`} · {q.client.name}</strong>
+                      <span className="text-[10px] text-zinc-500 font-mono">{usd.format(q.total ?? 0)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StatusBadge tone={q.status === 'accepted' ? 'success' : q.status === 'rejected' || q.status === 'expired' ? 'danger' : 'neutral'}>{q.status}</StatusBadge>
+                      {url ? (
+                        <a href={url} target="_blank" rel="noreferrer" className="text-[10px] text-sky-400 hover:text-sky-300 font-mono">PDF →</a>
+                      ) : (
+                        <span className="text-[10px] text-zinc-600 font-mono">Sin PDF</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </OledCard>
+
+        <OledCard className="!p-0">
+          <SectionHeader eyebrow="Ventas" title="Facturas recientes" action={<Receipt className="w-4 h-4 text-zinc-500 mr-4" />} />
+          {invoices.length === 0 ? (
+            <EmptyState>Sin facturas registradas todavía.</EmptyState>
+          ) : (
+            <div className="flex flex-col">
+              {invoices.map((inv) => {
+                const url = pdfUrl(inv)
+                return (
+                  <div key={inv.id} className="flex items-center justify-between gap-3 border-b border-zinc-900 px-4 py-2.5 last:border-0">
+                    <div className="min-w-0">
+                      <strong className="block truncate text-xs text-white">{inv.invoiceNumber || `Factura #${inv.id}`} · {inv.client.name}</strong>
+                      <span className="text-[10px] text-zinc-500 font-mono">{usd.format(inv.total ?? 0)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StatusBadge tone={inv.status === 'paid' ? 'success' : inv.status === 'overdue' || inv.status === 'cancelled' ? 'danger' : 'neutral'}>{inv.status}</StatusBadge>
+                      {url ? (
+                        <a href={url} target="_blank" rel="noreferrer" className="text-[10px] text-sky-400 hover:text-sky-300 font-mono">PDF →</a>
+                      ) : (
+                        <span className="text-[10px] text-zinc-600 font-mono">Sin PDF</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </OledCard>
       </section>
 
       <OledCard className="!p-0">

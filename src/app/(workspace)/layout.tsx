@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { WorkspaceHeader } from '@/components/workspace/WorkspaceHeader'
 import { CommandPalette } from '@/components/workspace/CommandPalette'
+import { CopilotAssistant } from '@/components/workspace/CopilotAssistant'
 import '@/styles/workspace.css'
 
 // Arquitectura de múltiples root layouts: no existe app/layout.tsx compartido.
@@ -28,6 +29,10 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     .toUpperCase()
     .slice(0, 2)
 
+  const hasAiProvider = Boolean(
+    process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY,
+  )
+
   return (
     <html lang="es">
       <body className="min-h-screen bg-black font-sans antialiased text-zinc-100 selection:bg-white selection:text-black">
@@ -39,6 +44,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
         />
         <main className="mx-auto max-w-[1600px] space-y-5 px-4 py-5 sm:px-6 xl:px-8">{children}</main>
         <CommandPalette />
+        {context.canEdit && hasAiProvider && <CopilotAssistant />}
       </body>
     </html>
   )
