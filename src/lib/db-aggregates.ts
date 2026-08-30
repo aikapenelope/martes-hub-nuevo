@@ -70,3 +70,50 @@ export async function paymentsAggregate(
     return { total: 0, count: 0 }
   }
 }
+
+export interface MonthlyRevenuePoint {
+  month: string // 'YYYY-MM'
+  total: number
+}
+
+/**
+ * Serie mensual de pagos `pagado` de los últimos `months` meses (incluye el
+ * actual), agregada con `date_trunc` directo sobre el pool — evita traer
+ * todas las filas a memoria. Meses sin pagos aparecen con total 0 (nunca se
+ * omiten ni se rellenan con un valor inventado).
+ */
+export async function monthlyRevenueSeries(
+  payload: Payload,
+  tenantId: number,
+  months: number,
+): Promise<MonthlyRevenuePoint[]> {
+  const db = payload.db as { pool?: { query: (text: string, params?: unknown[]) => Promise<{ rows: Array<{ month: string; total: string | number }> }> } }
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1)
+
+  const series: MonthlyRevenuePoint[] = Array.from({ length: months }, (_, i) => {
+    const d = new Date(start.getFullYear(), start.getMonth() + i, 1)
+    return { month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, total: 0 }
+  })
+
+  if (!db.pool || typeof db.pool.query !== 'function') return series
+
+  try {
+    const res = await db.pool.query(
+      `SELECT to_char(date_trunc('month', paid_at), 'YYYY-MM') AS month, COALESCE(SUM(amount), 0)::float8 AS total
+       FROM payments
+       WHERE tenant_id = $1 AND status = 'pagado' AND paid_at >= $2
+       GROUP BY 1`,
+      [tenantId, start.toISOString()],
+    )
+    const byMonth = new Map(res.rows.map((r) => [r.month, Number(r.total)]))
+    for (const point of series) {
+      const value = byMonth.get(point.month)
+      if (value !== undefined) point.total = value
+    }
+  } catch {
+    // deja la serie en 0 — mejor un chart plano que uno con datos a medias
+  }
+
+  return series
+}

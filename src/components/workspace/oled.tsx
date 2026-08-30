@@ -10,6 +10,8 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { Sparkline } from '@/components/workspace/charts'
+
 /** Tarjeta base OLED (`oled-card`, definida en `src/styles/workspace.css`). */
 export function OledCard({
   children,
@@ -119,6 +121,7 @@ export function KpiCard({
   accent = 'sky',
   note,
   trend,
+  sparkline,
 }: {
   label: string
   value: ReactNode
@@ -126,6 +129,8 @@ export function KpiCard({
   accent?: 'sky' | 'indigo' | 'cyan' | 'amber' | 'rose'
   note?: ReactNode
   trend?: ReactNode
+  /** Serie corta (7-30 puntos) para una mini-tendencia inline; se omite si no hay datos suficientes. */
+  sparkline?: number[]
 }) {
   const accentCls: Record<string, string> = {
     sky: 'bg-sky-950/80 text-sky-400 border-sky-800/80',
@@ -133,6 +138,13 @@ export function KpiCard({
     cyan: 'bg-cyan-950/80 text-cyan-400 border-cyan-800/80',
     amber: 'bg-amber-950/80 text-amber-400 border-amber-800/80',
     rose: 'bg-rose-950/80 text-rose-400 border-rose-800/80',
+  }
+  const sparkColor: Record<string, string> = {
+    sky: '#38bdf8',
+    indigo: '#818cf8',
+    cyan: '#22d3ee',
+    amber: '#fbbf24',
+    rose: '#f43f5e',
   }
 
   return (
@@ -147,7 +159,10 @@ export function KpiCard({
         <span className="text-3xl font-black text-white font-mono">{value}</span>
         {trend}
       </div>
-      {note && <div className="text-[11px] font-mono text-zinc-400">{note}</div>}
+      <div className="flex items-center justify-between gap-2">
+        {note && <div className="text-[11px] font-mono text-zinc-400">{note}</div>}
+        {sparkline && sparkline.length > 1 && <Sparkline data={sparkline} color={sparkColor[accent]} />}
+      </div>
     </OledCard>
   )
 }

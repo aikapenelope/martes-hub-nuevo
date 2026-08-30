@@ -33,9 +33,11 @@ import {
 } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
-import { paymentsAggregate, startOfMonthIso, startOfLastMonthIso } from '@/lib/db-aggregates'
+import { monthlyRevenueSeries, paymentsAggregate, startOfMonthIso, startOfLastMonthIso } from '@/lib/db-aggregates'
 import { ActivityHeatmap } from '@/components/workspace/ActivityHeatmap'
 import { PaymentCreateDialog } from '@/components/workspace/PaymentCreateDialog'
+import { RevenueTrendChart, Sparkline } from '@/components/workspace/charts'
+import { OledCard, SectionHeader } from '@/components/workspace/oled'
 import type {
   Activity,
   Client,
@@ -133,6 +135,7 @@ export default async function WorkspacePage() {
     yearMessages,
     yearPaidPayments,
     clientsForPayment,
+    revenueSeries,
   ] = await Promise.all([
     q({ collection: 'leads', limit: 0, where: tenantFilter({ status: { equals: 'nuevo' } }) }),
     q({ collection: 'leads', limit: 0, where: tenantFilter({ status: { equals: 'contactado' } }) }),
@@ -157,6 +160,7 @@ export default async function WorkspacePage() {
     q({ collection: 'messages', limit: 3000, depth: 0, where: tenantFilter({ createdAt: { greater_than_equal: yearAgo } }) }),
     q({ collection: 'payments', limit: 3000, depth: 0, where: tenantFilter({ status: { equals: 'pagado' }, paidAt: { greater_than_equal: yearAgo } }) }),
     q({ collection: 'clients', limit: 200, depth: 0, sort: 'name', where: tenantFilter({ stage: { equals: 'activo' } }) }),
+    monthlyRevenueSeries(payload, tenantId, 7),
   ])
 
   const payments = recentPaymentsRes.docs as Payment[]
@@ -280,10 +284,13 @@ export default async function WorkspacePage() {
               </span>
             )}
           </div>
-          <div className="text-[11px] font-mono text-zinc-400">
-            {revenueMonth.count} pago{revenueMonth.count !== 1 ? 's' : ''} confirmado
-            {revenueMonth.count !== 1 ? 's' : ''}
-            {revenueTrendPct === null && ' · sin mes anterior para comparar'}
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] font-mono text-zinc-400">
+              {revenueMonth.count} pago{revenueMonth.count !== 1 ? 's' : ''} confirmado
+              {revenueMonth.count !== 1 ? 's' : ''}
+              {revenueTrendPct === null && ' · sin mes anterior para comparar'}
+            </div>
+            <Sparkline data={revenueSeries.map((p) => p.total)} color="#38bdf8" />
           </div>
         </article>
 
@@ -377,6 +384,15 @@ export default async function WorkspacePage() {
           </div>
         </article>
       </section>
+
+      {/* TENDENCIA DE INGRESOS — últimos 7 meses, pagos reales agregados por mes */}
+      <OledCard>
+        <SectionHeader eyebrow="Finanzas" title="Tendencia de Ingresos (7 meses)" description="Pagos confirmados por mes, tenant activo" />
+        <RevenueTrendChart
+          data={revenueSeries.map((p) => ({ label: p.month.slice(5), value: p.total }))}
+          formatter={(v) => currency.format(v)}
+        />
+      </OledCard>
 
       {/* MATRIZ DE ACTIVIDAD — datos reales agregados por día, ver ActivityHeatmap.tsx */}
       <ActivityHeatmap daysData={dayBuckets} totalInteractions={totalYearInteractions} />
