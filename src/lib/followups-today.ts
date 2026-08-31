@@ -1,7 +1,10 @@
-import 'server-only'
-
 import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
+
+// NOTA: este archivo NO debe importar 'server-only': forma parte del grafo de
+// imports de payload.config.ts (vía endpoints/followupsHoy.ts) y `pnpm migrate`
+// corre fuera de Next (tsx puro), donde ese módulo lanza. Se ejecuta siempre
+// en servidor por diseño, el guard sería redundante y rompe el build de Vercel.
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
