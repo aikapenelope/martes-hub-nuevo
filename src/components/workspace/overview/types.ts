@@ -1,4 +1,5 @@
 import type { Conversation, ConversationSummary, EmailLog, Lead, Payment } from '@/payload-types'
+import type { FollowUpItem } from '@/lib/followups-today'
 
 export interface DayBucket {
   dateStr: string
@@ -41,6 +42,7 @@ export interface WorkspaceOverviewMetrics {
 
   revenuePendingTotal: number
   revenuePendingCount: number
+  overduePaymentsCount: number
 
   estimatedRevenueNew: number
   estimatedRevenueContacted: number
@@ -75,6 +77,7 @@ export interface WorkspaceOverviewData {
   sourceBreakdown: ChannelSourceMetric[]
   operationalAlerts: CockpitOperationalAlert[]
   cashflowPoints: MonthlyCashflowPoint[]
+  followupsToday: FollowUpItem[]
   nowTime: number
   dateTitle: string
 }
