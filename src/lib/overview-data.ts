@@ -12,6 +12,8 @@ import type {
   User,
 } from '@/payload-types'
 import {
+  monthlyPendingSeries,
+  monthlyRevenueSeries,
   paymentsAggregate,
   startOfMonthIso,
   startOfLastMonthIso,
@@ -111,6 +113,8 @@ export async function getWorkspaceOverviewData({
     yearMessages,
     yearPaidPayments,
     hotLeadsRes,
+    paidSeries,
+    pendingSeries,
   ] = await Promise.all([
     q({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { status: { equals: 'nuevo' } }) }),
     q({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { status: { equals: 'contactado' } }) }),
@@ -163,6 +167,8 @@ export async function getWorkspaceOverviewData({
       depth: 0,
       where: tenantWhere(tenantId, { status: { in: ['calificado', 'contactado'] } }),
     }),
+    monthlyRevenueSeries(payload, tenantId, 6),
+    monthlyPendingSeries(payload, tenantId, 6),
   ])
 
   const payments = recentPaymentsRes.docs as Payment[]
@@ -259,15 +265,19 @@ export async function getWorkspaceOverviewData({
     })
   }
 
-  // Puntos mensuales de flujo de caja simplificados
-  const currentMonthName = now.toLocaleDateString('es-ES', { month: 'short' }).toUpperCase()
-  const cashflowPoints: MonthlyCashflowPoint[] = [
-    {
-      monthName: currentMonthName,
-      paid: revenueMonth.total,
-      pending: revenuePending.total,
-    },
-  ]
+  // Flujo de caja real de 6 meses: cobrado (por paid_at) + pendiente (por due_date)
+  const cashflowPoints: MonthlyCashflowPoint[] = paidSeries.map((point, i) => {
+    const [year, month] = point.month.split('-').map(Number)
+    const monthName = new Date(year, month - 1, 1)
+      .toLocaleDateString('es-ES', { month: 'short' })
+      .replace(/\./g, '')
+      .toUpperCase()
+    return {
+      monthName,
+      paid: point.total,
+      pending: pendingSeries[i]?.total ?? 0,
+    }
+  })
 
   // Matriz de actividad de 364 días
   const dayBuckets = buildEmptyDayBuckets()

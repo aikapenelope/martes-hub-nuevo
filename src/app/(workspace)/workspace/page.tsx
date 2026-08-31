@@ -6,6 +6,7 @@
  * - CockpitAlertStrip: Alertas operativas proactivas (SLA Meta 24h, cobros y tareas).
  * - CockpitKpiGrid: 5 tarjetas de métricas comerciales y salud del canal.
  * - ActivityHeatmap: Matriz anual interactiva de 364 días (actividades + mensajes + pagos).
+ * - CockpitCashflowChart: Flujo de caja de 6 meses (cobrado por paid_at + pendiente por due_date).
  * - CockpitConversionFunnel: Embudo de conversión real entre etapas de leads y clientes.
  * - CockpitSourceBreakdown: Desglose de canales de captación (Google Maps, WhatsApp, etc.).
  * - CockpitPipelinePriorities: Prioridades de leads con actividad reciente.
@@ -20,6 +21,7 @@ import { ActivityHeatmap } from '@/components/workspace/ActivityHeatmap'
 import { CockpitCommandStrip } from '@/components/workspace/overview/CockpitCommandStrip'
 import { CockpitAlertStrip } from '@/components/workspace/overview/CockpitAlertStrip'
 import { CockpitKpiGrid } from '@/components/workspace/overview/CockpitKpiGrid'
+import { CockpitCashflowChart } from '@/components/workspace/overview/CockpitCashflowChart'
 import { CockpitConversionFunnel } from '@/components/workspace/overview/CockpitConversionFunnel'
 import { CockpitSourceBreakdown } from '@/components/workspace/overview/CockpitSourceBreakdown'
 import { CockpitPipelinePriorities } from '@/components/workspace/overview/CockpitPipelinePriorities'
@@ -38,6 +40,8 @@ export default async function WorkspacePage() {
       <CockpitKpiGrid metrics={data.metrics} />
 
       <ActivityHeatmap daysData={data.dayBuckets} totalInteractions={data.totalYearInteractions} />
+
+      <CockpitCashflowChart points={data.cashflowPoints} />
 
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
         <CockpitConversionFunnel metrics={data.metrics} />
