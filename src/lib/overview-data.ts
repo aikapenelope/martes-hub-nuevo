@@ -1,6 +1,7 @@
 import 'server-only'
 
 import type { Payload, Where } from 'payload'
+import { collectFollowupsToday, type FollowUpItem } from './followups-today'
 import type {
   Activity,
   Conversation,
@@ -115,6 +116,7 @@ export async function getWorkspaceOverviewData({
     hotLeadsRes,
     paidSeries,
     pendingSeries,
+    followups,
   ] = await Promise.all([
     q({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { status: { equals: 'nuevo' } }) }),
     q({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { status: { equals: 'contactado' } }) }),
@@ -169,6 +171,7 @@ export async function getWorkspaceOverviewData({
     }),
     monthlyRevenueSeries(payload, tenantId, 6),
     monthlyPendingSeries(payload, tenantId, 6),
+    collectFollowupsToday({ payload, user, tenantId }),
   ])
 
   const payments = recentPaymentsRes.docs as Payment[]
@@ -339,6 +342,7 @@ export async function getWorkspaceOverviewData({
     sourceBreakdown,
     operationalAlerts,
     cashflowPoints,
+    followupsToday: followups as FollowUpItem[],
     nowTime,
     dateTitle,
   }
