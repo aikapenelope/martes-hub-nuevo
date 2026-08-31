@@ -308,6 +308,7 @@ export async function getWorkspaceOverviewData({
 
     revenuePendingTotal: revenuePending.total,
     revenuePendingCount: revenuePending.count,
+    overduePaymentsCount: overduePaymentsRes.totalDocs,
 
     estimatedRevenueNew,
     estimatedRevenueContacted,

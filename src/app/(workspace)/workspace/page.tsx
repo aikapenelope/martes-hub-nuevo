@@ -17,6 +17,7 @@
 import 'server-only'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import type { Client } from '@/payload-types'
 import { getWorkspaceOverviewData } from '@/lib/overview-data'
 import { ActivityHeatmap } from '@/components/workspace/ActivityHeatmap'
 import { CockpitCommandStrip } from '@/components/workspace/overview/CockpitCommandStrip'
@@ -30,12 +31,31 @@ import { CockpitPipelinePriorities } from '@/components/workspace/overview/Cockp
 import { CockpitOmnichannelFeed } from '@/components/workspace/overview/CockpitOmnichannelFeed'
 
 export default async function WorkspacePage() {
-  const { payload, tenant, tenantId, user } = await getWorkspaceContext()
+  const { payload, tenant, tenantId, user, canEdit } = await getWorkspaceContext()
   const data = await getWorkspaceOverviewData({ payload, user, tenantId })
+
+  // Lista ligera de clientes (solo id/name) para el dialog de "+ Cobro".
+  const clientsForDialog = canEdit
+    ? await payload.find({
+        collection: 'clients',
+        limit: 200,
+        sort: 'name',
+        depth: 0,
+        select: { name: true },
+        where: { tenant: { equals: tenantId } },
+        overrideAccess: false,
+        user,
+      })
+    : null
 
   return (
     <div className="space-y-4">
-      <CockpitCommandStrip tenant={tenant} dateTitle={data.dateTitle} />
+      <CockpitCommandStrip
+        tenant={tenant}
+        dateTitle={data.dateTitle}
+        canEdit={canEdit}
+        clients={(clientsForDialog?.docs ?? []) as Client[]}
+      />
 
       <CockpitAlertStrip alerts={data.operationalAlerts} />
 

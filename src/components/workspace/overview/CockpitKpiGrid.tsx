@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { BadgeDollarSign, PieChart, ShieldAlert, TrendingDown, TrendingUp, Users, Zap } from 'lucide-react'
+import { BadgeDollarSign, PieChart, ShieldAlert, TrendingDown, TrendingUp, Users, Wallet, Zap } from 'lucide-react'
 import type { WorkspaceOverviewMetrics } from './types'
 
 const currency = new Intl.NumberFormat('es-VE', {
@@ -22,10 +22,13 @@ export function CockpitKpiGrid({ metrics }: { metrics: WorkspaceOverviewMetrics 
     metaHealthPct,
     critical24hCount,
     openConvCount,
+    revenuePendingTotal,
+    revenuePendingCount,
+    overduePaymentsCount,
   } = metrics
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
       {/* Cobrado en el Mes */}
       <article className="p-4 oled-card space-y-2.5">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
@@ -121,6 +124,28 @@ export function CockpitKpiGrid({ metrics }: { metrics: WorkspaceOverviewMetrics 
         </div>
         <div className="text-[11px] font-mono text-zinc-400">
           {overdueTasksCount > 0 ? 'Requieren atención inmediata' : 'Todo al día'}
+        </div>
+      </article>
+
+      {/* Por Cobrar */}
+      <article className="p-4 oled-card space-y-2.5">
+        <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
+          <span>Por Cobrar</span>
+          <span className="p-1.5 bg-amber-950/80 text-amber-400 border border-amber-800/80">
+            <Wallet className="w-4 h-4" />
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between">
+          <span className="text-3xl font-black text-white font-mono">{currency.format(revenuePendingTotal)}</span>
+          <Link href="/workspace/billing" className="text-xs font-mono font-bold text-amber-400 hover:underline">
+            Facturación →
+          </Link>
+        </div>
+        <div className="text-[11px] font-mono text-zinc-400">
+          {revenuePendingCount} cobro{revenuePendingCount !== 1 ? 's' : ''} pendiente{revenuePendingCount !== 1 ? 's' : ''}
+          {overduePaymentsCount > 0 && (
+            <span className="text-amber-400 font-bold"> · {overduePaymentsCount} vencido{overduePaymentsCount !== 1 ? 's' : ''}</span>
+          )}
         </div>
       </article>
 

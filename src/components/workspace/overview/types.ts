@@ -42,6 +42,7 @@ export interface WorkspaceOverviewMetrics {
 
   revenuePendingTotal: number
   revenuePendingCount: number
+  overduePaymentsCount: number
 
   estimatedRevenueNew: number
   estimatedRevenueContacted: number

@@ -7,24 +7,31 @@ import { createClientAction, createLeadAction } from '@/lib/crm-actions'
 
 interface CrmFormDialogProps {
   kind: 'lead' | 'client'
+  /** 'primary': botón blanco (CRM header) · 'secondary': estilo oled del cockpit */
+  variant?: 'primary' | 'secondary'
+  label?: string
 }
 
 const inputCls = 'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
 const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
 
-export function CrmFormDialog({ kind }: CrmFormDialogProps) {
+export function CrmFormDialog({ kind, variant = 'primary', label }: CrmFormDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const isLead = kind === 'lead'
+  const btnCls =
+    variant === 'primary'
+      ? 'px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono inline-flex items-center gap-1.5'
+      : 'px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold flex items-center gap-2 uppercase transition text-xs font-mono'
 
   return (
     <>
       <button
-        className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono inline-flex items-center gap-1.5"
+        className={btnCls}
         type="button"
         onClick={() => dialogRef.current?.showModal()}
       >
         <Plus aria-hidden="true" size={16} />
-        {isLead ? 'Crear lead' : 'Crear cliente'}
+        {label ?? (isLead ? 'Crear lead' : 'Crear cliente')}
       </button>
 
       <dialog
