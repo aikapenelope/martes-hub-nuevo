@@ -14,6 +14,7 @@ import * as migration_20260830_010000_social_mcp_ready from './20260830_010000_s
 import * as migration_20260830_020000_mcp_api_keys_ready from './20260830_020000_mcp_api_keys_ready';
 import * as migration_20260830_030000_tasks_forms_summaries_ready from './20260830_030000_tasks_forms_summaries_ready';
 import * as migration_20260830_050000_performance_indexes_and_segments_unique from './20260830_050000_performance_indexes_and_segments_unique';
+import * as migration_20260831_190000_leads_clients_enrichment_sync from './20260831_190000_leads_clients_enrichment_sync';
 
 export const migrations = [
   {
@@ -59,41 +60,46 @@ export const migrations = [
   {
     up: migration_20260825_073712_import_export_plugin.up,
     down: migration_20260825_073712_import_export_plugin.down,
-    name: '20260825_073712_import_export_plugin'
+    name: '20260825_073712_import_export_plugin',
   },
   {
     up: migration_20260825_074436_facturacion_cotizaciones.up,
     down: migration_20260825_074436_facturacion_cotizaciones.down,
-    name: '20260825_074436_facturacion_cotizaciones'
+    name: '20260825_074436_facturacion_cotizaciones',
   },
   {
     up: migration_20260829_210000_fix_invoices_quotes_tenant.up,
     down: migration_20260829_210000_fix_invoices_quotes_tenant.down,
-    name: '20260829_210000_fix_invoices_quotes_tenant'
+    name: '20260829_210000_fix_invoices_quotes_tenant',
   },
   {
     up: migration_20260829_220000_lead_pipeline_fields.up,
     down: migration_20260829_220000_lead_pipeline_fields.down,
-    name: '20260829_220000_lead_pipeline_fields'
+    name: '20260829_220000_lead_pipeline_fields',
   },
   {
     up: migration_20260830_010000_social_mcp_ready.up,
     down: migration_20260830_010000_social_mcp_ready.down,
-    name: '20260830_010000_social_mcp_ready'
+    name: '20260830_010000_social_mcp_ready',
   },
   {
     up: migration_20260830_020000_mcp_api_keys_ready.up,
     down: migration_20260830_020000_mcp_api_keys_ready.down,
-    name: '20260830_020000_mcp_api_keys_ready'
+    name: '20260830_020000_mcp_api_keys_ready',
   },
   {
     up: migration_20260830_030000_tasks_forms_summaries_ready.up,
     down: migration_20260830_030000_tasks_forms_summaries_ready.down,
-    name: '20260830_030000_tasks_forms_summaries_ready'
+    name: '20260830_030000_tasks_forms_summaries_ready',
   },
   {
     up: migration_20260830_050000_performance_indexes_and_segments_unique.up,
     down: migration_20260830_050000_performance_indexes_and_segments_unique.down,
-    name: '20260830_050000_performance_indexes_and_segments_unique'
+    name: '20260830_050000_performance_indexes_and_segments_unique',
+  },
+  {
+    up: migration_20260831_190000_leads_clients_enrichment_sync.up,
+    down: migration_20260831_190000_leads_clients_enrichment_sync.down,
+    name: '20260831_190000_leads_clients_enrichment_sync'
   },
 ];
