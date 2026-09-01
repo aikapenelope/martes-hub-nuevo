@@ -50,7 +50,7 @@ export default async function TeamPage() {
       collection: 'users',
       where: { 'tenants.tenant': { equals: tenantId } },
       depth: 0,
-      limit: 100,
+      pagination: false,
       sort: 'email',
       overrideAccess: false,
       user,
@@ -87,7 +87,7 @@ export default async function TeamPage() {
       payload,
       `SELECT performed_by_id AS "userId", count(*)::int AS total
        FROM activities
-       WHERE tenant_id = $1 AND created_at >= date_trunc('month', now())
+       WHERE tenant_id = $1 AND occurred_at >= date_trunc('month', now())
        GROUP BY performed_by_id`,
       [tenantId],
     ),
