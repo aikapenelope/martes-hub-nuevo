@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { CheckCircle2, CircleAlert, Clock3, ListFilter, Plus, Search, UserRound } from 'lucide-react'
 import type { Client, Lead, Task, User } from '@/payload-types'
 import { checklistProgress, dueState, TASK_PRIORITIES, TASK_STATUSES, type TaskFilters, type TaskStatus } from '@/lib/tasks-filters'
-import { changeTaskStatusAction, createTaskAction } from '@/lib/tasks-actions'
+import { createTaskAction } from '@/lib/tasks-actions'
+import { TaskStatusSelect } from '@/components/workspace/TaskStatusSelect'
 
 const statusLabel: Record<TaskStatus, string> = { pendiente: 'Pendiente', en_progreso: 'En progreso', bloqueada: 'Bloqueada', completada: 'Completada', cancelada: 'Cancelada' }
 const priorityLabel = { baja: 'Baja', media: 'Media', alta: 'Alta', urgente: 'Urgente' }
@@ -51,18 +52,11 @@ function TaskCard({ task, canEdit }: { task: Task; canEdit: boolean }) {
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-zinc-800 pt-2">
         <span className="flex items-center gap-1.5 text-[10px] text-zinc-400"><UserRound size={13} />{person(task.assignedTo)}</span>
         {canEdit && (
-          <form action={changeTaskStatusAction}>
-            <input type="hidden" name="id" value={task.id} />
-            <select
-              name="status"
-              defaultValue={task.status}
-              aria-label={`Cambiar estado de ${task.title}`}
-              onChange={(event) => event.currentTarget.form?.requestSubmit()}
-              className="border border-zinc-800 bg-black px-1.5 py-0.5 text-[10px] text-zinc-300 font-mono uppercase"
-            >
-              {TASK_STATUSES.map((status) => <option key={status} value={status}>{statusLabel[status]}</option>)}
-            </select>
-          </form>
+          <TaskStatusSelect
+            taskId={task.id}
+            status={task.status}
+            label={`Cambiar estado de ${task.title}`}
+          />
         )}
       </div>
     </article>

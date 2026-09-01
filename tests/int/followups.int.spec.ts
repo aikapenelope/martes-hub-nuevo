@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
 import { collectFollowupsToday } from '@/lib/followups-today'
-import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
