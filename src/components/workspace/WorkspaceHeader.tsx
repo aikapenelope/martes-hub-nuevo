@@ -10,20 +10,22 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  ChevronDown,
-  ExternalLink,
-  Search,
-  Sparkles,
-  Share2,
-  Users,
-  FileText,
-  Mail,
-  Tags,
-  FileCode,
-  Shield,
-  MessageSquare,
   BarChart3,
+  ChevronDown,
   CreditCard,
+  ExternalLink,
+  FileCode,
+  FileText,
+  Gift,
+  History,
+  Mail,
+  MessageSquare,
+  Search,
+  Share2,
+  Shield,
+  Sparkles,
+  Tags,
+  Users,
 } from 'lucide-react'
 
 import { NotificationBell } from '@/components/workspace/NotificationBell'
@@ -47,6 +49,14 @@ const SECONDARY_NAV = [
   { label: 'Equipo Comercial', href: '/workspace/team', icon: Users, description: 'Agentes y asignaciones' },
   { label: 'Feedback & Soporte', href: '/workspace/feedback', icon: MessageSquare, description: 'Respuestas de formularios Tally' },
   { label: 'Analíticas', href: '/workspace/analytics', icon: BarChart3, description: 'Métricas de conversión y ventas' },
+] as const
+
+/** Accesos extra del backend sin página propia todavía — van al admin de Payload. */
+const ADMIN_SHORTCUTS = [
+  { label: 'Actividades / Timeline', href: '/admin/collections/activities', description: 'Historial de acciones comerciales' },
+  { label: 'Ofertas', href: '/admin/collections/offers', description: 'Propuestas y cotizaciones en curso' },
+  { label: 'Media', href: '/admin/collections/media', description: 'Archivos compartidos' },
+  { label: 'Plantillas de Mensaje', href: '/admin/collections/message-templates', description: 'Mensajes reutilizables' },
 ] as const
 
 interface WorkspaceHeaderProps {
@@ -96,35 +106,38 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
         </Link>
 
         {/* Organized Navigation */}
-        <nav aria-label="Navegación principal del workspace" className="order-3 flex w-full items-center overflow-x-auto border border-zinc-800 bg-zinc-950 p-0.5 lg:order-none lg:mx-auto lg:w-auto">
-          {PRIMARY_NAV.map(({ label, href }) => {
-            const active = pathname === href || (href !== '/workspace' && pathname.startsWith(`${href}/`))
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? 'page' : undefined}
-                className={
-                  active
-                    ? 'shrink-0 px-3.5 py-1 text-xs font-bold bg-white text-black uppercase tracking-wider'
-                    : 'shrink-0 px-3.5 py-1 text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-900 uppercase tracking-wider transition'
-                }
-              >
-                {label}
-              </Link>
-            )
-          })}
+        <nav className="order-3 flex w-full items-center lg:order-none lg:mx-auto lg:w-auto">
+          {/* Pills principales con scroll horizontal solo aquí */}
+          <div className="flex items-center overflow-x-auto border border-zinc-800 bg-zinc-950 p-0.5">
+            {PRIMARY_NAV.map(({ label, href }) => {
+              const active = pathname === href || (href !== '/workspace' && pathname.startsWith(`${href}/`))
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={active ? 'page' : undefined}
+                  className={
+                    active
+                      ? 'shrink-0 px-3.5 py-1 text-xs font-bold bg-white text-black uppercase tracking-wider'
+                      : 'shrink-0 px-3.5 py-1 text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-900 uppercase tracking-wider transition'
+                  }
+                >
+                  {label}
+                </Link>
+              )
+            })}
+          </div>
 
-          {/* Menú Más / Operación */}
-          <div className="relative shrink-0" ref={menuRef}>
+          {/* Menú Más / Operación — FUERA de la zona scrollable para que el dropdown no se recorte */}
+          <div className="relative shrink-0 ml-1" ref={menuRef}>
             <button
               type="button"
               onClick={() => setMoreOpen((v) => !v)}
               aria-expanded={moreOpen}
-              className={`flex items-center gap-1 px-3 py-1 text-xs font-medium uppercase tracking-wider transition ${
+              className={`flex items-center gap-1 px-3 py-1 text-xs font-medium uppercase tracking-wider transition border border-zinc-800 ${
                 isSecondaryActive || moreOpen
                   ? 'bg-zinc-800 text-white font-bold'
-                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900 border-zinc-800'
               }`}
             >
               <span>Más</span>
@@ -132,7 +145,7 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
             </button>
 
             {moreOpen && (
-              <div className="absolute left-0 mt-1.5 w-64 border border-zinc-800 bg-zinc-950 p-1 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute left-0 mt-1.5 w-72 max-h-[70vh] overflow-y-auto border border-zinc-800 bg-zinc-950 p-1 shadow-2xl z-50">
                 <div className="px-3 py-1.5 border-b border-zinc-900 text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
                   Operación & Módulos
                 </div>
@@ -159,6 +172,30 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
                       </Link>
                     )
                   })}
+                </div>
+                <div className="border-t border-zinc-900">
+                  <div className="px-3 py-1.5 text-[10px] font-mono text-zinc-500 uppercase tracking-wider border-b border-zinc-900">
+                    Más del Backend
+                  </div>
+                  <div className="py-1">
+                    {ADMIN_SHORTCUTS.map((item) => {
+                      const Icon = item.label.startsWith('Actividades') ? History : item.label === 'Ofertas' ? Gift : ExternalLink
+                      return (
+                        <a
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setMoreOpen(false)}
+                          className="flex items-start gap-2.5 px-3 py-2 text-xs transition text-zinc-400 hover:bg-zinc-900/60 hover:text-white"
+                        >
+                          <Icon className="w-4 h-4 mt-0.5 shrink-0 text-zinc-400" />
+                          <div>
+                            <div className="font-semibold leading-tight">{item.label}</div>
+                            <div className="text-[10px] text-zinc-500 font-mono leading-tight mt-0.5">{item.description}</div>
+                          </div>
+                        </a>
+                      )
+                    })}
+                  </div>
                 </div>
                 {isAdmin && (
                   <div className="border-t border-zinc-900 p-1">

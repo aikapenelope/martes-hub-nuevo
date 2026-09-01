@@ -7,9 +7,9 @@
 import { AlertTriangle, CalendarClock, CircleDollarSign, RefreshCw } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
-import { changeMembershipStatusAction } from '@/lib/membership-actions'
 import { MembershipCreateDialog } from '@/components/workspace/MembershipCreateDialog'
 import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
+import { MembershipStatusSelect } from '@/components/workspace/MembershipStatusSelect'
 import type { Client, Membership } from '@/payload-types'
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
@@ -106,21 +106,11 @@ export default async function MembershipsPage() {
                       </td>
                       <td className="px-4 py-3">
                         {canEdit ? (
-                          <form action={changeMembershipStatusAction}>
-                            <input type="hidden" name="id" value={m.id} />
-                            <select
-                              name="status"
-                              defaultValue={m.status}
-                              aria-label={`Cambiar estado de membresía de ${clientName}`}
-                              onChange={(e) => e.currentTarget.form?.requestSubmit()}
-                              className="border border-zinc-800 bg-black px-1.5 py-0.5 text-[10px] text-zinc-300 font-mono uppercase"
-                            >
-                              <option value="activa">Activa</option>
-                              <option value="pausada">Pausada</option>
-                              <option value="vencida">Vencida</option>
-                              <option value="cancelada">Cancelada</option>
-                            </select>
-                          </form>
+                          <MembershipStatusSelect
+                            membershipId={m.id}
+                            status={m.status ?? 'activa'}
+                            label={`Cambiar estado de membresía de ${clientName}`}
+                          />
                         ) : (
                           <StatusBadge tone={STATUS_TONE[m.status ?? 'activa']}>{m.status}</StatusBadge>
                         )}

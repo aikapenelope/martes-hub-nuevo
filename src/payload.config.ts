@@ -385,11 +385,17 @@ export default buildConfig({
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
-      max: process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX, 10) : process.env.VERCEL ? 3 : 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 15000,
+      max: process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX, 10) : process.env.VERCEL ? 3 : 6,
+      // No cerrar por idle: mantiene las conexiones warm (keepAlive) y evita
+      // el churn que, con el transaction pooler de Neon y su autosuspend,
+      // producía `read ETIMEDOUT` a los pocos minutos de inactividad.
+      idleTimeoutMillis: 0,
+      connectionTimeoutMillis: 20000,
+      // Watchdogs client-side (pg >= 8.11): nunca dejar una query colgada.
+      query_timeout: 12000,
+      statement_timeout: 15000,
       keepAlive: true,
-      keepAliveInitialDelayMillis: 10000,
+      keepAliveInitialDelayMillis: 5000,
       ...(process.env.SUPABASE_CA_CERT || process.env.DATABASE_CA_CERT
         ? {
             ssl: {
