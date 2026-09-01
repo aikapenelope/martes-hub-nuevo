@@ -18,6 +18,7 @@ import {
   FileText,
   Gift,
   History,
+  Image as ImageIcon,
   Mail,
   MessageSquare,
   Search,
@@ -45,17 +46,13 @@ const SECONDARY_NAV = [
   { label: 'Ofertas', href: '/workspace/offers', icon: Gift, description: 'Catálogo comercial y precios base' },
   { label: 'Actividades', href: '/workspace/activities', icon: History, description: 'Timeline comercial unificado' },
   { label: 'Documentos', href: '/workspace/documents', icon: FileText, description: 'Cotizaciones, contratos y archivos' },
+  { label: 'Media', href: '/workspace/media', icon: ImageIcon, description: 'Biblioteca de imágenes y archivos' },
   { label: 'Email Marketing', href: '/workspace/email', icon: Mail, description: 'Campañas y registros de entrega' },
   { label: 'Rubros & Nichos', href: '/workspace/segments', icon: Tags, description: 'Segmentación de cartera y prospectos' },
   { label: 'Plantillas', href: '/workspace/templates', icon: FileCode, description: 'Plantillas de WhatsApp y mensajes' },
   { label: 'Equipo Comercial', href: '/workspace/team', icon: Users, description: 'Agentes y asignaciones' },
   { label: 'Feedback & Soporte', href: '/workspace/feedback', icon: MessageSquare, description: 'Respuestas de formularios Tally' },
   { label: 'Analíticas', href: '/workspace/analytics', icon: BarChart3, description: 'Métricas de conversión y ventas' },
-] as const
-
-/** Accesos extra del backend sin página propia todavía — van al admin de Payload. */
-const ADMIN_SHORTCUTS = [
-  { label: 'Media', href: '/admin/collections/media', description: 'Archivos compartidos' },
 ] as const
 
 interface WorkspaceHeaderProps {
@@ -171,30 +168,6 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
                       </Link>
                     )
                   })}
-                </div>
-                <div className="border-t border-zinc-900">
-                  <div className="px-3 py-1.5 text-[10px] font-mono text-zinc-500 uppercase tracking-wider border-b border-zinc-900">
-                    Más del Backend
-                  </div>
-                  <div className="py-1">
-                    {ADMIN_SHORTCUTS.map((item) => {
-                      const Icon = ExternalLink
-                      return (
-                        <a
-                          key={item.href}
-                          href={item.href}
-                          onClick={() => setMoreOpen(false)}
-                          className="flex items-start gap-2.5 px-3 py-2 text-xs transition text-zinc-400 hover:bg-zinc-900/60 hover:text-white"
-                        >
-                          <Icon className="w-4 h-4 mt-0.5 shrink-0 text-zinc-400" />
-                          <div>
-                            <div className="font-semibold leading-tight">{item.label}</div>
-                            <div className="text-[10px] text-zinc-500 font-mono leading-tight mt-0.5">{item.description}</div>
-                          </div>
-                        </a>
-                      )
-                    })}
-                  </div>
                 </div>
                 {isAdmin && (
                   <div className="border-t border-zinc-900 p-1">
