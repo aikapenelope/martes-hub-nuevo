@@ -15,6 +15,25 @@ export const ConversationNotes: CollectionConfig = {
     group: 'Mensajería',
     description: 'Notas internas del equipo sobre conversaciones (privadas, no se envían al contacto).',
   },
+  hooks: {
+    beforeChange: [
+      async ({ data, req }) => {
+        // La conversación debe pertenecer al mismo tenant que la nota —
+        // sin esto una nota cruzaría el aislamiento multi-tenant (Devin Review).
+        const convRaw = data.conversation
+        if (convRaw != null) {
+          const tenantRaw = data.tenant
+          const tenantId = typeof tenantRaw === 'object' && tenantRaw ? tenantRaw.id : tenantRaw
+          if (tenantId) {
+            const conv = await req.payload.findByID({ collection: 'conversations', id: convRaw as number, depth: 0, overrideAccess: false, user: req.user })
+            const convTenant = typeof conv.tenant === 'object' && conv.tenant ? conv.tenant.id : conv.tenant
+            if (convTenant !== tenantId) throw new Error('La conversación no pertenece al tenant activo')
+          }
+        }
+        return data
+      },
+    ],
+  },
   access: {
     read: authenticated,
     create: editorsOnly,

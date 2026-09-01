@@ -64,7 +64,7 @@ interface NoteItem {
 interface TemplateItem {
   id: number
   name: string
-  body: string
+  bodyText?: string | null
 }
 
 interface PersonLite {
@@ -105,22 +105,40 @@ export function InboxWorkspace({ canEdit, tenantId }: { canEdit: boolean; tenant
   const [nowTs, setNowTs] = useState(0)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
+  /** Ref del hilo seleccionado: descarta respuestas fetch de hilos viejos (carrera). */
+  const latestConvRef = useRef<number | null>(null)
+
+  const buildConvParams = useCallback((filter: typeof statusFilter): string => {
+    const params = new URLSearchParams({ limit: '50', sort: '-lastMessageAt', depth: '1' })
+    if (filter === 'pending' || filter === 'resolved') {
+      params.set('where[status][equals]', filter)
+    } else if (filter === 'open') {
+      // Filtro en la query: abiertas y sin snooze vigente (Devin Review).
+      params.set('where[and][0][status][equals]', 'open')
+      params.set('where[and][1][or][0][snoozeUntil][exists]', 'false')
+      params.set('where[and][1][or][1][snoozeUntil][less_than]', new Date().toISOString())
+    }
+    return params.toString()
+  }, [])
+
   const loadConversations = useCallback(async () => {
-    const res = await fetch('/api/conversations?limit=50&sort=-lastMessageAt&depth=1', { credentials: 'include' })
+    const res = await fetch(`/api/conversations?${buildConvParams(statusFilter)}`, { credentials: 'include' })
     if (res.ok) {
       const data = (await res.json()) as { docs: ConvItem[] }
       setConvs(data.docs)
       setNowTs(Date.now())
     }
-  }, [])
+  }, [buildConvParams, statusFilter])
 
   const loadThread = useCallback(async (id: number, limit = 50) => {
-    const res = await fetch(`/api/messages?limit=${limit}&sort=sentAt&where[conversation][equals]=${id}`, {
+    const res = await fetch(`/api/messages?limit=${limit}&sort=-sentAt&where[conversation][equals]=${id}`, {
       credentials: 'include',
     })
+    // Carrera: si el agente ya cambió de conversación, descarta la respuesta vieja.
+    if (latestConvRef.current !== id) return
     if (res.ok) {
       const data = (await res.json()) as { docs: MsgItem[]; totalDocs: number }
-      setMessages(data.docs)
+      setMessages([...data.docs].reverse())
       setHasMore(data.totalDocs > data.docs.length)
     }
   }, [])
@@ -130,17 +148,18 @@ export function InboxWorkspace({ canEdit, tenantId }: { canEdit: boolean; tenant
       `/api/conversation-notes?limit=20&sort=-createdAt&depth=1&where[conversation][equals]=${id}`,
       { credentials: 'include' },
     )
+    if (latestConvRef.current !== id) return
     if (res.ok) {
       const data = (await res.json()) as { docs: NoteItem[] }
       setNotes(data.docs)
     }
   }, [])
 
-  // Carga inicial de conversaciones: setState dentro de callbacks .then
-  // (no en el cuerpo síncrono del effect, según regla react-hooks v6).
+  // Carga inicial + refetch al cambiar el filtro de estado: setState dentro
+  // de callbacks .then (no en el cuerpo síncrono del effect, regla react-hooks v6).
   useEffect(() => {
     let cancelled = false
-    fetch('/api/conversations?limit=50&sort=-lastMessageAt&depth=1', { credentials: 'include' })
+    fetch(`/api/conversations?${buildConvParams(statusFilter)}`, { credentials: 'include' })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { docs: ConvItem[] } | null) => {
         if (!cancelled && data) {
@@ -164,10 +183,11 @@ export function InboxWorkspace({ canEdit, tenantId }: { canEdit: boolean; tenant
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [statusFilter, buildConvParams])
 
   const handleSelect = useCallback(
     (conv: ConvItem) => {
+      latestConvRef.current = conv.id
       setSelected(conv.id)
       setSelectedConv(conv)
       setNotes([])
@@ -252,7 +272,10 @@ export function InboxWorkspace({ canEdit, tenantId }: { canEdit: boolean; tenant
   const visibleConvs = (convs ?? []).filter((c) => {
     if (statusFilter === 'all') return true
     const st = c.status ?? 'open'
-    if (statusFilter === 'open') return st === 'open' && !c.snoozeUntil
+    // Un snooze expirado no oculta la conversación: vuelve a Abiertas.
+    if (statusFilter === 'open') {
+      return st === 'open' && (!c.snoozeUntil || new Date(c.snoozeUntil).getTime() <= nowTs)
+    }
     return st === statusFilter
   })
 
@@ -347,8 +370,8 @@ export function InboxWorkspace({ canEdit, tenantId }: { canEdit: boolean; tenant
                     <button
                       key={t.id}
                       type="button"
-                      title={t.body}
-                      onClick={() => setDraft(t.body)}
+                      title={t.bodyText ?? undefined}
+                      onClick={() => setDraft(t.bodyText ?? '')}
                       className="border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] font-mono text-zinc-300 transition hover:border-zinc-500 hover:text-white"
                     >
                       /{t.name}
@@ -493,6 +516,7 @@ export function InboxWorkspace({ canEdit, tenantId }: { canEdit: boolean; tenant
                   <label className="flex flex-col gap-1 text-[10px] font-mono uppercase text-zinc-400">
                     Snooze hasta
                     <input
+                      key={`snooze-${selectedConv.id}`}
                       type="datetime-local"
                       defaultValue={selectedConv.snoozeUntil ? new Date(selectedConv.snoozeUntil).toISOString().slice(0, 16) : ''}
                       disabled={savingMeta}
