@@ -27,7 +27,7 @@ export function CockpitOmnichannelFeed({
   const latestPayment = payments[0]
 
   return (
-    <div className="lg:col-span-4 p-4 oled-card space-y-3.5">
+    <div className="p-4 oled-card space-y-3.5">
       <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800">
         <div>
           <h2 className="text-xs font-black text-white font-mono uppercase tracking-wider flex items-center gap-2">

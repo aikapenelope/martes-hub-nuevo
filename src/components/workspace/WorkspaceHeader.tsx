@@ -87,7 +87,7 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
 
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-800 bg-black/95 backdrop-blur-xl">
-      <div className="mx-auto flex min-h-14 max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-6 xl:px-8">
+      <div className="flex min-h-14 w-full flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-6 xl:px-8 2xl:px-10">
         {/* Logo & Tenant badge */}
         <Link href="/workspace" className="flex shrink-0 items-center gap-3">
           <span className="flex flex-col gap-1 w-5">
