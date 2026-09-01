@@ -12,7 +12,7 @@ import { OfferCreateDialog } from '@/components/workspace/OfferCreateDialog'
 import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
 import type { Offer, Segment } from '@/payload-types'
 
-const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 
 export default async function OffersPage() {
   const context = await getWorkspaceContext()
@@ -23,7 +23,7 @@ export default async function OffersPage() {
       collection: 'offers',
       where: { tenant: { equals: tenantId } },
       depth: 1,
-      limit: 200,
+      pagination: false,
       sort: '-active',
       overrideAccess: false,
       user,
@@ -32,7 +32,7 @@ export default async function OffersPage() {
       collection: 'segments',
       where: { tenant: { equals: tenantId } },
       depth: 0,
-      limit: 100,
+      pagination: false,
       sort: 'name',
       overrideAccess: false,
       user,

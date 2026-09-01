@@ -18,6 +18,26 @@ function optionalNumericId(formData: FormData, key: string): number | undefined 
   return value
 }
 
+/**
+ * Valida que el segmento pertenezca al tenant activo — un editor no
+ * puede vincular el segmento de otro tenant (hallazgo de Devin Review).
+ */
+async function assertTenantSegment(
+  context: Awaited<ReturnType<typeof getWorkspaceContext>>,
+  segmentId: number | undefined,
+): Promise<void> {
+  if (!segmentId) return
+  const check = await context.payload.find({
+    collection: 'segments',
+    limit: 1,
+    depth: 0,
+    overrideAccess: false,
+    user: context.user,
+    where: { and: [{ id: { equals: segmentId } }, { tenant: { equals: context.tenantId } }] },
+  })
+  if (check.docs.length === 0) throw new Error('Segmento no encontrado en el tenant activo')
+}
+
 /** Crea una oferta del catálogo desde el workspace. */
 export async function createOfferAction(formData: FormData): Promise<void> {
   const context = await getWorkspaceContext()
@@ -27,6 +47,7 @@ export async function createOfferAction(formData: FormData): Promise<void> {
   if (!Number.isFinite(price) || price <= 0) throw new Error('El precio debe ser mayor a 0')
 
   const segment = optionalNumericId(formData, 'segment')
+  await assertTenantSegment(context, segment)
   const descriptionRaw = formData.get('description')
 
   await context.payload.create({
@@ -34,6 +55,9 @@ export async function createOfferAction(formData: FormData): Promise<void> {
     overrideAccess: false,
     user: context.user,
     data: {
+      // Tenant explícito: misma convención que createTaskAction — sin esto
+      // la oferta nace sin tenant y desaparece del catálogo filtrado.
+      tenant: context.tenantId,
       name: requiredText(formData, 'name', 160),
       price,
       ...(typeof descriptionRaw === 'string' && descriptionRaw.trim() ? { description: descriptionRaw.trim().slice(0, 2000) } : {}),
