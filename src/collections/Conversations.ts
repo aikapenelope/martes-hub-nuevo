@@ -9,6 +9,24 @@ export const Conversations: CollectionConfig = {
     defaultColumns: ['contactAddress', 'channel', 'client', 'lastMessageAt'],
     group: 'Mensajería',
   },
+  hooks: {
+    beforeChange: [
+      async ({ data, originalDoc, operation, req }) => {
+        // Un editor no puede asignar un usuario de otro tenant (Devin Review).
+        const assignee = data.assignee
+        if (assignee != null) {
+          const tenantRaw = data.tenant ?? (operation === 'update' ? originalDoc?.tenant : undefined)
+          const tenantId = typeof tenantRaw === 'object' && tenantRaw ? tenantRaw.id : tenantRaw
+          if (tenantId) {
+            const user = await req.payload.findByID({ collection: 'users', id: assignee as number, depth: 0, overrideAccess: false, user: req.user })
+            const userTenants = (user.tenants ?? []).map((t) => (typeof t.tenant === 'object' ? t.tenant.id : t.tenant))
+            if (!userTenants.includes(tenantId as number)) throw new Error('El agente no pertenece al tenant de la conversación')
+          }
+        }
+        return data
+      },
+    ],
+  },
   access: {
     read: authenticated,
     create: editorsOnly,
@@ -17,6 +35,62 @@ export const Conversations: CollectionConfig = {
   },
   timestamps: true,
   fields: [
+    {
+      name: 'status',
+      type: 'select',
+      defaultValue: 'open',
+      label: 'Estado',
+      options: [
+        { label: 'Abierta', value: 'open' },
+        { label: 'Pendiente (esperando cliente)', value: 'pending' },
+        { label: 'Resuelta', value: 'resolved' },
+      ],
+      admin: { position: 'sidebar' },
+      index: true,
+    },
+    {
+      name: 'priority',
+      type: 'select',
+      defaultValue: 'media',
+      label: 'Prioridad',
+      options: [
+        { label: 'Baja', value: 'baja' },
+        { label: 'Media', value: 'media' },
+        { label: 'Alta', value: 'alta' },
+      ],
+      admin: { position: 'sidebar' },
+    },
+    {
+      name: 'assignee',
+      type: 'relationship',
+      relationTo: 'users',
+      label: 'Agente asignado',
+      admin: { position: 'sidebar' },
+    },
+    {
+      name: 'snoozeUntil',
+      type: 'date',
+      label: 'Snooze hasta',
+      admin: {
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        description: 'Mientras snooze activo, la conversación no aparece en abiertas',
+      },
+    },
+    {
+      name: 'labels',
+      type: 'select',
+      hasMany: true,
+      label: 'Etiquetas',
+      options: [
+        { label: 'Seguimiento', value: 'seguimiento' },
+        { label: 'Facturación', value: 'facturacion' },
+        { label: 'Soporte', value: 'soporte' },
+        { label: 'Renovación', value: 'renovacion' },
+        { label: 'Urgente', value: 'urgente' },
+        { label: 'Oportunidad', value: 'oportunidad' },
+      ],
+    },
     {
       name: 'channel',
       type: 'select',

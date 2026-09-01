@@ -40,11 +40,14 @@ function ChartTooltip({ active, payload, label, formatter }: { active?: boolean;
 /** Línea/área de tendencia — usada para ingresos mensuales. */
 export function RevenueTrendChart({
   data,
-  formatter,
+  unit = 'USD',
 }: {
   data: { label: string; value: number }[]
-  formatter: (v: number) => string
+  /** Sufijo de divisa para el tooltip; el formateo ocurre dentro del cliente
+   * porque una Server Component no puede pasar funciones a un Client Component. */
+  unit?: string
 }) {
+  const currency = new Intl.NumberFormat('es-VE', { style: 'currency', currency: unit, maximumFractionDigits: 0 })
   return (
     <ResponsiveContainer width="100%" height={180}>
       <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -56,7 +59,7 @@ export function RevenueTrendChart({
         </defs>
         <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 10, fontFamily: 'monospace' }} axisLine={{ stroke: '#27272a' }} tickLine={false} />
         <YAxis hide />
-        <Tooltip content={<ChartTooltip formatter={formatter} />} />
+        <Tooltip content={<ChartTooltip formatter={(v) => currency.format(v)} />} />
         <Area type="monotone" dataKey="value" stroke="#38bdf8" strokeWidth={2} fill="url(#revenueGradient)" />
       </AreaChart>
     </ResponsiveContainer>

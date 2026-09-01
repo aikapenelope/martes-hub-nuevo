@@ -18,16 +18,26 @@ import {
 
 import { getAnalyticsData } from '@/lib/analytics-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { monthlyRevenueSeries } from '@/lib/db-aggregates'
 import { EmptyState, HeroAction, KpiCard, OledCard, PageHero, SectionHeader } from '@/components/workspace/oled'
-import { DonutChart } from '@/components/workspace/charts'
+import { DonutChart, RevenueTrendChart } from '@/components/workspace/charts'
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
 export default async function AnalyticsPage() {
   const context = await getWorkspaceContext()
-  const data = await getAnalyticsData(context)
+  const [data, revenueSeries] = await Promise.all([
+    getAnalyticsData(context),
+    monthlyRevenueSeries(context.payload, context.tenantId, 12),
+  ])
 
   const { funnel, satisfaction, sources, clientsByStage, activities, financials } = data
+
+  const monthNames = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+  const revenueTrend = revenueSeries.map((p) => ({
+    label: monthNames[Number(p.month.split('-')[1]) - 1] ?? p.month,
+    value: p.total,
+  }))
 
   const kpis = [
     {
@@ -79,6 +89,24 @@ export default async function AnalyticsPage() {
           <KpiCard key={kpi.label} label={kpi.label} value={kpi.value} icon={kpi.icon} accent={kpi.accent} note={kpi.note} />
         ))}
       </section>
+
+      {/* Tendencia de ingresos de los últimos 12 meses (datos agregados en BD) */}
+      <OledCard>
+        <SectionHeader
+          eyebrow="Facturación"
+          title="Ingresos Cobrados · Últimos 12 Meses"
+          action={
+            <Link href="/workspace/billing" className="text-xs text-zinc-400 hover:text-white font-mono transition">
+              Ver cobros →
+            </Link>
+          }
+        />
+        {revenueTrend.every((p) => p.value === 0) ? (
+          <EmptyState>Aún no hay pagos confirmados en los últimos 12 meses.</EmptyState>
+        ) : (
+          <RevenueTrendChart data={revenueTrend} unit="USD" />
+        )}
+      </OledCard>
 
       <section className="grid gap-4 xl:grid-cols-[1.4fr_.8fr]">
         <OledCard>

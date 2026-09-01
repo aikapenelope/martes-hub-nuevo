@@ -42,7 +42,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
           userInitials={userInitials}
           isAdmin={isAdmin}
         />
-        <main className="mx-auto max-w-[1600px] space-y-5 px-4 py-5 sm:px-6 xl:px-8">{children}</main>
+        <main className="w-full space-y-5 px-4 py-5 sm:px-6 xl:px-8 2xl:px-10">{children}</main>
         <CommandPalette />
         {context.canEdit && hasAiProvider && <CopilotAssistant />}
       </body>

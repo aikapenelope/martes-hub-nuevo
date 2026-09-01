@@ -61,26 +61,36 @@ export default async function WorkspacePage() {
 
       <CockpitFollowupsToday items={data.followupsToday} />
 
-      <CockpitKpiGrid metrics={data.metrics} />
+      <CockpitKpiGrid metrics={data.metrics} revenueSeries={data.cashflowPoints.map((p) => p.paid)} />
 
-      <ActivityHeatmap daysData={data.dayBuckets} totalInteractions={data.totalYearInteractions} />
+      {/* Bento superior: heatmap anual (ancho) + embudo de conversión (lateral) */}
+      <section className="grid grid-cols-1 gap-3.5 lg:grid-cols-12">
+        <div className="lg:col-span-8">
+          <ActivityHeatmap daysData={data.dayBuckets} totalInteractions={data.totalYearInteractions} />
+        </div>
+        <div className="lg:col-span-4">
+          <CockpitConversionFunnel metrics={data.metrics} />
+        </div>
+      </section>
 
-      <CockpitCashflowChart points={data.cashflowPoints} />
-
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
-        <CockpitConversionFunnel metrics={data.metrics} />
-        <div className="lg:col-span-4 space-y-3.5">
+      {/* Bento medio: flujo de caja (ancho) + canales y prioridades apilados (lateral) */}
+      <section className="grid grid-cols-1 gap-3.5 lg:grid-cols-12">
+        <div className="lg:col-span-7">
+          <CockpitCashflowChart points={data.cashflowPoints} />
+        </div>
+        <div className="space-y-3.5 lg:col-span-5">
           <CockpitSourceBreakdown sources={data.sourceBreakdown} />
           <CockpitPipelinePriorities hotLeads={data.hotLeads} />
         </div>
-        <CockpitOmnichannelFeed
-          conversations={data.recentConversations}
-          summaries={data.recentSummaries}
-          emails={data.recentEmails}
-          payments={data.recentPayments}
-          nowTime={data.nowTime}
-        />
       </section>
+
+      <CockpitOmnichannelFeed
+        conversations={data.recentConversations}
+        summaries={data.recentSummaries}
+        emails={data.recentEmails}
+        payments={data.recentPayments}
+        nowTime={data.nowTime}
+      />
     </div>
   )
 }

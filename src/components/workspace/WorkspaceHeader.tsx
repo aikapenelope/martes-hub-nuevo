@@ -42,6 +42,8 @@ const PRIMARY_NAV = [
 const SECONDARY_NAV = [
   { label: 'Social Hub', href: '/workspace/social', icon: Share2, description: 'Publicaciones y métricas en Meta / IG' },
   { label: 'Membresías', href: '/workspace/memberships', icon: CreditCard, description: 'Planes recurrentes y renovaciones' },
+  { label: 'Ofertas', href: '/workspace/offers', icon: Gift, description: 'Catálogo comercial y precios base' },
+  { label: 'Actividades', href: '/workspace/activities', icon: History, description: 'Timeline comercial unificado' },
   { label: 'Documentos', href: '/workspace/documents', icon: FileText, description: 'Cotizaciones, contratos y archivos' },
   { label: 'Email Marketing', href: '/workspace/email', icon: Mail, description: 'Campañas y registros de entrega' },
   { label: 'Rubros & Nichos', href: '/workspace/segments', icon: Tags, description: 'Segmentación de cartera y prospectos' },
@@ -53,10 +55,7 @@ const SECONDARY_NAV = [
 
 /** Accesos extra del backend sin página propia todavía — van al admin de Payload. */
 const ADMIN_SHORTCUTS = [
-  { label: 'Actividades / Timeline', href: '/admin/collections/activities', description: 'Historial de acciones comerciales' },
-  { label: 'Ofertas', href: '/admin/collections/offers', description: 'Propuestas y cotizaciones en curso' },
   { label: 'Media', href: '/admin/collections/media', description: 'Archivos compartidos' },
-  { label: 'Plantillas de Mensaje', href: '/admin/collections/message-templates', description: 'Mensajes reutilizables' },
 ] as const
 
 interface WorkspaceHeaderProps {
@@ -87,7 +86,7 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
 
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-800 bg-black/95 backdrop-blur-xl">
-      <div className="mx-auto flex min-h-14 max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-6 xl:px-8">
+      <div className="flex min-h-14 w-full flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-6 xl:px-8 2xl:px-10">
         {/* Logo & Tenant badge */}
         <Link href="/workspace" className="flex shrink-0 items-center gap-3">
           <span className="flex flex-col gap-1 w-5">
@@ -179,7 +178,7 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
                   </div>
                   <div className="py-1">
                     {ADMIN_SHORTCUTS.map((item) => {
-                      const Icon = item.label.startsWith('Actividades') ? History : item.label === 'Ofertas' ? Gift : ExternalLink
+                      const Icon = ExternalLink
                       return (
                         <a
                           key={item.href}

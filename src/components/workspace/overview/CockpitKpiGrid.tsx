@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { BadgeDollarSign, PieChart, ShieldAlert, TrendingDown, TrendingUp, Users, Wallet, Zap } from 'lucide-react'
 import type { WorkspaceOverviewMetrics } from './types'
+import { Sparkline } from '@/components/workspace/charts'
 
 const currency = new Intl.NumberFormat('es-VE', {
   style: 'currency',
@@ -8,7 +9,14 @@ const currency = new Intl.NumberFormat('es-VE', {
   maximumFractionDigits: 0,
 })
 
-export function CockpitKpiGrid({ metrics }: { metrics: WorkspaceOverviewMetrics }) {
+export function CockpitKpiGrid({
+  metrics,
+  revenueSeries,
+}: {
+  metrics: WorkspaceOverviewMetrics
+  /** Serie mensual de ingresos cobrados (meses antiguos → recientes) para la sparkline. */
+  revenueSeries?: number[]
+}) {
   const {
     revenueMonthTotal,
     revenueMonthCount,
@@ -53,10 +61,13 @@ export function CockpitKpiGrid({ metrics }: { metrics: WorkspaceOverviewMetrics 
             </span>
           )}
         </div>
-        <div className="text-[11px] font-mono text-zinc-400">
-          {revenueMonthCount} pago{revenueMonthCount !== 1 ? 's' : ''} confirmado
-          {revenueMonthCount !== 1 ? 's' : ''}
-          {revenueTrendPct === null && ' · sin mes anterior para comparar'}
+        <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400">
+          <span>
+            {revenueMonthCount} pago{revenueMonthCount !== 1 ? 's' : ''} confirmado
+            {revenueMonthCount !== 1 ? 's' : ''}
+            {revenueTrendPct === null && ' · sin mes anterior para comparar'}
+          </span>
+          {revenueSeries && revenueSeries.length > 1 && <Sparkline data={revenueSeries} />}
         </div>
       </article>
 
