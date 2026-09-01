@@ -104,7 +104,7 @@ export default async function AnalyticsPage() {
         {revenueTrend.every((p) => p.value === 0) ? (
           <EmptyState>Aún no hay pagos confirmados en los últimos 12 meses.</EmptyState>
         ) : (
-          <RevenueTrendChart data={revenueTrend} formatter={(v) => usd.format(v)} />
+          <RevenueTrendChart data={revenueTrend} unit="USD" />
         )}
       </OledCard>
 
