@@ -88,6 +88,7 @@ export interface Config {
     'form-submissions': FormSubmission;
     tasks: Task;
     'conversation-summaries': ConversationSummary;
+    'conversation-notes': ConversationNote;
     'social-accounts': SocialAccount;
     'social-posts': SocialPost;
     'post-metrics': PostMetric;
@@ -129,6 +130,7 @@ export interface Config {
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
     tasks: TasksSelect<false> | TasksSelect<true>;
     'conversation-summaries': ConversationSummariesSelect<false> | ConversationSummariesSelect<true>;
+    'conversation-notes': ConversationNotesSelect<false> | ConversationNotesSelect<true>;
     'social-accounts': SocialAccountsSelect<false> | SocialAccountsSelect<true>;
     'social-posts': SocialPostsSelect<false> | SocialPostsSelect<true>;
     'post-metrics': PostMetricsSelect<false> | PostMetricsSelect<true>;
@@ -493,6 +495,14 @@ export interface Membership {
 export interface Conversation {
   id: number;
   tenant?: (number | null) | Tenant;
+  status?: ('open' | 'pending' | 'resolved') | null;
+  priority?: ('baja' | 'media' | 'alta') | null;
+  assignee?: (number | null) | User;
+  /**
+   * Mientras snooze activo, la conversación no aparece en abiertas
+   */
+  snoozeUntil?: string | null;
+  labels?: ('seguimiento' | 'facturacion' | 'soporte' | 'renovacion' | 'urgente' | 'oportunidad')[] | null;
   channel: 'whatsapp' | 'instagram_dm' | 'whatsapp_web';
   /**
    * UUID de la conversación en OpenBSP; lo rellena el webhook
@@ -806,6 +816,24 @@ export interface ConversationSummary {
     | number
     | boolean
     | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Notas internas del equipo sobre conversaciones (privadas, no se envían al contacto).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "conversation-notes".
+ */
+export interface ConversationNote {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  conversation: number | Conversation;
+  body: string;
+  /**
+   * Se rellena automáticamente con el usuario autenticado
+   */
+  author?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
 }
@@ -1483,6 +1511,10 @@ export interface PayloadLockedDocument {
         value: number | ConversationSummary;
       } | null)
     | ({
+        relationTo: 'conversation-notes';
+        value: number | ConversationNote;
+      } | null)
+    | ({
         relationTo: 'social-accounts';
         value: number | SocialAccount;
       } | null)
@@ -1772,6 +1804,11 @@ export interface MembershipsSelect<T extends boolean = true> {
  */
 export interface ConversationsSelect<T extends boolean = true> {
   tenant?: T;
+  status?: T;
+  priority?: T;
+  assignee?: T;
+  snoozeUntil?: T;
+  labels?: T;
   channel?: T;
   openbspId?: T;
   organizationAddress?: T;
@@ -1955,6 +1992,18 @@ export interface ConversationSummariesSelect<T extends boolean = true> {
       };
   generatedBy?: T;
   rawAiResponse?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "conversation-notes_select".
+ */
+export interface ConversationNotesSelect<T extends boolean = true> {
+  tenant?: T;
+  conversation?: T;
+  body?: T;
+  author?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2556,6 +2605,7 @@ export interface TaskCreateCollectionExport {
       | 'form-submissions'
       | 'tasks'
       | 'conversation-summaries'
+      | 'conversation-notes'
       | 'social-accounts'
       | 'social-posts'
       | 'post-metrics'

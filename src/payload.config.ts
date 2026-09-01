@@ -37,6 +37,7 @@ import { Offers } from './collections/Offers'
 import { FormSubmissions } from './collections/FormSubmissions'
 import { Tasks } from './collections/Tasks'
 import { ConversationSummaries } from './collections/ConversationSummaries'
+import { ConversationNotes } from './collections/ConversationNotes'
 import { SocialAccounts } from './collections/SocialAccounts'
 import { SocialPosts } from './collections/SocialPosts'
 import { PostMetrics } from './collections/PostMetrics'
@@ -92,6 +93,7 @@ export default buildConfig({
     FormSubmissions,
     Tasks,
     ConversationSummaries,
+    ConversationNotes,
     SocialAccounts,
     SocialPosts,
     PostMetrics,
@@ -173,6 +175,7 @@ export default buildConfig({
         'form-submissions': {},
         tasks: {},
         'conversation-summaries': {},
+        'conversation-notes': {},
         'social-accounts': {},
         'social-posts': {},
         'post-metrics': {},

@@ -18,6 +18,62 @@ export const Conversations: CollectionConfig = {
   timestamps: true,
   fields: [
     {
+      name: 'status',
+      type: 'select',
+      defaultValue: 'open',
+      label: 'Estado',
+      options: [
+        { label: 'Abierta', value: 'open' },
+        { label: 'Pendiente (esperando cliente)', value: 'pending' },
+        { label: 'Resuelta', value: 'resolved' },
+      ],
+      admin: { position: 'sidebar' },
+      index: true,
+    },
+    {
+      name: 'priority',
+      type: 'select',
+      defaultValue: 'media',
+      label: 'Prioridad',
+      options: [
+        { label: 'Baja', value: 'baja' },
+        { label: 'Media', value: 'media' },
+        { label: 'Alta', value: 'alta' },
+      ],
+      admin: { position: 'sidebar' },
+    },
+    {
+      name: 'assignee',
+      type: 'relationship',
+      relationTo: 'users',
+      label: 'Agente asignado',
+      admin: { position: 'sidebar' },
+    },
+    {
+      name: 'snoozeUntil',
+      type: 'date',
+      label: 'Snooze hasta',
+      admin: {
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        description: 'Mientras snooze activo, la conversación no aparece en abiertas',
+      },
+    },
+    {
+      name: 'labels',
+      type: 'select',
+      hasMany: true,
+      label: 'Etiquetas',
+      options: [
+        { label: 'Seguimiento', value: 'seguimiento' },
+        { label: 'Facturación', value: 'facturacion' },
+        { label: 'Soporte', value: 'soporte' },
+        { label: 'Renovación', value: 'renovacion' },
+        { label: 'Urgente', value: 'urgente' },
+        { label: 'Oportunidad', value: 'oportunidad' },
+      ],
+    },
+    {
       name: 'channel',
       type: 'select',
       required: true,

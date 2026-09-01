@@ -15,6 +15,7 @@ import * as migration_20260830_020000_mcp_api_keys_ready from './20260830_020000
 import * as migration_20260830_030000_tasks_forms_summaries_ready from './20260830_030000_tasks_forms_summaries_ready';
 import * as migration_20260830_050000_performance_indexes_and_segments_unique from './20260830_050000_performance_indexes_and_segments_unique';
 import * as migration_20260831_190000_leads_clients_enrichment_sync from './20260831_190000_leads_clients_enrichment_sync';
+import * as migration_20260901_030726_add_chatwoot_conversation_model from './20260901_030726_add_chatwoot_conversation_model';
 
 export const migrations = [
   {
@@ -100,6 +101,11 @@ export const migrations = [
   {
     up: migration_20260831_190000_leads_clients_enrichment_sync.up,
     down: migration_20260831_190000_leads_clients_enrichment_sync.down,
-    name: '20260831_190000_leads_clients_enrichment_sync'
+    name: '20260831_190000_leads_clients_enrichment_sync',
+  },
+  {
+    up: migration_20260901_030726_add_chatwoot_conversation_model.up,
+    down: migration_20260901_030726_add_chatwoot_conversation_model.down,
+    name: '20260901_030726_add_chatwoot_conversation_model'
   },
 ];
