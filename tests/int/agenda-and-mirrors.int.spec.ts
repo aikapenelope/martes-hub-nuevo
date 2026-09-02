@@ -257,6 +257,24 @@ describe('Integración GCal — Normalización de eventos todo el día', () => {
     expect(formatted).toContain('9')
     expect(formatted).toContain('2026')
   })
+
+  it('maneja zonas horarias sin offset (UTC) de forma exacta a medianoche', async () => {
+    const { parseAllDayDate } = await import('@/integrations/gcal/client')
+    const iso = parseAllDayDate('2026-09-02', 'UTC')
+    expect(iso).toBe('2026-09-02T00:00:00.000Z')
+  })
+
+  it('calcula la medianoche exacta en ambas fechas de transición de horario de verano en America/New_York', async () => {
+    const { parseAllDayDate } = await import('@/integrations/gcal/client')
+
+    // 2026-03-08: Spring forward (a medianoche NY sigue en EST, UTC-5)
+    const springIso = parseAllDayDate('2026-03-08', 'America/New_York')
+    expect(springIso).toBe('2026-03-08T05:00:00.000Z')
+
+    // 2026-11-01: Fall back (a medianoche NY sigue en EDT, UTC-4)
+    const fallIso = parseAllDayDate('2026-11-01', 'America/New_York')
+    expect(fallIso).toBe('2026-11-01T04:00:00.000Z')
+  })
 })
 
 describe('GCal Mirror — Reconciliación estable con más de 500 citas obsoletas', () => {

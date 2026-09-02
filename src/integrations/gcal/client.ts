@@ -34,22 +34,47 @@ export interface GcalEventSummary {
 export function parseAllDayDate(dateStr: string, timeZone = 'America/Caracas'): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   if (!y || !m || !d) return new Date(dateStr).toISOString()
-  const approx = new Date(Date.UTC(y, m - 1, d, 12, 0, 0))
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    timeZoneName: 'shortOffset',
-  })
-  const parts = formatter.formatToParts(approx)
-  const tzOffsetPart = parts.find((p) => p.type === 'timeZoneName')?.value || 'GMT-4'
-  const match = tzOffsetPart.match(/GMT([+-])(\d+)(?::(\d+))?/)
-  let offsetStr = '-04:00'
-  if (match) {
-    const sign = match[1]
-    const hours = match[2].padStart(2, '0')
-    const minutes = (match[3] || '00').padStart(2, '0')
-    offsetStr = `${sign}${hours}:${minutes}`
+
+  let guess = Date.UTC(y, m - 1, d, 0, 0, 0)
+  const target = Date.UTC(y, m - 1, d, 0, 0, 0)
+
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+
+    const getLocalTime = (timestamp: number): number => {
+      const parts = formatter.formatToParts(new Date(timestamp))
+      const find = (type: Intl.DateTimeFormatPartTypes): string | undefined =>
+        parts.find((p) => p.type === type)?.value
+      const year = Number(find('year'))
+      const month = Number(find('month'))
+      const day = Number(find('day'))
+      let hour = Number(find('hour'))
+      if (hour === 24) hour = 0
+      const minute = Number(find('minute'))
+      const second = Number(find('second'))
+      return Date.UTC(year, month - 1, day, hour, minute, second)
+    }
+
+    for (let i = 0; i < 3; i++) {
+      const local = getLocalTime(guess)
+      const diff = local - target
+      if (diff === 0) break
+      guess -= diff
+    }
+
+    return new Date(guess).toISOString()
+  } catch {
+    return new Date(dateStr).toISOString()
   }
-  return new Date(`${dateStr}T00:00:00${offsetStr}`).toISOString()
 }
 
 export async function listUpcomingEvents(options: {
