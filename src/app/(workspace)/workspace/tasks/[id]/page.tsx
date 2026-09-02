@@ -30,13 +30,23 @@ export default async function TaskDetailPage({ params, searchParams }: { params:
   ])
   if (!task) notFound()
 
-  // Preservar el responsable actual si está inactivo o fuera de la consulta activa
-  const currentAssigneeUser =
-    task.assignedTo && typeof task.assignedTo === 'object'
-      ? (task.assignedTo as User)
+  // Preservar el responsable actual si está inactivo o fuera de la consulta activa,
+  // respetando estrictamente el aislamiento multitenant con overrideAccess: false.
+  const currentAssigneeId =
+    typeof task.assignedTo === 'object' && task.assignedTo
+      ? task.assignedTo.id
       : typeof task.assignedTo === 'number'
-      ? ((await context.payload.findByID({ collection: 'users', id: task.assignedTo, overrideAccess: true }).catch(() => null)) as User | null)
+      ? task.assignedTo
       : null
+
+  const currentAssigneeUser = currentAssigneeId
+    ? ((await context.payload.findByID({
+        collection: 'users',
+        id: currentAssigneeId,
+        overrideAccess: false,
+        user: context.user,
+      }).catch(() => null)) as User | null)
+    : null
 
   const isCurrentInAssignees =
     currentAssigneeUser && assignees.docs.some((u) => u.id === currentAssigneeUser.id)
@@ -124,6 +134,11 @@ export default async function TaskDetailPage({ params, searchParams }: { params:
                   Responsable
                   <select name="assignedTo" defaultValue={relId(task.assignedTo)} className={inputCls}>
                     <option value="">Sin asignar</option>
+                    {currentAssigneeId && !currentAssigneeUser && (
+                      <option value={currentAssigneeId}>
+                        Responsable asignado (restringido)
+                      </option>
+                    )}
                     {assigneeOptions.map((user) => (
                       <option key={user.id} value={user.id}>
                         {person(user)}{user.active === false ? ' (inactivo)' : ''}
