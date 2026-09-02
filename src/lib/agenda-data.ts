@@ -47,6 +47,7 @@ export async function getUpcomingAgenda(
     payload.find({
       collection: 'tasks',
       limit: 50,
+      sort: 'dueDate',
       depth: 0,
       overrideAccess: false,
       user,
@@ -61,6 +62,7 @@ export async function getUpcomingAgenda(
     payload.find({
       collection: 'memberships',
       limit: 50,
+      sort: 'renewalDate',
       depth: 1,
       overrideAccess: false,
       user,
@@ -75,6 +77,7 @@ export async function getUpcomingAgenda(
     payload.find({
       collection: 'payments',
       limit: 50,
+      sort: 'dueDate',
       depth: 1,
       overrideAccess: false,
       user,
@@ -89,6 +92,7 @@ export async function getUpcomingAgenda(
     payload.find({
       collection: 'appointments',
       limit: 50,
+      sort: 'start',
       depth: 1,
       overrideAccess: false,
       user,

@@ -66,14 +66,76 @@ export const syncGcalTask: TaskConfig = {
     const timeMin = new Date(Date.now() - 24 * 3600_000).toISOString()
     const timeMax = new Date(Date.now() + 30 * 24 * 3600_000).toISOString()
     const events = await listUpcomingEvents({ calendarId, timeMin, timeMax })
+    const returnedEventIds = new Set(events.map((e) => e.id))
+
+    // Reconciliación de ventana autoritativa: citas en la BD dentro de [timeMin, timeMax]
+    // que ya no están presentes en la respuesta de Google (fueron movidas a fechas fuera
+    // de la ventana de 30 días o eliminadas permanentemente).
+    let windowPage = 1
+    let reconciled = 0
+    while (true) {
+      const windowRes = await req.payload.find({
+        collection: 'appointments',
+        where: {
+          and: [
+            { tenant: { equals: tenant.id } },
+            {
+              or: [
+                { calendarId: { equals: calendarId } },
+                { calendarId: { exists: false } },
+              ],
+            },
+            { start: { greater_than_equal: timeMin } },
+            { start: { less_than_equal: timeMax } },
+            { status: { not_equals: 'cancelled' } },
+          ],
+        },
+        limit: 500,
+        page: windowPage,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+
+      for (const stale of windowRes.docs) {
+        if (!returnedEventIds.has(stale.gcalEventId)) {
+          try {
+            await req.payload.update({
+              collection: 'appointments',
+              id: stale.id,
+              data: { status: 'cancelled' },
+              overrideAccess: true,
+              req,
+            })
+            reconciled += 1
+          } catch (err) {
+            req.payload.logger.error({ msg: 'sync-gcal: error al reconciliar cita obsoleta', id: stale.id, err })
+          }
+        }
+      }
+
+      if (!windowRes.hasNextPage) break
+      windowPage++
+    }
+
     if (events.length === 0) {
-      return { output: { synced: 0, summary: 'Sin eventos en la ventana de 30 días' } }
+      return {
+        output: {
+          synced: 0,
+          summary: `Sin eventos en la ventana de 30 días${reconciled > 0 ? ` (${reconciled} citas obsoletas canceladas)` : ''}`,
+        },
+      }
     }
 
     // Idempotencia + upsert en bloque: qué eventos ya están espejados
     const existingRes = await req.payload.find({
       collection: 'appointments',
-      where: { gcalEventId: { in: events.map((e) => e.id) } },
+      where: {
+        and: [
+          { tenant: { equals: tenant.id } },
+          { gcalEventId: { in: events.map((e) => e.id) } },
+        ],
+      },
       limit: events.length,
       depth: 0,
       overrideAccess: true,
@@ -81,32 +143,43 @@ export const syncGcalTask: TaskConfig = {
     })
     const existingByEventId = new Map(existingRes.docs.map((d) => [d.gcalEventId, d.id]))
 
-    // Matching en bloque de asistentes → clients/leads del tenant
-    const [clientsRes, leadsRes] = await Promise.all([
-      req.payload.find({
+    // Matching en bloque paginado de asistentes → clients/leads del tenant
+    const clientsByEmail = new Map<string, number>()
+    let clientPage = 1
+    while (true) {
+      const res = await req.payload.find({
         collection: 'clients',
         where: { and: [{ tenant: { equals: tenant.id } }, { email: { exists: true } }] },
-        limit: 1000,
+        limit: 500,
+        page: clientPage,
         depth: 0,
         overrideAccess: true,
         req,
-      }),
-      req.payload.find({
+      })
+      for (const client of res.docs) {
+        if (client.email) clientsByEmail.set(client.email.toLowerCase().trim(), client.id)
+      }
+      if (!res.hasNextPage) break
+      clientPage++
+    }
+
+    const leadsByEmail = new Map<string, number>()
+    let leadPage = 1
+    while (true) {
+      const res = await req.payload.find({
         collection: 'leads',
         where: { and: [{ tenant: { equals: tenant.id } }, { email: { exists: true } }] },
-        limit: 1000,
+        limit: 500,
+        page: leadPage,
         depth: 0,
         overrideAccess: true,
         req,
-      }),
-    ])
-    const clientsByEmail = new Map<string, number>()
-    for (const client of clientsRes.docs) {
-      if (client.email) clientsByEmail.set(client.email.toLowerCase(), client.id)
-    }
-    const leadsByEmail = new Map<string, number>()
-    for (const lead of leadsRes.docs) {
-      if (lead.email) leadsByEmail.set(lead.email.toLowerCase(), lead.id)
+      })
+      for (const lead of res.docs) {
+        if (lead.email) leadsByEmail.set(lead.email.toLowerCase().trim(), lead.id)
+      }
+      if (!res.hasNextPage) break
+      leadPage++
     }
 
     let synced = 0
@@ -199,7 +272,7 @@ export const syncGcalTask: TaskConfig = {
     return {
       output: {
         synced,
-        summary: `${synced} eventos espejados (${failed} fallidos) de ${events.length} en [${calendarId}]`,
+        summary: `${synced} eventos espejados${reconciled > 0 ? ` (${reconciled} obsoletos cancelados)` : ''} (${failed} fallidos) de ${events.length} en [${calendarId}]`,
       },
     }
   },

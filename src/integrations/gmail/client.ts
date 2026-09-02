@@ -50,19 +50,76 @@ interface GmailHeader {
   value: string
 }
 
-function splitAddresses(raw: string | undefined | null): { email: string; name: string | null }[] {
+export function splitAddresses(raw: string | undefined | null): { email: string; name: string | null }[] {
   if (!raw) return []
-  // Formato simple "Nombre <a@b.com>, Otro <c@d.com>" — sin RFC completo.
-  return raw
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const match = part.match(/^"?([^"<]*)"?\s*<([^>]+)>$/)
-      if (match) return { name: match[1].trim() || null, email: match[2].trim().toLowerCase() }
-      return { name: null, email: part.toLowerCase() }
-    })
-    .filter((a) => a.email.includes('@'))
+  const tokens: string[] = []
+  let current = ''
+  let inQuotes = false
+  let inAngle = false
+  let escaped = false
+
+  for (let i = 0; i < raw.length; i++) {
+    const char = raw[i]
+    if (escaped) {
+      current += char
+      escaped = false
+      continue
+    }
+    if (char === '\\') {
+      current += char
+      escaped = true
+      continue
+    }
+    if (char === '"') {
+      inQuotes = !inQuotes
+      current += char
+      continue
+    }
+    if (char === '<' && !inQuotes) {
+      inAngle = true
+      current += char
+      continue
+    }
+    if (char === '>' && !inQuotes) {
+      inAngle = false
+      current += char
+      continue
+    }
+    if (char === ',' && !inQuotes && !inAngle) {
+      if (current.trim()) tokens.push(current.trim())
+      current = ''
+      continue
+    }
+    current += char
+  }
+  if (current.trim()) {
+    tokens.push(current.trim())
+  }
+
+  const results: { email: string; name: string | null }[] = []
+  for (const token of tokens) {
+    const angleMatch = token.match(/^(.*?)\s*<([^>]+)>\s*$/)
+    if (angleMatch) {
+      let name = angleMatch[1].trim()
+      if (name.startsWith('"') && name.endsWith('"')) {
+        name = name.slice(1, -1).replace(/\\"/g, '"').trim()
+      }
+      const email = angleMatch[2].trim().toLowerCase()
+      if (email.includes('@')) {
+        results.push({ name: name || null, email })
+      }
+    } else {
+      let clean = token.trim()
+      if (clean.startsWith('"') && clean.endsWith('"')) {
+        clean = clean.slice(1, -1).trim()
+      }
+      if (clean.includes('@')) {
+        results.push({ name: null, email: clean.toLowerCase() })
+      }
+    }
+  }
+
+  return results
 }
 
 export async function listRecentMessages(options: {

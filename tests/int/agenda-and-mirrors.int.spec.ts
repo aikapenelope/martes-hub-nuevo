@@ -186,3 +186,54 @@ describe('Integración Gmail y GCal — Paginación completa', () => {
     expect(events.map((e) => e.id)).toEqual(['evt-1', 'evt-2'])
   })
 })
+
+describe('Integración Gmail — Parser de direcciones RFC-aware', () => {
+  it('maneja nombres entrecomillados con comas internas sin fragmentar la dirección', async () => {
+    const { splitAddresses } = await import('@/integrations/gmail/client')
+    const raw = '"Doe, John" <john@example.com>, Jane <jane@example.com>'
+    const parsed = splitAddresses(raw)
+
+    expect(parsed).toHaveLength(2)
+    expect(parsed[0]).toEqual({ name: 'Doe, John', email: 'john@example.com' })
+    expect(parsed[1]).toEqual({ name: 'Jane', email: 'jane@example.com' })
+  })
+
+  it('maneja comillas escapadas y múltiples destinatarios en To/Cc', async () => {
+    const { splitAddresses } = await import('@/integrations/gmail/client')
+    const raw = '"John \\"The Boss\\"" <boss@example.com>, "Pérez, Carlos" <carlos@empresa.com>, plain@example.com'
+    const parsed = splitAddresses(raw)
+
+    expect(parsed).toHaveLength(3)
+    expect(parsed[0]).toEqual({ name: 'John "The Boss"', email: 'boss@example.com' })
+    expect(parsed[1]).toEqual({ name: 'Pérez, Carlos', email: 'carlos@empresa.com' })
+    expect(parsed[2]).toEqual({ name: null, email: 'plain@example.com' })
+  })
+})
+
+describe('Agenda unificada — Orden ascendente por fecha próxima', () => {
+  const mockUser = {
+    id: 1,
+    email: 'admin@martes.local',
+    roles: ['admin'] as ('admin' | 'agente' | 'viewer')[],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as User
+
+  it('ordena cada consulta de origen por su fecha ascendente antes del limit', async () => {
+    const mockFind = vi.fn().mockResolvedValue({ docs: [] })
+    const mockPayload = { find: mockFind } as unknown as Payload
+
+    await getUpcomingAgenda({
+      payload: mockPayload,
+      user: mockUser,
+      tenantId: 5,
+      days: 7,
+    })
+
+    const callsByCollection = new Map(mockFind.mock.calls.map((c) => [c[0].collection, c[0]]))
+    expect(callsByCollection.get('tasks')?.sort).toBe('dueDate')
+    expect(callsByCollection.get('memberships')?.sort).toBe('renewalDate')
+    expect(callsByCollection.get('payments')?.sort).toBe('dueDate')
+    expect(callsByCollection.get('appointments')?.sort).toBe('start')
+  })
+})

@@ -69,32 +69,43 @@ export const syncEmailTask: TaskConfig = {
       return { output: { synced: 0, skipped: 0, summary: 'Sin mensajes en la ventana de 2 días' } }
     }
 
-    // Matching en bloque: direcciones de clients/leads → id
-    const [clientsRes, leadsRes] = await Promise.all([
-      req.payload.find({
+    // Matching en bloque paginado: todas las direcciones de clients/leads → id
+    const clientsByEmail = new Map<string, number>()
+    let clientPage = 1
+    while (true) {
+      const res = await req.payload.find({
         collection: 'clients',
         where: { and: [{ tenant: { equals: tenant.id } }, { email: { exists: true } }] },
-        limit: 1000,
+        limit: 500,
+        page: clientPage,
         depth: 0,
         overrideAccess: true,
         req,
-      }),
-      req.payload.find({
+      })
+      for (const client of res.docs) {
+        if (client.email) clientsByEmail.set(client.email.toLowerCase().trim(), client.id)
+      }
+      if (!res.hasNextPage) break
+      clientPage++
+    }
+
+    const leadsByEmail = new Map<string, number>()
+    let leadPage = 1
+    while (true) {
+      const res = await req.payload.find({
         collection: 'leads',
         where: { and: [{ tenant: { equals: tenant.id } }, { email: { exists: true } }] },
-        limit: 1000,
+        limit: 500,
+        page: leadPage,
         depth: 0,
         overrideAccess: true,
         req,
-      }),
-    ])
-    const clientsByEmail = new Map<string, number>()
-    for (const client of clientsRes.docs) {
-      if (client.email) clientsByEmail.set(client.email.toLowerCase(), client.id)
-    }
-    const leadsByEmail = new Map<string, number>()
-    for (const lead of leadsRes.docs) {
-      if (lead.email) leadsByEmail.set(lead.email.toLowerCase(), lead.id)
+      })
+      for (const lead of res.docs) {
+        if (lead.email) leadsByEmail.set(lead.email.toLowerCase().trim(), lead.id)
+      }
+      if (!res.hasNextPage) break
+      leadPage++
     }
 
     // Mensajes ya espejados previamente
