@@ -73,6 +73,11 @@ export default async function CrmRecordPage({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {detail.conversations.length > 0 && (
+            <Link className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono" href={`/workspace/inbox?c=${detail.conversations[0].id}`}>
+              Abrir en inbox
+            </Link>
+          )}
           {phone && (
             <a className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono inline-flex items-center gap-1.5" href={`https://wa.me/${phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">
               <MessageCircle className="w-4 h-4" aria-hidden="true" /> WhatsApp
@@ -134,20 +139,34 @@ export default async function CrmRecordPage({
         <aside className="oled-card p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-white">Timeline</h2>
-              <p className="text-xs text-zinc-400">Últimas {detail.activities.length} interacciones.</p>
+              <h2 className="text-base font-bold text-white">Timeline unificado</h2>
+              <p className="text-xs text-zinc-400">Conversaciones, emails, citas, tareas, cobros y actividades.</p>
             </div>
           </div>
 
-          {detail.activities.length === 0 ? (
+          {detail.timeline.length === 0 ? (
             <p className="mt-4 text-xs text-zinc-500">Todavía no hay actividad para este registro.</p>
           ) : (
             <ol className="mt-4 flex flex-col gap-3 border-l border-zinc-800 pl-4">
-              {detail.activities.map((activity) => (
-                <li key={activity.id} className="relative">
-                  <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-white" aria-hidden="true" />
-                  <strong className="block text-xs text-white">{activity.summary}</strong>
-                  <span className="text-[10px] text-zinc-500 font-mono">{activity.type} · {new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(activity.occurredAt))}</span>
+              {detail.timeline.map((entry, index) => (
+                <li key={`${entry.kind}-${index}-${entry.date}`} className="relative">
+                  <span
+                    className={`absolute -left-[21px] top-1 h-2 w-2 rounded-full ${
+                      entry.direction === 'in' ? 'bg-emerald-400' : entry.direction === 'out' ? 'bg-sky-400' : 'bg-white'
+                    }`}
+                    aria-hidden="true"
+                  />
+                  {entry.href ? (
+                    <Link href={entry.href} className="block text-xs text-white hover:underline">
+                      {entry.title}
+                    </Link>
+                  ) : (
+                    <strong className="block text-xs text-white">{entry.title}</strong>
+                  )}
+                  {entry.detail && <span className="block text-[11px] text-zinc-400">{entry.detail}</span>}
+                  <span className="text-[10px] text-zinc-500 font-mono">
+                    {entry.kind} · {new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.date))}
+                  </span>
                 </li>
               ))}
             </ol>

@@ -67,15 +67,17 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | Colección | Propósito |
 |---|---|
 | `users` | Auth + roles: admin / agente / viewer (RBAC por colección y campo) |
-| `clients` | Cliente: datos, etapa de ciclo de vida, agente asignado, consentimiento/opt-out |
-| `leads` | Prospects crudos (fuente: Apify, Tally, manual, DM, auto-creados por mensaje entrante de OpenBSP) con pipeline, rubro, valor estimado y agente asignado |
+| `companies` | Empresa/cuenta separada del contacto: una empresa agrupa varios clients (Fase A) |
+| `clients` | Cliente: datos, empresa (cuenta), etapa de ciclo de vida, agente asignado, consentimiento/opt-out; joins inversos a todo lo vinculado |
+| `leads` | Prospects crudos (fuente: Tally, manual, DM, auto-creados por mensaje entrante de OpenBSP) con pipeline, empresa, rubro, valor estimado y agente asignado |
 | `activities` | Log unificado de interacciones |
 | `conversations` / `messages` | Hilos por canal (whatsapp / instagram_dm / email) y mensajes con estado Meta |
 | `message-templates` | Plantillas WhatsApp aprobadas + respuestas rápidas |
 | `conversation-summaries` | Resumen IA por cliente (sentimiento, objeciones, próximos pasos) |
 | `payments` | Tracking USD: monto, vencimiento, estado, método |
 | `memberships` | Ciclo de membresía: inicio, renovación, estado |
-| `appointments` | Citas sincronizadas de Google Calendar |
+| `appointments` | Citas espejadas de Google Calendar (job `sync-gcal`, solo lectura, idempotente por gcal_event_id) |
+| `email-messages` | Espejo de solo lectura del buzón Gmail (recibidos + enviados, job `sync-email`, idempotente por provider_id) — el envío real sigue siendo Resend |
 | `offers` | Catálogo de productos/servicios (alimenta cotizaciones, facturas y sugerencias del agente) |
 | `invoices` / `quotes` / `shop-info` (plugin invoicepdf) | Facturación comercial interna: line items, IVA, numeración automática, PDFs versionados en Media, envío por email y aceptación de cotizaciones por link |
 | `social-accounts` | Referencia de cuentas IG/FB/TikTok/etc. conectadas en Metricool/Composio — sin credenciales propias, solo nombre/plataforma/estado |
@@ -88,6 +90,10 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | `notifications` | Centro de notificaciones internas |
 | `company-settings` (global por tenant) | Empresa, horarios, políticas de recordatorio, textos, zona horaria |
 
+> Interconexión (Fase A–D): `clients` y `leads` exponen joins inversos (conversaciones, tareas, cobros, membresías, documentos, formularios, emails del buzón, emails enviados, citas); `email-log`, `email-messages` y `appointments` llevan relación a `client`/`lead` por matching de destinatario/asistente. La ficha CRM (`/workspace/crm/[type]/[id]`) renderiza el timeline unificado con deep link al inbox (`/workspace/inbox?c=<id>`), y el drawer del kanban enlaza a la ficha completa.
+>
+> Backfill one-off tras el deploy: `pnpm tsx scripts/backfill-companies.ts` crea `companies` desde `companyName` y vincula `email-log` a clientes/leads existentes (idempotente).
+
 ### Para ofrecer como servicio (SaaS) — pendiente, NO bloquea F2+
 El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide más adelante:
 - Onboarding/self-signup de nuevas empresas
@@ -99,7 +105,8 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 
 | Job | Frecuencia | Función |
 |---|---|---|
-| `sync-gcal` | 15 min | Sincroniza citas de Google Calendar |
+| `sync-gcal` | 15 min | Espeja citas de Google Calendar en `appointments` (solo lectura, vincula asistentes a clients/leads) |
+| `sync-email` | 15 min | Espeja recibidos + enviados del buzón Gmail en `email-messages` (solo lectura, matching a clients/leads) |
 | `payment-reminders` | diario 08:00 UTC-4 | Cobros por vencer/vencidos → WhatsApp plantilla + email |
 | `daily-digest` | diario 08:00 UTC-4 | Resumen interno: citas del día, pagos, leads nuevos, tareas vencidas |
 | `weekly-report` | lunes 08:00 | Reporte generado vía MCP por el agente que conectes |
