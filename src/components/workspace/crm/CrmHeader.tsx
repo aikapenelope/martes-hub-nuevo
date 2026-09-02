@@ -1,4 +1,4 @@
-import { Download } from 'lucide-react'
+import { CrmImportExportDialog } from '@/components/workspace/CrmImportExportDialog'
 import { CrmFormDialog } from '@/components/workspace/CrmFormDialog'
 import type { Tenant } from '@/payload-types'
 
@@ -25,12 +25,7 @@ export function CrmHeader({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={`/admin/collections/${view}`}
-            className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition inline-flex items-center gap-1.5 uppercase tracking-wider font-mono"
-          >
-            <Download className="w-4 h-4" /> Importar / exportar
-          </a>
+          <CrmImportExportDialog collection={view === 'leads' ? 'leads' : 'clients'} />
           {canEdit && <CrmFormDialog kind={view === 'leads' ? 'lead' : 'client'} />}
         </div>
       </div>

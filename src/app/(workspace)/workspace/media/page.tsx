@@ -5,11 +5,13 @@
  * se copia la URL pública para usarla en plantillas y campañas.
  */
 
-import { ExternalLink, File as FileIcon, FileType2, HardDrive, Image as ImageIcon } from 'lucide-react'
+import { File as FileIcon, FileType2, HardDrive, Image as ImageIcon } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { EmptyState, KpiCard, OledCard, PageHero } from '@/components/workspace/oled'
 import type { Media as MediaDoc } from '@/payload-types'
+
+import { MediaUploadDialog } from '@/components/workspace/MediaUploadDialog'
 
 const sizeFmt = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`
@@ -42,17 +44,8 @@ export default async function MediaPage() {
       <PageHero
         eyebrow={`Biblioteca · ${context.tenant.name}`}
         title="Media y Archivos"
-        description="Imágenes y documentos del tenant. Sube archivos nuevos desde el admin de Payload."
-        actions={
-          <a
-            href="/admin/collections/media?limit=10"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-sky-400 px-4 py-2 text-xs font-black uppercase shadow-[0_0_16px_rgba(56,189,248,0.35)] transition hover:bg-sky-300 font-mono text-black"
-          >
-            <ExternalLink className="h-4 w-4" /> Subir en Admin
-          </a>
-        }
+        description="Imágenes y documentos del tenant. Sube y gestiona archivos directamente en tu almacenamiento en la nube."
+        actions={context.canEdit ? <MediaUploadDialog /> : undefined}
       />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -63,7 +56,7 @@ export default async function MediaPage() {
 
       {media.length === 0 ? (
         <OledCard>
-          <EmptyState>Sin archivos todavía — sube el primero desde el admin de Payload.</EmptyState>
+          <EmptyState>Sin archivos todavía — sube el primero con el botón superior.</EmptyState>
         </OledCard>
       ) : (
         <section className="grid grid-cols-2 gap-3.5 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">

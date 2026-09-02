@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Flame, Sparkles } from 'lucide-react'
+import { Building2, Flame, MessageCircle, Sparkles } from 'lucide-react'
 import type { Lead } from '@/payload-types'
 
 const currency = new Intl.NumberFormat('es-VE', {
@@ -29,18 +29,39 @@ export function CockpitPipelinePriorities({ hotLeads }: { hotLeads: Lead[] }) {
             const borderColors = ['border-l-amber-400', 'border-l-sky-400', 'border-l-indigo-400']
             const borderCls = borderColors[idx % borderColors.length]
             const actionLabel = lead.status === 'calificado' ? 'Enviar cotización' : 'Agendar seguimiento'
+            const cleanPhone = lead.phone ? lead.phone.replace(/\D/g, '') : null
 
             return (
               <div key={lead.id} className={`p-3 oled-subcard space-y-2 border-l-2 ${borderCls}`}>
                 <div className="flex justify-between items-start">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <strong className="text-white text-xs block truncate max-w-[180px]">{lead.fullName}</strong>
-                    <span className="text-[10px] text-zinc-400">
-                      {lead.source} · {lead.phone ?? lead.email ?? 'sin contacto registrado'}
-                    </span>
+                    {lead.companyName && (
+                      <span className="flex items-center gap-1 text-[10px] text-zinc-400 truncate">
+                        <Building2 size={10} className="shrink-0 text-zinc-500" />
+                        {lead.companyName}
+                      </span>
+                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] text-zinc-500">{lead.source}</span>
+                      {cleanPhone ? (
+                        <a
+                          href={`https://wa.me/${cleanPhone}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[10px] text-emerald-400 hover:underline"
+                          title="Escribir por WhatsApp"
+                        >
+                          <MessageCircle size={10} className="text-[#25d366]" />
+                          +{cleanPhone}
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-zinc-600">{lead.email ?? 'sin contacto'}</span>
+                      )}
+                    </div>
                   </div>
                   {typeof lead.estimatedValue === 'number' && (
-                    <span className="text-amber-400 font-bold shrink-0">
+                    <span className="text-amber-400 font-bold shrink-0 text-xs">
                       {currency.format(lead.estimatedValue)}
                     </span>
                   )}
