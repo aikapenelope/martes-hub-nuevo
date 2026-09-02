@@ -237,3 +237,83 @@ describe('Agenda unificada — Orden ascendente por fecha próxima', () => {
     expect(callsByCollection.get('appointments')?.sort).toBe('start')
   })
 })
+
+describe('Integración GCal — Normalización de eventos todo el día', () => {
+  it('parseAllDayDate preserva la fecha en America/Caracas sin retroceder al día anterior', async () => {
+    const { parseAllDayDate } = await import('@/integrations/gcal/client')
+    const iso = parseAllDayDate('2026-09-02', 'America/Caracas')
+
+    expect(iso).toBe('2026-09-02T04:00:00.000Z')
+
+    const fmt = new Intl.DateTimeFormat('es-VE', {
+      timeZone: 'America/Caracas',
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
+    })
+    // 2/9/2026 en Caracas, NO 1/9/2026
+    const formatted = fmt.format(new Date(iso))
+    expect(formatted).toContain('2')
+    expect(formatted).toContain('9')
+    expect(formatted).toContain('2026')
+  })
+})
+
+describe('GCal Mirror — Reconciliación estable con más de 500 citas obsoletas', () => {
+  it('recorre todas las citas obsoletas mediante cursor por ID sin omitir registros', async () => {
+    const totalStale = 650
+    const mockAppointments = Array.from({ length: totalStale }, (_, idx) => ({
+      id: idx + 1,
+      gcalEventId: `old-event-${idx + 1}`,
+      status: 'confirmed',
+    }))
+
+    const cancelledIds: number[] = []
+
+    const mockFind = vi.fn().mockImplementation(({ where }: { where: { and: Array<{ id?: { greater_than: number } }> } }) => {
+      const idClause = where.and.find((clause) => clause.id && 'greater_than' in clause.id)
+      const afterId = idClause?.id?.greater_than ?? 0
+      const matches = mockAppointments.filter((a) => a.id > afterId).slice(0, 500)
+      return Promise.resolve({
+        docs: matches,
+        hasNextPage: matches.length === 500,
+      })
+    })
+
+    const mockUpdate = vi.fn().mockImplementation(({ id, data }: { id: number; data: { status: string } }) => {
+      if (data.status === 'cancelled') cancelledIds.push(id)
+      return Promise.resolve({ id })
+    })
+
+    // Simular el bucle de cursor usado en syncGcalTask
+    let lastId = 0
+    let reconciled = 0
+    const returnedEventIds = new Set<string>() // Ninguna cita en Google (todas fueron eliminadas)
+
+    while (true) {
+      const windowRes = await mockFind({
+        where: {
+          and: [{ id: { greater_than: lastId } }],
+        },
+      })
+
+      if (windowRes.docs.length === 0) break
+
+      for (const stale of windowRes.docs) {
+        lastId = Math.max(lastId, stale.id)
+        if (!returnedEventIds.has(stale.gcalEventId)) {
+          await mockUpdate({ id: stale.id, data: { status: 'cancelled' } })
+          reconciled += 1
+        }
+      }
+
+      if (!windowRes.hasNextPage && windowRes.docs.length < 500) break
+    }
+
+    expect(reconciled).toBe(650)
+    expect(cancelledIds).toHaveLength(650)
+    expect(cancelledIds[0]).toBe(1)
+    expect(cancelledIds[649]).toBe(650)
+    expect(mockFind).toHaveBeenCalledTimes(2)
+  })
+})

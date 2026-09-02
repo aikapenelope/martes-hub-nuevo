@@ -31,11 +31,33 @@ export interface GcalEventSummary {
   attendeeEmails: string[]
 }
 
+export function parseAllDayDate(dateStr: string, timeZone = 'America/Caracas'): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (!y || !m || !d) return new Date(dateStr).toISOString()
+  const approx = new Date(Date.UTC(y, m - 1, d, 12, 0, 0))
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    timeZoneName: 'shortOffset',
+  })
+  const parts = formatter.formatToParts(approx)
+  const tzOffsetPart = parts.find((p) => p.type === 'timeZoneName')?.value || 'GMT-4'
+  const match = tzOffsetPart.match(/GMT([+-])(\d+)(?::(\d+))?/)
+  let offsetStr = '-04:00'
+  if (match) {
+    const sign = match[1]
+    const hours = match[2].padStart(2, '0')
+    const minutes = (match[3] || '00').padStart(2, '0')
+    offsetStr = `${sign}${hours}:${minutes}`
+  }
+  return new Date(`${dateStr}T00:00:00${offsetStr}`).toISOString()
+}
+
 export async function listUpcomingEvents(options: {
   calendarId?: string
   timeMin: string
   timeMax: string
   maxResults?: number
+  timeZone?: string
 }): Promise<GcalEventSummary[]> {
   const token = await getGoogleAccessToken()
   const calendarId = encodeURIComponent(options.calendarId || 'primary')
@@ -53,6 +75,7 @@ export async function listUpcomingEvents(options: {
   }> = []
 
   let pageToken: string | undefined
+  let calendarTimeZone: string | undefined
 
   do {
     const params = new URLSearchParams({
@@ -75,6 +98,11 @@ export async function listUpcomingEvents(options: {
     const data = (await res.json()) as {
       items?: typeof rawItems
       nextPageToken?: string
+      timeZone?: string
+    }
+
+    if (data.timeZone && !calendarTimeZone) {
+      calendarTimeZone = data.timeZone
     }
 
     if (data.items?.length) {
@@ -83,10 +111,21 @@ export async function listUpcomingEvents(options: {
     pageToken = data.nextPageToken
   } while (pageToken)
 
+  const effectiveTimeZone =
+    options.timeZone || calendarTimeZone || process.env.GCAL_TIMEZONE || 'America/Caracas'
+
   return rawItems.map((event) => {
-    const startIso = event.start?.dateTime ?? event.start?.date
-    const endIso = event.end?.dateTime ?? event.end?.date
     const allDay = Boolean(event.start?.date && !event.start?.dateTime)
+    const startIso = event.start?.dateTime
+      ? new Date(event.start.dateTime).toISOString()
+      : event.start?.date
+        ? parseAllDayDate(event.start.date, effectiveTimeZone)
+        : new Date().toISOString()
+    const endIso = event.end?.dateTime
+      ? new Date(event.end.dateTime).toISOString()
+      : event.end?.date
+        ? parseAllDayDate(event.end.date, effectiveTimeZone)
+        : startIso
     const status =
       event.status === 'cancelled' ? 'cancelled' : event.status === 'tentative' ? 'tentative' : 'confirmed'
 
@@ -97,8 +136,8 @@ export async function listUpcomingEvents(options: {
       location: event.location ?? null,
       htmlLink: event.htmlLink ?? null,
       status: status as GcalEventSummary['status'],
-      start: startIso ?? new Date().toISOString(),
-      end: endIso ?? startIso ?? new Date().toISOString(),
+      start: startIso,
+      end: endIso,
       allDay,
       attendeeEmails: (event.attendees ?? [])
         .map((a) => (a.email ?? '').toLowerCase())

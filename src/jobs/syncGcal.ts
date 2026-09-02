@@ -68,10 +68,11 @@ export const syncGcalTask: TaskConfig = {
     const events = await listUpcomingEvents({ calendarId, timeMin, timeMax })
     const returnedEventIds = new Set(events.map((e) => e.id))
 
-    // Reconciliación de ventana autoritativa: citas en la BD dentro de [timeMin, timeMax]
-    // que ya no están presentes en la respuesta de Google (fueron movidas a fechas fuera
-    // de la ventana de 30 días o eliminadas permanentemente).
-    let windowPage = 1
+    // Reconciliación de ventana autoritativa con cursor estable por ID:
+    // Citas en la BD dentro de [timeMin, timeMax] que ya no están presentes en la
+    // respuesta de Google (fueron movidas a fechas fuera de los 30 días o eliminadas).
+    // Usar cursor por ID asegura que cancelar filas no desplace la paginación ni omita registros.
+    let lastId = 0
     let reconciled = 0
     while (true) {
       const windowRes = await req.payload.find({
@@ -88,16 +89,20 @@ export const syncGcalTask: TaskConfig = {
             { start: { greater_than_equal: timeMin } },
             { start: { less_than_equal: timeMax } },
             { status: { not_equals: 'cancelled' } },
+            { id: { greater_than: lastId } },
           ],
         },
         limit: 500,
-        page: windowPage,
+        sort: 'id',
         depth: 0,
         overrideAccess: true,
         req,
       })
 
+      if (windowRes.docs.length === 0) break
+
       for (const stale of windowRes.docs) {
+        lastId = Math.max(lastId, stale.id)
         if (!returnedEventIds.has(stale.gcalEventId)) {
           try {
             await req.payload.update({
@@ -114,8 +119,7 @@ export const syncGcalTask: TaskConfig = {
         }
       }
 
-      if (!windowRes.hasNextPage) break
-      windowPage++
+      if (!windowRes.hasNextPage && windowRes.docs.length < 500) break
     }
 
     if (events.length === 0) {

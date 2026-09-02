@@ -31,6 +31,7 @@ const agendaDateFmt = new Intl.DateTimeFormat('es-VE', {
   month: 'short',
   hour: '2-digit',
   minute: '2-digit',
+  timeZone: 'America/Caracas',
 })
 import { CockpitCommandStrip } from '@/components/workspace/overview/CockpitCommandStrip'
 import { CockpitAlertStrip } from '@/components/workspace/overview/CockpitAlertStrip'
