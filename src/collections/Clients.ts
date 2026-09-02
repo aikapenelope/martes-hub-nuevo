@@ -1,6 +1,7 @@
 import type { CollectionConfig, Where } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
+import { validateTenantRelations } from '../lib/tenant-relations'
 
 export const Clients: CollectionConfig = {
   slug: 'clients',
@@ -17,6 +18,10 @@ export const Clients: CollectionConfig = {
   },
   timestamps: true,
   hooks: {
+    beforeChange: [
+      // company no puede apuntar a una empresa de otro tenant (Devin review)
+      validateTenantRelations([{ field: 'company', collection: 'companies' }]),
+    ],
     afterChange: [
       async ({ doc, req, operation }) => {
         if (operation !== 'create' || req.context?.skipLeadConversion) return
@@ -157,6 +162,14 @@ export const Clients: CollectionConfig = {
       relationTo: 'companies',
       index: true,
       label: 'Empresa (cuenta)',
+      filterOptions: ({ data, siblingData }) => {
+        const rawTenant = (data as { tenant?: number | { id: number } } | undefined)?.tenant
+          ?? (siblingData as { tenant?: number | { id: number } } | undefined)?.tenant
+        const tenantId = typeof rawTenant === 'object' && rawTenant !== null ? rawTenant.id : rawTenant
+        return {
+          ...(tenantId ? { tenant: { equals: tenantId } } : {}),
+        }
+      },
       admin: {
         position: 'sidebar',
         description: 'Cuenta a la que pertenece el contacto; una empresa puede tener varios contactos',

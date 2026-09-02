@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
+import { validateTenantRelations } from '../lib/tenant-relations'
 
 export const EmailLog: CollectionConfig = {
   slug: 'email-log',
@@ -17,6 +18,15 @@ export const EmailLog: CollectionConfig = {
     delete: adminOnly,
   },
   timestamps: true,
+  hooks: {
+    // client/lead no pueden apuntar a registros de otro tenant (Devin review)
+    beforeChange: [
+      validateTenantRelations([
+        { field: 'client', collection: 'clients' },
+        { field: 'lead', collection: 'leads' },
+      ]),
+    ],
+  },
   fields: [
     {
       name: 'to',

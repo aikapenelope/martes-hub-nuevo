@@ -160,8 +160,11 @@ async function backfill(): Promise<void> {
     if (log.client || log.lead) continue
     const email = typeof log.to === 'string' ? log.to.toLowerCase() : ''
     if (!email) continue
+    // Precedencia del cliente: si la dirección matchea a un cliente, el email
+    // es SU historial — no se cuelga también del lead para que el lead no
+    // muestre historial que ya no le pertenece (Devin review).
     const clientId = clientsByEmail.get(email)
-    const leadId = leadsByEmail.get(email)
+    const leadId = clientId ? undefined : leadsByEmail.get(email)
     if (!clientId && !leadId) continue
 
     await payload.update({

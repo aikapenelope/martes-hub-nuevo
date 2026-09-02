@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
+import { validateTenantRelations } from '../lib/tenant-relations'
 
 const AGENT_ROLES = ['admin', 'agente']
 
@@ -18,6 +19,10 @@ export const Leads: CollectionConfig = {
     delete: adminOnly,
   },
   timestamps: true,
+  hooks: {
+    // company no puede apuntar a una empresa de otro tenant (Devin review)
+    beforeChange: [validateTenantRelations([{ field: 'company', collection: 'companies' }])],
+  },
   fields: [
     {
       name: 'fullName',
@@ -127,6 +132,14 @@ export const Leads: CollectionConfig = {
       relationTo: 'companies',
       index: true,
       label: 'Empresa (cuenta)',
+      filterOptions: ({ data, siblingData }) => {
+        const rawTenant = (data as { tenant?: number | { id: number } } | undefined)?.tenant
+          ?? (siblingData as { tenant?: number | { id: number } } | undefined)?.tenant
+        const tenantId = typeof rawTenant === 'object' && rawTenant !== null ? rawTenant.id : rawTenant
+        return {
+          ...(tenantId ? { tenant: { equals: tenantId } } : {}),
+        }
+      },
       admin: {
         position: 'sidebar',
         description: 'Cuenta del prospecto, si aplica; se hereda al convertir a cliente',
