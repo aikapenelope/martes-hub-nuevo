@@ -11,7 +11,7 @@ export const Users: CollectionConfig = {
   },
   auth: true,
   access: {
-    // Admins ven todo; el resto solo ve usuarios que comparten al menos un tenant
+    // Admins ven todo; el resto solo ve administradores globales O usuarios que comparten al menos un tenant
     read: ({ req }): AccessResult => {
       const user = req.user as User | null
       if (!user) return false
@@ -21,7 +21,10 @@ export const Users: CollectionConfig = {
         .map((t) => (typeof t.tenant === 'object' && t.tenant ? t.tenant.id : t.tenant))
         .filter((tId): tId is number => typeof tId === 'number')
 
-      const orConditions: Where[] = [{ id: { equals: user.id } }]
+      const orConditions: Where[] = [
+        { id: { equals: user.id } },
+        { roles: { contains: 'admin' } },
+      ]
       if (userTenants.length > 0) {
         orConditions.push({ 'tenants.tenant': { in: userTenants } })
       }

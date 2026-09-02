@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { ArrowLeft, CalendarDays, Check, CircleUserRound, Link2, Trash2 } from 'lucide-react'
 import { notFound } from 'next/navigation'
 import type { Client, Lead, User } from '@/payload-types'
-import { getTaskDetail, TASK_PRIORITIES, TASK_STATUSES } from '@/lib/tasks-data'
+import { getAssignableUsers, getTaskDetail, TASK_PRIORITIES, TASK_STATUSES } from '@/lib/tasks-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { deleteTaskAction, toggleChecklistAction, updateTaskAction } from '@/lib/tasks-actions'
 
@@ -24,7 +24,7 @@ export default async function TaskDetailPage({ params, searchParams }: { params:
   if (!Number.isInteger(taskId)) notFound()
   const [task, assignees, clients, leads] = await Promise.all([
     getTaskDetail({ payload: context.payload, user: context.user, tenantId: context.tenantId, id: taskId }),
-    context.payload.find({ collection: 'users', limit: 100, overrideAccess: false, user: context.user, where: { and: [{ active: { not_equals: false } }, { or: [{ 'tenants.tenant': { equals: context.tenantId } }, { roles: { contains: 'admin' } }] }] } }),
+    getAssignableUsers({ payload: context.payload, user: context.user, tenantId: context.tenantId }),
     context.payload.find({ collection: 'clients', limit: 100, overrideAccess: false, user: context.user, where: { tenant: { equals: context.tenantId } } }),
     context.payload.find({ collection: 'leads', limit: 100, overrideAccess: false, user: context.user, where: { tenant: { equals: context.tenantId } } }),
   ])
@@ -49,12 +49,12 @@ export default async function TaskDetailPage({ params, searchParams }: { params:
     : null
 
   const isCurrentInAssignees =
-    currentAssigneeUser && assignees.docs.some((u) => u.id === currentAssigneeUser.id)
+    currentAssigneeUser && assignees.some((u) => u.id === currentAssigneeUser.id)
 
   const assigneeOptions: User[] =
     currentAssigneeUser && !isCurrentInAssignees
-      ? [currentAssigneeUser, ...(assignees.docs as User[])]
-      : (assignees.docs as User[])
+      ? [currentAssigneeUser, ...assignees]
+      : assignees
 
   const currentClient =
     task.client && typeof task.client === 'object' ? (task.client as Client) : null
