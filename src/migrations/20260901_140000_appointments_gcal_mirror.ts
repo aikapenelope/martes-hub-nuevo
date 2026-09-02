@@ -41,11 +41,22 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
     CREATE INDEX IF NOT EXISTS "appointments_gcal_event_id_idx" ON "appointments" USING btree ("gcal_event_id");
     CREATE INDEX IF NOT EXISTS "appointments_client_idx" ON "appointments" USING btree ("client_id");
     CREATE INDEX IF NOT EXISTS "appointments_lead_idx" ON "appointments" USING btree ("lead_id");
+
+    -- Lock rel de appointments (patrón f5)
+    ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "appointments_id" integer;
+    DO $$ BEGIN
+      ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_appointments_fk" FOREIGN KEY ("appointments_id") REFERENCES "public"."appointments"("id") ON DELETE cascade ON UPDATE no action;
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_appointments_id_idx" ON "payload_locked_documents_rels" USING btree ("appointments_id");
   `)
 }
 
 export async function down({ db }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
+    DROP INDEX IF EXISTS "payload_locked_documents_rels_appointments_id_idx";
+    ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT IF EXISTS "payload_locked_documents_rels_appointments_fk";
+    ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "appointments_id";
+
     DROP TABLE IF EXISTS "appointments";
     DROP TYPE IF EXISTS "enum_appointments_status";
   `)
