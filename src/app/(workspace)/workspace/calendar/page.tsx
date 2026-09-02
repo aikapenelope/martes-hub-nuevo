@@ -18,8 +18,10 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const { payload, user, tenantId, tenant } = context
 
   const now = new Date()
-  const year = yearParam ? parseInt(yearParam, 10) : now.getFullYear()
-  const month = monthParam ? parseInt(monthParam, 10) : now.getMonth() + 1
+  const parsedYear = yearParam ? Number(yearParam) : NaN
+  const parsedMonth = monthParam ? Number(monthParam) : NaN
+  const year = Number.isInteger(parsedYear) && parsedYear >= 1 && parsedYear <= 9999 ? parsedYear : now.getFullYear()
+  const month = Number.isInteger(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12 ? parsedMonth : now.getMonth() + 1
 
   const calendarData = await getCalendarMonthData({
     payload,

@@ -30,6 +30,11 @@ export async function uploadMediaAction(formData: FormData): Promise<UploadMedia
       return { ok: false, error: 'Por favor selecciona un archivo válido' }
     }
 
+    const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
+    if (file.size > MAX_FILE_SIZE) {
+      return { ok: false, error: 'El archivo supera el tamaño máximo permitido de 20 MB' }
+    }
+
     const altRaw = formData.get('alt')
     const alt =
       typeof altRaw === 'string' && altRaw.trim()

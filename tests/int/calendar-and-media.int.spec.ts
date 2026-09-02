@@ -115,4 +115,61 @@ describe('Calendar Data Helper (getCalendarMonthData)', () => {
     expect(mem).toBeDefined()
     expect(mem?.amount).toBe(150)
   })
+
+  it('pagina de forma segura cuando una colección supera los 200 registros y aplica filtros de estado correctos', async () => {
+    // Simular que tasks tiene 250 registros distribuidos en 2 páginas
+    const capturedWhere: Record<string, unknown> = {}
+
+    const mockFind = vi.fn().mockImplementation(({ collection, page, where }) => {
+      capturedWhere[collection] = where
+
+      if (collection === 'tasks') {
+        if (page === 1) {
+          const docs = Array.from({ length: 200 }, (_, i) => ({
+            id: 1000 + i,
+            title: `Tarea ${i + 1}`,
+            dueDate: '2026-09-10T12:00:00.000Z',
+            priority: 'media',
+            status: 'pendiente',
+          }))
+          return Promise.resolve({ docs, hasNextPage: true, totalDocs: 250 })
+        }
+        if (page === 2) {
+          const docs = Array.from({ length: 50 }, (_, i) => ({
+            id: 1200 + i,
+            title: `Tarea ${201 + i}`,
+            dueDate: '2026-09-11T12:00:00.000Z',
+            priority: 'baja',
+            status: 'en_progreso',
+          }))
+          return Promise.resolve({ docs, hasNextPage: false, totalDocs: 250 })
+        }
+      }
+
+      return Promise.resolve({ docs: [], hasNextPage: false, totalDocs: 0 })
+    })
+
+    const mockPayload = { find: mockFind } as unknown as Payload
+    const mockUser = { id: 1, email: 'admin@martes.app' } as unknown as User
+
+    const result = await getCalendarMonthData({
+      payload: mockPayload,
+      user: mockUser,
+      tenantId: 1,
+      year: 2026,
+      month: 9,
+    })
+
+    // Debe haber recuperado los 250 tasks completos a través de la paginación
+    expect(result.totals.tasks).toBe(250)
+    expect(result.events.filter((e) => e.type === 'task')).toHaveLength(250)
+
+    // Verificar que los filtros de tareas excluyen completadas y canceladas
+    const taskWhere = capturedWhere['tasks'] as { and: [unknown, { and: [unknown, unknown, { status: { not_in: string[] } }] }] }
+    expect(taskWhere.and[1].and[2]).toEqual({ status: { not_in: ['completada', 'cancelada'] } })
+
+    // Verificar que los filtros de cobros exigen pendiente o vencido
+    const paymentWhere = capturedWhere['payments'] as { and: [unknown, { and: [unknown, unknown, { status: { in: string[] } }] }] }
+    expect(paymentWhere.and[1].and[2]).toEqual({ status: { in: ['pendiente', 'vencido'] } })
+  })
 })

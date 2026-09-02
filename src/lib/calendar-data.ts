@@ -48,6 +48,45 @@ const MONTH_NAMES = [
   'Diciembre',
 ]
 
+async function findAllPages<T>({
+  payload,
+  collection,
+  where,
+  sort,
+  depth,
+  user,
+}: {
+  payload: Payload
+  collection: 'appointments' | 'tasks' | 'payments' | 'memberships'
+  where: Where
+  sort: string
+  depth: number
+  user: User
+}): Promise<T[]> {
+  const PAGE_LIMIT = 200
+  let page = 1
+  let allDocs: T[] = []
+  let hasNextPage = true
+
+  while (hasNextPage) {
+    const res = await payload.find({
+      collection,
+      limit: PAGE_LIMIT,
+      page,
+      sort,
+      depth,
+      overrideAccess: false,
+      user,
+      where,
+    })
+    allDocs = allDocs.concat(res.docs as unknown as T[])
+    hasNextPage = Boolean(res.hasNextPage && page < 20)
+    page += 1
+  }
+
+  return allDocs
+}
+
 export async function getCalendarMonthData({
   payload,
   user,
@@ -77,14 +116,14 @@ export async function getCalendarMonthData({
     and: [{ tenant: { equals: tenantId } }, extra],
   })
 
-  const [appointmentsRes, tasksRes, paymentsRes, membershipsRes] = await Promise.all([
-    // Citas espejadas de Google Calendar
-    payload.find({
+  const [appointments, tasks, payments, memberships] = await Promise.all([
+    // Citas espejadas de Google Calendar (activas)
+    findAllPages<Appointment>({
+      payload,
       collection: 'appointments',
-      limit: 200,
       depth: 1,
-      overrideAccess: false,
       user,
+      sort: 'start',
       where: tenantWhere({
         and: [
           { start: { greater_than_equal: startIso } },
@@ -93,42 +132,43 @@ export async function getCalendarMonthData({
         ],
       }),
     }),
-    // Tareas con fecha de vencimiento
-    payload.find({
+    // Tareas pendientes u operativas (excluye completadas y canceladas)
+    findAllPages<Task>({
+      payload,
       collection: 'tasks',
-      limit: 200,
       depth: 0,
-      overrideAccess: false,
       user,
+      sort: 'dueDate',
       where: tenantWhere({
         and: [
           { dueDate: { greater_than_equal: startIso } },
           { dueDate: { less_than_equal: endIso } },
-          { status: { not_equals: 'cancelada' } },
+          { status: { not_in: ['completada', 'cancelada'] } },
         ],
       }),
     }),
-    // Cobros y facturas
-    payload.find({
+    // Cobros y facturas pendientes o vencidos
+    findAllPages<Payment>({
+      payload,
       collection: 'payments',
-      limit: 200,
       depth: 1,
-      overrideAccess: false,
       user,
+      sort: 'dueDate',
       where: tenantWhere({
         and: [
           { dueDate: { greater_than_equal: startIso } },
           { dueDate: { less_than_equal: endIso } },
+          { status: { in: ['pendiente', 'vencido'] } },
         ],
       }),
     }),
-    // Renovaciones de membresías
-    payload.find({
+    // Renovaciones de membresías activas
+    findAllPages<Membership>({
+      payload,
       collection: 'memberships',
-      limit: 200,
       depth: 1,
-      overrideAccess: false,
       user,
+      sort: 'renewalDate',
       where: tenantWhere({
         and: [
           { renewalDate: { greater_than_equal: startIso } },
@@ -142,7 +182,7 @@ export async function getCalendarMonthData({
   const events: CalendarEvent[] = []
 
   // 1. Mapear Citas
-  for (const a of appointmentsRes.docs as Appointment[]) {
+  for (const a of appointments) {
     const clientObj = typeof a.client === 'object' && a.client ? (a.client as Client) : null
     const leadObj = typeof a.lead === 'object' && a.lead ? (a.lead as Lead) : null
     const contactName = clientObj?.name ?? leadObj?.fullName
@@ -171,7 +211,7 @@ export async function getCalendarMonthData({
   }
 
   // 2. Mapear Tareas
-  for (const t of tasksRes.docs as Task[]) {
+  for (const t of tasks) {
     if (!t.dueDate) continue
     events.push({
       id: `task-${t.id}`,
@@ -186,7 +226,7 @@ export async function getCalendarMonthData({
   }
 
   // 3. Mapear Pagos
-  for (const p of paymentsRes.docs as Payment[]) {
+  for (const p of payments) {
     const clientObj = typeof p.client === 'object' && p.client ? (p.client as Client) : null
     events.push({
       id: `payment-${p.id}`,
@@ -204,7 +244,7 @@ export async function getCalendarMonthData({
   }
 
   // 4. Mapear Membresías
-  for (const m of membershipsRes.docs as Membership[]) {
+  for (const m of memberships) {
     const clientObj = typeof m.client === 'object' && m.client ? (m.client as Client) : null
     events.push({
       id: `membership-${m.id}`,
@@ -230,10 +270,10 @@ export async function getCalendarMonthData({
     monthName: MONTH_NAMES[month - 1] ?? '',
     events,
     totals: {
-      citas: appointmentsRes.totalDocs,
-      tasks: tasksRes.totalDocs,
-      payments: paymentsRes.totalDocs,
-      memberships: membershipsRes.totalDocs,
+      citas: appointments.length,
+      tasks: tasks.length,
+      payments: payments.length,
+      memberships: memberships.length,
     },
   }
 }

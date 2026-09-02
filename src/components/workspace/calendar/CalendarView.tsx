@@ -35,11 +35,47 @@ const dateHeaderFmt = new Intl.DateTimeFormat('es-VE', {
   timeZone: 'America/Caracas',
 })
 
+function getCaracasDateKey(isoOrDate: string, isAllDay = false): string {
+  if (isAllDay && /^\d{4}-\d{2}-\d{2}/.test(isoOrDate)) {
+    return isoOrDate.slice(0, 10)
+  }
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Caracas',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(isoOrDate))
+  } catch {
+    return isoOrDate.slice(0, 10)
+  }
+}
+
+function getCaracasToday(): { year: number; month: number; dateKey: string } {
+  const now = new Date()
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Caracas',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now)
+    const [y, m] = parts.split('-').map(Number)
+    return { year: y, month: m, dateKey: parts }
+  } catch {
+    const y = now.getFullYear()
+    const m = now.getMonth() + 1
+    const d = String(now.getDate()).padStart(2, '0')
+    return { year: y, month: m, dateKey: `${y}-${String(m).padStart(2, '0')}-${d}` }
+  }
+}
+
 export function CalendarView({ data }: { data: CalendarMonthData }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [filter, setFilter] = useState<FilterType>('all')
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
+  const [selectedDayEvents, setSelectedDayEvents] = useState<{ dateKey: string; events: CalendarEvent[] } | null>(null)
 
   const { year, month, monthName, events, totals } = data
 
@@ -47,15 +83,10 @@ export function CalendarView({ data }: { data: CalendarMonthData }) {
   const filteredEvents =
     filter === 'all' ? events : events.filter((e) => e.type === filter)
 
-  // Agrupación por día (clave YYYY-MM-DD en zona horaria local/Caracas)
+  // Agrupación por día (clave YYYY-MM-DD en zona horaria America/Caracas para consistencia estricta)
   const eventsByDay = new Map<string, CalendarEvent[]>()
   for (const event of filteredEvents) {
-    const d = new Date(event.date)
-    // Extraer YYYY-MM-DD en fecha local
-    const y = d.getFullYear()
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    const key = `${y}-${m}-${day}`
+    const key = getCaracasDateKey(event.date, event.allDay)
     const list = eventsByDay.get(key) ?? []
     list.push(event)
     eventsByDay.set(key, list)
@@ -109,9 +140,8 @@ export function CalendarView({ data }: { data: CalendarMonthData }) {
 
   const allGridDays = [...paddingDaysBefore, ...currentMonthDays, ...paddingDaysAfter]
 
-  // Detectar hoy
-  const today = new Date()
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  // Detectar hoy en America/Caracas
+  const { dateKey: todayKey } = getCaracasToday()
 
   // Navegación de mes
   function goToMonth(targetYear: number, targetMonth: number) {
@@ -132,8 +162,8 @@ export function CalendarView({ data }: { data: CalendarMonthData }) {
   }
 
   function goToday() {
-    const now = new Date()
-    goToMonth(now.getFullYear(), now.getMonth() + 1)
+    const { year: caracasYear, month: caracasMonth } = getCaracasToday()
+    goToMonth(caracasYear, caracasMonth)
   }
 
   return (
@@ -316,8 +346,8 @@ export function CalendarView({ data }: { data: CalendarMonthData }) {
                   {dayEvents.length > 3 && (
                     <button
                       type="button"
-                      onClick={() => setSelectedEvent(dayEvents[3])}
-                      className="w-full text-center text-[9px] font-mono text-zinc-500 hover:text-white"
+                      onClick={() => setSelectedDayEvents({ dateKey: gridDay.dateKey, events: dayEvents })}
+                      className="w-full text-center text-[9px] font-mono text-zinc-500 hover:text-white hover:underline transition cursor-pointer"
                     >
                       +{dayEvents.length - 3} más
                     </button>
@@ -445,6 +475,76 @@ export function CalendarView({ data }: { data: CalendarMonthData }) {
               >
                 Cerrar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal / Dialog de Lista Completa de Eventos del Día */}
+      {selectedDayEvents && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedDayEvents(null)}
+        >
+          <div
+            className="w-full max-w-lg max-h-[85vh] overflow-y-auto border border-zinc-800 bg-zinc-950 p-5 shadow-2xl text-white font-mono space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-zinc-800 pb-3">
+              <div>
+                <p className="text-xs text-zinc-400 uppercase tracking-wider">Compromisos del día</p>
+                <h3 className="text-base font-bold text-white mt-1">
+                  {selectedDayEvents.dateKey} · {selectedDayEvents.events.length} eventos
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDayEvents(null)}
+                className="text-zinc-500 hover:text-white"
+                aria-label="Cerrar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {selectedDayEvents.events.map((event) => {
+                const isCita = event.type === 'cita'
+                const isTask = event.type === 'task'
+                const badgeStyle = isCita
+                  ? 'border-sky-800 bg-sky-950/40 text-sky-200 hover:border-sky-500'
+                  : isTask
+                  ? 'border-indigo-800 bg-indigo-950/40 text-indigo-200 hover:border-indigo-500'
+                  : 'border-amber-800 bg-amber-950/40 text-amber-200 hover:border-amber-500'
+
+                return (
+                  <button
+                    key={event.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedDayEvents(null)
+                      setSelectedEvent(event)
+                    }}
+                    className={`w-full text-left p-2.5 border rounded flex items-center justify-between gap-2 transition cursor-pointer ${badgeStyle}`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      {isCita ? (
+                        <CalendarClock size={14} className="shrink-0 text-sky-400" />
+                      ) : isTask ? (
+                        <SquareCheck size={14} className="shrink-0 text-indigo-400" />
+                      ) : (
+                        <CircleDollarSign size={14} className="shrink-0 text-amber-400" />
+                      )}
+                      <span className="text-xs font-semibold text-white truncate">{event.title}</span>
+                    </div>
+                    {event.sublabel && (
+                      <span className="text-[10px] text-zinc-400 shrink-0 font-mono">
+                        {event.sublabel}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>
