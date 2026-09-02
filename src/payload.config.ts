@@ -55,6 +55,8 @@ import { dashboardStatsHandler } from './endpoints/dashboardStats'
 import { sendCampaignTask } from './jobs/sendCampaignTask'
 import { sendScheduledCampaignsTask } from './jobs/sendScheduledCampaigns'
 import { syncEmailTask } from './jobs/syncEmail'
+import { syncGcalTask } from './jobs/syncGcal'
+import { Appointments } from './collections/Appointments'
 import type { User } from './payload-types'
 
 const filename = fileURLToPath(import.meta.url)
@@ -82,6 +84,7 @@ export default buildConfig({
     Clients,
     Leads,
     Activities,
+    Appointments,
     Segments,
     Documents,
     Media,
@@ -164,6 +167,7 @@ export default buildConfig({
         clients: {},
         leads: {},
         activities: {},
+        appointments: {},
         segments: {},
         documents: {},
         media: {},
@@ -343,6 +347,7 @@ export default buildConfig({
       sendCampaignTask,
       sendScheduledCampaignsTask,
       syncEmailTask,
+      syncGcalTask,
     ],
   },
   editor: lexicalEditor(),
