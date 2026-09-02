@@ -99,19 +99,32 @@ function PipelineCardView({
         selected ? 'border-white' : 'border-zinc-800 hover:border-zinc-600'
       }`}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center bg-zinc-800 text-[10px] font-bold text-white">
           {initialsOf(card.fullName)}
         </span>
         <div className="min-w-0 flex-1">
           <strong className="block truncate text-xs font-semibold text-white">{card.fullName}</strong>
-          {card.companyName ? (
-            <span className="flex items-center gap-1 truncate text-[10px] font-medium text-zinc-300">
+          {card.companyName && (
+            <span className="flex items-center gap-1 truncate text-[10px] font-medium text-zinc-400">
               <Building2 size={10} className="shrink-0 text-zinc-500" />
               {card.companyName}
             </span>
+          )}
+          {card.phone ? (
+            <a
+              href={`https://wa.me/${card.phone.replace(/\D/g, '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] text-emerald-400 hover:text-emerald-300 hover:underline"
+              title="Abrir WhatsApp directo"
+            >
+              <MessageCircle size={10} className="text-[#25d366]" />
+              <span>{card.phone}</span>
+            </a>
           ) : (
-            <span className="block truncate text-[10px] font-mono text-zinc-500">{card.phone || 'Sin teléfono'}</span>
+            <span className="block text-[10px] font-mono text-zinc-600">Sin teléfono</span>
           )}
         </div>
         {showInactivityAlert && (
@@ -144,12 +157,20 @@ function PipelineCardView({
         </p>
       )}
 
-      <div className="mt-2 flex items-center justify-between gap-2 border-t border-zinc-800 pt-2">
-        <span className="flex items-center gap-1 text-[10px] text-zinc-400">
-          <UserRound size={11} /> {card.assignedTo?.name ?? 'Sin asignar'}
-        </span>
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-zinc-800/80 pt-2">
+        {card.assignedTo?.name ? (
+          <span
+            className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[9px] font-mono text-zinc-300"
+            title={`Responsable: ${card.assignedTo.name}`}
+          >
+            <UserRound size={9} className="text-zinc-400" />
+            {card.assignedTo.name.split(' ')[0]}
+          </span>
+        ) : (
+          <span className="text-[9px] font-mono text-zinc-500">Martes</span>
+        )}
         {card.estimatedValue ? (
-          <span className="flex items-center gap-0.5 text-[10px] font-mono font-bold text-white">
+          <span className="flex items-center gap-0.5 text-[10px] font-mono font-bold text-emerald-400">
             <DollarSign size={10} /> {card.estimatedValue.toLocaleString('en-US')}
           </span>
         ) : null}
