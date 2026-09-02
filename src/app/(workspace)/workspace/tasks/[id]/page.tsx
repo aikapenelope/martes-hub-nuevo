@@ -24,11 +24,55 @@ export default async function TaskDetailPage({ params, searchParams }: { params:
   if (!Number.isInteger(taskId)) notFound()
   const [task, assignees, clients, leads] = await Promise.all([
     getTaskDetail({ payload: context.payload, user: context.user, tenantId: context.tenantId, id: taskId }),
-    context.payload.find({ collection: 'users', limit: 100, overrideAccess: false, user: context.user, where: { 'tenants.tenant': { equals: context.tenantId } } }),
+    context.payload.find({ collection: 'users', limit: 100, overrideAccess: false, user: context.user, where: { and: [{ active: { not_equals: false } }, { or: [{ 'tenants.tenant': { equals: context.tenantId } }, { roles: { contains: 'admin' } }] }] } }),
     context.payload.find({ collection: 'clients', limit: 100, overrideAccess: false, user: context.user, where: { tenant: { equals: context.tenantId } } }),
     context.payload.find({ collection: 'leads', limit: 100, overrideAccess: false, user: context.user, where: { tenant: { equals: context.tenantId } } }),
   ])
   if (!task) notFound()
+
+  // Preservar el responsable actual si está inactivo o fuera de la consulta activa,
+  // respetando estrictamente el aislamiento multitenant con overrideAccess: false.
+  const currentAssigneeId =
+    typeof task.assignedTo === 'object' && task.assignedTo
+      ? task.assignedTo.id
+      : typeof task.assignedTo === 'number'
+      ? task.assignedTo
+      : null
+
+  const currentAssigneeUser = currentAssigneeId
+    ? ((await context.payload.findByID({
+        collection: 'users',
+        id: currentAssigneeId,
+        overrideAccess: false,
+        user: context.user,
+      }).catch(() => null)) as User | null)
+    : null
+
+  const isCurrentInAssignees =
+    currentAssigneeUser && assignees.docs.some((u) => u.id === currentAssigneeUser.id)
+
+  const assigneeOptions: User[] =
+    currentAssigneeUser && !isCurrentInAssignees
+      ? [currentAssigneeUser, ...(assignees.docs as User[])]
+      : (assignees.docs as User[])
+
+  const currentClient =
+    task.client && typeof task.client === 'object' ? (task.client as Client) : null
+  const isCurrentInClients =
+    currentClient && clients.docs.some((c) => c.id === currentClient.id)
+  const clientOptions: Client[] =
+    currentClient && !isCurrentInClients
+      ? [currentClient, ...(clients.docs as Client[])]
+      : (clients.docs as Client[])
+
+  const currentLead =
+    task.lead && typeof task.lead === 'object' ? (task.lead as Lead) : null
+  const isCurrentInLeads =
+    currentLead && leads.docs.some((l) => l.id === currentLead.id)
+  const leadOptions: Lead[] =
+    currentLead && !isCurrentInLeads
+      ? [currentLead, ...(leads.docs as Lead[])]
+      : (leads.docs as Lead[])
 
   return (
     <>
@@ -90,21 +134,34 @@ export default async function TaskDetailPage({ params, searchParams }: { params:
                   Responsable
                   <select name="assignedTo" defaultValue={relId(task.assignedTo)} className={inputCls}>
                     <option value="">Sin asignar</option>
-                    {assignees.docs.map((item) => { const user = item as User; return <option key={user.id} value={user.id}>{person(user)}</option> })}
+                    {currentAssigneeId && !currentAssigneeUser && (
+                      <option value={currentAssigneeId}>
+                        Responsable asignado (restringido)
+                      </option>
+                    )}
+                    {assigneeOptions.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {person(user)}{user.active === false ? ' (inactivo)' : ''}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label className={labelCls}>
                   Cliente
                   <select name="client" defaultValue={relId(task.client)} className={inputCls}>
                     <option value="">Ninguno</option>
-                    {clients.docs.map((item) => { const client = item as Client; return <option key={client.id} value={client.id}>{client.name}</option> })}
+                    {clientOptions.map((client) => (
+                      <option key={client.id} value={client.id}>{client.name}</option>
+                    ))}
                   </select>
                 </label>
                 <label className={labelCls}>
                   Lead
                   <select name="lead" defaultValue={relId(task.lead)} className={inputCls}>
                     <option value="">Ninguno</option>
-                    {leads.docs.map((item) => { const lead = item as Lead; return <option key={lead.id} value={lead.id}>{lead.fullName}</option> })}
+                    {leadOptions.map((lead) => (
+                      <option key={lead.id} value={lead.id}>{lead.fullName}</option>
+                    ))}
                   </select>
                 </label>
               </div>

@@ -19,6 +19,7 @@ import * as migration_20260901_030726_add_chatwoot_conversation_model from './20
 import * as migration_20260901_120000_companies_and_email_log_links from './20260901_120000_companies_and_email_log_links';
 import * as migration_20260901_130000_email_messages_mirror from './20260901_130000_email_messages_mirror';
 import * as migration_20260901_140000_appointments_gcal_mirror from './20260901_140000_appointments_gcal_mirror';
+import * as migration_20260902_180000_fix_locked_documents_rels from './20260902_180000_fix_locked_documents_rels';
 
 export const migrations = [
   {
@@ -125,5 +126,10 @@ export const migrations = [
     up: migration_20260901_140000_appointments_gcal_mirror.up,
     down: migration_20260901_140000_appointments_gcal_mirror.down,
     name: '20260901_140000_appointments_gcal_mirror',
+  },
+  {
+    up: migration_20260902_180000_fix_locked_documents_rels.up,
+    down: migration_20260902_180000_fix_locked_documents_rels.down,
+    name: '20260902_180000_fix_locked_documents_rels',
   },
 ];
