@@ -24,7 +24,7 @@ export default async function TaskDetailPage({ params, searchParams }: { params:
   if (!Number.isInteger(taskId)) notFound()
   const [task, assignees, clients, leads] = await Promise.all([
     getTaskDetail({ payload: context.payload, user: context.user, tenantId: context.tenantId, id: taskId }),
-    context.payload.find({ collection: 'users', limit: 100, overrideAccess: false, user: context.user, where: { 'tenants.tenant': { equals: context.tenantId } } }),
+    context.payload.find({ collection: 'users', limit: 100, overrideAccess: false, user: context.user, where: { and: [{ active: { not_equals: false } }, { or: [{ 'tenants.tenant': { equals: context.tenantId } }, { roles: { contains: 'admin' } }] }] } }),
     context.payload.find({ collection: 'clients', limit: 100, overrideAccess: false, user: context.user, where: { tenant: { equals: context.tenantId } } }),
     context.payload.find({ collection: 'leads', limit: 100, overrideAccess: false, user: context.user, where: { tenant: { equals: context.tenantId } } }),
   ])

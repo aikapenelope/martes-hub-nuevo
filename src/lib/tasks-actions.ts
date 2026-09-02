@@ -16,11 +16,29 @@ const text = (form: FormData, key: string, max: number, required = false) => {
 const id = (form: FormData, key: string) => { const value = Number(form.get(key)); return Number.isInteger(value) && value > 0 ? value : undefined }
 const assertEditor = (canEdit: boolean) => { if (!canEdit) throw new Error('No tienes permiso para modificar tareas') }
 
-async function assertRelation(collection: 'users' | 'clients' | 'leads', relationId: number | undefined, tenantId: number, context: Awaited<ReturnType<typeof getWorkspaceContext>>) {
+async function assertRelation(collection: 'users' | 'clients' | 'leads', relationId: number | null | undefined, tenantId: number, context: Awaited<ReturnType<typeof getWorkspaceContext>>) {
   if (!relationId) return
-  const where: Where = collection === 'users'
-    ? { and: [{ id: { equals: relationId } }, { 'tenants.tenant': { equals: tenantId } }] }
-    : { and: [{ id: { equals: relationId } }, { tenant: { equals: tenantId } }] }
+  if (collection === 'users') {
+    const userDoc = await context.payload.findByID({
+      collection: 'users',
+      id: relationId,
+      overrideAccess: false,
+      user: context.user,
+    })
+    if (!userDoc || userDoc.active === false) {
+      throw new Error('El usuario asignado no existe o está inactivo')
+    }
+    const isTargetAdmin = userDoc.roles?.includes('admin')
+    const hasTenant = (userDoc.tenants || []).some((t) => {
+      const tId = typeof t.tenant === 'object' && t.tenant ? t.tenant.id : t.tenant
+      return tId === tenantId
+    })
+    if (!isTargetAdmin && !hasTenant) {
+      throw new Error('El usuario asignado no pertenece al tenant activo')
+    }
+    return
+  }
+  const where: Where = { and: [{ id: { equals: relationId } }, { tenant: { equals: tenantId } }] }
   const result = await context.payload.find({ collection, limit: 1, overrideAccess: false, user: context.user, where })
   if (!result.docs[0]) throw new Error('La relación seleccionada no pertenece al tenant activo')
 }
@@ -38,7 +56,18 @@ function taskData(form: FormData) {
   const rawPriority = text(form, 'priority', 30) ?? 'media'
   if (!TASK_STATUSES.includes(rawStatus as TaskStatus) || !TASK_PRIORITIES.includes(rawPriority as TaskPriority)) throw new Error('Estado o prioridad inválidos')
   const checklist = (text(form, 'checklist', 4000) ?? '').split('\n').map((item) => item.trim()).filter(Boolean).slice(0, 30).map((item) => ({ item, done: false }))
-  return { title: text(form, 'title', 180, true)!, description: text(form, 'description', 5000), status: rawStatus as TaskStatus, priority: rawPriority as TaskPriority, dueDate: text(form, 'dueDate', 40), assignedTo: id(form, 'assignedTo'), client: id(form, 'client'), lead: id(form, 'lead'), checklist }
+  const rawDue = text(form, 'dueDate', 40)
+  return {
+    title: text(form, 'title', 180, true)!,
+    description: text(form, 'description', 5000) ?? null,
+    status: rawStatus as TaskStatus,
+    priority: rawPriority as TaskPriority,
+    dueDate: rawDue ? new Date(rawDue).toISOString() : null,
+    assignedTo: id(form, 'assignedTo') ?? null,
+    client: id(form, 'client') ?? null,
+    lead: id(form, 'lead') ?? null,
+    checklist,
+  }
 }
 
 export async function createTaskAction(form: FormData) {

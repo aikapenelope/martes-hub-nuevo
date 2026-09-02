@@ -43,7 +43,7 @@ export async function getTasksData({ payload, user, tenantId, filters }: { paylo
     query({ collection: 'tasks', limit: 0, where: tenantWhere(tenantId, [{ status: { equals: 'en_progreso' } }]) }),
     query({ collection: 'tasks', limit: 0, where: tenantWhere(tenantId, [{ dueDate: { less_than: today } }, { status: { not_in: ['completada', 'cancelada'] } }]) }),
     query({ collection: 'tasks', limit: 0, where: tenantWhere(tenantId, [{ status: { equals: 'completada' } }, { completedAt: { greater_than_equal: weekStart.toISOString() } }]) }),
-    query({ collection: 'users', depth: 0, limit: 100, sort: 'firstName', where: { and: [{ 'tenants.tenant': { equals: tenantId } }, { active: { not_equals: false } }] }, select: { firstName: true, lastName: true, email: true, roles: true } }),
+    query({ collection: 'users', depth: 0, limit: 100, sort: 'firstName', where: { and: [{ active: { not_equals: false } }, { or: [{ 'tenants.tenant': { equals: tenantId } }, { roles: { contains: 'admin' } }] }] }, select: { firstName: true, lastName: true, email: true, roles: true } }),
     query({ collection: 'clients', depth: 0, limit: 100, sort: 'name', where: tenantWhere(tenantId), select: { name: true } }),
     query({ collection: 'leads', depth: 0, limit: 100, sort: 'fullName', where: tenantWhere(tenantId), select: { fullName: true } }),
     ...TASK_STATUSES.map((status) => query({ collection: 'tasks', limit: 0, where: tenantWhere(tenantId, [...extra.filter((item) => !('status' in item)), { status: { equals: status } }]) })),
