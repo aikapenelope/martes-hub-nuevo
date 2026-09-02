@@ -70,6 +70,7 @@ export interface Config {
   collections: {
     tenants: Tenant;
     users: User;
+    companies: Company;
     clients: Client;
     leads: Lead;
     activities: Activity;
@@ -105,13 +106,29 @@ export interface Config {
     'payload-migrations': PayloadMigration;
   };
   collectionsJoins: {
+    companies: {
+      clients: 'clients';
+    };
     clients: {
       activities: 'activities';
+      conversations: 'conversations';
+      tasks: 'tasks';
+      payments: 'payments';
+      memberships: 'memberships';
+      documents: 'documents';
+      formSubmissions: 'form-submissions';
+      emailLog: 'email-log';
+    };
+    leads: {
+      conversations: 'conversations';
+      tasks: 'tasks';
+      formSubmissions: 'form-submissions';
     };
   };
   collectionsSelect: {
     tenants: TenantsSelect<false> | TenantsSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
+    companies: CompaniesSelect<false> | CompaniesSelect<true>;
     clients: ClientsSelect<false> | ClientsSelect<true>;
     leads: LeadsSelect<false> | LeadsSelect<true>;
     activities: ActivitiesSelect<false> | ActivitiesSelect<true>;
@@ -279,6 +296,50 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "companies".
+ */
+export interface Company {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  name: string;
+  taxId?: string | null;
+  website?: string | null;
+  email?: string | null;
+  /**
+   * Formato internacional sin +: ej 584121234567
+   */
+  phone?: string | null;
+  city?: string | null;
+  state?: string | null;
+  address?: string | null;
+  googleMapsUrl?: string | null;
+  socialHandle?: string | null;
+  segment?: (number | null) | Segment;
+  assignedAgent?: (number | null) | User;
+  commercialNotes?: string | null;
+  notes?: string | null;
+  clients?: {
+    docs?: (number | Client)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "segments".
+ */
+export interface Segment {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  name: string;
+  description?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "clients".
  */
 export interface Client {
@@ -299,6 +360,10 @@ export interface Client {
   googleMapsUrl?: string | null;
   socialHandle?: string | null;
   segment?: (number | null) | Segment;
+  /**
+   * Cuenta a la que pertenece el contacto; una empresa puede tener varios contactos
+   */
+  company?: (number | null) | Company;
   lastContactChannel?: ('whatsapp' | 'instagram_dm' | 'llamada' | 'en_persona' | 'email' | 'otro') | null;
   lastContactedAt?: string | null;
   assignedAgent?: (number | null) | User;
@@ -317,18 +382,41 @@ export interface Client {
     hasNextPage?: boolean;
     totalDocs?: number;
   };
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "segments".
- */
-export interface Segment {
-  id: number;
-  tenant?: (number | null) | Tenant;
-  name: string;
-  description?: string | null;
+  conversations?: {
+    docs?: (number | Conversation)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  tasks?: {
+    docs?: (number | Task)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  payments?: {
+    docs?: (number | Payment)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  memberships?: {
+    docs?: (number | Membership)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  documents?: {
+    docs?: (number | Document)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  formSubmissions?: {
+    docs?: (number | FormSubmission)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  emailLog?: {
+    docs?: (number | EmailLog)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -381,6 +469,10 @@ export interface Lead {
   socialHandle?: string | null;
   segment?: (number | null) | Segment;
   /**
+   * Cuenta del prospecto, si aplica; se hereda al convertir a cliente
+   */
+  company?: (number | null) | Company;
+  /**
    * Estimación de la oportunidad; alimenta el pipeline del workspace
    */
   estimatedValue?: number | null;
@@ -396,6 +488,21 @@ export interface Lead {
    * Se llena automáticamente al convertir el lead
    */
   convertedClient?: (number | null) | Client;
+  conversations?: {
+    docs?: (number | Conversation)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  tasks?: {
+    docs?: (number | Task)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  formSubmissions?: {
+    docs?: (number | FormSubmission)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   kanbanStatus?: ('nuevo' | 'contactado' | 'calificado' | 'descartado') | null;
   kanbanOrderRank?: string | null;
   updatedAt: string;
@@ -403,45 +510,107 @@ export interface Lead {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "documents".
+ * via the `definition` "conversations".
  */
-export interface Document {
+export interface Conversation {
   id: number;
   tenant?: (number | null) | Tenant;
-  title: string;
-  client: number | Client;
-  documentType: 'contrato' | 'factura' | 'otro';
+  status?: ('open' | 'pending' | 'resolved') | null;
+  priority?: ('baja' | 'media' | 'alta') | null;
+  assignee?: (number | null) | User;
+  /**
+   * Mientras snooze activo, la conversación no aparece en abiertas
+   */
+  snoozeUntil?: string | null;
+  labels?: ('seguimiento' | 'facturacion' | 'soporte' | 'renovacion' | 'urgente' | 'oportunidad')[] | null;
+  channel: 'whatsapp' | 'instagram_dm' | 'whatsapp_web';
+  /**
+   * UUID de la conversación en OpenBSP; lo rellena el webhook
+   */
+  openbspId?: string | null;
+  organizationAddress?: string | null;
+  contactAddress: string;
+  client?: (number | null) | Client;
+  lead?: (number | null) | Lead;
+  lastMessageAt?: string | null;
+  /**
+   * Si es mayor a 24h, solo se pueden enviar plantillas
+   */
+  lastInboundAt?: string | null;
   updatedAt: string;
   createdAt: string;
-  url?: string | null;
-  thumbnailURL?: string | null;
-  filename?: string | null;
-  mimeType?: string | null;
-  filesize?: number | null;
-  width?: number | null;
-  height?: number | null;
-  focalX?: number | null;
-  focalY?: number | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media".
+ * via the `definition` "tasks".
  */
-export interface Media {
+export interface Task {
   id: number;
   tenant?: (number | null) | Tenant;
-  alt: string;
+  title: string;
+  description?: string | null;
+  status: 'pendiente' | 'en_progreso' | 'completada' | 'bloqueada' | 'cancelada';
+  priority: 'baja' | 'media' | 'alta' | 'urgente';
+  dueDate?: string | null;
+  assignedTo?: (number | null) | User;
+  client?: (number | null) | Client;
+  lead?: (number | null) | Lead;
+  source?: ('manual' | 'tally_complaint' | 'payment_overdue' | 'openbsp_error' | 'hermes_ai') | null;
+  checklist?:
+    | {
+        item: string;
+        done?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  completedAt?: string | null;
+  kanbanStatus?: ('pendiente' | 'en_progreso' | 'completada' | 'bloqueada' | 'cancelada') | null;
+  kanbanOrderRank?: string | null;
   updatedAt: string;
   createdAt: string;
-  url?: string | null;
-  thumbnailURL?: string | null;
-  filename?: string | null;
-  mimeType?: string | null;
-  filesize?: number | null;
-  width?: number | null;
-  height?: number | null;
-  focalX?: number | null;
-  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "form-submissions".
+ */
+export interface FormSubmission {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  formName: string;
+  /**
+   * Tally form_id o ID de la plataforma
+   */
+  formId?: string | null;
+  source: 'tally' | 'typeform' | 'web' | 'otro';
+  respondentName?: string | null;
+  respondentEmail?: string | null;
+  respondentPhone?: string | null;
+  client?: (number | null) | Client;
+  lead?: (number | null) | Lead;
+  /**
+   * Marcado si la respuesta contiene queja o bajo NPS
+   */
+  isComplaint?: boolean | null;
+  answersJson?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  rawPayload?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -490,35 +659,120 @@ export interface Membership {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "conversations".
+ * via the `definition` "documents".
  */
-export interface Conversation {
+export interface Document {
   id: number;
   tenant?: (number | null) | Tenant;
-  status?: ('open' | 'pending' | 'resolved') | null;
-  priority?: ('baja' | 'media' | 'alta') | null;
-  assignee?: (number | null) | User;
-  /**
-   * Mientras snooze activo, la conversación no aparece en abiertas
-   */
-  snoozeUntil?: string | null;
-  labels?: ('seguimiento' | 'facturacion' | 'soporte' | 'renovacion' | 'urgente' | 'oportunidad')[] | null;
-  channel: 'whatsapp' | 'instagram_dm' | 'whatsapp_web';
-  /**
-   * UUID de la conversación en OpenBSP; lo rellena el webhook
-   */
-  openbspId?: string | null;
-  organizationAddress?: string | null;
-  contactAddress: string;
-  client?: (number | null) | Client;
-  lead?: (number | null) | Lead;
-  lastMessageAt?: string | null;
-  /**
-   * Si es mayor a 24h, solo se pueden enviar plantillas
-   */
-  lastInboundAt?: string | null;
+  title: string;
+  client: number | Client;
+  documentType: 'contrato' | 'factura' | 'otro';
   updatedAt: string;
   createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * Registro de emails enviados. Lo escribe el sistema; los eventos de Resend actualizan el estado.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-log".
+ */
+export interface EmailLog {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  to: string;
+  from?: string | null;
+  subject: string;
+  /**
+   * queued→sent lo setea el envío; delivered/bounced/complained llegan por webhook de Resend
+   */
+  status: 'queued' | 'sent' | 'delivered' | 'bounced' | 'complained' | 'failed';
+  source: 'transactional' | 'campaign' | 'test';
+  /**
+   * email_id que devuelve la API; lo usa el webhook para actualizar el estado
+   */
+  providerMessageId?: string | null;
+  campaign?: (number | null) | EmailCampaign;
+  /**
+   * Lo rellena el sistema al enviar, por matching del destinatario
+   */
+  client?: (number | null) | Client;
+  /**
+   * Lo rellena el sistema al enviar, por matching del destinatario
+   */
+  lead?: (number | null) | Lead;
+  error?: string | null;
+  eventsJson?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-campaigns".
+ */
+export interface EmailCampaign {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  name: string;
+  subject: string;
+  /**
+   * Texto de vista previa en el inbox del destinatario
+   */
+  preheader?: string | null;
+  /**
+   * HTML del cuerpo. Se envuelve automáticamente con la plantilla base de la marca.
+   */
+  bodyHtml: string;
+  /**
+   * Destinatarios = leads + clientes de ese rubro con email válido
+   */
+  segment?: (number | null) | Segment;
+  status: 'draft' | 'sending' | 'sent' | 'partial' | 'failed';
+  /**
+   * Fecha objetivo de envío. En v1 el despacho se activa desde la acción Enviar Campaña.
+   */
+  scheduledAt?: string | null;
+  sentAt?: string | null;
+  sentCount?: number | null;
+  bouncedCount?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  alt: string;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -617,73 +871,6 @@ export interface Notification {
   createdAt: string;
 }
 /**
- * Registro de emails enviados. Lo escribe el sistema; los eventos de Resend actualizan el estado.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "email-log".
- */
-export interface EmailLog {
-  id: number;
-  tenant?: (number | null) | Tenant;
-  to: string;
-  from?: string | null;
-  subject: string;
-  /**
-   * queued→sent lo setea el envío; delivered/bounced/complained llegan por webhook de Resend
-   */
-  status: 'queued' | 'sent' | 'delivered' | 'bounced' | 'complained' | 'failed';
-  source: 'transactional' | 'campaign' | 'test';
-  /**
-   * email_id que devuelve la API; lo usa el webhook para actualizar el estado
-   */
-  providerMessageId?: string | null;
-  campaign?: (number | null) | EmailCampaign;
-  error?: string | null;
-  eventsJson?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "email-campaigns".
- */
-export interface EmailCampaign {
-  id: number;
-  tenant?: (number | null) | Tenant;
-  name: string;
-  subject: string;
-  /**
-   * Texto de vista previa en el inbox del destinatario
-   */
-  preheader?: string | null;
-  /**
-   * HTML del cuerpo. Se envuelve automáticamente con la plantilla base de la marca.
-   */
-  bodyHtml: string;
-  /**
-   * Destinatarios = leads + clientes de ese rubro con email válido
-   */
-  segment?: (number | null) | Segment;
-  status: 'draft' | 'sending' | 'sent' | 'partial' | 'failed';
-  /**
-   * Fecha objetivo de envío. En v1 el despacho se activa desde la acción Enviar Campaña.
-   */
-  scheduledAt?: string | null;
-  sentAt?: string | null;
-  sentCount?: number | null;
-  bouncedCount?: number | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
  * Catálogo de productos/servicios: alimenta cotizaciones y facturas
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -706,78 +893,6 @@ export interface Offer {
    * Los inactivos no se ofrecen en nuevas cotizaciones
    */
   active?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "form-submissions".
- */
-export interface FormSubmission {
-  id: number;
-  tenant?: (number | null) | Tenant;
-  formName: string;
-  /**
-   * Tally form_id o ID de la plataforma
-   */
-  formId?: string | null;
-  source: 'tally' | 'typeform' | 'web' | 'otro';
-  respondentName?: string | null;
-  respondentEmail?: string | null;
-  respondentPhone?: string | null;
-  client?: (number | null) | Client;
-  lead?: (number | null) | Lead;
-  /**
-   * Marcado si la respuesta contiene queja o bajo NPS
-   */
-  isComplaint?: boolean | null;
-  answersJson?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  rawPayload?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "tasks".
- */
-export interface Task {
-  id: number;
-  tenant?: (number | null) | Tenant;
-  title: string;
-  description?: string | null;
-  status: 'pendiente' | 'en_progreso' | 'completada' | 'bloqueada' | 'cancelada';
-  priority: 'baja' | 'media' | 'alta' | 'urgente';
-  dueDate?: string | null;
-  assignedTo?: (number | null) | User;
-  client?: (number | null) | Client;
-  lead?: (number | null) | Lead;
-  source?: ('manual' | 'tally_complaint' | 'payment_overdue' | 'openbsp_error' | 'hermes_ai') | null;
-  checklist?:
-    | {
-        item: string;
-        done?: boolean | null;
-        id?: string | null;
-      }[]
-    | null;
-  completedAt?: string | null;
-  kanbanStatus?: ('pendiente' | 'en_progreso' | 'completada' | 'bloqueada' | 'cancelada') | null;
-  kanbanOrderRank?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1243,6 +1358,12 @@ export interface PayloadMcpApiKey {
      */
     find?: boolean | null;
   };
+  companies?: {
+    /**
+     * Allow clients to find companies.
+     */
+    find?: boolean | null;
+  };
   socialPosts?: {
     /**
      * Allow clients to find social-posts.
@@ -1437,6 +1558,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'users';
         value: number | User;
+      } | null)
+    | ({
+        relationTo: 'companies';
+        value: number | Company;
       } | null)
     | ({
         relationTo: 'clients';
@@ -1640,6 +1765,30 @@ export interface UsersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "companies_select".
+ */
+export interface CompaniesSelect<T extends boolean = true> {
+  tenant?: T;
+  name?: T;
+  taxId?: T;
+  website?: T;
+  email?: T;
+  phone?: T;
+  city?: T;
+  state?: T;
+  address?: T;
+  googleMapsUrl?: T;
+  socialHandle?: T;
+  segment?: T;
+  assignedAgent?: T;
+  commercialNotes?: T;
+  notes?: T;
+  clients?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "clients_select".
  */
 export interface ClientsSelect<T extends boolean = true> {
@@ -1656,6 +1805,7 @@ export interface ClientsSelect<T extends boolean = true> {
   googleMapsUrl?: T;
   socialHandle?: T;
   segment?: T;
+  company?: T;
   lastContactChannel?: T;
   lastContactedAt?: T;
   assignedAgent?: T;
@@ -1664,6 +1814,13 @@ export interface ClientsSelect<T extends boolean = true> {
   optOutAt?: T;
   notes?: T;
   activities?: T;
+  conversations?: T;
+  tasks?: T;
+  payments?: T;
+  memberships?: T;
+  documents?: T;
+  formSubmissions?: T;
+  emailLog?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1686,6 +1843,7 @@ export interface LeadsSelect<T extends boolean = true> {
   googleMapsUrl?: T;
   socialHandle?: T;
   segment?: T;
+  company?: T;
   estimatedValue?: T;
   lastContactChannel?: T;
   lastContactedAt?: T;
@@ -1693,6 +1851,9 @@ export interface LeadsSelect<T extends boolean = true> {
   commercialNotes?: T;
   notes?: T;
   convertedClient?: T;
+  conversations?: T;
+  tasks?: T;
+  formSubmissions?: T;
   kanbanStatus?: T;
   kanbanOrderRank?: T;
   updatedAt?: T;
@@ -1883,6 +2044,8 @@ export interface EmailLogSelect<T extends boolean = true> {
   source?: T;
   providerMessageId?: T;
   campaign?: T;
+  client?: T;
+  lead?: T;
   error?: T;
   eventsJson?: T;
   updatedAt?: T;
@@ -2313,6 +2476,11 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
     | {
         find?: T;
       };
+  companies?:
+    | T
+    | {
+        find?: T;
+      };
   socialPosts?:
     | T
     | {
@@ -2587,6 +2755,7 @@ export interface TaskCreateCollectionExport {
     collectionSlug:
       | 'tenants'
       | 'users'
+      | 'companies'
       | 'clients'
       | 'leads'
       | 'activities'

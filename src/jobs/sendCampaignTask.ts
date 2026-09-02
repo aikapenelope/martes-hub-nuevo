@@ -40,7 +40,10 @@ export const sendCampaignTask: TaskConfig = {
     const segmentId =
       typeof campaign.segment === 'object' && campaign.segment ? campaign.segment.id : campaign.segment
 
-    const recipients = new Map<string, { email: string; name: string }>()
+    const recipients = new Map<
+      string,
+      { email: string; name: string; leadId?: number; clientId?: number }
+    >()
 
     if (segmentId) {
       const leads = await req.payload.find({
@@ -61,7 +64,11 @@ export const sendCampaignTask: TaskConfig = {
       })
       for (const lead of leads.docs) {
         if (lead.email) {
-          recipients.set(lead.email.toLowerCase(), { email: lead.email, name: lead.fullName })
+          recipients.set(lead.email.toLowerCase(), {
+            email: lead.email,
+            name: lead.fullName,
+            leadId: lead.id,
+          })
         }
       }
 
@@ -83,7 +90,11 @@ export const sendCampaignTask: TaskConfig = {
       })
       for (const client of clients.docs) {
         if (client.email) {
-          recipients.set(client.email.toLowerCase(), { email: client.email, name: client.name })
+          recipients.set(client.email.toLowerCase(), {
+            email: client.email,
+            name: client.name,
+            clientId: client.id,
+          })
         }
       }
     } else {
@@ -104,7 +115,11 @@ export const sendCampaignTask: TaskConfig = {
       })
       for (const lead of leads.docs) {
         if (lead.email) {
-          recipients.set(lead.email.toLowerCase(), { email: lead.email, name: lead.fullName })
+          recipients.set(lead.email.toLowerCase(), {
+            email: lead.email,
+            name: lead.fullName,
+            leadId: lead.id,
+          })
         }
       }
     }
@@ -169,6 +184,8 @@ export const sendCampaignTask: TaskConfig = {
                 source: 'campaign',
                 providerMessageId: result?.id,
                 campaign: campaign.id,
+                ...(recipient.leadId ? { lead: recipient.leadId } : {}),
+                ...(recipient.clientId ? { client: recipient.clientId } : {}),
                 tenant: tenantId,
               },
               overrideAccess: true,
@@ -186,6 +203,8 @@ export const sendCampaignTask: TaskConfig = {
                 source: 'campaign',
                 error: message.slice(0, 1000),
                 campaign: campaign.id,
+                ...(recipient.leadId ? { lead: recipient.leadId } : {}),
+                ...(recipient.clientId ? { client: recipient.clientId } : {}),
                 tenant: tenantId,
               },
               overrideAccess: true,

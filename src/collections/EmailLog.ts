@@ -89,6 +89,30 @@ export const EmailLog: CollectionConfig = {
       label: 'Campaña',
     },
     {
+      name: 'client',
+      type: 'relationship',
+      relationTo: 'clients',
+      index: true,
+      label: 'Cliente',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+        description: 'Lo rellena el sistema al enviar, por matching del destinatario',
+      },
+    },
+    {
+      name: 'lead',
+      type: 'relationship',
+      relationTo: 'leads',
+      index: true,
+      label: 'Lead',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+        description: 'Lo rellena el sistema al enviar, por matching del destinatario',
+      },
+    },
+    {
       name: 'error',
       type: 'textarea',
       label: 'Error',

@@ -122,6 +122,17 @@ export const Leads: CollectionConfig = {
       label: 'Rubro / Segmento',
     },
     {
+      name: 'company',
+      type: 'relationship',
+      relationTo: 'companies',
+      index: true,
+      label: 'Empresa (cuenta)',
+      admin: {
+        position: 'sidebar',
+        description: 'Cuenta del prospecto, si aplica; se hereda al convertir a cliente',
+      },
+    },
+    {
       name: 'estimatedValue',
       type: 'number',
       min: 0,
@@ -197,6 +208,28 @@ export const Leads: CollectionConfig = {
         readOnly: true,
         description: 'Se llena automáticamente al convertir el lead',
       },
+    },
+    // Joins inversos: ver todo lo vinculado al lead desde el modelo
+    {
+      name: 'conversations',
+      type: 'join',
+      collection: 'conversations',
+      on: 'lead',
+      label: 'Conversaciones',
+    },
+    {
+      name: 'tasks',
+      type: 'join',
+      collection: 'tasks',
+      on: 'lead',
+      label: 'Tareas',
+    },
+    {
+      name: 'formSubmissions',
+      type: 'join',
+      collection: 'form-submissions',
+      on: 'lead',
+      label: 'Formularios',
     },
   ],
 }
