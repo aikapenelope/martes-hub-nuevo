@@ -68,20 +68,31 @@ function splitAddresses(raw: string | undefined | null): { email: string; name: 
 export async function listRecentMessages(options: {
   query?: string
   maxResults?: number
-}): Promise<GmailMessageRef[]> {
+} = {}): Promise<GmailMessageRef[]> {
   const token = await getGoogleAccessToken()
-  const params = new URLSearchParams({
-    maxResults: String(options.maxResults ?? 100),
-  })
-  if (options.query) params.set('q', options.query)
+  const messages: GmailMessageRef[] = []
+  let pageToken: string | undefined
 
-  const res = await fetch(`${GMAIL_API}/messages?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) throw new Error(`Gmail list falló (${res.status}): ${(await res.text()).slice(0, 300)}`)
+  do {
+    const params = new URLSearchParams({
+      maxResults: String(Math.min(options.maxResults ?? 100, 500)),
+    })
+    if (options.query) params.set('q', options.query)
+    if (pageToken) params.set('pageToken', pageToken)
 
-  const data = (await res.json()) as { messages?: GmailMessageRef[] }
-  return data.messages ?? []
+    const res = await fetch(`${GMAIL_API}/messages?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error(`Gmail list falló (${res.status}): ${(await res.text()).slice(0, 300)}`)
+
+    const data = (await res.json()) as { messages?: GmailMessageRef[]; nextPageToken?: string }
+    if (data.messages?.length) {
+      messages.push(...data.messages)
+    }
+    pageToken = data.nextPageToken
+  } while (pageToken)
+
+  return messages
 }
 
 export async function getMessage(id: string): Promise<GmailMessageSummary> {

@@ -39,37 +39,51 @@ export async function listUpcomingEvents(options: {
 }): Promise<GcalEventSummary[]> {
   const token = await getGoogleAccessToken()
   const calendarId = encodeURIComponent(options.calendarId || 'primary')
-  const params = new URLSearchParams({
-    timeMin: options.timeMin,
-    timeMax: options.timeMax,
-    singleEvents: 'true',
-    orderBy: 'startTime',
-    maxResults: String(options.maxResults ?? 250),
-    showDeleted: 'true',
-  })
 
-  const res = await fetch(`${CAL_API}/${calendarId}/events?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) {
-    throw new Error(`GCal list falló (${res.status}): ${(await res.text()).slice(0, 300)}`)
-  }
+  const rawItems: Array<{
+    id: string
+    summary?: string
+    description?: string
+    location?: string
+    htmlLink?: string
+    status?: string
+    start?: { dateTime?: string; date?: string }
+    end?: { dateTime?: string; date?: string }
+    attendees?: { email?: string }[]
+  }> = []
 
-  const data = (await res.json()) as {
-    items?: {
-      id: string
-      summary?: string
-      description?: string
-      location?: string
-      htmlLink?: string
-      status?: string
-      start?: { dateTime?: string; date?: string }
-      end?: { dateTime?: string; date?: string }
-      attendees?: { email?: string }[]
-    }[]
-  }
+  let pageToken: string | undefined
 
-  return (data.items ?? []).map((event) => {
+  do {
+    const params = new URLSearchParams({
+      timeMin: options.timeMin,
+      timeMax: options.timeMax,
+      singleEvents: 'true',
+      orderBy: 'startTime',
+      maxResults: String(Math.min(options.maxResults ?? 250, 250)),
+      showDeleted: 'true',
+    })
+    if (pageToken) params.set('pageToken', pageToken)
+
+    const res = await fetch(`${CAL_API}/${calendarId}/events?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) {
+      throw new Error(`GCal list falló (${res.status}): ${(await res.text()).slice(0, 300)}`)
+    }
+
+    const data = (await res.json()) as {
+      items?: typeof rawItems
+      nextPageToken?: string
+    }
+
+    if (data.items?.length) {
+      rawItems.push(...data.items)
+    }
+    pageToken = data.nextPageToken
+  } while (pageToken)
+
+  return rawItems.map((event) => {
     const startIso = event.start?.dateTime ?? event.start?.date
     const endIso = event.end?.dateTime ?? event.end?.date
     const allDay = Boolean(event.start?.date && !event.start?.dateTime)

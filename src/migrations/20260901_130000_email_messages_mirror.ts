@@ -37,6 +37,7 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS "email_messages_tenant_idx" ON "email_messages" USING btree ("tenant_id");
     CREATE INDEX IF NOT EXISTS "email_messages_provider_id_idx" ON "email_messages" USING btree ("provider_id");
+    CREATE UNIQUE INDEX IF NOT EXISTS "email_messages_tenant_provider_id_idx" ON "email_messages" USING btree ("tenant_id", "provider_id");
     CREATE INDEX IF NOT EXISTS "email_messages_thread_id_idx" ON "email_messages" USING btree ("thread_id");
     CREATE INDEX IF NOT EXISTS "email_messages_from_email_idx" ON "email_messages" USING btree ("from_email");
     CREATE INDEX IF NOT EXISTS "email_messages_date_idx" ON "email_messages" USING btree ("date");
@@ -58,6 +59,7 @@ export async function down({ db }: MigrateDownArgs): Promise<void> {
     ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT IF EXISTS "payload_locked_documents_rels_email_messages_fk";
     ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "email_messages_id";
 
+    DROP INDEX IF EXISTS "email_messages_tenant_provider_id_idx";
     DROP TABLE IF EXISTS "email_messages";
     DROP TYPE IF EXISTS "enum_email_messages_direction";
   `)

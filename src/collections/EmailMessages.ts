@@ -25,6 +25,7 @@ export const EmailMessages: CollectionConfig = {
     delete: adminOnly,
   },
   timestamps: true,
+  indexes: [{ fields: ['tenant', 'providerId'], unique: true }],
   fields: [
     {
       name: 'direction',

@@ -1,5 +1,5 @@
 import type { Payload, Where } from 'payload'
-import type { Appointment, Client, Membership, Payment, Task } from '@/payload-types'
+import type { Appointment, Client, Membership, Payment, Task, User } from '@/payload-types'
 
 export interface AgendaItem {
   type: 'task' | 'membership' | 'payment' | 'cita'
@@ -9,18 +9,33 @@ export interface AgendaItem {
   href: string
 }
 
+export interface UpcomingAgendaOptions {
+  payload: Payload
+  tenantId: number
+  days?: number
+  user: User
+}
+
 /**
  * Agenda combinada de los próximos `days` días: citas espejadas de Google
  * Calendar, tareas por vencer, membresías por renovar y cobros por vencer —
  * antes vivían en páginas separadas sin ninguna vista unificada de "qué se
- * viene esta semana". Todo tenant-scoped, mismo patrón que el resto de
- * queries del dashboard.
+ * viene esta semana". Todo tenant-scoped y ejecutado con el usuario
+ * autenticado (overrideAccess: false), mismo patrón que el resto de queries
+ * del dashboard.
  */
 export async function getUpcomingAgenda(
-  payload: Payload,
-  tenantId: number,
-  days: number,
+  optionsOrPayload: UpcomingAgendaOptions | Payload,
+  maybeTenantId?: number,
+  maybeDays = 7,
+  maybeUser?: User,
 ): Promise<AgendaItem[]> {
+  const isOptions = typeof optionsOrPayload === 'object' && !('find' in optionsOrPayload)
+  const payload = isOptions ? optionsOrPayload.payload : (optionsOrPayload as Payload)
+  const tenantId = isOptions ? optionsOrPayload.tenantId : maybeTenantId!
+  const days = isOptions ? (optionsOrPayload.days ?? 7) : maybeDays
+  const user = isOptions ? optionsOrPayload.user : maybeUser
+
   const now = new Date()
   const until = new Date(now.getTime() + days * 24 * 3600_000)
   const nowIso = now.toISOString()
@@ -34,6 +49,7 @@ export async function getUpcomingAgenda(
       limit: 50,
       depth: 0,
       overrideAccess: false,
+      user,
       where: tenantWhere({
         and: [
           { dueDate: { greater_than_equal: nowIso } },
@@ -47,6 +63,7 @@ export async function getUpcomingAgenda(
       limit: 50,
       depth: 1,
       overrideAccess: false,
+      user,
       where: tenantWhere({
         and: [
           { renewalDate: { greater_than_equal: nowIso } },
@@ -60,6 +77,7 @@ export async function getUpcomingAgenda(
       limit: 50,
       depth: 1,
       overrideAccess: false,
+      user,
       where: tenantWhere({
         and: [
           { dueDate: { greater_than_equal: nowIso } },
@@ -73,6 +91,7 @@ export async function getUpcomingAgenda(
       limit: 50,
       depth: 1,
       overrideAccess: false,
+      user,
       where: tenantWhere({
         and: [
           { start: { greater_than_equal: nowIso } },

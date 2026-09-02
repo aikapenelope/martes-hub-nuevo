@@ -46,7 +46,7 @@ export default async function WorkspacePage() {
   const { payload, tenant, tenantId, user, canEdit } = await getWorkspaceContext()
   const [data, agenda] = await Promise.all([
     getWorkspaceOverviewData({ payload, user, tenantId }),
-    getUpcomingAgenda(payload, tenantId, 7),
+    getUpcomingAgenda({ payload, user, tenantId, days: 7 }),
   ])
 
   // Lista ligera de clientes (solo id/name) para el dialog de "+ Cobro".

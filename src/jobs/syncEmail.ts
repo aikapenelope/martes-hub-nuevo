@@ -2,6 +2,19 @@ import type { TaskConfig } from 'payload'
 
 import { getMessage, isGmailSyncConfigured, listRecentMessages } from '../integrations/gmail/client'
 
+function isUniqueConflict(err: unknown): boolean {
+  if (!err) return false
+  const anyErr = err as { code?: string; originalError?: { code?: string }; message?: string }
+  if (anyErr.code === '23505' || anyErr.originalError?.code === '23505') return true
+  const msg = (anyErr.message || String(err)).toLowerCase()
+  return (
+    msg.includes('23505') ||
+    msg.includes('duplicate key') ||
+    msg.includes('unique constraint') ||
+    msg.includes('already exists')
+  )
+}
+
 /**
  * Sync de email de SOLO LECTURA (Fase B). Sustrae recibidos + enviados del
  * buzón Gmail configurado y los espeja en `email-messages` (idempotente por
@@ -51,24 +64,9 @@ export const syncEmailTask: TaskConfig = {
       return { output: { synced: 0, skipped: 0, summary: `Tenant slug "${tenantSlug}" no encontrado` } }
     }
 
-    const refs = await listRecentMessages({ query: 'newer_than:2d', maxResults: 150 })
+    const refs = await listRecentMessages({ query: 'newer_than:2d' })
     if (refs.length === 0) {
       return { output: { synced: 0, skipped: 0, summary: 'Sin mensajes en la ventana de 2 días' } }
-    }
-
-    // Idempotencia en bloque: una sola consulta para todos los mensajes
-    const existingRes = await req.payload.find({
-      collection: 'email-messages',
-      where: { providerId: { in: refs.map((r) => r.id) } },
-      limit: refs.length,
-      depth: 0,
-      overrideAccess: true,
-      req,
-    })
-    const alreadySynced = new Set(existingRes.docs.map((d) => d.providerId))
-    const pending = refs.filter((r) => !alreadySynced.has(r.id))
-    if (pending.length === 0) {
-      return { output: { synced: 0, skipped: refs.length, summary: 'Todo ya espejado' } }
     }
 
     // Matching en bloque: direcciones de clients/leads → id
@@ -99,6 +97,71 @@ export const syncEmailTask: TaskConfig = {
       if (lead.email) leadsByEmail.set(lead.email.toLowerCase(), lead.id)
     }
 
+    // Mensajes ya espejados previamente
+    const existingRes = await req.payload.find({
+      collection: 'email-messages',
+      where: {
+        and: [
+          { tenant: { equals: tenant.id } },
+          { providerId: { in: refs.map((r) => r.id) } },
+        ],
+      },
+      limit: refs.length,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+
+    const existingByProviderId = new Map<string, (typeof existingRes.docs)[number]>()
+    for (const doc of existingRes.docs) {
+      existingByProviderId.set(doc.providerId, doc)
+    }
+
+    // Recomputar vínculos de contacto para mensajes ya espejados en la ventana de 2 días.
+    // Si un cliente o lead se creó o cambió de email posteriormente, se enlaza sin reescribir metadata inmutable.
+    let relinked = 0
+    for (const doc of existingRes.docs) {
+      const candidateEmails = (
+        doc.direction === 'outbound'
+          ? [...(doc.toEmails ? doc.toEmails.split(',') : []), ...(doc.ccEmails ? doc.ccEmails.split(',') : [])]
+          : doc.fromEmail ? [doc.fromEmail] : []
+      )
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.length > 0 && e.includes('@') && e !== mailboxAddress)
+
+      let matchedClientId: number | null = null
+      let matchedLeadId: number | null = null
+      for (const email of candidateEmails) {
+        if (!matchedClientId && clientsByEmail.has(email)) matchedClientId = clientsByEmail.get(email)!
+        if (!matchedLeadId && leadsByEmail.has(email)) matchedLeadId = leadsByEmail.get(email)!
+        if (matchedClientId && matchedLeadId) break
+      }
+
+      const currentClientId =
+        typeof doc.client === 'object' && doc.client !== null ? doc.client.id : (doc.client ?? null)
+      const currentLeadId =
+        typeof doc.lead === 'object' && doc.lead !== null ? doc.lead.id : (doc.lead ?? null)
+
+      if (currentClientId !== matchedClientId || currentLeadId !== matchedLeadId) {
+        try {
+          await req.payload.update({
+            collection: 'email-messages',
+            id: doc.id,
+            data: {
+              client: matchedClientId,
+              lead: matchedLeadId,
+            },
+            overrideAccess: true,
+            req,
+          })
+          relinked += 1
+        } catch (err) {
+          req.payload.logger.error({ msg: 'sync-email: error al revincular contacto', id: doc.id, err })
+        }
+      }
+    }
+
+    const pending = refs.filter((r) => !existingByProviderId.has(r.id))
     let synced = 0
     let failed = 0
     const errors: string[] = []
@@ -113,11 +176,11 @@ export const syncEmailTask: TaskConfig = {
           msg.outbound ? [...msg.toEmails, ...msg.ccEmails] : msg.fromEmail ? [msg.fromEmail] : []
         ).filter((email) => email !== mailboxAddress)
 
-        let clientId: number | undefined
-        let leadId: number | undefined
+        let clientId: number | null = null
+        let leadId: number | null = null
         for (const email of candidateEmails) {
-          if (!clientId && clientsByEmail.has(email)) clientId = clientsByEmail.get(email)
-          if (!leadId && leadsByEmail.has(email)) leadId = leadsByEmail.get(email)
+          if (!clientId && clientsByEmail.has(email)) clientId = clientsByEmail.get(email)!
+          if (!leadId && leadsByEmail.has(email)) leadId = leadsByEmail.get(email)!
           if (clientId && leadId) break
         }
 
@@ -135,14 +198,39 @@ export const syncEmailTask: TaskConfig = {
             subject: msg.subject ?? undefined,
             snippet: msg.snippet ? msg.snippet.slice(0, 1000) : undefined,
             date: msg.date,
-            ...(clientId ? { client: clientId } : {}),
-            ...(leadId ? { lead: leadId } : {}),
+            client: clientId,
+            lead: leadId,
           },
           overrideAccess: true,
           req,
         })
         synced += 1
       } catch (err) {
+        if (isUniqueConflict(err)) {
+          // Carrera de inserción concurrente: otro worker ya insertó el mensaje.
+          try {
+            const conflictDoc = await req.payload.find({
+              collection: 'email-messages',
+              where: {
+                and: [
+                  { tenant: { equals: tenant.id } },
+                  { providerId: { equals: ref.id } },
+                ],
+              },
+              limit: 1,
+              depth: 0,
+              overrideAccess: true,
+              req,
+            })
+            const existing = conflictDoc.docs[0]
+            if (existing) {
+              synced += 1
+              continue
+            }
+          } catch (retryErr) {
+            req.payload.logger.error({ msg: 'sync-email: reintento tras conflicto falló', id: ref.id, err: retryErr })
+          }
+        }
         failed += 1
         const message = err instanceof Error ? err.message : 'error desconocido'
         if (errors.length < 5) errors.push(`(${ref.id}) ${message}`)
@@ -150,13 +238,21 @@ export const syncEmailTask: TaskConfig = {
       }
     }
 
+    const skipped = refs.length - synced - failed
+    const summaryDetails = [
+      `${synced} espejados`,
+      relinked > 0 ? `${relinked} revinculados` : null,
+      `${failed} fallidos`,
+      `de ${refs.length} revisados`,
+    ]
+      .filter(Boolean)
+      .join(', ')
+
     return {
       output: {
         synced,
-        skipped: refs.length - synced - failed,
-        summary:
-          `${synced} espejados, ${failed} fallidos de ${refs.length} revisados` +
-          (errors.length > 0 ? ` — ${errors.join(' | ')}` : ''),
+        skipped,
+        summary: summaryDetails + (errors.length > 0 ? ` — ${errors.join(' | ')}` : ''),
       },
     }
   },

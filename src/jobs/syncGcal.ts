@@ -12,6 +12,19 @@ import { isGcalSyncConfigured, listUpcomingEvents } from '../integrations/gcal/c
  * Escribir en el calendario no ocurre aquí: las citas las crea el agente de
  * OpenBSP; este job solo consume la data.
  */
+function isUniqueConflict(err: unknown): boolean {
+  if (!err) return false
+  const anyErr = err as { code?: string; originalError?: { code?: string }; message?: string }
+  if (anyErr.code === '23505' || anyErr.originalError?.code === '23505') return true
+  const msg = (anyErr.message || String(err)).toLowerCase()
+  return (
+    msg.includes('23505') ||
+    msg.includes('duplicate key') ||
+    msg.includes('unique constraint') ||
+    msg.includes('already exists')
+  )
+}
+
 export const syncGcalTask: TaskConfig = {
   slug: 'sync-gcal',
   label: 'Sync de citas (Google Calendar read-only)',
@@ -113,17 +126,17 @@ export const syncGcalTask: TaskConfig = {
         tenant: tenant.id,
         title: event.summary ?? '(evento sin título)',
         start: event.start,
-        endDate: event.end,
+        endDate: event.end ?? null,
         allDay: event.allDay,
         status: event.status,
-        location: event.location ?? undefined,
-        attendees: attendeeEmails.length > 0 ? attendeeEmails.join(', ') : undefined,
-        description: event.description ?? undefined,
+        location: event.location ?? null,
+        attendees: attendeeEmails.length > 0 ? attendeeEmails.join(', ') : null,
+        description: event.description ?? null,
         gcalEventId: event.id,
         calendarId,
-        htmlLink: event.htmlLink ?? undefined,
-        ...(clientId ? { client: clientId } : {}),
-        ...(leadId ? { lead: leadId } : {}),
+        htmlLink: event.htmlLink ?? null,
+        client: clientId ?? null,
+        lead: leadId ?? null,
       }
 
       try {
@@ -146,6 +159,38 @@ export const syncGcalTask: TaskConfig = {
         }
         synced += 1
       } catch (err) {
+        if (isUniqueConflict(err)) {
+          // Carrera de inserción concurrente: otro worker ya insertó el evento. Reintentar como update.
+          try {
+            const conflictDoc = await req.payload.find({
+              collection: 'appointments',
+              where: {
+                and: [
+                  { tenant: { equals: tenant.id } },
+                  { gcalEventId: { equals: event.id } },
+                ],
+              },
+              limit: 1,
+              depth: 0,
+              overrideAccess: true,
+              req,
+            })
+            if (conflictDoc.docs[0]) {
+              await req.payload.update({
+                collection: 'appointments',
+                id: conflictDoc.docs[0].id,
+                data,
+                overrideAccess: true,
+                req,
+              })
+              existingByEventId.set(event.id, conflictDoc.docs[0].id)
+              synced += 1
+              continue
+            }
+          } catch (retryErr) {
+            req.payload.logger.error({ msg: 'sync-gcal: reintento tras conflicto falló', id: event.id, err: retryErr })
+          }
+        }
         failed += 1
         req.payload.logger.error({ msg: 'sync-gcal: evento falló', id: event.id, err })
       }

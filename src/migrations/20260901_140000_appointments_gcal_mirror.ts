@@ -39,6 +39,7 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
     CREATE INDEX IF NOT EXISTS "appointments_tenant_idx" ON "appointments" USING btree ("tenant_id");
     CREATE INDEX IF NOT EXISTS "appointments_start_idx" ON "appointments" USING btree ("start");
     CREATE INDEX IF NOT EXISTS "appointments_gcal_event_id_idx" ON "appointments" USING btree ("gcal_event_id");
+    CREATE UNIQUE INDEX IF NOT EXISTS "appointments_tenant_gcal_event_id_idx" ON "appointments" USING btree ("tenant_id", "gcal_event_id");
     CREATE INDEX IF NOT EXISTS "appointments_client_idx" ON "appointments" USING btree ("client_id");
     CREATE INDEX IF NOT EXISTS "appointments_lead_idx" ON "appointments" USING btree ("lead_id");
 
@@ -57,6 +58,7 @@ export async function down({ db }: MigrateDownArgs): Promise<void> {
     ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT IF EXISTS "payload_locked_documents_rels_appointments_fk";
     ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "appointments_id";
 
+    DROP INDEX IF EXISTS "appointments_tenant_gcal_event_id_idx";
     DROP TABLE IF EXISTS "appointments";
     DROP TYPE IF EXISTS "enum_appointments_status";
   `)

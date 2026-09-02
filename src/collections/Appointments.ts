@@ -24,6 +24,7 @@ export const Appointments: CollectionConfig = {
     delete: adminOnly,
   },
   timestamps: true,
+  indexes: [{ fields: ['tenant', 'gcalEventId'], unique: true }],
   fields: [
     {
       name: 'title',
