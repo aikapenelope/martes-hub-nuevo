@@ -35,6 +35,26 @@ const dateHeaderFmt = new Intl.DateTimeFormat('es-VE', {
   timeZone: 'America/Caracas',
 })
 
+function formatEventDate(dateStr: string, allDay = false): string {
+  if (allDay) {
+    const ymd = dateStr.slice(0, 10)
+    const [yearStr, monthStr, dayStr] = ymd.split('-')
+    const y = parseInt(yearStr, 10)
+    const m = parseInt(monthStr, 10) - 1
+    const d = parseInt(dayStr, 10)
+    if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(d)) {
+      const utcDate = new Date(Date.UTC(y, m, d, 12, 0, 0))
+      return new Intl.DateTimeFormat('es-VE', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        timeZone: 'UTC',
+      }).format(utcDate)
+    }
+  }
+  return dateHeaderFmt.format(new Date(dateStr))
+}
+
 function getCaracasDateKey(isoOrDate: string, isAllDay = false): string {
   if (isAllDay && /^\d{4}-\d{2}-\d{2}/.test(isoOrDate)) {
     return isoOrDate.slice(0, 10)
@@ -403,7 +423,7 @@ export function CalendarView({ data }: { data: CalendarMonthData }) {
               <div className="flex items-center gap-2">
                 <CalendarClock className="h-4 w-4 text-zinc-500 shrink-0" />
                 <span>
-                  {dateHeaderFmt.format(new Date(selectedEvent.date))}
+                  {formatEventDate(selectedEvent.date, selectedEvent.allDay)}
                   {!selectedEvent.allDay && ` · ${timeFmt.format(new Date(selectedEvent.date))}`}
                 </span>
               </div>

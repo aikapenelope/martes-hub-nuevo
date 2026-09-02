@@ -18,10 +18,25 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const { payload, user, tenantId, tenant } = context
 
   const now = new Date()
+  let defaultYear = now.getFullYear()
+  let defaultMonth = now.getMonth() + 1
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Caracas',
+      year: 'numeric',
+      month: '2-digit',
+    }).format(now)
+    const [y, m] = parts.split('-').map(Number)
+    if (y && m) {
+      defaultYear = y
+      defaultMonth = m
+    }
+  } catch {}
+
   const parsedYear = yearParam ? Number(yearParam) : NaN
   const parsedMonth = monthParam ? Number(monthParam) : NaN
-  const year = Number.isInteger(parsedYear) && parsedYear >= 1 && parsedYear <= 9999 ? parsedYear : now.getFullYear()
-  const month = Number.isInteger(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12 ? parsedMonth : now.getMonth() + 1
+  const year = Number.isInteger(parsedYear) && parsedYear >= 1 && parsedYear <= 9999 ? parsedYear : defaultYear
+  const month = Number.isInteger(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12 ? parsedMonth : defaultMonth
 
   const calendarData = await getCalendarMonthData({
     payload,

@@ -18,6 +18,45 @@ export interface UploadMediaResult {
  * el archivo directamente en Cloudflare R2 / S3. Si no, se guarda localmente.
  * Revalida la ruta `/workspace/media` para refrescar la galería sin salir al admin.
  */
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+  'image/avif',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+])
+
+const ALLOWED_EXTENSIONS = new Set([
+  'jpg',
+  'jpeg',
+  'png',
+  'webp',
+  'gif',
+  'svg',
+  'avif',
+  'pdf',
+  'txt',
+  'csv',
+  'xls',
+  'xlsx',
+  'doc',
+  'docx',
+])
+
+function sanitizeFilename(rawName: string): string {
+  const base = rawName.split(/[/\\]/).pop() || 'file'
+  const sanitized = base.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100)
+  return sanitized || 'file'
+}
+
 export async function uploadMediaAction(formData: FormData): Promise<UploadMediaResult> {
   try {
     const context = await getWorkspaceContext()
@@ -35,11 +74,23 @@ export async function uploadMediaAction(formData: FormData): Promise<UploadMedia
       return { ok: false, error: 'El archivo supera el tamaño máximo permitido de 20 MB' }
     }
 
+    const mimeType = file.type?.toLowerCase() || ''
+    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+
+    if (!ALLOWED_MIME_TYPES.has(mimeType) || !ALLOWED_EXTENSIONS.has(ext)) {
+      return {
+        ok: false,
+        error: 'Tipo de archivo no permitido. Solo se aceptan imágenes y documentos estándar.',
+      }
+    }
+
+    const safeName = sanitizeFilename(file.name)
+
     const altRaw = formData.get('alt')
     const alt =
       typeof altRaw === 'string' && altRaw.trim()
         ? altRaw.trim().slice(0, 200)
-        : file.name.replace(/\.[^/.]+$/, '')
+        : safeName.replace(/\.[^/.]+$/, '')
 
     const buffer = Buffer.from(await file.arrayBuffer())
 
@@ -53,8 +104,8 @@ export async function uploadMediaAction(formData: FormData): Promise<UploadMedia
       },
       file: {
         data: buffer,
-        mimetype: file.type || 'application/octet-stream',
-        name: file.name,
+        mimetype: mimeType,
+        name: safeName,
         size: file.size,
       },
     })

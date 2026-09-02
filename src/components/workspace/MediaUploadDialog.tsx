@@ -22,6 +22,7 @@ export function MediaUploadDialog() {
     setError(null)
     setSuccess(false)
     setFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
     setPreviewUrl(null)
     setAltText('')
     dialogRef.current?.showModal()
@@ -29,6 +30,10 @@ export function MediaUploadDialog() {
 
   function closeDialog() {
     if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    setPreviewUrl(null)
+    setAltText('')
     dialogRef.current?.close()
   }
 
