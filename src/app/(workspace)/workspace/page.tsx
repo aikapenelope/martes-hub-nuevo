@@ -79,9 +79,17 @@ export default async function WorkspacePage() {
 
       {/* Agenda unificada 7 días: citas GCal + tareas + cobros + renovaciones */}
       <section>
-        <h2 className="mb-2 text-xs font-mono uppercase tracking-wider text-zinc-400">
-          Agenda próxima · 7 días
-        </h2>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-xs font-mono uppercase tracking-wider text-zinc-400">
+            Agenda próxima · 7 días
+          </h2>
+          <Link
+            href="/workspace/calendar"
+            className="text-[11px] font-mono text-sky-400 hover:text-sky-300 transition flex items-center gap-1 font-bold"
+          >
+            Ver calendario completo →
+          </Link>
+        </div>
         <OledCard className="!p-0">
           {agenda.length === 0 ? (
             <div className="px-4 py-3 text-xs font-mono text-zinc-500">Nada agendado esta semana.</div>
@@ -91,21 +99,23 @@ export default async function WorkspacePage() {
                 <Link
                   key={`${item.type}-${i}-${item.date}`}
                   href={item.href}
-                  className="flex items-center gap-3 border-b border-zinc-900 px-4 py-2.5 last:border-0 hover:bg-zinc-950/60"
+                  className="flex items-center gap-3 border-b border-zinc-900 px-4 py-2.5 last:border-0 hover:bg-zinc-950/60 transition group"
                 >
-                  <span className="text-zinc-500">
+                  <span className="text-zinc-500 group-hover:text-white transition">
                     {item.type === 'cita' ? (
-                      <CalendarClock size={14} />
+                      <CalendarClock size={14} className="text-sky-400" />
                     ) : item.type === 'task' ? (
-                      <SquareCheck size={14} />
+                      <SquareCheck size={14} className="text-indigo-400" />
                     ) : item.type === 'payment' ? (
-                      <CircleDollarSign size={14} />
+                      <CircleDollarSign size={14} className="text-amber-400" />
                     ) : (
-                      <RefreshCcw size={14} />
+                      <RefreshCcw size={14} className="text-emerald-400" />
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <strong className="block truncate text-sm text-white">{item.label}</strong>
+                    <strong className="block truncate text-sm text-white group-hover:text-sky-300 transition">
+                      {item.label}
+                    </strong>
                     <span className="text-[10px] font-mono text-zinc-500">{item.sublabel}</span>
                   </div>
                   <span className="shrink-0 text-[10px] font-mono text-zinc-400">

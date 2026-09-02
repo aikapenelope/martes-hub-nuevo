@@ -4,7 +4,7 @@ import { isGcalSyncConfigured, listUpcomingEvents } from '../integrations/gcal/c
 
 /**
  * Sync de calendario de SOLO LECTURA (Fase C) — el job `sync-gcal` que el
- * README ya prometía. Espeja los eventos de la ventana [ahora-1d, +30d] en
+ * README ya prometía. Espeja los eventos de la ventana [ahora-1d, +365d] en
  * `appointments` (idempotente por gcalEventId; los cancelados se marcan
  * `cancelled`) y los vincula por matching de asistentes contra
  * `clients`/`leads` (mismo criterio que el auto-matching de Tally).
@@ -64,7 +64,9 @@ export const syncGcalTask: TaskConfig = {
     }
 
     const timeMin = new Date(Date.now() - 24 * 3600_000).toISOString()
-    const timeMax = new Date(Date.now() + 30 * 24 * 3600_000).toISOString()
+    const horizonDaysRaw = Number(process.env.GCAL_SYNC_HORIZON_DAYS || 365)
+    const horizonDays = Number.isFinite(horizonDaysRaw) && horizonDaysRaw > 0 ? horizonDaysRaw : 365
+    const timeMax = new Date(Date.now() + horizonDays * 24 * 3600_000).toISOString()
     const events = await listUpcomingEvents({ calendarId, timeMin, timeMax })
     const returnedEventIds = new Set(events.map((e) => e.id))
 

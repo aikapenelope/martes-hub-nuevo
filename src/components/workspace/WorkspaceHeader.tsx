@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   BarChart3,
+  CalendarDays,
   ChevronDown,
   CreditCard,
   ExternalLink,
@@ -42,6 +43,7 @@ const PRIMARY_NAV = [
 ] as const
 
 const SECONDARY_NAV = [
+  { label: 'Calendario', href: '/workspace/calendar', icon: CalendarDays, description: 'Citas de Google Calendar y agenda mensual' },
   { label: 'Social Hub', href: '/workspace/social', icon: Share2, description: 'Publicaciones y métricas en Meta / IG' },
   { label: 'Membresías', href: '/workspace/memberships', icon: CreditCard, description: 'Planes recurrentes y renovaciones' },
   { label: 'Ofertas', href: '/workspace/offers', icon: Gift, description: 'Catálogo comercial y precios base' },
