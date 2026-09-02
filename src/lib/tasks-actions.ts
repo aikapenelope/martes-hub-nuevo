@@ -16,7 +16,13 @@ const text = (form: FormData, key: string, max: number, required = false) => {
 const id = (form: FormData, key: string) => { const value = Number(form.get(key)); return Number.isInteger(value) && value > 0 ? value : undefined }
 const assertEditor = (canEdit: boolean) => { if (!canEdit) throw new Error('No tienes permiso para modificar tareas') }
 
-async function assertRelation(collection: 'users' | 'clients' | 'leads', relationId: number | null | undefined, tenantId: number, context: Awaited<ReturnType<typeof getWorkspaceContext>>) {
+async function assertRelation(
+  collection: 'users' | 'clients' | 'leads',
+  relationId: number | null | undefined,
+  tenantId: number,
+  context: Awaited<ReturnType<typeof getWorkspaceContext>>,
+  options?: { allowInactive?: boolean },
+) {
   if (!relationId) return
   if (collection === 'users') {
     const userDoc = await context.payload.findByID({
@@ -25,8 +31,11 @@ async function assertRelation(collection: 'users' | 'clients' | 'leads', relatio
       overrideAccess: false,
       user: context.user,
     })
-    if (!userDoc || userDoc.active === false) {
-      throw new Error('El usuario asignado no existe o está inactivo')
+    if (!userDoc) {
+      throw new Error('El usuario asignado no existe')
+    }
+    if (userDoc.active === false && !options?.allowInactive) {
+      throw new Error('El usuario asignado está inactivo')
     }
     const isTargetAdmin = userDoc.roles?.includes('admin')
     const hasTenant = (userDoc.tenants || []).some((t) => {
@@ -82,7 +91,13 @@ export async function updateTaskAction(form: FormData) {
   const taskId = id(form, 'id'); if (!taskId) throw new Error('Identificador inválido')
   const { context, task } = await scopedTask(taskId); assertEditor(context.canEdit)
   const data = taskData(form)
-  await Promise.all([assertRelation('users', data.assignedTo, context.tenantId, context), assertRelation('clients', data.client, context.tenantId, context), assertRelation('leads', data.lead, context.tenantId, context)])
+  const currentAssignedId = typeof task.assignedTo === 'object' ? task.assignedTo?.id : task.assignedTo
+  const isKeepingAssignee = Boolean(data.assignedTo && currentAssignedId && data.assignedTo === currentAssignedId)
+  await Promise.all([
+    assertRelation('users', data.assignedTo, context.tenantId, context, { allowInactive: isKeepingAssignee }),
+    assertRelation('clients', data.client, context.tenantId, context),
+    assertRelation('leads', data.lead, context.tenantId, context),
+  ])
   const existingDone = new Map((task.checklist ?? []).map((item) => [item.item, Boolean(item.done)]))
   await context.payload.update({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user, data: { ...data, checklist: data.checklist.map((item) => ({ ...item, done: existingDone.get(item.item) ?? false })) } })
   revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath(`/workspace/tasks/${taskId}`); redirect(`/workspace/tasks/${taskId}?updated=1`)

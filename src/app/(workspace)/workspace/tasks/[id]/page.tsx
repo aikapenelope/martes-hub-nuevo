@@ -30,6 +30,40 @@ export default async function TaskDetailPage({ params, searchParams }: { params:
   ])
   if (!task) notFound()
 
+  // Preservar el responsable actual si está inactivo o fuera de la consulta activa
+  const currentAssigneeUser =
+    task.assignedTo && typeof task.assignedTo === 'object'
+      ? (task.assignedTo as User)
+      : typeof task.assignedTo === 'number'
+      ? ((await context.payload.findByID({ collection: 'users', id: task.assignedTo, overrideAccess: true }).catch(() => null)) as User | null)
+      : null
+
+  const isCurrentInAssignees =
+    currentAssigneeUser && assignees.docs.some((u) => u.id === currentAssigneeUser.id)
+
+  const assigneeOptions: User[] =
+    currentAssigneeUser && !isCurrentInAssignees
+      ? [currentAssigneeUser, ...(assignees.docs as User[])]
+      : (assignees.docs as User[])
+
+  const currentClient =
+    task.client && typeof task.client === 'object' ? (task.client as Client) : null
+  const isCurrentInClients =
+    currentClient && clients.docs.some((c) => c.id === currentClient.id)
+  const clientOptions: Client[] =
+    currentClient && !isCurrentInClients
+      ? [currentClient, ...(clients.docs as Client[])]
+      : (clients.docs as Client[])
+
+  const currentLead =
+    task.lead && typeof task.lead === 'object' ? (task.lead as Lead) : null
+  const isCurrentInLeads =
+    currentLead && leads.docs.some((l) => l.id === currentLead.id)
+  const leadOptions: Lead[] =
+    currentLead && !isCurrentInLeads
+      ? [currentLead, ...(leads.docs as Lead[])]
+      : (leads.docs as Lead[])
+
   return (
     <>
       <Link href="/workspace/tasks" className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white font-mono">
@@ -90,21 +124,29 @@ export default async function TaskDetailPage({ params, searchParams }: { params:
                   Responsable
                   <select name="assignedTo" defaultValue={relId(task.assignedTo)} className={inputCls}>
                     <option value="">Sin asignar</option>
-                    {assignees.docs.map((item) => { const user = item as User; return <option key={user.id} value={user.id}>{person(user)}</option> })}
+                    {assigneeOptions.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {person(user)}{user.active === false ? ' (inactivo)' : ''}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label className={labelCls}>
                   Cliente
                   <select name="client" defaultValue={relId(task.client)} className={inputCls}>
                     <option value="">Ninguno</option>
-                    {clients.docs.map((item) => { const client = item as Client; return <option key={client.id} value={client.id}>{client.name}</option> })}
+                    {clientOptions.map((client) => (
+                      <option key={client.id} value={client.id}>{client.name}</option>
+                    ))}
                   </select>
                 </label>
                 <label className={labelCls}>
                   Lead
                   <select name="lead" defaultValue={relId(task.lead)} className={inputCls}>
                     <option value="">Ninguno</option>
-                    {leads.docs.map((item) => { const lead = item as Lead; return <option key={lead.id} value={lead.id}>{lead.fullName}</option> })}
+                    {leadOptions.map((lead) => (
+                      <option key={lead.id} value={lead.id}>{lead.fullName}</option>
+                    ))}
                   </select>
                 </label>
               </div>
