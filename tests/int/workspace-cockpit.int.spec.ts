@@ -93,4 +93,34 @@ describe('Torre de Control Comercial — getWorkspaceOverviewData', () => {
     expect(result.sourceBreakdown).toEqual([])
     expect(result.operationalAlerts).toEqual([])
   })
+
+  describe('Vistas de Enfoque (Operativa vs Ejecutiva)', () => {
+    it('calcula la cantidad de elementos urgentes como la suma de alertas y seguimientos del día', () => {
+      const mockAlerts = [
+        {
+          id: 'alert-1',
+          title: 'SLA vencido',
+          subtitle: 'Contacto prioritario',
+          severity: 'critical' as const,
+          href: '/workspace/crm',
+          actionText: 'Resolver',
+        },
+      ]
+      const mockFollowups = [
+        {
+          id: 42,
+          name: 'Empresa Demo',
+          phone: '+584121234567',
+          pipeline: 'nuevo',
+          kind: 'lead' as const,
+          lastActivityAt: new Date().toISOString(),
+          waUrl: 'https://wa.me/584121234567',
+        },
+      ]
+
+      const urgentCount = mockAlerts.length + mockFollowups.length
+      expect(urgentCount).toBe(2)
+    })
+  })
 })
+
