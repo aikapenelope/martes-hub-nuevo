@@ -6,72 +6,104 @@ if (process.env.DATABASE_URL_DIRECT) {
 }
 
 import { getPayload } from 'payload'
+import type { Payload, Where } from 'payload'
 
 import config from '../src/payload.config.js'
 
 /**
- * Backfill Fase A:
+ * Backfill Fase A (idempotente):
  * 1. Crea `companies` a partir de `companyName` de clients/leads agrupados
- *    por tenant (normalización minúsculas + trim) y vincula la relación `company`.
+ *    por tenant y vincula la relación `company`.
  * 2. Rellena `email-log.client/lead` por matching del destinatario contra
  *    clients/leads existentes (mismo criterio que el auto-matching de Tally).
  *
- * Idempotente: re-ejecutar no duplica empresas (busca por nombre normalizado
- * + tenant) ni re-vincula email-logs ya enlazados.
+ * La identidad de empresa es trim + minúsculas dentro de cada tenant: el
+ * lookup consulta TODAS las empresas existentes (paginado) con esa clave
+ * normalizada, así variantes de mayúsculas ("Acme" vs "acme") no duplican.
+ * Re-ejecutar no recrea nada.
  */
+
+const PAGE_SIZE = 500
+
+interface DocLite {
+  id: number
+  tenant?: number | { id: number } | null
+  [key: string]: unknown
+}
+
+/** Lee TODAS las páginas de una colección — el backfill no puede quedarse en la primera página. */
+async function findAllPaginated(
+  payload: Payload,
+  collection: string,
+  where?: Where,
+): Promise<DocLite[]> {
+  const docs: DocLite[] = []
+  let page = 1
+  let totalPages = 1
+  while (page <= totalPages) {
+    const res = await payload.find({
+      collection: collection as never,
+      limit: PAGE_SIZE,
+      page,
+      depth: 0,
+      ...(where ? { where } : {}),
+      overrideAccess: true,
+    })
+    docs.push(...(res.docs as DocLite[]))
+    totalPages = res.totalPages ?? 1
+    page += 1
+  }
+  return docs
+}
+
 async function backfill(): Promise<void> {
   const payload = await getPayload({ config })
 
-  const [clientsRes, leadsRes] = await Promise.all([
-    payload.find({ collection: 'clients', limit: 1000, depth: 0, overrideAccess: true }),
-    payload.find({ collection: 'leads', limit: 1000, depth: 0, overrideAccess: true }),
+  const [clients, leads, emailLogs, companies] = await Promise.all([
+    findAllPaginated(payload, 'clients'),
+    findAllPaginated(payload, 'leads'),
+    findAllPaginated(payload, 'email-log'),
+    findAllPaginated(payload, 'companies'),
   ])
 
-  // ── 1. companies desde companyName ────────────────────────────────────────
-  // companyId por clave `${tenantId}:${nombreNormalizado}`
-  const companiesByKey = new Map<string, number>()
+  const tenantIdOf = (doc: DocLite): number | undefined =>
+    typeof doc.tenant === 'object' && doc.tenant ? doc.tenant.id : (doc.tenant ?? undefined)
 
-  const findOrCreateCompany = async (
-    tenantId: number,
-    rawName: string,
-  ): Promise<number | undefined> => {
-    const name = rawName.trim()
-    if (!name) return undefined
-    const key = `${tenantId}:${name.toLowerCase()}`
+  // ── 1. companies desde companyName ────────────────────────────────────────
+  // Clave `${tenantId}:${nombre trim + minúsculas}` — misma para lookup y
+  // creación, así las variantes de caso resuelven a la misma empresa.
+  const companiesByKey = new Map<string, number>()
+  for (const company of companies) {
+    const tenantId = tenantIdOf(company)
+    const name = typeof company.name === 'string' ? company.name.trim().toLowerCase() : ''
+    if (tenantId && name) companiesByKey.set(`${tenantId}:${name}`, company.id)
+  }
+
+  let companiesCreated = 0
+  let linkedClients = 0
+  let linkedLeads = 0
+
+  const findOrCreateCompany = async (tenantId: number, rawName: string): Promise<number | undefined> => {
+    const key = `${tenantId}:${rawName.trim().toLowerCase()}`
     const existing = companiesByKey.get(key)
     if (existing) return existing
 
-    const found = await payload.find({
-      collection: 'companies',
-      where: { and: [{ tenant: { equals: tenantId } }, { name: { equals: name } }] },
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    })
-    if (found.docs[0]) {
-      companiesByKey.set(key, found.docs[0].id)
-      return found.docs[0].id
-    }
-
     const created = await payload.create({
       collection: 'companies',
-      data: { tenant: tenantId, name },
+      data: { tenant: tenantId, name: rawName.trim() },
       overrideAccess: true,
     })
     companiesByKey.set(key, created.id)
-    payload.logger.info({ msg: 'empresa creada', tenantId, name, id: created.id })
+    companiesCreated += 1
+    payload.logger.info({ msg: 'empresa creada', tenantId, name: rawName.trim(), id: created.id })
     return created.id
   }
 
-  let linkedClients = 0
-  for (const client of clientsRes.docs) {
-    const tenantId =
-      typeof client.tenant === 'object' && client.tenant ? client.tenant.id : client.tenant
-    if (!tenantId) continue
-    const existingCompanyId =
-      typeof client.company === 'object' && client.company ? client.company.id : client.company
-    const companyName = client.companyName?.trim()
-    if (existingCompanyId || !companyName) continue
+  for (const client of clients) {
+    const tenantId = tenantIdOf(client)
+    const companyName = typeof client.companyName === 'string' ? client.companyName.trim() : ''
+    const alreadyLinked = Boolean(client.company)
+    if (!tenantId || alreadyLinked || !companyName) continue
 
     const companyId = await findOrCreateCompany(tenantId, companyName)
     if (companyId) {
@@ -85,14 +117,11 @@ async function backfill(): Promise<void> {
     }
   }
 
-  let linkedLeads = 0
-  for (const lead of leadsRes.docs) {
-    const tenantId = typeof lead.tenant === 'object' && lead.tenant ? lead.tenant.id : lead.tenant
-    if (!tenantId) continue
-    const existingCompanyId =
-      typeof lead.company === 'object' && lead.company ? lead.company.id : lead.company
-    const companyName = lead.companyName?.trim()
-    if (existingCompanyId || !companyName) continue
+  for (const lead of leads) {
+    const tenantId = tenantIdOf(lead)
+    const companyName = typeof lead.companyName === 'string' ? lead.companyName.trim() : ''
+    const alreadyLinked = Boolean(lead.company)
+    if (!tenantId || alreadyLinked || !companyName) continue
 
     const companyId = await findOrCreateCompany(tenantId, companyName)
     if (companyId) {
@@ -108,31 +137,28 @@ async function backfill(): Promise<void> {
 
   payload.logger.info({
     msg: 'backfill companies ok',
-    companies: companiesByKey.size,
+    empresasExistentes: companies.length,
+    empresasCreadas: companiesCreated,
     clientsVinculados: linkedClients,
     leadsVinculados: linkedLeads,
   })
 
   // ── 2. email-log.client/lead por matching de destinatario ─────────────────
   const clientsByEmail = new Map<string, number>()
-  for (const client of clientsRes.docs) {
-    if (client.email) clientsByEmail.set(client.email.toLowerCase(), client.id)
+  for (const client of clients) {
+    const email = typeof client.email === 'string' ? client.email.toLowerCase() : ''
+    if (email) clientsByEmail.set(email, client.id)
   }
   const leadsByEmail = new Map<string, number>()
-  for (const lead of leadsRes.docs) {
-    if (lead.email) leadsByEmail.set(lead.email.toLowerCase(), lead.id)
+  for (const lead of leads) {
+    const email = typeof lead.email === 'string' ? lead.email.toLowerCase() : ''
+    if (email) leadsByEmail.set(email, lead.id)
   }
 
-  const emailLogs = await payload.find({
-    collection: 'email-log',
-    limit: 1000,
-    depth: 0,
-    overrideAccess: true,
-  })
   let linkedEmails = 0
-  for (const log of emailLogs.docs) {
+  for (const log of emailLogs) {
     if (log.client || log.lead) continue
-    const email = log.to?.toLowerCase()
+    const email = typeof log.to === 'string' ? log.to.toLowerCase() : ''
     if (!email) continue
     const clientId = clientsByEmail.get(email)
     const leadId = leadsByEmail.get(email)
@@ -147,7 +173,11 @@ async function backfill(): Promise<void> {
     linkedEmails += 1
   }
 
-  payload.logger.info({ msg: 'backfill email-log ok', emailsVinculados: linkedEmails })
+  payload.logger.info({
+    msg: 'backfill email-log ok',
+    emailsRevisados: emailLogs.length,
+    emailsVinculados: linkedEmails,
+  })
 }
 
 await backfill()
