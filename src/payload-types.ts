@@ -74,6 +74,7 @@ export interface Config {
     clients: Client;
     leads: Lead;
     activities: Activity;
+    appointments: Appointment;
     segments: Segment;
     documents: Document;
     media: Media;
@@ -120,11 +121,13 @@ export interface Config {
       formSubmissions: 'form-submissions';
       emailLog: 'email-log';
       emailMessages: 'email-messages';
+      appointments: 'appointments';
     };
     leads: {
       conversations: 'conversations';
       tasks: 'tasks';
       formSubmissions: 'form-submissions';
+      appointments: 'appointments';
     };
   };
   collectionsSelect: {
@@ -134,6 +137,7 @@ export interface Config {
     clients: ClientsSelect<false> | ClientsSelect<true>;
     leads: LeadsSelect<false> | LeadsSelect<true>;
     activities: ActivitiesSelect<false> | ActivitiesSelect<true>;
+    appointments: AppointmentsSelect<false> | AppointmentsSelect<true>;
     segments: SegmentsSelect<false> | SegmentsSelect<true>;
     documents: DocumentsSelect<false> | DocumentsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
@@ -192,6 +196,7 @@ export interface Config {
       'send-campaign-batch': TaskSendCampaignBatch;
       'send-scheduled-campaigns': TaskSendScheduledCampaigns;
       'sync-email': TaskSyncEmail;
+      'sync-gcal': TaskSyncGcal;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -426,6 +431,11 @@ export interface Client {
     hasNextPage?: boolean;
     totalDocs?: number;
   };
+  appointments?: {
+    docs?: (number | Appointment)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -509,6 +519,11 @@ export interface Lead {
   };
   formSubmissions?: {
     docs?: (number | FormSubmission)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  appointments?: {
+    docs?: (number | Appointment)[];
     hasNextPage?: boolean;
     totalDocs?: number;
   };
@@ -618,6 +633,46 @@ export interface FormSubmission {
     | number
     | boolean
     | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Citas espejadas de Google Calendar. Solo lectura: las escribe el job sync-gcal.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "appointments".
+ */
+export interface Appointment {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  title: string;
+  start: string;
+  endDate?: string | null;
+  allDay?: boolean | null;
+  status: 'confirmed' | 'tentative' | 'cancelled';
+  location?: string | null;
+  /**
+   * Emails separados por comas
+   */
+  attendees?: string | null;
+  description?: string | null;
+  /**
+   * Idempotencia: reintentos del sync no duplican
+   */
+  gcalEventId: string;
+  calendarId?: string | null;
+  /**
+   * Link directo a Google Calendar
+   */
+  htmlLink?: string | null;
+  /**
+   * Lo rellena el sync por matching de asistentes contra clients/leads
+   */
+  client?: (number | null) | Client;
+  /**
+   * Lo rellena el sync por matching de asistentes contra clients/leads
+   */
+  lead?: (number | null) | Lead;
   updatedAt: string;
   createdAt: string;
 }
@@ -1531,6 +1586,7 @@ export interface PayloadJob {
           | 'send-campaign-batch'
           | 'send-scheduled-campaigns'
           | 'sync-email'
+          | 'sync-gcal'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -1575,6 +1631,7 @@ export interface PayloadJob {
         | 'send-campaign-batch'
         | 'send-scheduled-campaigns'
         | 'sync-email'
+        | 'sync-gcal'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -1624,6 +1681,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'activities';
         value: number | Activity;
+      } | null)
+    | ({
+        relationTo: 'appointments';
+        value: number | Appointment;
       } | null)
     | ({
         relationTo: 'segments';
@@ -1876,6 +1937,7 @@ export interface ClientsSelect<T extends boolean = true> {
   formSubmissions?: T;
   emailLog?: T;
   emailMessages?: T;
+  appointments?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1909,6 +1971,7 @@ export interface LeadsSelect<T extends boolean = true> {
   conversations?: T;
   tasks?: T;
   formSubmissions?: T;
+  appointments?: T;
   kanbanStatus?: T;
   kanbanOrderRank?: T;
   updatedAt?: T;
@@ -1926,6 +1989,28 @@ export interface ActivitiesSelect<T extends boolean = true> {
   client?: T;
   lead?: T;
   performedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "appointments_select".
+ */
+export interface AppointmentsSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  start?: T;
+  endDate?: T;
+  allDay?: T;
+  status?: T;
+  location?: T;
+  attendees?: T;
+  description?: T;
+  gcalEventId?: T;
+  calendarId?: T;
+  htmlLink?: T;
+  client?: T;
+  lead?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2833,6 +2918,17 @@ export interface TaskSyncEmail {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSync-gcal".
+ */
+export interface TaskSyncGcal {
+  input?: unknown;
+  output: {
+    synced?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "TaskCreateCollectionExport".
  */
 export interface TaskCreateCollectionExport {
@@ -2847,6 +2943,7 @@ export interface TaskCreateCollectionExport {
       | 'clients'
       | 'leads'
       | 'activities'
+      | 'appointments'
       | 'segments'
       | 'documents'
       | 'media'

@@ -244,5 +244,12 @@ export const Leads: CollectionConfig = {
       on: 'lead',
       label: 'Formularios',
     },
+    {
+      name: 'appointments',
+      type: 'join',
+      collection: 'appointments',
+      on: 'lead',
+      label: 'Citas',
+    },
   ],
 }

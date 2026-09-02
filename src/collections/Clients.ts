@@ -307,5 +307,12 @@ export const Clients: CollectionConfig = {
       on: 'client',
       label: 'Emails del buzón',
     },
+    {
+      name: 'appointments',
+      type: 'join',
+      collection: 'appointments',
+      on: 'client',
+      label: 'Citas',
+    },
   ],
 }
