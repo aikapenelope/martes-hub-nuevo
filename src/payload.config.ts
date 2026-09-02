@@ -33,6 +33,7 @@ import { syncTemplatesTask } from './jobs/syncTemplates'
 import { openbspErrorsTask } from './jobs/openbspErrorLog'
 import { Notifications } from './collections/Notifications'
 import { EmailLog } from './collections/EmailLog'
+import { EmailMessages } from './collections/EmailMessages'
 import { EmailCampaigns } from './collections/EmailCampaigns'
 import { Offers } from './collections/Offers'
 import { FormSubmissions } from './collections/FormSubmissions'
@@ -53,6 +54,7 @@ import { tallyWebhookHandler } from './endpoints/tallyWebhook'
 import { dashboardStatsHandler } from './endpoints/dashboardStats'
 import { sendCampaignTask } from './jobs/sendCampaignTask'
 import { sendScheduledCampaignsTask } from './jobs/sendScheduledCampaigns'
+import { syncEmailTask } from './jobs/syncEmail'
 import type { User } from './payload-types'
 
 const filename = fileURLToPath(import.meta.url)
@@ -90,6 +92,7 @@ export default buildConfig({
     MessageTemplates,
     Notifications,
     EmailLog,
+    EmailMessages,
     EmailCampaigns,
     Offers,
     FormSubmissions,
@@ -171,6 +174,7 @@ export default buildConfig({
         'message-templates': {},
         notifications: {},
         'email-log': {},
+        'email-messages': {},
         'email-campaigns': {},
         offers: {},
         invoices: {},
@@ -338,6 +342,7 @@ export default buildConfig({
       openbspErrorsTask,
       sendCampaignTask,
       sendScheduledCampaignsTask,
+      syncEmailTask,
     ],
   },
   editor: lexicalEditor(),

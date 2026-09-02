@@ -84,6 +84,7 @@ export interface Config {
     'message-templates': MessageTemplate;
     notifications: Notification;
     'email-log': EmailLog;
+    'email-messages': EmailMessage;
     'email-campaigns': EmailCampaign;
     offers: Offer;
     'form-submissions': FormSubmission;
@@ -118,6 +119,7 @@ export interface Config {
       documents: 'documents';
       formSubmissions: 'form-submissions';
       emailLog: 'email-log';
+      emailMessages: 'email-messages';
     };
     leads: {
       conversations: 'conversations';
@@ -142,6 +144,7 @@ export interface Config {
     'message-templates': MessageTemplatesSelect<false> | MessageTemplatesSelect<true>;
     notifications: NotificationsSelect<false> | NotificationsSelect<true>;
     'email-log': EmailLogSelect<false> | EmailLogSelect<true>;
+    'email-messages': EmailMessagesSelect<false> | EmailMessagesSelect<true>;
     'email-campaigns': EmailCampaignsSelect<false> | EmailCampaignsSelect<true>;
     offers: OffersSelect<false> | OffersSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
@@ -188,6 +191,7 @@ export interface Config {
       'openbsp-error-poll': TaskOpenbspErrorPoll;
       'send-campaign-batch': TaskSendCampaignBatch;
       'send-scheduled-campaigns': TaskSendScheduledCampaigns;
+      'sync-email': TaskSyncEmail;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -414,6 +418,11 @@ export interface Client {
   };
   emailLog?: {
     docs?: (number | EmailLog)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  emailMessages?: {
+    docs?: (number | EmailMessage)[];
     hasNextPage?: boolean;
     totalDocs?: number;
   };
@@ -751,6 +760,45 @@ export interface EmailCampaign {
   sentAt?: string | null;
   sentCount?: number | null;
   bouncedCount?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Espejo del buzón sincronizado de Gmail. Solo lectura: lo escribe el job sync-email.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-messages".
+ */
+export interface EmailMessage {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  direction: 'inbound' | 'outbound';
+  /**
+   * Idempotencia: reintentos del sync no duplican
+   */
+  providerId: string;
+  threadId?: string | null;
+  fromEmail?: string | null;
+  fromName?: string | null;
+  /**
+   * Lista separada por comas
+   */
+  toEmails?: string | null;
+  /**
+   * Lista separada por comas
+   */
+  ccEmails?: string | null;
+  subject?: string | null;
+  snippet?: string | null;
+  date: string;
+  /**
+   * Lo rellena el sync por matching del email contra clients/leads
+   */
+  client?: (number | null) | Client;
+  /**
+   * Lo rellena el sync por matching del email contra clients/leads
+   */
+  lead?: (number | null) | Lead;
   updatedAt: string;
   createdAt: string;
 }
@@ -1482,6 +1530,7 @@ export interface PayloadJob {
           | 'openbsp-error-poll'
           | 'send-campaign-batch'
           | 'send-scheduled-campaigns'
+          | 'sync-email'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -1525,6 +1574,7 @@ export interface PayloadJob {
         | 'openbsp-error-poll'
         | 'send-campaign-batch'
         | 'send-scheduled-campaigns'
+        | 'sync-email'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -1614,6 +1664,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'email-log';
         value: number | EmailLog;
+      } | null)
+    | ({
+        relationTo: 'email-messages';
+        value: number | EmailMessage;
       } | null)
     | ({
         relationTo: 'email-campaigns';
@@ -1821,6 +1875,7 @@ export interface ClientsSelect<T extends boolean = true> {
   documents?: T;
   formSubmissions?: T;
   emailLog?: T;
+  emailMessages?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2048,6 +2103,27 @@ export interface EmailLogSelect<T extends boolean = true> {
   lead?: T;
   error?: T;
   eventsJson?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-messages_select".
+ */
+export interface EmailMessagesSelect<T extends boolean = true> {
+  tenant?: T;
+  direction?: T;
+  providerId?: T;
+  threadId?: T;
+  fromEmail?: T;
+  fromName?: T;
+  toEmails?: T;
+  ccEmails?: T;
+  subject?: T;
+  snippet?: T;
+  date?: T;
+  client?: T;
+  lead?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2745,6 +2821,18 @@ export interface TaskSendScheduledCampaigns {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSync-email".
+ */
+export interface TaskSyncEmail {
+  input?: unknown;
+  output: {
+    synced?: number | null;
+    skipped?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "TaskCreateCollectionExport".
  */
 export interface TaskCreateCollectionExport {
@@ -2769,6 +2857,7 @@ export interface TaskCreateCollectionExport {
       | 'message-templates'
       | 'notifications'
       | 'email-log'
+      | 'email-messages'
       | 'email-campaigns'
       | 'offers'
       | 'form-submissions'
