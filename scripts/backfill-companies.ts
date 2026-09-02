@@ -144,27 +144,34 @@ async function backfill(): Promise<void> {
   })
 
   // ── 2. email-log.client/lead por matching de destinatario ─────────────────
+  // Mapas con clave `${tenantId}:${email}`: el mismo email puede existir en
+  // dos tenants — sin el tenant en la clave, un log se vincularía a la ficha
+  // de otro tenant (Graphify review) y el hook de tenant-relations lo
+  // rechazaría en runtime.
   const clientsByEmail = new Map<string, number>()
   for (const client of clients) {
+    const tenantId = tenantIdOf(client)
     const email = typeof client.email === 'string' ? client.email.toLowerCase() : ''
-    if (email) clientsByEmail.set(email, client.id)
+    if (tenantId && email) clientsByEmail.set(`${tenantId}:${email}`, client.id)
   }
   const leadsByEmail = new Map<string, number>()
   for (const lead of leads) {
+    const tenantId = tenantIdOf(lead)
     const email = typeof lead.email === 'string' ? lead.email.toLowerCase() : ''
-    if (email) leadsByEmail.set(email, lead.id)
+    if (tenantId && email) leadsByEmail.set(`${tenantId}:${email}`, lead.id)
   }
 
   let linkedEmails = 0
   for (const log of emailLogs) {
     if (log.client || log.lead) continue
+    const logTenantId = tenantIdOf(log)
     const email = typeof log.to === 'string' ? log.to.toLowerCase() : ''
-    if (!email) continue
+    if (!logTenantId || !email) continue
     // Precedencia del cliente: si la dirección matchea a un cliente, el email
     // es SU historial — no se cuelga también del lead para que el lead no
     // muestre historial que ya no le pertenece (Devin review).
-    const clientId = clientsByEmail.get(email)
-    const leadId = clientId ? undefined : leadsByEmail.get(email)
+    const clientId = clientsByEmail.get(`${logTenantId}:${email}`)
+    const leadId = clientId ? undefined : leadsByEmail.get(`${logTenantId}:${email}`)
     if (!clientId && !leadId) continue
 
     await payload.update({
