@@ -102,6 +102,7 @@ export default async function SettingsPage({
 
         {isAdmin ? (
           <form action={updateCompanySettingsAction} className="mt-5 space-y-4">
+            <input type="hidden" name="tenantId" value={context.tenant.id} />
             <label className={labelCls}>
               Nombre comercial de la empresa
               <input

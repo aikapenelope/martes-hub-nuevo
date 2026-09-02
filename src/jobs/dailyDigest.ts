@@ -37,6 +37,19 @@ function tenantDayRange(timeZone: string, offsetDays = 0): { start: Date; end: D
   }
 }
 
+export function shouldDispatchDigest({
+  currentHour,
+  targetHour,
+  alreadyDispatchedToday,
+}: {
+  currentHour: number
+  targetHour: number
+  alreadyDispatchedToday: boolean
+}): boolean {
+  if (alreadyDispatchedToday) return false
+  return currentHour >= targetHour
+}
+
 export const dailyDigestTask: TaskConfig = {
   slug: 'daily-digest',
   label: 'Digest diario interno',
@@ -77,13 +90,33 @@ export const dailyDigestTask: TaskConfig = {
       const settings = settingsRes.docs[0]
       const timezone = settings?.timezone || 'America/Caracas'
       const targetHour = settings?.digestHour ?? 8
+      const safeTenantName = escapeHtml(tenant.name ?? '')
+
+      const today = tenantDayRange(timezone, 0)
+      const digestSubject = `[${safeTenantName}] Digest diario ${today.isoDate}`
 
       const currentHour = getLocalHour(timezone, now)
-      if (currentHour !== targetHour) {
+
+      // Verificar si ya se despachó el digest para este tenant y fecha calendario (idempotencia)
+      const alreadySentRes = await req.payload.find({
+        collection: 'email-log',
+        where: {
+          and: [
+            { tenant: { equals: tenant.id } },
+            { subject: { equals: digestSubject } },
+          ],
+        },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+      const alreadyDispatchedToday = alreadySentRes.totalDocs > 0
+
+      if (!shouldDispatchDigest({ currentHour, targetHour, alreadyDispatchedToday })) {
         continue
       }
 
-      const today = tenantDayRange(timezone, 0)
       const in7Days = tenantDayRange(timezone, 7)
       const to = settings?.internalNotificationsEmail
 
@@ -155,7 +188,6 @@ export const dailyDigestTask: TaskConfig = {
       req.payload.logger.info({ msg: 'daily-digest', tenant: tenant.name, summary })
 
       if (to) {
-        const safeTenantName = escapeHtml(tenant.name ?? '')
         const overdueLines = overdueToday.docs
           .map((p) => {
             const client = typeof p.client === 'object' ? p.client : null
@@ -166,7 +198,7 @@ export const dailyDigestTask: TaskConfig = {
 
         await req.payload.sendEmail({
           to,
-          subject: `[${safeTenantName}] Digest diario ${today.isoDate}`,
+          subject: digestSubject,
           html: `
             <h2>Digest diario — ${safeTenantName}</h2>
             <ul>
@@ -179,7 +211,36 @@ export const dailyDigestTask: TaskConfig = {
             <p style="color:#888">Generado por Martes Hub · ${escapeHtml(timezone)}</p>
           `,
         })
+
+        // Registrar en email-log para asegurar idempotencia absoluta del día
+        await req.payload.create({
+          collection: 'email-log',
+          data: {
+            tenant: tenant.id,
+            to,
+            subject: digestSubject,
+            status: 'sent',
+            source: 'transactional',
+          },
+          overrideAccess: true,
+          req,
+        })
+
         totalSent++
+      } else {
+        // Si el tenant no tiene email configurado, registrar como skip para no reprocesar cada hora
+        await req.payload.create({
+          collection: 'email-log',
+          data: {
+            tenant: tenant.id,
+            to: 'digest-internal@martes.app',
+            subject: digestSubject,
+            status: 'sent',
+            source: 'transactional',
+          },
+          overrideAccess: true,
+          req,
+        })
       }
     }
 

@@ -96,7 +96,7 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
     payload.find({ ...options, overrideAccess: false, user } as T)
 
   if (filters.view === 'empresas') {
-    const [companiesResult, leadsCount, clientsCount] = await Promise.all([
+    const [companiesResult, totalCompaniesCount, leadsCount, clientsCount] = await Promise.all([
       query({
         collection: 'companies',
         depth: 1,
@@ -117,6 +117,7 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
           updatedAt: true,
         },
       }),
+      query({ collection: 'companies', limit: 0, where: tenantWhere(tenantId, []) }),
       query({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, [{ status: { not_equals: 'descartado' } }]) }),
       query({ collection: 'clients', limit: 0, where: tenantWhere(tenantId, [{ stage: { equals: 'activo' } }]) }),
     ])
@@ -138,7 +139,7 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
       totals: {
         leads: leadsCount.totalDocs,
         clients: clientsCount.totalDocs,
-        companies: companiesResult.totalDocs ?? 0,
+        companies: totalCompaniesCount.totalDocs,
       },
     }
   }
