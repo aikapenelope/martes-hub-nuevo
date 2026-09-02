@@ -42,11 +42,22 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
     CREATE INDEX IF NOT EXISTS "email_messages_date_idx" ON "email_messages" USING btree ("date");
     CREATE INDEX IF NOT EXISTS "email_messages_client_idx" ON "email_messages" USING btree ("client_id");
     CREATE INDEX IF NOT EXISTS "email_messages_lead_idx" ON "email_messages" USING btree ("lead_id");
+
+    -- Lock rel de email_messages (patrón f5)
+    ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "email_messages_id" integer;
+    DO $$ BEGIN
+      ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_email_messages_fk" FOREIGN KEY ("email_messages_id") REFERENCES "public"."email_messages"("id") ON DELETE cascade ON UPDATE no action;
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_email_messages_id_idx" ON "payload_locked_documents_rels" USING btree ("email_messages_id");
   `)
 }
 
 export async function down({ db }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
+    DROP INDEX IF EXISTS "payload_locked_documents_rels_email_messages_id_idx";
+    ALTER TABLE "payload_locked_documents_rels" DROP CONSTRAINT IF EXISTS "payload_locked_documents_rels_email_messages_fk";
+    ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "email_messages_id";
+
     DROP TABLE IF EXISTS "email_messages";
     DROP TYPE IF EXISTS "enum_email_messages_direction";
   `)
