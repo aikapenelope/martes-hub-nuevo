@@ -6,7 +6,7 @@ import { anthropic } from '@ai-sdk/anthropic'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
 
-import type { Message, Tenant } from '@/payload-types'
+import type { Lead, Message, Tenant } from '@/payload-types'
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { sendText } from '@/integrations/openbsp/client'
@@ -23,6 +23,12 @@ const STATUS_LABEL: Record<LeadStatus, string> = {
 }
 
 type ActionResult<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string; needsTemplate?: boolean }
+
+/** Cliente vinculado al lead si ya convirtió (depth 0 ⇒ id numérico o doc poblado). */
+function convertedClientIdOf(lead: Lead | undefined): number | undefined {
+  if (!lead?.convertedClient) return undefined
+  return typeof lead.convertedClient === 'object' ? lead.convertedClient.id : lead.convertedClient
+}
 
 import { getScopedLead } from '@/lib/crm-scoped-entities'
 
@@ -174,8 +180,9 @@ export async function sendLeadEmailAction(
   let context: Awaited<ReturnType<typeof getWorkspaceContext>> | undefined
   let to = ''
   let subject = ''
+  let scoped: Awaited<ReturnType<typeof scopedLead>> | undefined
   try {
-    const scoped = await scopedLead(leadId)
+    scoped = await scopedLead(leadId)
     context = scoped.context
     if (!context.canEdit) throw new Error('No tienes permiso para enviar correos')
     if (!(await checkUserActionRateLimit(context.user.id, 'send-email'))) {
@@ -195,6 +202,10 @@ export async function sendLeadEmailAction(
     const html = renderEmailHtml({ title: subject, bodyHtml })
     const result = (await context.payload.sendEmail({ to, subject, html })) as { id?: string } | null | undefined
 
+    // Vincular el email al lead y, si ya convirtió, a su cliente — para que
+    // aparezca en los joins de la ficha (email-log → clients/leads).
+    const convertedClientId = convertedClientIdOf(scoped.lead)
+
     const emailLog = await context.payload.create({
       collection: 'email-log',
       overrideAccess: false,
@@ -205,6 +216,8 @@ export async function sendLeadEmailAction(
         status: 'sent',
         source: 'transactional',
         providerMessageId: result?.id,
+        lead: leadId,
+        ...(convertedClientId ? { client: convertedClientId } : {}),
         tenant: context.tenantId,
       },
     })
@@ -239,6 +252,10 @@ export async function sendLeadEmailAction(
             status: 'failed',
             source: 'transactional',
             error: message.slice(0, 1000),
+            lead: leadId,
+            ...(convertedClientIdOf(scoped?.lead)
+              ? { client: convertedClientIdOf(scoped?.lead) }
+              : {}),
             tenant: context.tenantId,
           },
         })

@@ -1,6 +1,7 @@
 import type { CollectionConfig, Where } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
+import { validateTenantRelations } from '../lib/tenant-relations'
 
 export const Clients: CollectionConfig = {
   slug: 'clients',
@@ -17,6 +18,10 @@ export const Clients: CollectionConfig = {
   },
   timestamps: true,
   hooks: {
+    beforeChange: [
+      // company no puede apuntar a una empresa de otro tenant (Devin review)
+      validateTenantRelations([{ field: 'company', collection: 'companies' }]),
+    ],
     afterChange: [
       async ({ doc, req, operation }) => {
         if (operation !== 'create' || req.context?.skipLeadConversion) return
@@ -152,6 +157,25 @@ export const Clients: CollectionConfig = {
       label: 'Rubro / Segmento',
     },
     {
+      name: 'company',
+      type: 'relationship',
+      relationTo: 'companies',
+      index: true,
+      label: 'Empresa (cuenta)',
+      filterOptions: ({ data, siblingData }) => {
+        const rawTenant = (data as { tenant?: number | { id: number } } | undefined)?.tenant
+          ?? (siblingData as { tenant?: number | { id: number } } | undefined)?.tenant
+        const tenantId = typeof rawTenant === 'object' && rawTenant !== null ? rawTenant.id : rawTenant
+        return {
+          ...(tenantId ? { tenant: { equals: tenantId } } : {}),
+        }
+      },
+      admin: {
+        position: 'sidebar',
+        description: 'Cuenta a la que pertenece el contacto; una empresa puede tener varios contactos',
+      },
+    },
+    {
       name: 'lastContactChannel',
       type: 'select',
       label: 'Último canal de contacto',
@@ -225,6 +249,56 @@ export const Clients: CollectionConfig = {
       collection: 'activities',
       on: 'client',
       label: 'Timeline',
+    },
+    // Joins inversos: la interconexión vive en el modelo, no en queries ad-hoc
+    {
+      name: 'conversations',
+      type: 'join',
+      collection: 'conversations',
+      on: 'client',
+      label: 'Conversaciones',
+    },
+    {
+      name: 'tasks',
+      type: 'join',
+      collection: 'tasks',
+      on: 'client',
+      label: 'Tareas',
+    },
+    {
+      name: 'payments',
+      type: 'join',
+      collection: 'payments',
+      on: 'client',
+      label: 'Cobros',
+    },
+    {
+      name: 'memberships',
+      type: 'join',
+      collection: 'memberships',
+      on: 'client',
+      label: 'Membresías',
+    },
+    {
+      name: 'documents',
+      type: 'join',
+      collection: 'documents',
+      on: 'client',
+      label: 'Documentos',
+    },
+    {
+      name: 'formSubmissions',
+      type: 'join',
+      collection: 'form-submissions',
+      on: 'client',
+      label: 'Formularios',
+    },
+    {
+      name: 'emailLog',
+      type: 'join',
+      collection: 'email-log',
+      on: 'client',
+      label: 'Emails enviados',
     },
   ],
 }

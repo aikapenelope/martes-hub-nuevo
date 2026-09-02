@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
+import { validateTenantRelations } from '../lib/tenant-relations'
 
 const AGENT_ROLES = ['admin', 'agente']
 
@@ -18,6 +19,10 @@ export const Leads: CollectionConfig = {
     delete: adminOnly,
   },
   timestamps: true,
+  hooks: {
+    // company no puede apuntar a una empresa de otro tenant (Devin review)
+    beforeChange: [validateTenantRelations([{ field: 'company', collection: 'companies' }])],
+  },
   fields: [
     {
       name: 'fullName',
@@ -122,6 +127,25 @@ export const Leads: CollectionConfig = {
       label: 'Rubro / Segmento',
     },
     {
+      name: 'company',
+      type: 'relationship',
+      relationTo: 'companies',
+      index: true,
+      label: 'Empresa (cuenta)',
+      filterOptions: ({ data, siblingData }) => {
+        const rawTenant = (data as { tenant?: number | { id: number } } | undefined)?.tenant
+          ?? (siblingData as { tenant?: number | { id: number } } | undefined)?.tenant
+        const tenantId = typeof rawTenant === 'object' && rawTenant !== null ? rawTenant.id : rawTenant
+        return {
+          ...(tenantId ? { tenant: { equals: tenantId } } : {}),
+        }
+      },
+      admin: {
+        position: 'sidebar',
+        description: 'Cuenta del prospecto, si aplica; se hereda al convertir a cliente',
+      },
+    },
+    {
       name: 'estimatedValue',
       type: 'number',
       min: 0,
@@ -197,6 +221,28 @@ export const Leads: CollectionConfig = {
         readOnly: true,
         description: 'Se llena automáticamente al convertir el lead',
       },
+    },
+    // Joins inversos: ver todo lo vinculado al lead desde el modelo
+    {
+      name: 'conversations',
+      type: 'join',
+      collection: 'conversations',
+      on: 'lead',
+      label: 'Conversaciones',
+    },
+    {
+      name: 'tasks',
+      type: 'join',
+      collection: 'tasks',
+      on: 'lead',
+      label: 'Tareas',
+    },
+    {
+      name: 'formSubmissions',
+      type: 'join',
+      collection: 'form-submissions',
+      on: 'lead',
+      label: 'Formularios',
     },
   ],
 }

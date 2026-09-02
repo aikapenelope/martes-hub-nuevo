@@ -201,6 +201,8 @@ export async function convertLeadAction(formData: FormData): Promise<void> {
       email: lead.email ?? undefined,
       phone: lead.phone ?? undefined,
       segment: typeof lead.segment === 'number' ? lead.segment : lead.segment?.id,
+      company: typeof lead.company === 'number' ? lead.company : lead.company?.id,
+      companyName: lead.companyName ?? undefined,
       notes: lead.notes ?? undefined,
     },
   })

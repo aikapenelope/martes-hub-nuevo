@@ -11,6 +11,7 @@ import sharp from 'sharp'
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
+import { Companies } from './collections/Companies'
 import { Clients } from './collections/Clients'
 import { Leads } from './collections/Leads'
 import { Activities } from './collections/Activities'
@@ -75,6 +76,7 @@ export default buildConfig({
   collections: [
     Tenants,
     Users,
+    Companies,
     Clients,
     Leads,
     Activities,
@@ -155,6 +157,7 @@ export default buildConfig({
     multiTenantPlugin({
       userHasAccessToAllTenants: (user) => Boolean((user as User)?.roles?.includes('admin')),
       collections: {
+        companies: {},
         clients: {},
         leads: {},
         activities: {},
@@ -257,6 +260,16 @@ export default buildConfig({
         'social-accounts': {
           description:
             'Cuentas de redes sociales conectadas en Metricool/Composio (referencia, no credenciales). SOLO LECTURA: la cuenta se administra en /admin, el agente solo la consulta para saber a qué cuenta publicar.',
+          enabled: {
+            delete: false,
+            find: true,
+            create: false,
+            update: false,
+          },
+        },
+        companies: {
+          description:
+            'Empresas/cuentas del CRM. SOLO LECTURA: la estructura de cuentas se mantiene desde /admin; el agente solo la consulta para saber a qué empresa pertenece un contacto.',
           enabled: {
             delete: false,
             find: true,
