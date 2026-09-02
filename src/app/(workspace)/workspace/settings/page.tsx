@@ -34,6 +34,8 @@ export default async function SettingsPage({
   const digestHour = settings?.digestHour ?? 8
   const internalNotificationsEmail = settings?.internalNotificationsEmail || ''
 
+  const isAdmin = Boolean(context.user.roles?.includes('admin'))
+
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
@@ -98,7 +100,7 @@ export default async function SettingsPage({
           </h2>
         </div>
 
-        {context.canEdit ? (
+        {isAdmin ? (
           <form action={updateCompanySettingsAction} className="mt-5 space-y-4">
             <label className={labelCls}>
               Nombre comercial de la empresa

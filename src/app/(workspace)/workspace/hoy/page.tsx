@@ -18,9 +18,30 @@ import { getWorkspaceContext } from '@/lib/workspace-context'
 export default async function HoyPage() {
   const context = await getWorkspaceContext()
 
-  // Calcular rango para hoy (desde las 00:00 hasta las 23:59:59)
-  const startOfToday = new Date()
-  startOfToday.setHours(0, 0, 0, 0)
+  // Obtener zona horaria configurada para el tenant activo
+  const settingsRes = await context.payload.find({
+    collection: 'company-settings',
+    where: { tenant: { equals: context.tenantId } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const timeZone = settingsRes.docs[0]?.timezone || 'America/Caracas'
+
+  const now = new Date()
+  let isoDateStr = ''
+  try {
+    isoDateStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now)
+  } catch {
+    isoDateStr = now.toISOString().slice(0, 10)
+  }
+
+  const startOfToday = new Date(`${isoDateStr}T00:00:00Z`)
 
   const [agendaItems, followups] = await Promise.all([
     getUpcomingAgenda({
@@ -40,14 +61,25 @@ export default async function HoyPage() {
   const appointments = agendaItems.filter((i) => i.type === 'cita')
   const tasks = agendaItems.filter((i) => i.type === 'task')
   const payments = agendaItems.filter((i) => i.type === 'payment')
-  const totalCommitments = agendaItems.length
+  const totalCommitments = appointments.length + tasks.length + payments.length
 
-  const todayDateFormatted = new Intl.DateTimeFormat('es', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date())
+  let todayDateFormatted = ''
+  try {
+    todayDateFormatted = new Intl.DateTimeFormat('es', {
+      timeZone,
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(now)
+  } catch {
+    todayDateFormatted = new Intl.DateTimeFormat('es', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(now)
+  }
 
   return (
     <div className="space-y-6">
@@ -150,7 +182,7 @@ export default async function HoyPage() {
                             <p className="text-[10px] text-zinc-400 font-mono mt-0.5">{item.sublabel}</p>
                           </div>
                           <span className="text-[11px] font-mono px-2 py-0.5 bg-sky-950 text-sky-300 border border-sky-800">
-                            {new Intl.DateTimeFormat('es', { timeStyle: 'short' }).format(new Date(item.date))}
+                            {new Intl.DateTimeFormat('es', { timeZone, timeStyle: 'short' }).format(new Date(item.date))}
                           </span>
                         </li>
                       ))}

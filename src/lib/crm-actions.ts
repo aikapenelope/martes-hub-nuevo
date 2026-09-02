@@ -3,8 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
+import type { Payload } from 'payload'
+
 import type { Activity } from '@/payload-types'
 import { CLIENT_STAGES, LEAD_STATUSES, type ClientStage, type LeadStatus } from '@/lib/crm-data'
+import { LEAD_SOURCES, type LeadSource } from '@/lib/crm-filters'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
 // Valores válidos del select Activity.type (deben coincidir con Collections/Activities.ts)
@@ -41,6 +44,69 @@ function numericId(formData: FormData, key: string): number {
 
 function assertEditor(canEdit: boolean): void {
   if (!canEdit) throw new Error('No tienes permiso para modificar el CRM')
+}
+
+async function validateTenantSegment(
+  payload: Payload,
+  segmentId: number | null,
+  tenantId: number,
+): Promise<number | null> {
+  if (!segmentId) return null
+  const res = await payload.find({
+    collection: 'segments',
+    where: { and: [{ id: { equals: segmentId } }, { tenant: { equals: tenantId } }] },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  if (res.docs.length === 0) {
+    throw new Error('El segmento seleccionado no pertenece a este tenant.')
+  }
+  return segmentId
+}
+
+async function validateTenantCompany(
+  payload: Payload,
+  companyId: number | null,
+  tenantId: number,
+): Promise<number | null> {
+  if (!companyId) return null
+  const res = await payload.find({
+    collection: 'companies',
+    where: { and: [{ id: { equals: companyId } }, { tenant: { equals: tenantId } }] },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  if (res.docs.length === 0) {
+    throw new Error('La empresa seleccionada no pertenece a este tenant.')
+  }
+  return companyId
+}
+
+async function validateTenantAgent(
+  payload: Payload,
+  agentId: number | null,
+  tenantId: number,
+): Promise<number | null> {
+  if (!agentId) return null
+  const res = await payload.find({
+    collection: 'users',
+    where: {
+      and: [
+        { id: { equals: agentId } },
+        { active: { equals: true } },
+        { or: [{ 'tenants.tenant': { equals: tenantId } }, { roles: { contains: 'admin' } }] },
+      ],
+    },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  if (res.docs.length === 0) {
+    throw new Error('El agente asignado no pertenece a este tenant.')
+  }
+  return agentId
 }
 
 import { getScopedClient, getScopedCompany, getScopedLead } from '@/lib/crm-scoped-entities'
@@ -102,6 +168,16 @@ export async function updateLeadAction(formData: FormData): Promise<void> {
   const assignedToId = optionalNumber(formData, 'assignedTo')
   const estimatedValue = optionalNumber(formData, 'estimatedValue')
   const rawSource = optionalText(formData, 'source', 50)
+  const source: LeadSource | undefined =
+    rawSource && LEAD_SOURCES.includes(rawSource as LeadSource)
+      ? (rawSource as LeadSource)
+      : undefined
+
+  const [validCompanyId, validSegmentId, validAssignedToId] = await Promise.all([
+    validateTenantCompany(context.payload, companyId, context.tenantId),
+    validateTenantSegment(context.payload, segmentId, context.tenantId),
+    validateTenantAgent(context.payload, assignedToId, context.tenantId),
+  ])
 
   await context.payload.update({
     collection: 'leads',
@@ -113,16 +189,16 @@ export async function updateLeadAction(formData: FormData): Promise<void> {
       status: rawStatus as LeadStatus,
       email: optionalText(formData, 'email'),
       phone: optionalText(formData, 'phone'),
-      company: companyId ?? null,
+      company: validCompanyId,
       companyName: optionalText(formData, 'companyName'),
       position: optionalText(formData, 'position'),
       city: optionalText(formData, 'city'),
       address: optionalText(formData, 'address'),
       googleMapsUrl: optionalText(formData, 'googleMapsUrl'),
       socialHandle: optionalText(formData, 'socialHandle'),
-      source: (rawSource as 'manual' | 'google_maps' | 'puerta_fria' | 'whatsapp' | 'instagram_dm' | 'linkedin' | 'tally' | 'apify' | 'referido') || undefined,
-      segment: segmentId ?? null,
-      assignedTo: assignedToId ?? null,
+      source,
+      segment: validSegmentId,
+      assignedTo: validAssignedToId,
       estimatedValue: estimatedValue ?? null,
       commercialNotes: optionalText(formData, 'commercialNotes', MAX_NOTES),
       notes: optionalText(formData, 'notes', MAX_NOTES),
@@ -186,6 +262,12 @@ export async function updateClientAction(formData: FormData): Promise<void> {
   const segmentId = optionalNumber(formData, 'segment')
   const assignedAgentId = optionalNumber(formData, 'assignedAgent')
 
+  const [validCompanyId, validSegmentId, validAssignedAgentId] = await Promise.all([
+    validateTenantCompany(context.payload, companyId, context.tenantId),
+    validateTenantSegment(context.payload, segmentId, context.tenantId),
+    validateTenantAgent(context.payload, assignedAgentId, context.tenantId),
+  ])
+
   await context.payload.update({
     collection: 'clients',
     id,
@@ -196,10 +278,10 @@ export async function updateClientAction(formData: FormData): Promise<void> {
       stage: rawStage as ClientStage,
       email: optionalText(formData, 'email'),
       phone: optionalText(formData, 'phone'),
-      company: companyId ?? null,
+      company: validCompanyId,
       companyName: optionalText(formData, 'companyName'),
-      segment: segmentId ?? null,
-      assignedAgent: assignedAgentId ?? null,
+      segment: validSegmentId,
+      assignedAgent: validAssignedAgentId,
       city: optionalText(formData, 'city'),
       address: optionalText(formData, 'address'),
       consent: formData.get('consent') === 'on',
@@ -220,6 +302,11 @@ export async function createCompanyAction(formData: FormData): Promise<void> {
   const segmentId = optionalNumber(formData, 'segment')
   const assignedAgentId = optionalNumber(formData, 'assignedAgent')
 
+  const [validSegmentId, validAssignedAgentId] = await Promise.all([
+    validateTenantSegment(context.payload, segmentId, context.tenantId),
+    validateTenantAgent(context.payload, assignedAgentId, context.tenantId),
+  ])
+
   const company = await context.payload.create({
     collection: 'companies',
     overrideAccess: false,
@@ -236,23 +323,10 @@ export async function createCompanyAction(formData: FormData): Promise<void> {
       address: optionalText(formData, 'address', 255),
       googleMapsUrl: optionalText(formData, 'googleMapsUrl', 500),
       socialHandle: optionalText(formData, 'socialHandle', 100),
-      segment: segmentId ?? null,
-      assignedAgent: assignedAgentId ?? null,
+      segment: validSegmentId,
+      assignedAgent: validAssignedAgentId,
       commercialNotes: optionalText(formData, 'commercialNotes', MAX_NOTES),
       notes: optionalText(formData, 'notes', MAX_NOTES),
-    },
-  })
-
-  await context.payload.create({
-    collection: 'activities',
-    overrideAccess: false,
-    user: context.user,
-    data: {
-      tenant: context.tenantId,
-      type: 'nota',
-      occurredAt: new Date().toISOString(),
-      summary: `Empresa ${company.name} creada desde el workspace`,
-      performedBy: context.user.id,
     },
   })
 
@@ -267,6 +341,11 @@ export async function updateCompanyAction(formData: FormData): Promise<void> {
 
   const segmentId = optionalNumber(formData, 'segment')
   const assignedAgentId = optionalNumber(formData, 'assignedAgent')
+
+  const [validSegmentId, validAssignedAgentId] = await Promise.all([
+    validateTenantSegment(context.payload, segmentId, context.tenantId),
+    validateTenantAgent(context.payload, assignedAgentId, context.tenantId),
+  ])
 
   await context.payload.update({
     collection: 'companies',
@@ -284,8 +363,8 @@ export async function updateCompanyAction(formData: FormData): Promise<void> {
       address: optionalText(formData, 'address', 255),
       googleMapsUrl: optionalText(formData, 'googleMapsUrl', 500),
       socialHandle: optionalText(formData, 'socialHandle', 100),
-      segment: segmentId ?? null,
-      assignedAgent: assignedAgentId ?? null,
+      segment: validSegmentId,
+      assignedAgent: validAssignedAgentId,
       commercialNotes: optionalText(formData, 'commercialNotes', MAX_NOTES),
       notes: optionalText(formData, 'notes', MAX_NOTES),
     },

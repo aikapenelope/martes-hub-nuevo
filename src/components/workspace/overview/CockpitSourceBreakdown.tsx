@@ -48,7 +48,7 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
           return (
             <Link
               key={item.source}
-              href={`/workspace/crm?vista=leads&fuente=${item.source}`}
+              href={`/workspace/crm?vista=leads&modo=tabla&fuente=${item.source}`}
               className="block p-2.5 oled-subcard space-y-1.5 hover:border-zinc-700 transition"
               title={`Ver leads captados por ${item.label}`}
             >

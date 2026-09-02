@@ -1,14 +1,48 @@
 import type { TaskConfig } from 'payload'
 
-import { caracasDayRange, caracasIsoDate } from './paymentReminders'
 import { escapeHtml } from '@/lib/html-escape'
+
+function getLocalHour(timeZone: string, now = new Date()): number {
+  try {
+    const hourStr = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: 'numeric',
+      hour12: false,
+    }).format(now)
+    const hour = parseInt(hourStr, 10)
+    return hour === 24 ? 0 : hour
+  } catch {
+    return now.getUTCHours()
+  }
+}
+
+function tenantDayRange(timeZone: string, offsetDays = 0): { start: Date; end: Date; isoDate: string } {
+  try {
+    const target = new Date(Date.now() + offsetDays * 86_400_000)
+    const isoDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(target)
+    const start = new Date(`${isoDate}T00:00:00Z`)
+    const end = new Date(`${isoDate}T23:59:59.999Z`)
+    return { start, end, isoDate }
+  } catch {
+    const target = new Date(Date.now() + offsetDays * 86_400_000)
+    const isoDate = target.toISOString().slice(0, 10)
+    const start = new Date(`${isoDate}T00:00:00Z`)
+    const end = new Date(`${isoDate}T23:59:59.999Z`)
+    return { start, end, isoDate }
+  }
+}
 
 export const dailyDigestTask: TaskConfig = {
   slug: 'daily-digest',
   label: 'Digest diario interno',
   schedule: [
     {
-      cron: '0 12 * * *',
+      cron: '0 * * * *',
       queue: 'dinero',
     },
   ],
@@ -18,8 +52,7 @@ export const dailyDigestTask: TaskConfig = {
     { name: 'summary', type: 'text' },
   ],
   handler: async ({ req }) => {
-    const today = caracasDayRange(caracasIsoDate(0))
-    const in7Days = caracasDayRange(caracasIsoDate(7))
+    const now = new Date()
 
     const tenants = await req.payload.find({
       collection: 'tenants',
@@ -42,6 +75,16 @@ export const dailyDigestTask: TaskConfig = {
         req,
       })
       const settings = settingsRes.docs[0]
+      const timezone = settings?.timezone || 'America/Caracas'
+      const targetHour = settings?.digestHour ?? 8
+
+      const currentHour = getLocalHour(timezone, now)
+      if (currentHour !== targetHour) {
+        continue
+      }
+
+      const today = tenantDayRange(timezone, 0)
+      const in7Days = tenantDayRange(timezone, 7)
       const to = settings?.internalNotificationsEmail
 
       const dueSoon = await req.payload.count({
@@ -123,7 +166,7 @@ export const dailyDigestTask: TaskConfig = {
 
         await req.payload.sendEmail({
           to,
-          subject: `[${safeTenantName}] Digest diario ${caracasIsoDate(0)}`,
+          subject: `[${safeTenantName}] Digest diario ${today.isoDate}`,
           html: `
             <h2>Digest diario — ${safeTenantName}</h2>
             <ul>
@@ -133,7 +176,7 @@ export const dailyDigestTask: TaskConfig = {
               <li>Membresías que renuevan en 7 días: <strong>${renewals.totalDocs}</strong></li>
             </ul>
             ${overdueToday.docs.length > 0 ? `<h3>Vencidos (primeros 5)</h3><ul>${overdueLines}</ul>` : ''}
-            <p style="color:#888">Generado por Martes Hub · America/Caracas</p>
+            <p style="color:#888">Generado por Martes Hub · ${escapeHtml(timezone)}</p>
           `,
         })
         totalSent++

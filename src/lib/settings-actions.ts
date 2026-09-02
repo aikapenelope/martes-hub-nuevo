@@ -8,8 +8,9 @@ import { getWorkspaceContext } from '@/lib/workspace-context'
 export async function updateCompanySettingsAction(formData: FormData): Promise<void> {
   const context = await getWorkspaceContext()
 
-  if (!context.canEdit) {
-    throw new Error('No tienes permisos suficientes para modificar la configuración de la empresa.')
+  const isAdmin = Boolean(context.user.roles?.includes('admin'))
+  if (!isAdmin) {
+    throw new Error('Solo los administradores pueden modificar la configuración de la empresa.')
   }
 
   const companyName = String(formData.get('companyName') ?? '').trim()

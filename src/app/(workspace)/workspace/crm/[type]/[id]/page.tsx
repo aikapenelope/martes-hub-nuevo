@@ -138,6 +138,61 @@ export default async function CrmRecordPage({
     : isClient
       ? relId(clientRecord?.company)
       : null
+  const currentSegmentId = relId(recordSegment)
+  const currentAgentId = isLead
+    ? relId(leadRecord?.assignedTo)
+    : isCompany
+      ? relId(companyRecord?.assignedAgent)
+      : relId(clientRecord?.assignedAgent)
+
+  // Garantizar que las entidades actualmente asignadas nunca se omitan si caen fuera del límite
+  if (currentCompanyId && !availableCompanies.some((c) => c.id === currentCompanyId)) {
+    try {
+      const missingCompany = await context.payload.findByID({
+        collection: 'companies',
+        id: currentCompanyId,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (missingCompany && missingCompany.tenant === context.tenantId) {
+        availableCompanies.unshift(missingCompany as Company)
+      }
+    } catch {
+      // Ignorar si ya no existe
+    }
+  }
+
+  if (currentSegmentId && !availableSegments.some((s) => s.id === currentSegmentId)) {
+    try {
+      const missingSegment = await context.payload.findByID({
+        collection: 'segments',
+        id: currentSegmentId,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (missingSegment && missingSegment.tenant === context.tenantId) {
+        availableSegments.unshift(missingSegment as Segment)
+      }
+    } catch {
+      // Ignorar si ya no existe
+    }
+  }
+
+  if (currentAgentId && !availableAgents.some((a) => a.id === currentAgentId)) {
+    try {
+      const missingAgent = await context.payload.findByID({
+        collection: 'users',
+        id: currentAgentId,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (missingAgent) {
+        availableAgents.unshift(missingAgent as User)
+      }
+    } catch {
+      // Ignorar si ya no existe
+    }
+  }
 
   return (
     <>
