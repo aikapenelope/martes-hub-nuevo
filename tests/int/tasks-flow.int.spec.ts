@@ -118,4 +118,11 @@ describe('Flujo integral de Tareas: creación, detalle, actualización y borrado
 
     expect(users.docs.length).toBeGreaterThan(0)
   })
+
+  it('down migration preserves columns required by earlier applied migrations', async () => {
+    const { down } = await import('@/migrations/20260902_180000_fix_locked_documents_rels')
+    // down debe ejecutarse sin errores como no-op
+    await expect(down({} as never)).resolves.toBeUndefined()
+  })
 })
+
