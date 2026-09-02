@@ -3,8 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
+import type { Payload } from 'payload'
+
 import type { Activity } from '@/payload-types'
 import { CLIENT_STAGES, LEAD_STATUSES, type ClientStage, type LeadStatus } from '@/lib/crm-data'
+import { LEAD_SOURCES, type LeadSource } from '@/lib/crm-filters'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
 // Valores válidos del select Activity.type (deben coincidir con Collections/Activities.ts)
@@ -26,6 +29,13 @@ function optionalText(formData: FormData, key: string, max = MAX_CONTACT): strin
   return value.trim().slice(0, max)
 }
 
+function optionalNumber(formData: FormData, key: string): number | null {
+  const value = formData.get(key)
+  if (!value || typeof value !== 'string' || !value.trim()) return null
+  const num = Number(value)
+  return Number.isInteger(num) && num > 0 ? num : null
+}
+
 function numericId(formData: FormData, key: string): number {
   const value = Number(formData.get(key))
   if (!Number.isInteger(value) || value <= 0) throw new Error('Identificador inválido')
@@ -36,10 +46,74 @@ function assertEditor(canEdit: boolean): void {
   if (!canEdit) throw new Error('No tienes permiso para modificar el CRM')
 }
 
-import { getScopedClient, getScopedLead } from '@/lib/crm-scoped-entities'
+async function validateTenantSegment(
+  payload: Payload,
+  segmentId: number | null,
+  tenantId: number,
+): Promise<number | null> {
+  if (!segmentId) return null
+  const res = await payload.find({
+    collection: 'segments',
+    where: { and: [{ id: { equals: segmentId } }, { tenant: { equals: tenantId } }] },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  if (res.docs.length === 0) {
+    throw new Error('El segmento seleccionado no pertenece a este tenant.')
+  }
+  return segmentId
+}
+
+async function validateTenantCompany(
+  payload: Payload,
+  companyId: number | null,
+  tenantId: number,
+): Promise<number | null> {
+  if (!companyId) return null
+  const res = await payload.find({
+    collection: 'companies',
+    where: { and: [{ id: { equals: companyId } }, { tenant: { equals: tenantId } }] },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  if (res.docs.length === 0) {
+    throw new Error('La empresa seleccionada no pertenece a este tenant.')
+  }
+  return companyId
+}
+
+async function validateTenantAgent(
+  payload: Payload,
+  agentId: number | null,
+  tenantId: number,
+): Promise<number | null> {
+  if (!agentId) return null
+  const res = await payload.find({
+    collection: 'users',
+    where: {
+      and: [
+        { id: { equals: agentId } },
+        { active: { equals: true } },
+        { or: [{ 'tenants.tenant': { equals: tenantId } }, { roles: { contains: 'admin' } }] },
+      ],
+    },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  if (res.docs.length === 0) {
+    throw new Error('El agente asignado no pertenece a este tenant.')
+  }
+  return agentId
+}
+
+import { getScopedClient, getScopedCompany, getScopedLead } from '@/lib/crm-scoped-entities'
 
 const scopedLead = getScopedLead
 const scopedClient = getScopedClient
+const scopedCompany = getScopedCompany
 
 export async function createLeadAction(formData: FormData): Promise<void> {
   const context = await getWorkspaceContext()
@@ -89,6 +163,22 @@ export async function updateLeadAction(formData: FormData): Promise<void> {
   const rawStatus = requiredText(formData, 'status', 30)
   if (!LEAD_STATUSES.includes(rawStatus as LeadStatus)) throw new Error('Estado de lead inválido')
 
+  const companyId = optionalNumber(formData, 'company')
+  const segmentId = optionalNumber(formData, 'segment')
+  const assignedToId = optionalNumber(formData, 'assignedTo')
+  const estimatedValue = optionalNumber(formData, 'estimatedValue')
+  const rawSource = optionalText(formData, 'source', 50)
+  const source: LeadSource | undefined =
+    rawSource && LEAD_SOURCES.includes(rawSource as LeadSource)
+      ? (rawSource as LeadSource)
+      : undefined
+
+  const [validCompanyId, validSegmentId, validAssignedToId] = await Promise.all([
+    validateTenantCompany(context.payload, companyId, context.tenantId),
+    validateTenantSegment(context.payload, segmentId, context.tenantId),
+    validateTenantAgent(context.payload, assignedToId, context.tenantId),
+  ])
+
   await context.payload.update({
     collection: 'leads',
     id,
@@ -99,6 +189,18 @@ export async function updateLeadAction(formData: FormData): Promise<void> {
       status: rawStatus as LeadStatus,
       email: optionalText(formData, 'email'),
       phone: optionalText(formData, 'phone'),
+      company: validCompanyId,
+      companyName: optionalText(formData, 'companyName'),
+      position: optionalText(formData, 'position'),
+      city: optionalText(formData, 'city'),
+      address: optionalText(formData, 'address'),
+      googleMapsUrl: optionalText(formData, 'googleMapsUrl'),
+      socialHandle: optionalText(formData, 'socialHandle'),
+      source,
+      segment: validSegmentId,
+      assignedTo: validAssignedToId,
+      estimatedValue: estimatedValue ?? null,
+      commercialNotes: optionalText(formData, 'commercialNotes', MAX_NOTES),
       notes: optionalText(formData, 'notes', MAX_NOTES),
     },
   })
@@ -156,6 +258,16 @@ export async function updateClientAction(formData: FormData): Promise<void> {
   const rawStage = requiredText(formData, 'stage', 30)
   if (!CLIENT_STAGES.includes(rawStage as ClientStage)) throw new Error('Etapa de cliente inválida')
 
+  const companyId = optionalNumber(formData, 'company')
+  const segmentId = optionalNumber(formData, 'segment')
+  const assignedAgentId = optionalNumber(formData, 'assignedAgent')
+
+  const [validCompanyId, validSegmentId, validAssignedAgentId] = await Promise.all([
+    validateTenantCompany(context.payload, companyId, context.tenantId),
+    validateTenantSegment(context.payload, segmentId, context.tenantId),
+    validateTenantAgent(context.payload, assignedAgentId, context.tenantId),
+  ])
+
   await context.payload.update({
     collection: 'clients',
     id,
@@ -166,7 +278,14 @@ export async function updateClientAction(formData: FormData): Promise<void> {
       stage: rawStage as ClientStage,
       email: optionalText(formData, 'email'),
       phone: optionalText(formData, 'phone'),
+      company: validCompanyId,
+      companyName: optionalText(formData, 'companyName'),
+      segment: validSegmentId,
+      assignedAgent: validAssignedAgentId,
+      city: optionalText(formData, 'city'),
+      address: optionalText(formData, 'address'),
       consent: formData.get('consent') === 'on',
+      commercialNotes: optionalText(formData, 'commercialNotes', MAX_NOTES),
       notes: optionalText(formData, 'notes', MAX_NOTES),
     },
   })
@@ -174,6 +293,86 @@ export async function updateClientAction(formData: FormData): Promise<void> {
   revalidatePath('/workspace/crm')
   revalidatePath(`/workspace/crm/clientes/${id}`)
   redirect(`/workspace/crm/clientes/${id}?updated=1`)
+}
+
+export async function createCompanyAction(formData: FormData): Promise<void> {
+  const context = await getWorkspaceContext()
+  assertEditor(context.canEdit)
+
+  const segmentId = optionalNumber(formData, 'segment')
+  const assignedAgentId = optionalNumber(formData, 'assignedAgent')
+
+  const [validSegmentId, validAssignedAgentId] = await Promise.all([
+    validateTenantSegment(context.payload, segmentId, context.tenantId),
+    validateTenantAgent(context.payload, assignedAgentId, context.tenantId),
+  ])
+
+  const company = await context.payload.create({
+    collection: 'companies',
+    overrideAccess: false,
+    user: context.user,
+    data: {
+      tenant: context.tenantId,
+      name: requiredText(formData, 'name'),
+      taxId: optionalText(formData, 'taxId', 50),
+      website: optionalText(formData, 'website', 255),
+      email: optionalText(formData, 'email'),
+      phone: optionalText(formData, 'phone'),
+      city: optionalText(formData, 'city', 100),
+      state: optionalText(formData, 'state', 100),
+      address: optionalText(formData, 'address', 255),
+      googleMapsUrl: optionalText(formData, 'googleMapsUrl', 500),
+      socialHandle: optionalText(formData, 'socialHandle', 100),
+      segment: validSegmentId,
+      assignedAgent: validAssignedAgentId,
+      commercialNotes: optionalText(formData, 'commercialNotes', MAX_NOTES),
+      notes: optionalText(formData, 'notes', MAX_NOTES),
+    },
+  })
+
+  revalidatePath('/workspace/crm')
+  redirect(`/workspace/crm/empresas/${company.id}?created=1`)
+}
+
+export async function updateCompanyAction(formData: FormData): Promise<void> {
+  const id = numericId(formData, 'id')
+  const { context } = await scopedCompany(id)
+  assertEditor(context.canEdit)
+
+  const segmentId = optionalNumber(formData, 'segment')
+  const assignedAgentId = optionalNumber(formData, 'assignedAgent')
+
+  const [validSegmentId, validAssignedAgentId] = await Promise.all([
+    validateTenantSegment(context.payload, segmentId, context.tenantId),
+    validateTenantAgent(context.payload, assignedAgentId, context.tenantId),
+  ])
+
+  await context.payload.update({
+    collection: 'companies',
+    id,
+    overrideAccess: false,
+    user: context.user,
+    data: {
+      name: requiredText(formData, 'name'),
+      taxId: optionalText(formData, 'taxId', 50),
+      website: optionalText(formData, 'website', 255),
+      email: optionalText(formData, 'email'),
+      phone: optionalText(formData, 'phone'),
+      city: optionalText(formData, 'city', 100),
+      state: optionalText(formData, 'state', 100),
+      address: optionalText(formData, 'address', 255),
+      googleMapsUrl: optionalText(formData, 'googleMapsUrl', 500),
+      socialHandle: optionalText(formData, 'socialHandle', 100),
+      segment: validSegmentId,
+      assignedAgent: validAssignedAgentId,
+      commercialNotes: optionalText(formData, 'commercialNotes', MAX_NOTES),
+      notes: optionalText(formData, 'notes', MAX_NOTES),
+    },
+  })
+
+  revalidatePath('/workspace/crm')
+  revalidatePath(`/workspace/crm/empresas/${id}`)
+  redirect(`/workspace/crm/empresas/${id}?updated=1`)
 }
 
 /**

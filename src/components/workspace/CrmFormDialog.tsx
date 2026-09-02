@@ -3,10 +3,10 @@
 import { useRef } from 'react'
 import { Plus, X } from 'lucide-react'
 
-import { createClientAction, createLeadAction } from '@/lib/crm-actions'
+import { createClientAction, createCompanyAction, createLeadAction } from '@/lib/crm-actions'
 
 interface CrmFormDialogProps {
-  kind: 'lead' | 'client'
+  kind: 'lead' | 'client' | 'company'
   /** 'primary': botón blanco (CRM header) · 'secondary': estilo oled del cockpit */
   variant?: 'primary' | 'secondary'
   label?: string
@@ -18,10 +18,13 @@ const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider
 export function CrmFormDialog({ kind, variant = 'primary', label }: CrmFormDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const isLead = kind === 'lead'
+  const isCompany = kind === 'company'
   const btnCls =
     variant === 'primary'
       ? 'px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono inline-flex items-center gap-1.5'
       : 'px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold flex items-center gap-2 uppercase transition text-xs font-mono'
+
+  const entityTitle = isLead ? 'lead' : isCompany ? 'empresa' : 'cliente'
 
   return (
     <>
@@ -31,18 +34,18 @@ export function CrmFormDialog({ kind, variant = 'primary', label }: CrmFormDialo
         onClick={() => dialogRef.current?.showModal()}
       >
         <Plus aria-hidden="true" size={16} />
-        {label ?? (isLead ? 'Crear lead' : 'Crear cliente')}
+        {label ?? (isLead ? 'Crear lead' : isCompany ? 'Crear empresa' : 'Crear cliente')}
       </button>
 
       <dialog
         className="workspace-dialog m-auto w-full max-w-lg border border-zinc-800 bg-zinc-950 p-0 text-white"
-        aria-label={isLead ? 'Nuevo lead' : 'Nuevo cliente'}
+        aria-label={`Nuevo ${entityTitle}`}
         ref={dialogRef}
         onCancel={() => dialogRef.current?.close()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-zinc-800 p-4">
           <div>
-            <h2 className="text-base font-bold text-white">{isLead ? 'Nuevo lead' : 'Nuevo cliente'}</h2>
+            <h2 className="text-base font-bold text-white capitalize">{`Nueva ${entityTitle}`}</h2>
             <p className="mt-1 text-xs text-zinc-400">Se guardará en el tenant activo y quedará registrado en el timeline.</p>
           </div>
           <button
@@ -54,11 +57,17 @@ export function CrmFormDialog({ kind, variant = 'primary', label }: CrmFormDialo
             <X aria-hidden="true" size={16} />
           </button>
         </div>
-        <form action={isLead ? createLeadAction : createClientAction} className="flex flex-col gap-3 p-4">
+        <form action={isLead ? createLeadAction : isCompany ? createCompanyAction : createClientAction} className="flex flex-col gap-3 p-4">
           <label className={labelCls}>
-            {isLead ? 'Nombre completo' : 'Nombre del cliente'}
+            {isLead ? 'Nombre completo' : isCompany ? 'Nombre de la empresa' : 'Nombre del cliente'}
             <input name={isLead ? 'fullName' : 'name'} maxLength={160} required autoFocus className={inputCls} />
           </label>
+          {isCompany && (
+            <label className={labelCls}>
+              Documento fiscal / RIF / CIF
+              <input name="taxId" maxLength={50} placeholder="Ej: J-12345678-9" className={inputCls} />
+            </label>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className={labelCls}>
               Email
@@ -69,27 +78,41 @@ export function CrmFormDialog({ kind, variant = 'primary', label }: CrmFormDialo
               <input name="phone" type="tel" maxLength={80} autoComplete="tel" className={inputCls} />
             </label>
           </div>
-          <label className={labelCls}>
-            {isLead ? 'Estado inicial' : 'Etapa inicial'}
-            <select name={isLead ? 'status' : 'stage'} defaultValue="nuevo" className={inputCls}>
-              {isLead ? (
-                <>
-                  <option value="nuevo">Nuevo</option>
-                  <option value="contactado">Contactado</option>
-                  <option value="calificado">Calificado</option>
-                  <option value="descartado">Descartado</option>
-                </>
-              ) : (
-                <>
-                  <option value="nuevo">Nuevo</option>
-                  <option value="activo">Activo</option>
-                  <option value="inactivo">Inactivo</option>
-                  <option value="perdido">Perdido</option>
-                </>
-              )}
-            </select>
-          </label>
-          {!isLead && (
+          {isCompany && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={labelCls}>
+                Ciudad
+                <input name="city" maxLength={100} className={inputCls} />
+              </label>
+              <label className={labelCls}>
+                Sitio web
+                <input name="website" maxLength={255} placeholder="https://..." className={inputCls} />
+              </label>
+            </div>
+          )}
+          {!isCompany && (
+            <label className={labelCls}>
+              {isLead ? 'Estado inicial' : 'Etapa inicial'}
+              <select name={isLead ? 'status' : 'stage'} defaultValue="nuevo" className={inputCls}>
+                {isLead ? (
+                  <>
+                    <option value="nuevo">Nuevo</option>
+                    <option value="contactado">Contactado</option>
+                    <option value="calificado">Calificado</option>
+                    <option value="descartado">Descartado</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="nuevo">Nuevo</option>
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                    <option value="perdido">Perdido</option>
+                  </>
+                )}
+              </select>
+            </label>
+          )}
+          {!isLead && !isCompany && (
             <label className="flex items-center gap-2 text-xs text-zinc-300">
               <input name="consent" type="checkbox" /> Cuenta con consentimiento de contacto
             </label>
@@ -107,7 +130,7 @@ export function CrmFormDialog({ kind, variant = 'primary', label }: CrmFormDialo
               Cancelar
             </button>
             <button className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono" type="submit">
-              Guardar {isLead ? 'lead' : 'cliente'}
+              Guardar {entityTitle}
             </button>
           </div>
         </form>

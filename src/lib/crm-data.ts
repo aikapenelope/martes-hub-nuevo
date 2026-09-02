@@ -1,7 +1,7 @@
 import 'server-only'
 
 import type { Payload, Where } from 'payload'
-import type { Activity, Appointment, Client, Conversation, EmailLog, EmailMessage, FormSubmission, Lead, Message, Payment, Task, User } from '@/payload-types'
+import type { Activity, Appointment, Client, Company, Conversation, EmailLog, EmailMessage, FormSubmission, Lead, Message, Payment, Task, User } from '@/payload-types'
 import {
   CLIENT_STAGES,
   LEAD_STATUSES,
@@ -46,6 +46,21 @@ function clientSearchWhere(query: string): Where[] {
   ]
 }
 
+function companySearchWhere(query: string): Where[] {
+  if (!query) return []
+  return [
+    {
+      or: [
+        { name: { like: query } },
+        { taxId: { like: query } },
+        { email: { like: query } },
+        { phone: { like: query } },
+        { city: { like: query } },
+      ],
+    },
+  ]
+}
+
 export interface CrmDataOptions {
   payload: Payload
   user: User
@@ -67,8 +82,9 @@ export interface CrmData {
   stages: { stage: ClientStage; total: number }[]
   leads: Lead[]
   clients: Client[]
+  companies: Company[]
   pagination: CrmPagination
-  totals: { leads: number; clients: number }
+  totals: { leads: number; clients: number; companies: number }
 }
 
 /**
@@ -79,11 +95,60 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
   const query = <T extends Parameters<typeof payload.find>[0]>(options: T) =>
     payload.find({ ...options, overrideAccess: false, user } as T)
 
+  if (filters.view === 'empresas') {
+    const [companiesResult, totalCompaniesCount, leadsCount, clientsCount] = await Promise.all([
+      query({
+        collection: 'companies',
+        depth: 1,
+        limit: PAGE_SIZE,
+        page: filters.page,
+        sort: '-updatedAt',
+        where: tenantWhere(tenantId, companySearchWhere(filters.query)),
+        select: {
+          name: true,
+          taxId: true,
+          email: true,
+          phone: true,
+          city: true,
+          state: true,
+          website: true,
+          segment: true,
+          assignedAgent: true,
+          updatedAt: true,
+        },
+      }),
+      query({ collection: 'companies', limit: 0, where: tenantWhere(tenantId, []) }),
+      query({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, [{ status: { not_equals: 'descartado' } }]) }),
+      query({ collection: 'clients', limit: 0, where: tenantWhere(tenantId, [{ stage: { equals: 'activo' } }]) }),
+    ])
+
+    return {
+      view: 'empresas',
+      pipeline: [],
+      stages: [],
+      leads: [],
+      clients: [],
+      companies: companiesResult.docs as Company[],
+      pagination: {
+        page: companiesResult.page ?? 1,
+        totalPages: companiesResult.totalPages ?? 1,
+        totalDocs: companiesResult.totalDocs ?? 0,
+        hasPrevPage: companiesResult.hasPrevPage ?? false,
+        hasNextPage: companiesResult.hasNextPage ?? false,
+      },
+      totals: {
+        leads: leadsCount.totalDocs,
+        clients: clientsCount.totalDocs,
+        companies: totalCompaniesCount.totalDocs,
+      },
+    }
+  }
+
   if (filters.view === 'clientes') {
     const stageFilter: Where[] =
       filters.stage === 'todos' ? [] : [{ stage: { equals: filters.stage } }]
 
-    const [clientsResult, leadsCount, ...stageCounts] = await Promise.all([
+    const [clientsResult, leadsCount, companiesCount, ...stageCounts] = await Promise.all([
       query({
         collection: 'clients',
         depth: 1,
@@ -103,6 +168,7 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
         },
       }),
       query({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, [{ status: { not_equals: 'descartado' } }]) }),
+      query({ collection: 'companies', limit: 0, where: tenantWhere(tenantId, []) }),
       ...CLIENT_STAGES.map((stage) =>
         query({ collection: 'clients', limit: 0, where: tenantWhere(tenantId, [{ stage: { equals: stage } }]) }),
       ),
@@ -114,6 +180,7 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
       stages: CLIENT_STAGES.map((stage, index) => ({ stage, total: stageCounts[index].totalDocs })),
       leads: [],
       clients: clientsResult.docs as Client[],
+      companies: [],
       pagination: {
         page: clientsResult.page ?? 1,
         totalPages: clientsResult.totalPages ?? 1,
@@ -121,21 +188,26 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
         hasPrevPage: clientsResult.hasPrevPage ?? false,
         hasNextPage: clientsResult.hasNextPage ?? false,
       },
-      totals: { leads: leadsCount.totalDocs, clients: stageCounts.reduce((sum, r) => sum + r.totalDocs, 0) },
+      totals: {
+        leads: leadsCount.totalDocs,
+        clients: stageCounts.reduce((sum, r) => sum + r.totalDocs, 0),
+        companies: companiesCount.totalDocs,
+      },
     }
   }
 
   const statusFilter: Where[] =
     filters.status === 'todos' ? [] : [{ status: { equals: filters.status } }]
+  const sourceFilter: Where[] = filters.source ? [{ source: { equals: filters.source } }] : []
 
-  const [leadsResult, clientsCount, ...pipelineCounts] = await Promise.all([
+  const [leadsResult, clientsCount, companiesCount, ...pipelineCounts] = await Promise.all([
     query({
       collection: 'leads',
       depth: 1,
       limit: PAGE_SIZE,
       page: filters.page,
       sort: '-createdAt',
-      where: tenantWhere(tenantId, [...statusFilter, ...leadSearchWhere(filters.query)]),
+      where: tenantWhere(tenantId, [...statusFilter, ...sourceFilter, ...leadSearchWhere(filters.query)]),
       select: {
         fullName: true,
         status: true,
@@ -148,6 +220,7 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
       },
     }),
     query({ collection: 'clients', limit: 0, where: tenantWhere(tenantId, [{ stage: { equals: 'activo' } }]) }),
+    query({ collection: 'companies', limit: 0, where: tenantWhere(tenantId, []) }),
     ...LEAD_STATUSES.map((status) =>
       query({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, [{ status: { equals: status } }]) }),
     ),
@@ -159,6 +232,7 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
     stages: [],
     leads: leadsResult.docs as Lead[],
     clients: [],
+    companies: [],
     pagination: {
       page: leadsResult.page ?? 1,
       totalPages: leadsResult.totalPages ?? 1,
@@ -166,7 +240,11 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
       hasPrevPage: leadsResult.hasPrevPage ?? false,
       hasNextPage: leadsResult.hasNextPage ?? false,
     },
-    totals: { leads: pipelineCounts.reduce((sum, r) => sum + r.totalDocs, 0), clients: clientsCount.totalDocs },
+    totals: {
+      leads: pipelineCounts.reduce((sum, r) => sum + r.totalDocs, 0),
+      clients: clientsCount.totalDocs,
+      companies: companiesCount.totalDocs,
+    },
   }
 }
 
@@ -191,6 +269,9 @@ export interface CrmRecordDetail {
   type: CrmView
   lead?: Lead
   client?: Client
+  company?: Company
+  relatedClients?: Client[]
+  relatedLeads?: Lead[]
   activities: Activity[]
   /** Timeline unificado: actividades + conversaciones + emails + citas + tareas + cobros + formularios. */
   timeline: TimelineEntry[]
@@ -215,11 +296,8 @@ function truncate(text: string, max = 140): string {
 }
 
 /**
- * Ficha 360 de un lead o cliente. Timeline unificado: todo lo comunicacional
- * y comercial del registro ordenado por fecha — conversaciones (con preview
- * del último mensaje y deep link al inbox), emails espejados del buzón,
- * emails enviados desde el CRM, citas espejadas de GCal, tareas, cobros y
- * formularios. Todo dentro del tenant.
+ * Ficha 360 de un lead, cliente o empresa. Timeline unificado: todo lo comunicacional
+ * y comercial del registro ordenado por fecha. Todo dentro del tenant.
  */
 export async function getCrmRecord({
   payload,
@@ -236,6 +314,57 @@ export async function getCrmRecord({
 }): Promise<CrmRecordDetail | null> {
   const query = <T extends Parameters<typeof payload.find>[0]>(options: T) =>
     payload.find({ ...options, overrideAccess: false, user } as T)
+
+  if (type === 'empresas') {
+    const companyRes = await query({
+      collection: 'companies',
+      depth: 1,
+      limit: 1,
+      where: tenantWhere(tenantId, [{ id: { equals: id } }]),
+    })
+    const company = companyRes.docs[0] as Company | undefined
+    if (!company) return null
+
+    const [clientsRes, leadsRes] = await Promise.all([
+      query({ collection: 'clients', depth: 1, limit: 50, where: tenantWhere(tenantId, [{ company: { equals: id } }]) }),
+      query({ collection: 'leads', depth: 1, limit: 50, where: tenantWhere(tenantId, [{ company: { equals: id } }]) }),
+    ])
+
+    const clientIds = (clientsRes.docs as Client[]).map((c) => c.id)
+    const leadIds = (leadsRes.docs as Lead[]).map((l) => l.id)
+    const orClauses: Where[] = []
+    if (clientIds.length > 0) orClauses.push({ client: { in: clientIds } })
+    if (leadIds.length > 0) orClauses.push({ lead: { in: leadIds } })
+
+    const activitiesRes = orClauses.length > 0
+      ? await query({
+          collection: 'activities',
+          depth: 1,
+          limit: 40,
+          sort: '-occurredAt',
+          where: tenantWhere(tenantId, [{ or: orClauses }]),
+        })
+      : { docs: [] }
+
+    const timeline: TimelineEntry[] = (activitiesRes.docs as Activity[]).map((a) => ({
+      kind: 'actividad',
+      date: a.occurredAt || a.createdAt,
+      title: a.summary || 'Actividad registrada',
+      detail: a.type,
+      href: null,
+      direction: 'neutral',
+    }))
+
+    return {
+      type: 'empresas',
+      company,
+      relatedClients: clientsRes.docs as Client[],
+      relatedLeads: leadsRes.docs as Lead[],
+      activities: activitiesRes.docs as Activity[],
+      timeline,
+      conversations: [],
+    }
+  }
 
   const isLead = type === 'leads'
 

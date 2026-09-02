@@ -32,4 +32,15 @@ describe('parseCrmFilters', () => {
     expect(filters.view).toBe('clientes')
     expect(filters.page).toBe(3)
   })
+
+  it('acepta la vista de empresas y sanitiza el origen (fuente)', () => {
+    const companyFilters = parseCrmFilters({ vista: 'empresas' })
+    expect(companyFilters.view).toBe('empresas')
+
+    const sourceFilters = parseCrmFilters({ vista: 'leads', fuente: 'google_maps' })
+    expect(sourceFilters.source).toBe('google_maps')
+
+    const invalidSourceFilters = parseCrmFilters({ vista: 'leads', fuente: 'canal_inexistente' })
+    expect(invalidSourceFilters.source).toBeUndefined()
+  })
 })

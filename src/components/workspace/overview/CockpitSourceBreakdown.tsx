@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Compass, MapPin, MessageCircle, Camera, Globe, Users2, Share2, UserPlus } from 'lucide-react'
 import type { ChannelSourceMetric } from './types'
 
@@ -45,7 +46,12 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
         {sources.slice(0, 5).map((item) => {
           const Icon = SOURCE_ICONS[item.source] || Compass
           return (
-            <div key={item.source} className="p-2.5 oled-subcard space-y-1.5">
+            <Link
+              key={item.source}
+              href={`/workspace/crm?vista=leads&modo=tabla&fuente=${item.source}`}
+              className="block p-2.5 oled-subcard space-y-1.5 hover:border-zinc-700 transition"
+              title={`Ver leads captados por ${item.label}`}
+            >
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 font-medium text-zinc-200">
                   <Icon className="w-3.5 h-3.5 text-sky-400" />
@@ -61,7 +67,7 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
                   style={{ width: `${Math.max(4, item.percentage)}%` }}
                 />
               </div>
-            </div>
+            </Link>
           )
         })}
       </div>
