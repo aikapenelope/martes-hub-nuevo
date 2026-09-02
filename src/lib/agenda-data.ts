@@ -1,26 +1,41 @@
 import type { Payload, Where } from 'payload'
-import type { Client, Membership, Payment, Task } from '@/payload-types'
+import type { Appointment, Client, Membership, Payment, Task, User } from '@/payload-types'
 
 export interface AgendaItem {
-  type: 'task' | 'membership' | 'payment'
+  type: 'task' | 'membership' | 'payment' | 'cita'
   date: string
   label: string
   sublabel: string
   href: string
 }
 
+export interface UpcomingAgendaOptions {
+  payload: Payload
+  tenantId: number
+  days?: number
+  user: User
+}
+
 /**
- * Agenda combinada de los próximos `days` días: tareas por vencer,
- * membresías por renovar y cobros por vencer — hoy viven en 3 páginas
- * separadas (tasks, memberships, billing) sin ninguna vista unificada de
- * "qué se vence esta semana". Todo tenant-scoped, mismo patrón que el
- * resto de queries del dashboard.
+ * Agenda combinada de los próximos `days` días: citas espejadas de Google
+ * Calendar, tareas por vencer, membresías por renovar y cobros por vencer —
+ * antes vivían en páginas separadas sin ninguna vista unificada de "qué se
+ * viene esta semana". Todo tenant-scoped y ejecutado con el usuario
+ * autenticado (overrideAccess: false), mismo patrón que el resto de queries
+ * del dashboard.
  */
 export async function getUpcomingAgenda(
-  payload: Payload,
-  tenantId: number,
-  days: number,
+  optionsOrPayload: UpcomingAgendaOptions | Payload,
+  maybeTenantId?: number,
+  maybeDays = 7,
+  maybeUser?: User,
 ): Promise<AgendaItem[]> {
+  const isOptions = typeof optionsOrPayload === 'object' && !('find' in optionsOrPayload)
+  const payload = isOptions ? optionsOrPayload.payload : (optionsOrPayload as Payload)
+  const tenantId = isOptions ? optionsOrPayload.tenantId : maybeTenantId!
+  const days = isOptions ? (optionsOrPayload.days ?? 7) : maybeDays
+  const user = isOptions ? optionsOrPayload.user : maybeUser
+
   const now = new Date()
   const until = new Date(now.getTime() + days * 24 * 3600_000)
   const nowIso = now.toISOString()
@@ -28,12 +43,14 @@ export async function getUpcomingAgenda(
 
   const tenantWhere = (extra: Where): Where => ({ and: [{ tenant: { equals: tenantId } }, extra] })
 
-  const [tasksRes, membershipsRes, paymentsRes] = await Promise.all([
+  const [tasksRes, membershipsRes, paymentsRes, appointmentsRes] = await Promise.all([
     payload.find({
       collection: 'tasks',
       limit: 50,
+      sort: 'dueDate',
       depth: 0,
       overrideAccess: false,
+      user,
       where: tenantWhere({
         and: [
           { dueDate: { greater_than_equal: nowIso } },
@@ -45,8 +62,10 @@ export async function getUpcomingAgenda(
     payload.find({
       collection: 'memberships',
       limit: 50,
+      sort: 'renewalDate',
       depth: 1,
       overrideAccess: false,
+      user,
       where: tenantWhere({
         and: [
           { renewalDate: { greater_than_equal: nowIso } },
@@ -58,13 +77,30 @@ export async function getUpcomingAgenda(
     payload.find({
       collection: 'payments',
       limit: 50,
+      sort: 'dueDate',
       depth: 1,
       overrideAccess: false,
+      user,
       where: tenantWhere({
         and: [
           { dueDate: { greater_than_equal: nowIso } },
           { dueDate: { less_than_equal: untilIso } },
           { status: { in: ['pendiente', 'vencido'] } },
+        ],
+      }),
+    }),
+    payload.find({
+      collection: 'appointments',
+      limit: 50,
+      sort: 'start',
+      depth: 1,
+      overrideAccess: false,
+      user,
+      where: tenantWhere({
+        and: [
+          { start: { greater_than_equal: nowIso } },
+          { start: { less_than_equal: untilIso } },
+          { status: { not_equals: 'cancelled' } },
         ],
       }),
     }),
@@ -96,6 +132,23 @@ export async function getUpcomingAgenda(
         label: `Cobro · ${clientName}`,
         sublabel: p.concept || `$${p.amount}`,
         href: '/workspace/billing',
+      }
+    }),
+    ...(appointmentsRes.docs as Appointment[]).map((a) => {
+      const clientObj = typeof a.client === 'object' && a.client ? (a.client as Client) : null
+      const leadId = typeof a.lead === 'object' && a.lead ? a.lead.id : a.lead
+      const timeFmt = new Intl.DateTimeFormat('es-VE', { hour: '2-digit', minute: '2-digit' })
+      const hora = a.allDay ? 'todo el día' : timeFmt.format(new Date(a.start))
+      return {
+        type: 'cita' as const,
+        date: a.start,
+        label: `Cita · ${a.title}`,
+        sublabel: `${hora}${a.location ? ` · ${a.location}` : ''}${a.status === 'tentative' ? ' · tentativa' : ''}`,
+        href: clientObj
+          ? `/workspace/crm/clientes/${clientObj.id}`
+          : leadId
+            ? `/workspace/crm/leads/${leadId}`
+            : a.htmlLink || '/workspace',
       }
     }),
   ]

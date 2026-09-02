@@ -85,7 +85,16 @@ const timeShort = (iso: string | null): string =>
     ? new Intl.DateTimeFormat('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
     : '—'
 
-export function InboxWorkspace({ canEdit, tenantId }: { canEdit: boolean; tenantId: number }) {
+export function InboxWorkspace({
+  canEdit,
+  tenantId,
+  initialConversationId,
+}: {
+  canEdit: boolean
+  tenantId: number
+  /** Deep link desde la ficha CRM (/workspace/inbox?c=<id>). */
+  initialConversationId?: number | null
+}) {
   const [convs, setConvs] = useState<ConvItem[] | null>(null)
   const [statusFilter, setStatusFilter] = useState<'open' | 'pending' | 'resolved' | 'all'>('open')
   const [selected, setSelected] = useState<number | null>(null)
@@ -202,6 +211,27 @@ export function InboxWorkspace({ canEdit, tenantId }: { canEdit: boolean; tenant
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
     }
   }, [messages])
+
+  // Deep link desde la ficha CRM (?c=<id>): selecciona la conversación una
+  // vez cargada la lista; si el filtro actual no la incluye, la trae directa.
+  const deepLinkApplied = useRef(false)
+  useEffect(() => {
+    if (!initialConversationId || deepLinkApplied.current || !convs) return
+    deepLinkApplied.current = true
+    const found = convs.find((d) => d.id === initialConversationId)
+    if (found) {
+      // Fuera del cuerpo síncrono del effect (regla react-hooks v6, mismo
+      // criterio que los .then del resto del componente).
+      queueMicrotask(() => handleSelect(found))
+      return
+    }
+    fetch(`/api/conversations/${initialConversationId}?depth=1`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((doc: ConvItem | null) => {
+        if (doc?.id) handleSelect(doc)
+      })
+      .catch(() => {})
+  }, [initialConversationId, convs, handleSelect])
 
   const loadMoreMessages = async () => {
     if (!selected || loadingOlder) return

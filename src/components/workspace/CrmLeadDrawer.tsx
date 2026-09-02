@@ -14,7 +14,8 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Clock3, Mail, MessageCircle, Pencil, Sparkles } from 'lucide-react'
+import Link from 'next/link'
+import { Clock3, ExternalLink, Mail, MessageCircle, Pencil, Sparkles } from 'lucide-react'
 
 import type { Activity, Lead, Segment, User } from '@/payload-types'
 import type { LeadDrawerData, TabKey } from './lead-drawer/types'
@@ -108,6 +109,14 @@ export function CrmLeadDrawer({
 
       {data && !loading && (
         <div id={`lead-panel-${tab}`} role="tabpanel" aria-labelledby={`lead-tab-${tab}`} className="flex-1 overflow-y-auto">
+          <div className="mb-2 flex justify-end">
+            <Link
+              href={`/workspace/crm/leads/${leadId}`}
+              className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:text-white"
+            >
+              <ExternalLink size={11} aria-hidden="true" /> Ficha completa + timeline unificado
+            </Link>
+          </div>
           {tab === 'datos' && (
             <LeadDrawerDataTab lead={data.lead} canEdit={canEdit} assignees={assignees} segments={segments} onSaved={onUpdated} />
           )}

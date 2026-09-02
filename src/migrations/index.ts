@@ -17,6 +17,8 @@ import * as migration_20260830_050000_performance_indexes_and_segments_unique fr
 import * as migration_20260831_190000_leads_clients_enrichment_sync from './20260831_190000_leads_clients_enrichment_sync';
 import * as migration_20260901_030726_add_chatwoot_conversation_model from './20260901_030726_add_chatwoot_conversation_model';
 import * as migration_20260901_120000_companies_and_email_log_links from './20260901_120000_companies_and_email_log_links';
+import * as migration_20260901_130000_email_messages_mirror from './20260901_130000_email_messages_mirror';
+import * as migration_20260901_140000_appointments_gcal_mirror from './20260901_140000_appointments_gcal_mirror';
 
 export const migrations = [
   {
@@ -113,5 +115,15 @@ export const migrations = [
     up: migration_20260901_120000_companies_and_email_log_links.up,
     down: migration_20260901_120000_companies_and_email_log_links.down,
     name: '20260901_120000_companies_and_email_log_links',
+  },
+  {
+    up: migration_20260901_130000_email_messages_mirror.up,
+    down: migration_20260901_130000_email_messages_mirror.down,
+    name: '20260901_130000_email_messages_mirror',
+  },
+  {
+    up: migration_20260901_140000_appointments_gcal_mirror.up,
+    down: migration_20260901_140000_appointments_gcal_mirror.down,
+    name: '20260901_140000_appointments_gcal_mirror',
   },
 ];

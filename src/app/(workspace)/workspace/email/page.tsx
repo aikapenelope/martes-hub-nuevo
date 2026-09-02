@@ -5,13 +5,14 @@
  * fix en EmailCampaigns.ts).
  */
 
-import { Mail, Send, Users } from 'lucide-react'
+import Link from 'next/link'
+import { Inbox, Mail, Send, Users } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { sendEmailCampaignAction } from '@/lib/email-campaign-actions'
 import { EmailCampaignCreateDialog } from '@/components/workspace/EmailCampaignCreateDialog'
 import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
-import type { EmailCampaign, Segment } from '@/payload-types'
+import type { EmailCampaign, EmailMessage, Segment } from '@/payload-types'
 
 const dateFmt = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -27,7 +28,7 @@ export default async function EmailCampaignsPage() {
   const context = await getWorkspaceContext()
   const { payload, user, tenantId, canEdit } = context
 
-  const [campaignsRes, segmentsRes] = await Promise.all([
+  const [campaignsRes, segmentsRes, messagesRes] = await Promise.all([
     payload.find({
       collection: 'email-campaigns',
       where: { tenant: { equals: tenantId } },
@@ -46,10 +47,26 @@ export default async function EmailCampaignsPage() {
       overrideAccess: false,
       user,
     }),
+    // Bandeja de solo lectura: espejo del buzón (job sync-email). Muestra lo
+    // que realmente se habló por email fuera del CRM — la parte que Twenty
+    // resuelve con el mailbox sync bidireccional, aquí sin envío desde el CRM.
+    payload.find({
+      collection: 'email-messages',
+      where: { tenant: { equals: tenantId } },
+      depth: 1,
+      limit: 30,
+      sort: '-date',
+      overrideAccess: false,
+      user,
+    }),
   ])
 
   const campaigns = campaignsRes.docs as EmailCampaign[]
   const segments = segmentsRes.docs as Segment[]
+  const inbox = messagesRes.docs as EmailMessage[]
+
+  const inboundCount = inbox.filter((m) => m.direction === 'inbound').length
+  const linkedCount = inbox.filter((m) => m.client || m.lead).length
 
   const draftCount = campaigns.filter((c) => c.status === 'draft').length
   const totalSent = campaigns.reduce((acc, c) => acc + (c.sentCount ?? 0), 0)
@@ -58,11 +75,66 @@ export default async function EmailCampaignsPage() {
   return (
     <div className="space-y-4">
       <PageHero
-        eyebrow={`Email marketing · ${context.tenant.name}`}
-        title="Campañas de Email"
-        description="Comunicados masivos vía Resend, segmentados por rubro."
+        eyebrow={`Email · ${context.tenant.name}`}
+        title="Email"
+        description="Bandeja espejo del buzón (solo lectura) y campañas masivas vía Resend."
         actions={canEdit ? <EmailCampaignCreateDialog segments={segments} /> : undefined}
       />
+
+      <section>
+        <h2 className="mb-2 text-xs font-mono uppercase tracking-wider text-zinc-400">
+          Bandeja del buzón · espejo Gmail (solo lectura)
+        </h2>
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <KpiCard label="Mensajes espejados" value={inbox.length} icon={Inbox} accent="sky" note="Últimos 30 del buzón" />
+          <KpiCard label="Entrantes" value={inboundCount} icon={Mail} accent="cyan" note="Recibidos fuera del CRM" />
+          <KpiCard label="Vinculados a ficha" value={linkedCount} icon={Users} accent="indigo" note="Matching contra clients/leads" />
+        </div>
+        <OledCard className="!p-0">
+          {inbox.length === 0 ? (
+            <EmptyState>
+              Sin mensajes espejados todavía — configura GMAIL_SYNC_ENABLED y las credenciales OAuth
+              de Google para activar el sync cada 15 min.
+            </EmptyState>
+          ) : (
+            <div className="flex flex-col">
+              {inbox.map((m) => {
+                const clientObj = typeof m.client === 'object' && m.client ? m.client : null
+                const leadObj = typeof m.lead === 'object' && m.lead ? m.lead : null
+                const isInbound = m.direction === 'inbound'
+                const counterpart = isInbound ? (m.fromName ?? m.fromEmail ?? '—') : (m.toEmails ?? '—')
+                const fichaHref = clientObj
+                  ? `/workspace/crm/clientes/${clientObj.id}`
+                  : leadObj
+                    ? `/workspace/crm/leads/${leadObj.id}`
+                    : null
+                return (
+                  <div key={m.id} className="flex items-center gap-3 border-b border-zinc-900 px-4 py-3 last:border-0">
+                    <StatusBadge tone={isInbound ? 'success' : 'neutral'}>
+                      {isInbound ? '↓ entrante' : '↑ enviado'}
+                    </StatusBadge>
+                    <div className="min-w-0 flex-1">
+                      <strong className="block truncate text-sm text-white">{m.subject ?? '(sin asunto)'}</strong>
+                      <span className="block truncate text-[10px] text-zinc-500 font-mono">
+                        {counterpart} · {dateFmt.format(new Date(m.date))}
+                      </span>
+                      {m.snippet && <span className="block truncate text-[11px] text-zinc-400">{m.snippet}</span>}
+                    </div>
+                    {fichaHref && (
+                      <Link
+                        href={fichaHref}
+                        className="shrink-0 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:text-white"
+                      >
+                        Ver ficha →
+                      </Link>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </OledCard>
+      </section>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard label="Borradores" value={draftCount} icon={Mail} accent="sky" note="Campañas sin enviar" />

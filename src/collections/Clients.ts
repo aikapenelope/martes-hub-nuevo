@@ -300,5 +300,19 @@ export const Clients: CollectionConfig = {
       on: 'client',
       label: 'Emails enviados',
     },
+    {
+      name: 'emailMessages',
+      type: 'join',
+      collection: 'email-messages',
+      on: 'client',
+      label: 'Emails del buzón',
+    },
+    {
+      name: 'appointments',
+      type: 'join',
+      collection: 'appointments',
+      on: 'client',
+      label: 'Citas',
+    },
   ],
 }
