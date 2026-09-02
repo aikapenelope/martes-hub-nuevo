@@ -22,6 +22,7 @@ import {
   Mail,
   MessageSquare,
   Search,
+  Settings,
   Share2,
   Shield,
   Sparkles,
@@ -53,6 +54,7 @@ const SECONDARY_NAV = [
   { label: 'Equipo Comercial', href: '/workspace/team', icon: Users, description: 'Agentes y asignaciones' },
   { label: 'Feedback & Soporte', href: '/workspace/feedback', icon: MessageSquare, description: 'Respuestas de formularios Tally' },
   { label: 'Analíticas', href: '/workspace/analytics', icon: BarChart3, description: 'Métricas de conversión y ventas' },
+  { label: 'Configuración', href: '/workspace/settings', icon: Settings, description: 'Preferencias del negocio y notificaciones' },
 ] as const
 
 interface WorkspaceHeaderProps {

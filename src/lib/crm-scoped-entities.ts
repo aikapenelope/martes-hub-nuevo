@@ -1,6 +1,6 @@
 import 'server-only'
 
-import type { Client, Lead } from '@/payload-types'
+import type { Client, Company, Lead } from '@/payload-types'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
 export interface ScopedEntityResult<T> {
@@ -42,4 +42,22 @@ export async function getScopedClient(id: number): Promise<{ client: Client; con
   const client = result.docs[0] as Client | undefined
   if (!client) throw new Error('Cliente no encontrado en el tenant activo')
   return { client, context }
+}
+
+/**
+ * Recupera una Company verificada dentro del tenant activo y con el contexto de permisos del usuario.
+ */
+export async function getScopedCompany(id: number): Promise<{ company: Company; context: Awaited<ReturnType<typeof getWorkspaceContext>> }> {
+  const context = await getWorkspaceContext()
+  const result = await context.payload.find({
+    collection: 'companies',
+    limit: 1,
+    depth: 0,
+    overrideAccess: false,
+    user: context.user,
+    where: { and: [{ id: { equals: id } }, { tenant: { equals: context.tenantId } }] },
+  })
+  const company = result.docs[0] as Company | undefined
+  if (!company) throw new Error('Empresa no encontrada en el tenant activo')
+  return { company, context }
 }

@@ -13,6 +13,7 @@ export interface UpcomingAgendaOptions {
   payload: Payload
   tenantId: number
   days?: number
+  since?: Date
   user: User
 }
 
@@ -35,8 +36,9 @@ export async function getUpcomingAgenda(
   const tenantId = isOptions ? optionsOrPayload.tenantId : maybeTenantId!
   const days = isOptions ? (optionsOrPayload.days ?? 7) : maybeDays
   const user = isOptions ? optionsOrPayload.user : maybeUser
+  const since = isOptions ? optionsOrPayload.since : undefined
 
-  const now = new Date()
+  const now = since ?? new Date()
   const until = new Date(now.getTime() + days * 24 * 3600_000)
   const nowIso = now.toISOString()
   const untilIso = until.toISOString()

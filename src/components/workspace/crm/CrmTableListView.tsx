@@ -46,6 +46,13 @@ export function CrmTableListView({
 }) {
   const statusOptions = data.view === 'leads' ? leadLabels : clientLabels
 
+  const recordCount =
+    data.view === 'leads'
+      ? data.leads.length
+      : data.view === 'clientes'
+        ? data.clients.length
+        : data.companies.length
+
   return (
     <>
       {data.view === 'leads' && (
@@ -79,16 +86,18 @@ export function CrmTableListView({
                 className="bg-transparent text-xs text-white placeholder:text-zinc-500 focus:outline-none w-48"
               />
             </label>
-            <select
-              defaultValue={data.view === 'leads' ? filters.status : filters.stage}
-              name="estado"
-              className="border border-zinc-800 bg-black px-3 py-1.5 text-xs text-zinc-300 font-mono uppercase"
-            >
-              <option value="todos">Todos los estados</option>
-              {Object.entries(statusOptions).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
+            {data.view !== 'empresas' && (
+              <select
+                defaultValue={data.view === 'leads' ? filters.status : filters.stage}
+                name="estado"
+                className="border border-zinc-800 bg-black px-3 py-1.5 text-xs text-zinc-300 font-mono uppercase"
+              >
+                <option value="todos">Todos los estados</option>
+                {Object.entries(statusOptions).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            )}
             <button
               type="submit"
               className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono"
@@ -96,88 +105,118 @@ export function CrmTableListView({
               Aplicar filtros
             </button>
           </form>
-          {(filters.query || (data.view === 'leads' ? filters.status : filters.stage) !== 'todos') && (
+          {(filters.query || (data.view !== 'empresas' && (data.view === 'leads' ? filters.status : filters.stage) !== 'todos')) && (
             <Link href={`/workspace/crm?vista=${data.view}`} className="text-xs text-zinc-400 hover:text-white font-mono">
               Limpiar filtros
             </Link>
           )}
         </div>
 
-        {(data.view === 'leads' ? data.leads.length : data.clients.length) === 0 ? (
+        {recordCount === 0 ? (
           <div className="flex flex-col items-center gap-2 py-12 text-zinc-500">
             <UsersRound className="w-7 h-7" aria-hidden="true" />
             <strong className="text-sm text-white">No encontramos registros</strong>
-            <span className="text-xs font-mono">Ajusta los filtros o crea el primer {data.view === 'leads' ? 'lead' : 'cliente'}.</span>
+            <span className="text-xs font-mono">
+              Ajusta los filtros o crea el primer {data.view === 'leads' ? 'lead' : data.view === 'clientes' ? 'cliente' : 'empresa'}.
+            </span>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <caption className="sr-only">
-                {data.view === 'leads' ? 'Leads del tenant activo' : 'Clientes del tenant activo'}
+                {data.view === 'leads' ? 'Leads del tenant activo' : data.view === 'clientes' ? 'Clientes del tenant activo' : 'Empresas del tenant activo'}
               </caption>
               <thead>
                 <tr className="border-b border-zinc-800 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
                   <th className="px-4 py-2.5 font-medium">Nombre</th>
-                  <th className="px-4 py-2.5 font-medium">Contacto</th>
-                  <th className="px-4 py-2.5 font-medium">{data.view === 'leads' ? 'Origen / segmento' : 'Segmento / agente'}</th>
-                  <th className="px-4 py-2.5 font-medium">Estado</th>
+                  <th className="px-4 py-2.5 font-medium">{data.view === 'empresas' ? 'RIF / CIF' : 'Contacto'}</th>
+                  <th className="px-4 py-2.5 font-medium">
+                    {data.view === 'leads' ? 'Origen / segmento' : data.view === 'clientes' ? 'Segmento / agente' : 'Contacto general'}
+                  </th>
+                  <th className="px-4 py-2.5 font-medium">{data.view === 'empresas' ? 'Ubicación / Segmento' : 'Estado'}</th>
                   <th className="px-4 py-2.5"><span className="sr-only">Acciones</span></th>
                 </tr>
               </thead>
               <tbody>
-                {data.view === 'leads'
-                  ? data.leads.map((lead) => (
-                      <tr key={lead.id} className="border-b border-zinc-900 hover:bg-zinc-900/40">
-                        <td className="px-4 py-3">
-                          <Link href={`/workspace/crm/leads/${lead.id}`} className="font-semibold text-white hover:underline">{lead.fullName}</Link>
-                          <div className="mt-0.5 text-[10px] text-zinc-500 font-mono">Creado {new Intl.DateTimeFormat('es', { dateStyle: 'medium' }).format(new Date(lead.createdAt))}</div>
-                        </td>
-                        <td className="px-4 py-3 text-zinc-400">
-                          <div>{lead.email || 'Sin email'}</div>
-                          <div>{lead.phone || 'Sin teléfono'}</div>
-                        </td>
-                        <td className="px-4 py-3 text-zinc-400">
-                          <div>{sourceLabels[lead.source]}</div>
-                          <div className="text-[10px]">{relationName(lead.segment)}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-[10px] font-mono px-1.5 py-0.5 ${lead.status === 'descartado' ? 'bg-red-900/50 text-red-400 border border-red-800' : 'bg-zinc-800 text-zinc-300 border border-zinc-700'}`}>
-                            {leadLabels[lead.status]}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Link aria-label={`Abrir ficha de ${lead.fullName}`} href={`/workspace/crm/leads/${lead.id}`} className="text-zinc-500 hover:text-white">
-                            <ArrowRight className="w-4 h-4 inline" aria-hidden="true" />
-                          </Link>
-                        </td>
-                      </tr>
-                    ))
-                  : data.clients.map((client) => (
-                      <tr key={client.id} className="border-b border-zinc-900 hover:bg-zinc-900/40">
-                        <td className="px-4 py-3">
-                          <Link href={`/workspace/crm/clientes/${client.id}`} className="font-semibold text-white hover:underline">{client.name}</Link>
-                          <div className="mt-0.5 text-[10px] text-zinc-500 font-mono">Actualizado {new Intl.DateTimeFormat('es', { dateStyle: 'medium' }).format(new Date(client.updatedAt))}</div>
-                        </td>
-                        <td className="px-4 py-3 text-zinc-400">
-                          <div>{client.email || 'Sin email'}</div>
-                          <div>{client.phone || 'Sin teléfono'}</div>
-                        </td>
-                        <td className="px-4 py-3 text-zinc-400">
-                          <div>{relationName(client.segment)}</div>
-                          <div className="text-[10px]">{relationName(client.assignedAgent)}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-[10px] font-mono px-1.5 py-0.5 ${client.stage === 'perdido' ? 'bg-red-900/50 text-red-400 border border-red-800' : 'bg-zinc-800 text-zinc-300 border border-zinc-700'}`}>
-                            {clientLabels[client.stage]}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Link aria-label={`Abrir ficha de ${client.name}`} href={`/workspace/crm/clientes/${client.id}`} className="text-zinc-500 hover:text-white">
-                            <ArrowRight className="w-4 h-4 inline" aria-hidden="true" />
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
+                {data.view === 'leads' &&
+                  data.leads.map((lead) => (
+                    <tr key={lead.id} className="border-b border-zinc-900 hover:bg-zinc-900/40">
+                      <td className="px-4 py-3">
+                        <Link href={`/workspace/crm/leads/${lead.id}`} className="font-semibold text-white hover:underline">{lead.fullName}</Link>
+                        <div className="mt-0.5 text-[10px] text-zinc-500 font-mono">Creado {new Intl.DateTimeFormat('es', { dateStyle: 'medium' }).format(new Date(lead.createdAt))}</div>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400">
+                        <div>{lead.email || 'Sin email'}</div>
+                        <div>{lead.phone || 'Sin teléfono'}</div>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400">
+                        <div>{sourceLabels[lead.source]}</div>
+                        <div className="text-[10px]">{relationName(lead.segment)}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 ${lead.status === 'descartado' ? 'bg-red-900/50 text-red-400 border border-red-800' : 'bg-zinc-800 text-zinc-300 border border-zinc-700'}`}>
+                          {leadLabels[lead.status]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Link aria-label={`Abrir ficha de ${lead.fullName}`} href={`/workspace/crm/leads/${lead.id}`} className="text-zinc-500 hover:text-white">
+                          <ArrowRight className="w-4 h-4 inline" aria-hidden="true" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                {data.view === 'clientes' &&
+                  data.clients.map((client) => (
+                    <tr key={client.id} className="border-b border-zinc-900 hover:bg-zinc-900/40">
+                      <td className="px-4 py-3">
+                        <Link href={`/workspace/crm/clientes/${client.id}`} className="font-semibold text-white hover:underline">{client.name}</Link>
+                        <div className="mt-0.5 text-[10px] text-zinc-500 font-mono">Actualizado {new Intl.DateTimeFormat('es', { dateStyle: 'medium' }).format(new Date(client.updatedAt))}</div>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400">
+                        <div>{client.email || 'Sin email'}</div>
+                        <div>{client.phone || 'Sin teléfono'}</div>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400">
+                        <div>{relationName(client.segment)}</div>
+                        <div className="text-[10px]">{relationName(client.assignedAgent)}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 ${client.stage === 'perdido' ? 'bg-red-900/50 text-red-400 border border-red-800' : 'bg-zinc-800 text-zinc-300 border border-zinc-700'}`}>
+                          {clientLabels[client.stage]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Link aria-label={`Abrir ficha de ${client.name}`} href={`/workspace/crm/clientes/${client.id}`} className="text-zinc-500 hover:text-white">
+                          <ArrowRight className="w-4 h-4 inline" aria-hidden="true" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                {data.view === 'empresas' &&
+                  data.companies.map((company) => (
+                    <tr key={company.id} className="border-b border-zinc-900 hover:bg-zinc-900/40">
+                      <td className="px-4 py-3">
+                        <Link href={`/workspace/crm/empresas/${company.id}`} className="font-semibold text-white hover:underline">{company.name}</Link>
+                        <div className="mt-0.5 text-[10px] text-zinc-500 font-mono">Actualizado {new Intl.DateTimeFormat('es', { dateStyle: 'medium' }).format(new Date(company.updatedAt))}</div>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400 font-mono">
+                        {company.taxId || 'Sin RIF/CIF'}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400">
+                        <div>{company.email || 'Sin email'}</div>
+                        <div>{company.phone || 'Sin teléfono'}</div>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400">
+                        <div>{company.city ? `${company.city}${company.state ? `, ${company.state}` : ''}` : 'Sin ciudad'}</div>
+                        <div className="text-[10px] text-zinc-500">{relationName(company.segment)}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Link aria-label={`Abrir ficha de ${company.name}`} href={`/workspace/crm/empresas/${company.id}`} className="text-zinc-500 hover:text-white">
+                          <ArrowRight className="w-4 h-4 inline" aria-hidden="true" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>

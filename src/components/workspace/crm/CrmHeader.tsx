@@ -8,9 +8,10 @@ export function CrmHeader({
   canEdit,
 }: {
   tenant: Tenant
-  view: 'leads' | 'clientes'
+  view: 'leads' | 'clientes' | 'empresas'
   canEdit: boolean
 }) {
+  const kind = view === 'leads' ? 'lead' : view === 'empresas' ? 'company' : 'client'
   return (
     <section className="border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
       <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
@@ -31,7 +32,7 @@ export function CrmHeader({
           >
             <Download className="w-4 h-4" /> Importar / exportar
           </a>
-          {canEdit && <CrmFormDialog kind={view === 'leads' ? 'lead' : 'client'} />}
+          {canEdit && <CrmFormDialog kind={kind} />}
         </div>
       </div>
       {!canEdit && (

@@ -26,6 +26,13 @@ function optionalText(formData: FormData, key: string, max = MAX_CONTACT): strin
   return value.trim().slice(0, max)
 }
 
+function optionalNumber(formData: FormData, key: string): number | null {
+  const value = formData.get(key)
+  if (!value || typeof value !== 'string' || !value.trim()) return null
+  const num = Number(value)
+  return Number.isInteger(num) && num > 0 ? num : null
+}
+
 function numericId(formData: FormData, key: string): number {
   const value = Number(formData.get(key))
   if (!Number.isInteger(value) || value <= 0) throw new Error('Identificador inválido')
@@ -36,10 +43,11 @@ function assertEditor(canEdit: boolean): void {
   if (!canEdit) throw new Error('No tienes permiso para modificar el CRM')
 }
 
-import { getScopedClient, getScopedLead } from '@/lib/crm-scoped-entities'
+import { getScopedClient, getScopedCompany, getScopedLead } from '@/lib/crm-scoped-entities'
 
 const scopedLead = getScopedLead
 const scopedClient = getScopedClient
+const scopedCompany = getScopedCompany
 
 export async function createLeadAction(formData: FormData): Promise<void> {
   const context = await getWorkspaceContext()
@@ -89,6 +97,12 @@ export async function updateLeadAction(formData: FormData): Promise<void> {
   const rawStatus = requiredText(formData, 'status', 30)
   if (!LEAD_STATUSES.includes(rawStatus as LeadStatus)) throw new Error('Estado de lead inválido')
 
+  const companyId = optionalNumber(formData, 'company')
+  const segmentId = optionalNumber(formData, 'segment')
+  const assignedToId = optionalNumber(formData, 'assignedTo')
+  const estimatedValue = optionalNumber(formData, 'estimatedValue')
+  const rawSource = optionalText(formData, 'source', 50)
+
   await context.payload.update({
     collection: 'leads',
     id,
@@ -99,6 +113,18 @@ export async function updateLeadAction(formData: FormData): Promise<void> {
       status: rawStatus as LeadStatus,
       email: optionalText(formData, 'email'),
       phone: optionalText(formData, 'phone'),
+      company: companyId ?? null,
+      companyName: optionalText(formData, 'companyName'),
+      position: optionalText(formData, 'position'),
+      city: optionalText(formData, 'city'),
+      address: optionalText(formData, 'address'),
+      googleMapsUrl: optionalText(formData, 'googleMapsUrl'),
+      socialHandle: optionalText(formData, 'socialHandle'),
+      source: (rawSource as 'manual' | 'google_maps' | 'puerta_fria' | 'whatsapp' | 'instagram_dm' | 'linkedin' | 'tally' | 'apify' | 'referido') || undefined,
+      segment: segmentId ?? null,
+      assignedTo: assignedToId ?? null,
+      estimatedValue: estimatedValue ?? null,
+      commercialNotes: optionalText(formData, 'commercialNotes', MAX_NOTES),
       notes: optionalText(formData, 'notes', MAX_NOTES),
     },
   })
@@ -156,6 +182,10 @@ export async function updateClientAction(formData: FormData): Promise<void> {
   const rawStage = requiredText(formData, 'stage', 30)
   if (!CLIENT_STAGES.includes(rawStage as ClientStage)) throw new Error('Etapa de cliente inválida')
 
+  const companyId = optionalNumber(formData, 'company')
+  const segmentId = optionalNumber(formData, 'segment')
+  const assignedAgentId = optionalNumber(formData, 'assignedAgent')
+
   await context.payload.update({
     collection: 'clients',
     id,
@@ -166,7 +196,14 @@ export async function updateClientAction(formData: FormData): Promise<void> {
       stage: rawStage as ClientStage,
       email: optionalText(formData, 'email'),
       phone: optionalText(formData, 'phone'),
+      company: companyId ?? null,
+      companyName: optionalText(formData, 'companyName'),
+      segment: segmentId ?? null,
+      assignedAgent: assignedAgentId ?? null,
+      city: optionalText(formData, 'city'),
+      address: optionalText(formData, 'address'),
       consent: formData.get('consent') === 'on',
+      commercialNotes: optionalText(formData, 'commercialNotes', MAX_NOTES),
       notes: optionalText(formData, 'notes', MAX_NOTES),
     },
   })
@@ -174,6 +211,89 @@ export async function updateClientAction(formData: FormData): Promise<void> {
   revalidatePath('/workspace/crm')
   revalidatePath(`/workspace/crm/clientes/${id}`)
   redirect(`/workspace/crm/clientes/${id}?updated=1`)
+}
+
+export async function createCompanyAction(formData: FormData): Promise<void> {
+  const context = await getWorkspaceContext()
+  assertEditor(context.canEdit)
+
+  const segmentId = optionalNumber(formData, 'segment')
+  const assignedAgentId = optionalNumber(formData, 'assignedAgent')
+
+  const company = await context.payload.create({
+    collection: 'companies',
+    overrideAccess: false,
+    user: context.user,
+    data: {
+      tenant: context.tenantId,
+      name: requiredText(formData, 'name'),
+      taxId: optionalText(formData, 'taxId', 50),
+      website: optionalText(formData, 'website', 255),
+      email: optionalText(formData, 'email'),
+      phone: optionalText(formData, 'phone'),
+      city: optionalText(formData, 'city', 100),
+      state: optionalText(formData, 'state', 100),
+      address: optionalText(formData, 'address', 255),
+      googleMapsUrl: optionalText(formData, 'googleMapsUrl', 500),
+      socialHandle: optionalText(formData, 'socialHandle', 100),
+      segment: segmentId ?? null,
+      assignedAgent: assignedAgentId ?? null,
+      commercialNotes: optionalText(formData, 'commercialNotes', MAX_NOTES),
+      notes: optionalText(formData, 'notes', MAX_NOTES),
+    },
+  })
+
+  await context.payload.create({
+    collection: 'activities',
+    overrideAccess: false,
+    user: context.user,
+    data: {
+      tenant: context.tenantId,
+      type: 'nota',
+      occurredAt: new Date().toISOString(),
+      summary: `Empresa ${company.name} creada desde el workspace`,
+      performedBy: context.user.id,
+    },
+  })
+
+  revalidatePath('/workspace/crm')
+  redirect(`/workspace/crm/empresas/${company.id}?created=1`)
+}
+
+export async function updateCompanyAction(formData: FormData): Promise<void> {
+  const id = numericId(formData, 'id')
+  const { context } = await scopedCompany(id)
+  assertEditor(context.canEdit)
+
+  const segmentId = optionalNumber(formData, 'segment')
+  const assignedAgentId = optionalNumber(formData, 'assignedAgent')
+
+  await context.payload.update({
+    collection: 'companies',
+    id,
+    overrideAccess: false,
+    user: context.user,
+    data: {
+      name: requiredText(formData, 'name'),
+      taxId: optionalText(formData, 'taxId', 50),
+      website: optionalText(formData, 'website', 255),
+      email: optionalText(formData, 'email'),
+      phone: optionalText(formData, 'phone'),
+      city: optionalText(formData, 'city', 100),
+      state: optionalText(formData, 'state', 100),
+      address: optionalText(formData, 'address', 255),
+      googleMapsUrl: optionalText(formData, 'googleMapsUrl', 500),
+      socialHandle: optionalText(formData, 'socialHandle', 100),
+      segment: segmentId ?? null,
+      assignedAgent: assignedAgentId ?? null,
+      commercialNotes: optionalText(formData, 'commercialNotes', MAX_NOTES),
+      notes: optionalText(formData, 'notes', MAX_NOTES),
+    },
+  })
+
+  revalidatePath('/workspace/crm')
+  revalidatePath(`/workspace/crm/empresas/${id}`)
+  redirect(`/workspace/crm/empresas/${id}?updated=1`)
 }
 
 /**

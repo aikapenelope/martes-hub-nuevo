@@ -74,8 +74,8 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
           <p className="mt-1.5 text-2xl font-bold tracking-tight text-white font-mono">{data.totals.clients}</p>
         </div>
         <div className="oled-card p-4">
-          <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Vista actual</p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight text-white font-mono">{data.view === 'leads' ? 'Pipeline' : 'Cartera'}</p>
+          <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Empresas registradas</p>
+          <p className="mt-1.5 text-2xl font-bold tracking-tight text-white font-mono">{data.totals.companies}</p>
         </div>
       </section>
 
