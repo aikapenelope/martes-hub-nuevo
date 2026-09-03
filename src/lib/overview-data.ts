@@ -20,11 +20,14 @@ import {
   startOfLastMonthIso,
   type PaymentAggregate,
 } from './db-aggregates'
+import { getIntegrationsHealth } from './integrations-health'
+import type { Tenant } from '@/payload-types'
 import type {
   ChannelSourceMetric,
   CockpitOperationalAlert,
   DayBucket,
   MonthlyCashflowPoint,
+  TimeRangeKey,
   WorkspaceOverviewData,
   WorkspaceOverviewMetrics,
 } from '@/components/workspace/overview/types'
@@ -34,7 +37,9 @@ export { paymentsAggregate, startOfMonthIso, type PaymentAggregate }
 interface OverviewOptions {
   payload: Payload
   user: User
+  tenant?: Tenant
   tenantId: number
+  timeRange?: TimeRangeKey
 }
 
 const tenantWhere = (tenantId: number, extra?: Where): Where => ({
@@ -55,6 +60,71 @@ function stageRate(count: number, previousStageCount: number): number | null {
 
 function daysAgoIso(days: number): string {
   return new Date(Date.now() - days * 24 * 3600_000).toISOString()
+}
+
+/** Resuelve el rango ISO actual y el previo comparable según timeRange */
+function resolveTimeRangeWindow(timeRange: TimeRangeKey): {
+  periodStartIso: string
+  periodEndIso: string
+  previousStartIso: string
+  previousEndIso: string
+} {
+  const now = new Date()
+  const nowTime = now.getTime()
+
+  if (timeRange === 'hoy') {
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const yesterdayStart = new Date(todayStart.getTime() - 24 * 3600_000)
+    return {
+      periodStartIso: todayStart.toISOString(),
+      periodEndIso: now.toISOString(),
+      previousStartIso: yesterdayStart.toISOString(),
+      previousEndIso: todayStart.toISOString(),
+    }
+  }
+
+  if (timeRange === '7d') {
+    const start = new Date(nowTime - 7 * 24 * 3600_000)
+    const prevStart = new Date(nowTime - 14 * 24 * 3600_000)
+    return {
+      periodStartIso: start.toISOString(),
+      periodEndIso: now.toISOString(),
+      previousStartIso: prevStart.toISOString(),
+      previousEndIso: start.toISOString(),
+    }
+  }
+
+  if (timeRange === '90d') {
+    const start = new Date(nowTime - 90 * 24 * 3600_000)
+    const prevStart = new Date(nowTime - 180 * 24 * 3600_000)
+    return {
+      periodStartIso: start.toISOString(),
+      periodEndIso: now.toISOString(),
+      previousStartIso: prevStart.toISOString(),
+      previousEndIso: start.toISOString(),
+    }
+  }
+
+  if (timeRange === 'ano') {
+    const start = new Date(nowTime - 365 * 24 * 3600_000)
+    const prevStart = new Date(nowTime - 730 * 24 * 3600_000)
+    return {
+      periodStartIso: start.toISOString(),
+      periodEndIso: now.toISOString(),
+      previousStartIso: prevStart.toISOString(),
+      previousEndIso: start.toISOString(),
+    }
+  }
+
+  // '30d' o default mensual
+  const startOfMonth = startOfMonthIso()
+  const startOfLastMonth = startOfLastMonthIso()
+  return {
+    periodStartIso: startOfMonth,
+    periodEndIso: now.toISOString(),
+    previousStartIso: startOfLastMonth,
+    previousEndIso: startOfMonth,
+  }
 }
 
 /** 364 días (52 semanas × 7) de más antiguo a más reciente, en blanco para agregar conteos reales. */
@@ -80,16 +150,18 @@ const SOURCE_LABELS: Record<string, string> = {
 export async function getWorkspaceOverviewData({
   payload,
   user,
+  tenant,
   tenantId,
+  timeRange = '30d',
 }: OverviewOptions): Promise<WorkspaceOverviewData> {
   const q = <T extends Parameters<typeof payload.find>[0]>(opts: T) =>
     payload.find({ ...opts, overrideAccess: false, user } as T)
 
   const now = new Date()
   const nowTime = now.getTime()
-  const startOfMonth = startOfMonthIso()
-  const startOfLastMonth = startOfLastMonthIso()
   const yearAgo = daysAgoIso(364)
+  const { periodStartIso, periodEndIso, previousStartIso, previousEndIso } = resolveTimeRangeWindow(timeRange)
+
   const dateTitle = now
     .toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     .replace(/^\w/, (c) => c.toUpperCase())
@@ -104,8 +176,8 @@ export async function getWorkspaceOverviewData({
     recentConversationsRes,
     recentSummariesRes,
     recentEmailsRes,
-    revenueMonth,
-    revenueLastMonth,
+    revenuePeriod,
+    revenuePreviousPeriod,
     revenuePending,
     overdueTasks,
     overduePaymentsRes,
@@ -117,6 +189,7 @@ export async function getWorkspaceOverviewData({
     paidSeries,
     pendingSeries,
     followups,
+    systemHealth,
   ] = await Promise.all([
     q({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { status: { equals: 'nuevo' } }) }),
     q({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { status: { equals: 'contactado' } }) }),
@@ -133,8 +206,8 @@ export async function getWorkspaceOverviewData({
     q({ collection: 'conversations', limit: 30, sort: '-updatedAt', depth: 1, where: tenantWhere(tenantId) }),
     q({ collection: 'conversation-summaries', limit: 5, sort: '-createdAt', depth: 1, where: tenantWhere(tenantId) }),
     q({ collection: 'email-log', limit: 5, sort: '-createdAt', depth: 0, where: tenantWhere(tenantId) }),
-    paymentsAggregate(payload, tenantId, ['pagado'], startOfMonth),
-    paymentsAggregate(payload, tenantId, ['pagado'], startOfLastMonth, startOfMonth),
+    paymentsAggregate(payload, tenantId, ['pagado'], periodStartIso, periodEndIso),
+    paymentsAggregate(payload, tenantId, ['pagado'], previousStartIso, previousEndIso),
     paymentsAggregate(payload, tenantId, ['pendiente', 'vencido']),
     q({
       collection: 'tasks',
@@ -172,6 +245,7 @@ export async function getWorkspaceOverviewData({
     monthlyRevenueSeries(payload, tenantId, 6),
     monthlyPendingSeries(payload, tenantId, 6),
     collectFollowupsToday({ payload, user, tenantId }),
+    getIntegrationsHealth(payload, tenant, tenantId, user),
   ])
 
   const payments = recentPaymentsRes.docs as Payment[]
@@ -195,8 +269,8 @@ export async function getWorkspaceOverviewData({
   const pipelineBase = estimatedRevenueNew + estimatedRevenueContacted + estimatedRevenueQualified + revenuePending.total
   const weightedProbabilityPct = pipelineBase > 0 ? (weightedPipelineTotal / pipelineBase) * 100 : 0
 
-  // Tendencia mes contra mes
-  const revenueTrendPct = pctChange(revenueMonth.total, revenueLastMonth.total)
+  // Tendencia período contra período previo
+  const revenueTrendPct = pctChange(revenuePeriod.total, revenuePreviousPeriod.total)
 
   // Salud 24h WhatsApp
   const critical24hCount = convList.filter((c) => {
@@ -301,9 +375,12 @@ export async function getWorkspaceOverviewData({
     totalHistoricLeads,
     globalConversionRate,
 
-    revenueMonthTotal: revenueMonth.total,
-    revenueMonthCount: revenueMonth.count,
-    revenueLastMonthTotal: revenueLastMonth.total,
+    revenuePeriodTotal: revenuePeriod.total,
+    revenuePeriodCount: revenuePeriod.count,
+    revenuePreviousPeriodTotal: revenuePreviousPeriod.total,
+    revenueMonthTotal: revenuePeriod.total,
+    revenueMonthCount: revenuePeriod.count,
+    revenueLastMonthTotal: revenuePreviousPeriod.total,
     revenueTrendPct,
 
     revenuePendingTotal: revenuePending.total,
@@ -344,6 +421,8 @@ export async function getWorkspaceOverviewData({
     operationalAlerts,
     cashflowPoints,
     followupsToday: followups as FollowUpItem[],
+    systemHealth,
+    timeRange,
     nowTime,
     dateTitle,
   }

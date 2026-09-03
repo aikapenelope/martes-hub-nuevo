@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { BadgeDollarSign, PieChart, ShieldAlert, TrendingDown, TrendingUp, Users, Wallet, Zap } from 'lucide-react'
-import type { WorkspaceOverviewMetrics } from './types'
+import type { TimeRangeKey, WorkspaceOverviewMetrics } from './types'
 import { Sparkline } from '@/components/workspace/charts'
 
 const currency = new Intl.NumberFormat('es-VE', {
@@ -9,17 +9,27 @@ const currency = new Intl.NumberFormat('es-VE', {
   maximumFractionDigits: 0,
 })
 
+const RANGE_LABELS: Record<TimeRangeKey, string> = {
+  hoy: 'Cobrado Hoy',
+  '7d': 'Cobrado en 7 Días',
+  '30d': 'Cobrado en el Mes',
+  '90d': 'Cobrado en 90 Días',
+  ano: 'Cobrado en el Año',
+}
+
 export function CockpitKpiGrid({
   metrics,
   revenueSeries,
+  timeRange = '30d',
 }: {
   metrics: WorkspaceOverviewMetrics
   /** Serie mensual de ingresos cobrados (meses antiguos → recientes) para la sparkline. */
   revenueSeries?: number[]
+  timeRange?: TimeRangeKey
 }) {
   const {
-    revenueMonthTotal,
-    revenueMonthCount,
+    revenuePeriodTotal,
+    revenuePeriodCount,
     revenueTrendPct,
     weightedPipelineTotal,
     totalLeadsActive,
@@ -35,18 +45,20 @@ export function CockpitKpiGrid({
     overduePaymentsCount,
   } = metrics
 
+  const periodLabel = RANGE_LABELS[timeRange] ?? 'Cobrado en el Período'
+
   return (
     <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-      {/* Cobrado en el Mes */}
+      {/* Cobrado en el Período */}
       <article className="p-4 oled-card space-y-2.5">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
-          <span>Cobrado en el Mes</span>
+          <span>{periodLabel}</span>
           <span className="p-1.5 bg-sky-950/80 text-sky-400 border border-sky-800/80">
             <BadgeDollarSign className="w-4 h-4" />
           </span>
         </div>
         <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-black text-white font-mono">{currency.format(revenueMonthTotal)}</span>
+          <span className="text-3xl font-black text-white font-mono">{currency.format(revenuePeriodTotal)}</span>
           {revenueTrendPct !== null && (
             <span
               className={`text-xs font-mono font-bold flex items-center gap-0.5 ${revenueTrendPct >= 0 ? 'text-sky-400' : 'text-rose-400'}`}
@@ -63,9 +75,9 @@ export function CockpitKpiGrid({
         </div>
         <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400">
           <span>
-            {revenueMonthCount} pago{revenueMonthCount !== 1 ? 's' : ''} confirmado
-            {revenueMonthCount !== 1 ? 's' : ''}
-            {revenueTrendPct === null && ' · sin mes anterior para comparar'}
+            {revenuePeriodCount} pago{revenuePeriodCount !== 1 ? 's' : ''} confirmado
+            {revenuePeriodCount !== 1 ? 's' : ''}
+            {revenueTrendPct === null && ' · sin período anterior'}
           </span>
           {revenueSeries && revenueSeries.length > 1 && <Sparkline data={revenueSeries} />}
         </div>

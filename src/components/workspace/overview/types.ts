@@ -1,5 +1,8 @@
 import type { Conversation, ConversationSummary, EmailLog, Lead, Payment } from '@/payload-types'
 import type { FollowUpItem } from '@/lib/followups-today'
+import type { SystemHealthSummary } from '@/lib/integrations-health'
+
+export type TimeRangeKey = 'hoy' | '7d' | '30d' | '90d' | 'ano'
 
 export interface DayBucket {
   dateStr: string
@@ -35,6 +38,10 @@ export interface WorkspaceOverviewMetrics {
   totalHistoricLeads: number
   globalConversionRate: number | null
 
+  revenuePeriodTotal: number
+  revenuePeriodCount: number
+  revenuePreviousPeriodTotal: number
+  /** Alias retrocompatible para el mes actual cuando timeRange es 30d */
   revenueMonthTotal: number
   revenueMonthCount: number
   revenueLastMonthTotal: number
@@ -78,6 +85,9 @@ export interface WorkspaceOverviewData {
   operationalAlerts: CockpitOperationalAlert[]
   cashflowPoints: MonthlyCashflowPoint[]
   followupsToday: FollowUpItem[]
+  systemHealth: SystemHealthSummary
+  timeRange: TimeRangeKey
   nowTime: number
   dateTitle: string
 }
+
