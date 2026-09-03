@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Activity,
   ArrowRight,
@@ -89,6 +90,7 @@ export function CockpitFocusViews({
   segments = [],
   initialView = 'operativa',
 }: CockpitFocusViewsProps) {
+  const router = useRouter()
   const [activeView, setActiveView] = useState<'operativa' | 'ejecutiva'>(initialView)
   const [showConfig, setShowConfig] = useState(false)
 
@@ -176,9 +178,6 @@ export function CockpitFocusViews({
         clients={clients}
         timeRange={data.timeRange}
       />
-
-      {/* 2. Salud de Integraciones & Canales (compartida entre vistas) */}
-      <CockpitIntegrationHealth health={data.systemHealth} />
 
       {/* 3. Selector de Vistas de Enfoque (Tabs OLED) & Bento Customizer */}
       <nav
@@ -379,7 +378,13 @@ export function CockpitFocusViews({
                       <div className="flex flex-col divide-y divide-zinc-900/80">
                         {agenda.slice(0, 8).map((item, i) => {
                           const badge = agendaTypeBadge[item.type]
-                          const isLeadCita = item.type === 'cita' && typeof item.leadId === 'number'
+                          // Cita vinculada a un cliente: la ficha principal es
+                          // la del cliente (syncGcal puede poblar ambos) —
+                          // abrir el drawer de lead usaría el vínculo equivocado.
+                          const isLeadCita =
+                            item.type === 'cita' &&
+                            typeof item.leadId === 'number' &&
+                            typeof item.clientId !== 'number'
 
                           return (
                             <div
@@ -450,6 +455,10 @@ export function CockpitFocusViews({
         </div>
       ) : (
         <div className="space-y-4 animate-fadeIn">
+          {/* Salud de Integraciones & Canales (única instancia en esta vista;
+              en la operativa vive como widget del bento) */}
+          <CockpitIntegrationHealth health={data.systemHealth} />
+
           {/* Tarjetas KPI de Rendimiento */}
           {isExVisible('kpis') && (
             <CockpitKpiGrid
@@ -519,7 +528,9 @@ export function CockpitFocusViews({
             assignees={assignees}
             segments={segments}
             onUpdated={() => {
-              // Si se guarda o cambia una etapa, se mantiene el contexto
+              // Refresca los server components del dashboard: nombres, valores,
+              // prioridades y seguimientos reflejan el guardado sin recargar
+              router.refresh()
             }}
           />
         )}

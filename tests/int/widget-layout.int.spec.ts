@@ -161,6 +161,35 @@ describe('useWidgetLayout — layout persistido seguro para hidratación', () =>
     expect(result.current[0]).toBe(DEFAULT_OPERATIVE_WIDGETS)
   })
 
+  it('normaliza layouts incompletos: los widgets faltantes vuelven del default', () => {
+    // Layout viejo/truncado: solo 2 de los 5 widgets operativos
+    localStorage.setItem(
+      STORAGE_KEY_OPERATIVE,
+      JSON.stringify([
+        { key: 'alerts', label: 'Alertas Operativas Proactivas', visible: false },
+        { key: 'agenda', label: 'Agenda de Próximos 7 Días', visible: true },
+      ]),
+    )
+
+    const { result } = renderHook(() =>
+      useWidgetLayout(
+        STORAGE_KEY_OPERATIVE,
+        DEFAULT_OPERATIVE_WIDGETS as unknown as WidgetConfig<'alerts'>[],
+        OPERATIVE_WIDGET_KEYS as readonly 'alerts'[],
+      ),
+    )
+
+    const widgets = result.current[0] as unknown as Array<{ key: string; visible: boolean }>
+    // Todos los widgets del default están presentes (configurables)
+    expect(widgets.map((w) => w.key)).toEqual(DEFAULT_OPERATIVE_WIDGETS.map((w) => w.key))
+    // La visibilidad guardada se respeta donde existía
+    expect(widgets.find((w) => w.key === 'alerts')?.visible).toBe(false)
+    expect(widgets.find((w) => w.key === 'agenda')?.visible).toBe(true)
+    // Los faltantes heredan el default (visibles)
+    expect(widgets.find((w) => w.key === 'health')?.visible).toBe(true)
+    expect(widgets.find((w) => w.key === 'feed')?.visible).toBe(true)
+  })
+
   it('isValidWidgetLayout rechaza entradas sin visible booleano', () => {
     expect(
       isValidWidgetLayout([{ key: 'alerts', label: 'X', visible: 'yes' }], OPERATIVE_WIDGET_KEYS),

@@ -74,6 +74,22 @@ function readStoredWidgetLayout<K extends string>(
   return null
 }
 
+/**
+ * Casca la visibilidad guardada (por clave) sobre los defaults actuales: un
+ * layout persistido incompleto (viejo o truncado) no pierde widgets — los
+ * faltantes heredan su entrada del default y siguen configurables, y los
+ * nuevos widgets que lleguen en el futuro aparecen solos.
+ */
+function normalizeWidgetLayout<K extends string>(
+  stored: WidgetConfig<K>[],
+  defaults: WidgetConfig<K>[],
+): WidgetConfig<K>[] {
+  return defaults.map((d) => {
+    const found = stored.find((w) => w.key === d.key)
+    return found ? { ...d, visible: found.visible } : d
+  })
+}
+
 // Suscriptores del store de layouts (cross-tab vía evento 'storage' y
 // misma-pestaña vía notifyLayoutChange al persistir).
 const listeners = new Set<(event?: StorageEvent) => void>()
@@ -123,7 +139,8 @@ function getLayoutSnapshot<K extends string>(
     return defaults
   }
   if (cached && cached.raw === raw) return cached.value as WidgetConfig<K>[]
-  const value = readStoredWidgetLayout(storageKey, validKeys) ?? defaults
+  const stored = readStoredWidgetLayout(storageKey, validKeys)
+  const value = stored ? normalizeWidgetLayout(stored, defaults) : defaults
   snapshotCache.set(storageKey, { raw, value })
   return value
 }

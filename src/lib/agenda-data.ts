@@ -4,6 +4,7 @@ import type { Appointment, Client, Membership, Payment, Task, User } from '@/pay
 export interface AgendaItem {
   id?: number
   leadId?: number
+  clientId?: number
   type: 'task' | 'membership' | 'payment' | 'cita'
   date: string
   label: string
@@ -149,6 +150,9 @@ export async function getUpcomingAgenda(
       return {
         id: a.id,
         leadId,
+        // syncGcal puede poblar client Y lead; el cliente es el vínculo
+        // principal de la cita (igual criterio que el href de abajo).
+        clientId: clientObj?.id,
         type: 'cita' as const,
         date: a.start,
         label: `Cita · ${a.title}`,

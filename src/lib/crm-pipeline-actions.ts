@@ -9,6 +9,7 @@ import { z } from 'zod'
 import type { Lead, Message, Tenant } from '@/payload-types'
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { buildLeadUpdateData, type LeadFieldsInput } from '@/lib/lead-update-data'
 import { sendText } from '@/integrations/openbsp/client'
 import { renderEmailHtml } from '@/email/layout'
 import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
@@ -272,25 +273,7 @@ export async function sendLeadEmailAction(
  */
 export async function updateLeadFieldsAction(
   leadId: number,
-  input: {
-    fullName: string
-    companyName?: string
-    position?: string
-    phone?: string
-    email?: string
-    city?: string
-    state?: string
-    address?: string
-    googleMapsUrl?: string
-    socialHandle?: string
-    source?: 'manual' | 'google_maps' | 'puerta_fria' | 'whatsapp' | 'instagram_dm' | 'linkedin' | 'tally' | 'apify' | 'referido'
-    segment?: number | null
-    estimatedValue?: number | null
-    assignedTo?: number | null
-    lastContactChannel?: 'whatsapp' | 'instagram_dm' | 'llamada' | 'en_persona' | 'email' | 'otro'
-    commercialNotes?: string
-    notes?: string
-  },
+  input: LeadFieldsInput,
 ): Promise<ActionResult> {
   try {
     const { context } = await scopedLead(leadId)
@@ -304,25 +287,9 @@ export async function updateLeadFieldsAction(
       id: leadId,
       overrideAccess: false,
       user: context.user,
-      data: {
-        fullName,
-        companyName: input.companyName?.trim() || undefined,
-        position: input.position?.trim() || undefined,
-        phone: input.phone?.trim() || undefined,
-        email: input.email?.trim() || undefined,
-        city: input.city?.trim() || undefined,
-        state: input.state?.trim() || undefined,
-        address: input.address?.trim() || undefined,
-        googleMapsUrl: input.googleMapsUrl?.trim() || undefined,
-        socialHandle: input.socialHandle?.trim() || undefined,
-        source: input.source || undefined,
-        segment: input.segment ?? undefined,
-        estimatedValue: input.estimatedValue ?? undefined,
-        assignedTo: input.assignedTo ?? undefined,
-        lastContactChannel: input.lastContactChannel || undefined,
-        commercialNotes: input.commercialNotes?.trim() || undefined,
-        notes: input.notes?.trim() || undefined,
-      },
+      // buildLeadUpdateData: null = limpiar la relación (elección explícita),
+      // undefined = omitir el campo (no toca el valor guardado).
+      data: buildLeadUpdateData(input),
     })
 
     revalidatePath('/workspace/crm')
