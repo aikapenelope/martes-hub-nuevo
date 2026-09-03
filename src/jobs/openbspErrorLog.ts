@@ -1,5 +1,4 @@
 import type { TaskConfig } from 'payload'
-import { isConfigured } from '../integrations/openbsp/client'
 
 const SUPABASE_URL = process.env.OPENBSP_SUPABASE_URL || 'https://nheelwshzbgenpavwhcy.supabase.co'
 
@@ -36,7 +35,10 @@ export const openbspErrorsTask: TaskConfig = {
     { name: 'skippedReason', type: 'text' },
   ],
   handler: async ({ req }) => {
-    if (!isConfigured()) {
+    // El fetch de logs solo exige las claves de API (no OPENBSP_ORG_ID: la
+    // organización puede venir por tenant). Mismo criterio mínimo que el
+    // check de salud: sin claves no hay telemetría de OpenBSP.
+    if (!process.env.OPENBSP_API_KEY || !process.env.OPENBSP_PUBLISHABLE_KEY) {
       return { output: { notified: 0, skippedReason: 'OpenBSP no configurado todavía' } }
     }
 
@@ -60,12 +62,15 @@ export const openbspErrorsTask: TaskConfig = {
       return { output: { notified: 0, skippedReason: message } }
     }
 
-    // Identificadores por tenant para atribuir cada log de OpenBSP al tenant
-    // correcto (el stream de logs es global a la instancia OpenBSP): el phone
-    // number / organización del tenant debe aparecer en el mensaje o metadata.
+    // Identificadores EFECTIVOS por tenant (misma resolución que sendText en
+    // src/integrations/openbsp/client.ts): campos del tenant con fallback a
+    // las variables globales. Un tenant en fallback comparte el canal global,
+    // así que un error del stream global sí le pertenece.
+    const globalOrgId = process.env.OPENBSP_ORG_ID
+    const globalPhoneId = process.env.OPENBSP_PHONE_NUMBER_ID
     const tenantIdentifiers = tenants.docs.map((tenant) => ({
       tenant,
-      ids: [tenant.openbspPhoneNumberId, tenant.openbspOrganizationId].filter(
+      ids: [tenant.openbspPhoneNumberId || globalPhoneId, tenant.openbspOrganizationId || globalOrgId].filter(
         (id): id is string => Boolean(id),
       ),
     }))
