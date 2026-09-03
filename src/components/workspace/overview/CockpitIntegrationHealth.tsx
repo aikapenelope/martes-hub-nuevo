@@ -71,14 +71,18 @@ export function CockpitIntegrationHealth({ health }: { health: SystemHealthSumma
                 ? 'bg-emerald-950/50 text-emerald-300 border-emerald-800/60'
                 : overallStatus === 'warning'
                   ? 'bg-amber-950/50 text-amber-300 border-amber-800/60'
-                  : 'bg-red-950/50 text-red-300 border-red-800/60'
+                  : overallStatus === 'disabled'
+                    ? 'bg-zinc-900/80 text-zinc-300 border-zinc-700'
+                    : 'bg-red-950/50 text-red-300 border-red-800/60'
             }`}
           >
             {overallStatus === 'healthy'
               ? 'SISTEMA OPERATIVO AL 100%'
               : overallStatus === 'warning'
                 ? 'ATENCIÓN REQUERIDA'
-                : 'INCIDENTES DETECTADOS'}
+                : overallStatus === 'disabled'
+                  ? 'CONFIGURACIÓN INCOMPLETA'
+                  : 'INCIDENTES DETECTADOS'}
           </span>
           {recentErrorCount > 0 && (
             <span className="text-red-400 font-bold border border-red-900/60 bg-red-950/30 px-1.5 py-0.5">

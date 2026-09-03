@@ -17,6 +17,7 @@ import type { AgendaItem } from '@/lib/agenda-data'
 import { OledCard } from '@/components/workspace/oled'
 import { CockpitCommandStrip } from './CockpitCommandStrip'
 import { CockpitAlertStrip } from './CockpitAlertStrip'
+import { CockpitIntegrationHealth } from './CockpitIntegrationHealth'
 import { CockpitFollowupsToday } from './CockpitFollowupsToday'
 import { CockpitOmnichannelFeed } from './CockpitOmnichannelFeed'
 import { CockpitKpiGrid } from './CockpitKpiGrid'
@@ -107,7 +108,10 @@ export function CockpitFocusViews({
         timeRange={data.timeRange}
       />
 
-      {/* 2. Selector de Vistas de Enfoque (Tabs OLED) */}
+      {/* 2. Salud de Integraciones & Canales (compartida entre vistas) */}
+      <CockpitIntegrationHealth health={data.systemHealth} />
+
+      {/* 3. Selector de Vistas de Enfoque (Tabs OLED) */}
       <nav
         aria-label="Vistas de enfoque del tablero"
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-y border-zinc-900/80 py-2.5 bg-black/40 px-1"
@@ -188,7 +192,7 @@ export function CockpitFocusViews({
         </div>
       </nav>
 
-      {/* 3. Contenido según Vista de Enfoque */}
+      {/* 4. Contenido según Vista de Enfoque */}
       {activeView === 'operativa' ? (
         <div className="space-y-4 animate-fadeIn">
           {/* Tira de Alertas Operativas */}

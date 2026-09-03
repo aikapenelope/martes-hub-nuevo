@@ -2,7 +2,6 @@ import 'server-only'
 
 import type { Payload } from 'payload'
 import type { Tenant, User } from '@/payload-types'
-import { isConfigured as isOpenBspConfigured } from '@/integrations/openbsp/client'
 import { areGoogleCredentialsConfigured } from '@/integrations/google/token'
 
 export type IntegrationStatus = 'healthy' | 'warning' | 'error' | 'disabled'
@@ -42,26 +41,32 @@ export async function getIntegrationsHealth(
   const oneDayAgo = new Date(Date.now() - 24 * 3600_000).toISOString()
   const resolvedTenantId = tenant?.id ?? tenantId
 
-  // 1. WhatsApp / Meta (OpenBSP)
-  const openBspEnvOk = isOpenBspConfigured()
-  const tenantHasOrg = Boolean(tenant?.openbspOrganizationId)
-  const tenantHasPhone = Boolean(tenant?.openbspPhoneNumberId)
+  // 1. WhatsApp / Meta (OpenBSP) — mismos requisitos efectivos que sendText():
+  // claves de API de entorno + organización (tenant con fallback global) + teléfono (tenant con fallback global).
+  const openBspKeysOk = Boolean(process.env.OPENBSP_API_KEY && process.env.OPENBSP_PUBLISHABLE_KEY)
+  const effectiveOrgId = tenant?.openbspOrganizationId || process.env.OPENBSP_ORG_ID
+  const effectivePhoneId = tenant?.openbspPhoneNumberId || process.env.OPENBSP_PHONE_NUMBER_ID
 
   let whatsappStatus: IntegrationStatus = 'healthy'
   let whatsappBadge = 'ONLINE'
   let whatsappMsg = 'OpenBSP conectado y listo para mensajería Meta Cloud.'
-  let whatsappDetail = tenantHasPhone ? `Teléfono ID: ${tenant?.openbspPhoneNumberId}` : 'Número predeterminado activo'
+  let whatsappDetail = `Teléfono ID: ${effectivePhoneId}`
 
-  if (!openBspEnvOk) {
+  if (!openBspKeysOk) {
     whatsappStatus = 'disabled'
     whatsappBadge = 'SIN CONFIGURAR'
     whatsappMsg = 'Faltan credenciales de entorno para OpenBSP / Meta.'
-    whatsappDetail = 'Configura OPENBSP_API_KEY y OPENBSP_ORG_ID'
-  } else if (!tenantHasOrg && !process.env.OPENBSP_ORG_ID) {
+    whatsappDetail = 'Configura OPENBSP_API_KEY y OPENBSP_PUBLISHABLE_KEY'
+  } else if (!effectiveOrgId) {
     whatsappStatus = 'warning'
     whatsappBadge = 'FALTA ORG'
-    whatsappMsg = 'El tenant no tiene configurada la organización de OpenBSP.'
-    whatsappDetail = 'Asigna openbspOrganizationId en Configuración'
+    whatsappMsg = 'Sin organización de OpenBSP los envíos de WhatsApp fallarán.'
+    whatsappDetail = 'Asigna openbspOrganizationId al tenant o define OPENBSP_ORG_ID'
+  } else if (!effectivePhoneId) {
+    whatsappStatus = 'warning'
+    whatsappBadge = 'FALTA TELÉFONO'
+    whatsappMsg = 'Sin número de WhatsApp no se puede resolver organization_address al enviar.'
+    whatsappDetail = 'Asigna openbspPhoneNumberId al tenant o define OPENBSP_PHONE_NUMBER_ID'
   }
 
   // 2. Email (Resend)
@@ -92,24 +97,44 @@ export async function getIntegrationsHealth(
     calendarDetail = 'Las citas se manejarán localmente'
   }
 
-  // 4. Webhooks & Logs de errores recientes (últimas 24h)
+  // 4. Webhooks & Tareas Asíncronas: fallos reales persistidos en las últimas 24h.
+  // - notifications (severity=error): errores de Meta/OpenBSP y workers que persiste openbsp-error-poll
+  // - email-log (status failed/bounced): rebotes y fallos que reporta el webhook de Resend
+  // (Activities no sirve como fuente: su type solo admite nota/llamada/whatsapp/email/reunion/otro)
   let recentErrorCount = 0
   try {
-    const errorLogs = await payload.find({
-      collection: 'activities',
-      limit: 10,
-      depth: 0,
-      overrideAccess: false,
-      user,
-      where: {
-        and: [
-          ...(resolvedTenantId ? [{ tenant: { equals: resolvedTenantId } }] : []),
-          { createdAt: { greater_than_equal: oneDayAgo } },
-          { type: { equals: 'error' } },
-        ],
-      },
-    })
-    recentErrorCount = errorLogs.totalDocs
+    const tenantFilter = resolvedTenantId ? [{ tenant: { equals: resolvedTenantId } }] : []
+    const [errorNotifications, failedEmails] = await Promise.all([
+      payload.find({
+        collection: 'notifications',
+        limit: 0,
+        depth: 0,
+        overrideAccess: false,
+        user,
+        where: {
+          and: [
+            ...tenantFilter,
+            { createdAt: { greater_than_equal: oneDayAgo } },
+            { severity: { equals: 'error' } },
+          ],
+        },
+      }),
+      payload.find({
+        collection: 'email-log',
+        limit: 0,
+        depth: 0,
+        overrideAccess: false,
+        user,
+        where: {
+          and: [
+            ...tenantFilter,
+            { createdAt: { greater_than_equal: oneDayAgo } },
+            { status: { in: ['failed', 'bounced'] } },
+          ],
+        },
+      }),
+    ])
+    recentErrorCount = errorNotifications.totalDocs + failedEmails.totalDocs
   } catch {
     recentErrorCount = 0
   }
@@ -169,12 +194,14 @@ export async function getIntegrationsHealth(
     },
   ]
 
+  // Un canal deshabilitado (aunque el resto esté sano) impide reportar 100% operativo;
+  // solo "todos sanos" merece el estado healthy.
   let overallStatus: IntegrationStatus = 'healthy'
   if (items.some((i) => i.status === 'error')) {
     overallStatus = 'error'
   } else if (items.some((i) => i.status === 'warning')) {
     overallStatus = 'warning'
-  } else if (items.every((i) => i.status === 'disabled')) {
+  } else if (items.some((i) => i.status === 'disabled')) {
     overallStatus = 'disabled'
   }
 
