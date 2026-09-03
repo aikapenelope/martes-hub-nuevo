@@ -36,14 +36,14 @@ const TABS: { key: TabKey; label: string; icon: typeof Mail }[] = [
 export function CrmLeadDrawer({
   leadId,
   canEdit,
-  assignees,
-  segments,
+  assignees = [],
+  segments = [],
   onUpdated,
 }: {
   leadId: number
   canEdit: boolean
-  assignees: User[]
-  segments: Segment[]
+  assignees?: User[]
+  segments?: Segment[]
   onUpdated?: () => void
 }) {
   const [tab, setTab] = useState<TabKey>('whatsapp')
