@@ -21,21 +21,28 @@ import type { Client } from '@/payload-types'
 import { getWorkspaceOverviewData } from '@/lib/overview-data'
 import { getUpcomingAgenda } from '@/lib/agenda-data'
 import { CockpitFocusViews } from '@/components/workspace/overview/CockpitFocusViews'
+import type { TimeRangeKey } from '@/components/workspace/overview/types'
+
+const VALID_RANGES: TimeRangeKey[] = ['hoy', '7d', '30d', '90d', 'ano']
 
 export default async function WorkspacePage({
   searchParams,
 }: {
-  searchParams?: Promise<{ vista?: string }>
+  searchParams?: Promise<{ vista?: string; rango?: string }>
 }) {
   const [{ payload, tenant, tenantId, user, canEdit }, queryParams] = await Promise.all([
     getWorkspaceContext(),
-    searchParams ? searchParams : Promise.resolve({ vista: undefined }),
+    searchParams ? searchParams : Promise.resolve({ vista: undefined, rango: undefined }),
   ])
 
   const initialView = queryParams?.vista === 'ejecutiva' ? 'ejecutiva' : 'operativa'
+  const timeRange: TimeRangeKey =
+    queryParams?.rango && VALID_RANGES.includes(queryParams.rango as TimeRangeKey)
+      ? (queryParams.rango as TimeRangeKey)
+      : '30d'
 
   const [data, agenda] = await Promise.all([
-    getWorkspaceOverviewData({ payload, user, tenantId }),
+    getWorkspaceOverviewData({ payload, user, tenant, tenantId, timeRange }),
     getUpcomingAgenda({ payload, user, tenantId, days: 7 }),
   ])
 
