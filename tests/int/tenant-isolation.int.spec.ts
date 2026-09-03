@@ -82,12 +82,12 @@ describe('Seguridad de Aislamiento y Filtros Multi-Tenant', () => {
         readAccess({ req: { user: { id: 1, roles: ['admin'] } } } as never),
       ).toBe(true)
 
-      // Agente en tenant 10 -> acotado a sí mismo + usuarios de su tenant
+      // Agente en tenant 10 -> acotado a sí mismo + admins globales + usuarios de su tenant
       const agentConstraint = readAccess({
         req: { user: { id: 42, roles: ['agente'], tenants: [{ tenant: 10 }] } },
       } as never)
       expect(agentConstraint).toEqual({
-        or: [{ id: { equals: 42 } }, { 'tenants.tenant': { in: [10] } }],
+        or: [{ id: { equals: 42 } }, { roles: { contains: 'admin' } }, { 'tenants.tenant': { in: [10] } }],
       })
     })
 

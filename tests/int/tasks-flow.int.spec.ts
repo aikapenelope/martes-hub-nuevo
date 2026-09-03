@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { getPayload } from 'payload'
 import configPromise from '@/payload.config'
+import type { User } from '@/payload-types'
 
 describe('Flujo integral de Tareas: creación, detalle, actualización y borrado', () => {
   it('permite crear, consultar con depth 1, modificar y eliminar tareas sin error de locking', async () => {
@@ -95,28 +96,35 @@ describe('Flujo integral de Tareas: creación, detalle, actualización y borrado
     expect(verifyResult.totalDocs).toBe(0)
   })
 
-  it('permite buscar usuarios asignables incluyendo administradores', async () => {
+  it('permite a un agente consultar usuarios asignables incluyendo administradores globales', async () => {
     const payload = await getPayload({ config: configPromise })
+    const { getAssignableUsers } = await import('@/lib/tasks-data')
     const tenant = (await payload.find({ collection: 'tenants', limit: 1 })).docs[0]
 
-    const users = await payload.find({
-      collection: 'users',
-      limit: 50,
-      overrideAccess: true,
-      where: {
-        and: [
-          { active: { not_equals: false } },
-          {
-            or: [
-              { 'tenants.tenant': { equals: tenant.id } },
-              { roles: { contains: 'admin' } },
-            ],
-          },
-        ],
-      },
+    // Simular un agente perteneciente al tenant
+    const agentUser = {
+      id: 9999,
+      email: 'agente@demo.com',
+      roles: ['agente'] as ('admin' | 'agente' | 'viewer')[],
+      tenants: [{ tenant: tenant.id }],
+    } as unknown as User
+
+    const assignees = await getAssignableUsers({
+      payload,
+      user: agentUser,
+      tenantId: tenant.id,
     })
 
-    expect(users.docs.length).toBeGreaterThan(0)
+    expect(assignees.length).toBeGreaterThan(0)
+    // Todos los usuarios devueltos deben pertenecer al tenant o tener rol admin
+    for (const u of assignees) {
+      const isTargetAdmin = u.roles?.includes('admin')
+      const hasTenant = (u.tenants || []).some((t) => {
+        const tId = typeof t.tenant === 'object' && t.tenant ? t.tenant.id : t.tenant
+        return tId === tenant.id
+      })
+      expect(isTargetAdmin || hasTenant).toBe(true)
+    }
   })
 
   it('down migration preserves columns required by earlier applied migrations', async () => {

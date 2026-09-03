@@ -21,7 +21,6 @@ async function assertRelation(
   relationId: number | null | undefined,
   tenantId: number,
   context: Awaited<ReturnType<typeof getWorkspaceContext>>,
-  options?: { allowInactive?: boolean },
 ) {
   if (!relationId) return
   if (collection === 'users') {
@@ -34,7 +33,7 @@ async function assertRelation(
     if (!userDoc) {
       throw new Error('El usuario asignado no existe')
     }
-    if (userDoc.active === false && !options?.allowInactive) {
+    if (userDoc.active === false) {
       throw new Error('El usuario asignado está inactivo')
     }
     const isTargetAdmin = userDoc.roles?.includes('admin')
@@ -93,13 +92,28 @@ export async function updateTaskAction(form: FormData) {
   const data = taskData(form)
   const currentAssignedId = typeof task.assignedTo === 'object' ? task.assignedTo?.id : task.assignedTo
   const isKeepingAssignee = Boolean(data.assignedTo && currentAssignedId && data.assignedTo === currentAssignedId)
+
+  // Si la tarea conserva exactamente su responsable actual (incluso si es un asignatario histórico
+  // fuera del tenant o inactivo), preservamos la relación existente sin validarla como nueva asignación.
+  // Cualquier asignación nueva o modificada debe validar que el usuario esté activo y pertenezca al tenant o sea admin.
   await Promise.all([
-    assertRelation('users', data.assignedTo, context.tenantId, context, { allowInactive: isKeepingAssignee }),
+    ...(isKeepingAssignee ? [] : [assertRelation('users', data.assignedTo, context.tenantId, context)]),
     assertRelation('clients', data.client, context.tenantId, context),
     assertRelation('leads', data.lead, context.tenantId, context),
   ])
+  const assignedTo = isKeepingAssignee ? currentAssignedId : data.assignedTo
   const existingDone = new Map((task.checklist ?? []).map((item) => [item.item, Boolean(item.done)]))
-  await context.payload.update({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user, data: { ...data, checklist: data.checklist.map((item) => ({ ...item, done: existingDone.get(item.item) ?? false })) } })
+  await context.payload.update({
+    collection: 'tasks',
+    id: taskId,
+    overrideAccess: false,
+    user: context.user,
+    data: {
+      ...data,
+      assignedTo,
+      checklist: data.checklist.map((item) => ({ ...item, done: existingDone.get(item.item) ?? false })),
+    },
+  })
   revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath(`/workspace/tasks/${taskId}`); redirect(`/workspace/tasks/${taskId}?updated=1`)
 }
 
