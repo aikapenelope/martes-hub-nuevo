@@ -64,8 +64,8 @@ describe('buildLeadUpdateData — semántica de relaciones (null vs undefined)',
     })
 
     expect((data.companyName as string).length).toBe(200)
-    expect((data.commercialNotes as string).length).toBe(2000)
-    expect((data.notes as string).length).toBe(2000)
+    expect((data.commercialNotes as string).length).toBe(20000)
+    expect((data.notes as string).length).toBe(20000)
     expect((data.googleMapsUrl as string).length).toBe(500)
     expect((data.phone as string).length).toBe(40)
   })

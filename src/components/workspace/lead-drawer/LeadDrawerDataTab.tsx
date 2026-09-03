@@ -22,23 +22,34 @@ function relId(value: number | { id: number } | null | undefined): number | null
  * opción vacía aunque el lead tenga relación previa, y enviarla borraría la
  * asignación/rubro existente. Con opciones presentes, la elección explícita
  * del usuario (incluida "Sin asignar") sí se envía.
+ *
+ * Además, los campos de texto que no cambiaron respecto al lead se omiten:
+ * guardar un campo ajeno nunca re-envía (y trunca) notas largas existentes.
  */
 export function collectLeadFieldsInput(
   form: FormData,
+  lead: Lead,
   opts: { hasAssigneeChoices: boolean; hasSegmentChoices: boolean },
 ): Parameters<typeof updateLeadFieldsAction>[1] {
   const segmentRaw = form.get('segment')
   const assignedToRaw = form.get('assignedTo')
+
+  // Omitir el campo si el valor enviado es idéntico al ya guardado
+  const ifChanged = (formKey: string, current: string | null | undefined, capped: string | undefined) => {
+    const submitted = String(form.get(formKey) ?? '')
+    return submitted === (current ?? '') ? undefined : capped
+  }
+
   return {
     fullName: String(form.get('fullName') ?? ''),
-    companyName: String(form.get('companyName') ?? ''),
-    position: String(form.get('position') ?? ''),
-    phone: String(form.get('phone') ?? ''),
-    email: String(form.get('email') ?? ''),
-    city: String(form.get('city') ?? ''),
-    address: String(form.get('address') ?? ''),
-    googleMapsUrl: String(form.get('googleMapsUrl') ?? ''),
-    socialHandle: String(form.get('socialHandle') ?? ''),
+    companyName: ifChanged('companyName', lead.companyName, capText(String(form.get('companyName') ?? ''), 200)),
+    position: ifChanged('position', lead.position, capText(String(form.get('position') ?? ''), 120)),
+    phone: ifChanged('phone', lead.phone, capText(String(form.get('phone') ?? ''), 40)),
+    email: ifChanged('email', lead.email, capText(String(form.get('email') ?? ''), 320)),
+    city: ifChanged('city', lead.city, capText(String(form.get('city') ?? ''), 120)),
+    address: ifChanged('address', lead.address, capText(String(form.get('address') ?? ''), 300)),
+    googleMapsUrl: ifChanged('googleMapsUrl', lead.googleMapsUrl, capText(String(form.get('googleMapsUrl') ?? ''), 500)),
+    socialHandle: ifChanged('socialHandle', lead.socialHandle, capText(String(form.get('socialHandle') ?? ''), 120)),
     source: form.get('source') as
       | 'manual'
       | 'google_maps'
@@ -60,9 +71,19 @@ export function collectLeadFieldsInput(
         ? Number(assignedToRaw)
         : null
       : undefined,
-    commercialNotes: String(form.get('commercialNotes') ?? ''),
-    notes: String(form.get('notes') ?? ''),
+    commercialNotes: ifChanged(
+      'commercialNotes',
+      lead.commercialNotes,
+      capText(String(form.get('commercialNotes') ?? ''), 20000),
+    ),
+    notes: ifChanged('notes', lead.notes, capText(String(form.get('notes') ?? ''), 20000)),
   }
+}
+
+/** Recorta texto acotado; vacío → undefined (omitir). */
+function capText(value: string, max: number): string | undefined {
+  const trimmed = value.trim()
+  return trimmed ? trimmed.slice(0, max) : undefined
 }
 
 export function LeadDrawerDataTab({
@@ -118,7 +139,7 @@ export function LeadDrawerDataTab({
     const form = new FormData(event.currentTarget)
     const result = await updateLeadFieldsAction(
       lead.id,
-      collectLeadFieldsInput(form, {
+      collectLeadFieldsInput(form, lead, {
         hasAssigneeChoices: assigneeOptions.length > 0,
         hasSegmentChoices: segmentOptions.length > 0,
       }),

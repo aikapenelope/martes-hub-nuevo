@@ -150,6 +150,8 @@ describe('LeadDrawerDataTab — preservación de relaciones al guardar', () => {
 })
 
 describe('collectLeadFieldsInput — regla de preservación', () => {
+  const baseLead = { fullName: 'Alguien', source: 'manual' } as unknown as Lead
+
   const baseForm = () => {
     const form = new FormData()
     form.set('fullName', 'Alguien')
@@ -160,7 +162,11 @@ describe('collectLeadFieldsInput — regla de preservación', () => {
   it('sin opciones de rubro: segment queda undefined aunque el form envíe vacío', () => {
     const form = baseForm()
     form.set('segment', '')
-    const input = collectLeadFieldsInput(form, { hasAssigneeChoices: false, hasSegmentChoices: false })
+    form.set('assignedTo', '')
+    const input = collectLeadFieldsInput(form, baseLead, {
+      hasAssigneeChoices: false,
+      hasSegmentChoices: false,
+    })
     expect(input.segment).toBeUndefined()
     expect(input.assignedTo).toBeUndefined()
   })
@@ -169,8 +175,54 @@ describe('collectLeadFieldsInput — regla de preservación', () => {
     const form = baseForm()
     form.set('segment', '')
     form.set('assignedTo', '')
-    const input = collectLeadFieldsInput(form, { hasAssigneeChoices: true, hasSegmentChoices: true })
+    const input = collectLeadFieldsInput(form, baseLead, {
+      hasAssigneeChoices: true,
+      hasSegmentChoices: true,
+    })
     expect(input.segment).toBeNull()
     expect(input.assignedTo).toBeNull()
+  })
+
+  it('notas largas existentes (4000 chars) sin editar se omiten y NO se truncan', () => {
+    const longNotes = 'n'.repeat(4000)
+    const lead = { ...baseLead, notes: longNotes } as unknown as Lead
+    const form = baseForm()
+    form.set('notes', longNotes) // el textarea lleva el valor existente sin editar
+
+    const input = collectLeadFieldsInput(form, lead, {
+      hasAssigneeChoices: false,
+      hasSegmentChoices: false,
+    })
+
+    // undefined = el update no toca las notas → no hay truncado destructivo
+    expect(input.notes).toBeUndefined()
+  })
+
+  it('notas editadas activamente se envían con toco de 20000 chars', () => {
+    const lead = { ...baseLead, notes: 'original' } as unknown as Lead
+    const form = baseForm()
+    form.set('notes', 'e'.repeat(25000))
+
+    const input = collectLeadFieldsInput(form, lead, {
+      hasAssigneeChoices: false,
+      hasSegmentChoices: false,
+    })
+
+    expect((input.notes as string).length).toBe(20000)
+  })
+
+  it('campos de texto sin cambios se omiten del update', () => {
+    const lead = { ...baseLead, city: 'Caracas', phone: '584121234567' } as unknown as Lead
+    const form = baseForm()
+    form.set('city', 'Caracas')
+    form.set('phone', '584121234567')
+
+    const input = collectLeadFieldsInput(form, lead, {
+      hasAssigneeChoices: false,
+      hasSegmentChoices: false,
+    })
+
+    expect(input.city).toBeUndefined()
+    expect(input.phone).toBeUndefined()
   })
 })

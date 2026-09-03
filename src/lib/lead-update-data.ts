@@ -64,8 +64,8 @@ const LIMITS = {
   address: 300,
   googleMapsUrl: 500,
   socialHandle: 120,
-  commercialNotes: 2000,
-  notes: 2000,
+  commercialNotes: 20000,
+  notes: 20000,
 } as const
 
 export function buildLeadUpdateData(input: LeadFieldsInput): Record<string, unknown> {
