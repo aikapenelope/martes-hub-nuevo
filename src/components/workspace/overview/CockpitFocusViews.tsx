@@ -112,34 +112,22 @@ export function CockpitFocusViews({
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null)
   const [selectedAgendaItem, setSelectedAgendaItem] = useState<AgendaItem | null>(null)
 
-  // Guardar cambios en el layout
+  // Guardar cambios en el layout (setWidgets persiste en localStorage)
   const toggleWidget = (key: string, isExecutive: boolean) => {
     if (isExecutive) {
-      setExecutiveWidgets((prev) => {
-        const next = prev.map((w) => (w.key === key ? { ...w, visible: !w.visible } : w))
-        try {
-          localStorage.setItem(STORAGE_KEY_EXECUTIVE, JSON.stringify(next))
-        } catch {}
-        return next
-      })
+      setExecutiveWidgets((prev) =>
+        prev.map((w) => (w.key === key ? { ...w, visible: !w.visible } : w)),
+      )
     } else {
-      setOperativeWidgets((prev) => {
-        const next = prev.map((w) => (w.key === key ? { ...w, visible: !w.visible } : w))
-        try {
-          localStorage.setItem(STORAGE_KEY_OPERATIVE, JSON.stringify(next))
-        } catch {}
-        return next
-      })
+      setOperativeWidgets((prev) =>
+        prev.map((w) => (w.key === key ? { ...w, visible: !w.visible } : w)),
+      )
     }
   }
 
   const resetWidgets = () => {
     setOperativeWidgets(DEFAULT_OPERATIVE_WIDGETS)
     setExecutiveWidgets(DEFAULT_EXECUTIVE_WIDGETS)
-    try {
-      localStorage.removeItem(STORAGE_KEY_OPERATIVE)
-      localStorage.removeItem(STORAGE_KEY_EXECUTIVE)
-    } catch {}
   }
 
   const urgentCount = data.operationalAlerts.length + data.followupsToday.length
