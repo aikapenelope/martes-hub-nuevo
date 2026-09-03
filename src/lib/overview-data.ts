@@ -17,7 +17,7 @@ import {
   monthlyRevenueSeries,
   paymentsAggregate,
   startOfMonthIso,
-  startOfLastMonthIso,
+  type MonthlyRevenuePoint,
   type PaymentAggregate,
 } from './db-aggregates'
 import { getIntegrationsHealth } from './integrations-health'
@@ -62,68 +62,116 @@ function daysAgoIso(days: number): string {
   return new Date(Date.now() - days * 24 * 3600_000).toISOString()
 }
 
-/** Resuelve el rango ISO actual y el previo comparable según timeRange */
-function resolveTimeRangeWindow(timeRange: TimeRangeKey): {
+export const DEFAULT_TENANT_TIMEZONE = 'America/Caracas'
+
+export interface TimeWindow {
   periodStartIso: string
   periodEndIso: string
   previousStartIso: string
   previousEndIso: string
-} {
-  const now = new Date()
+}
+
+/** Offset real (ms) entre la hora local de `timeZone` y UTC en el instante `ts`. */
+function timeZoneOffsetMs(ts: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date(ts))
+  const map: Record<string, number> = {}
+  for (const p of parts) {
+    if (p.type !== 'literal') map[p.type] = Number.parseInt(p.value, 10)
+  }
+  const asUtc = Date.UTC(
+    map.year ?? 1970,
+    (map.month ?? 1) - 1,
+    map.day ?? 1,
+    map.hour === 24 ? 0 : (map.hour ?? 0),
+    map.minute ?? 0,
+    map.second ?? 0,
+  )
+  return asUtc - ts
+}
+
+/** Convierte una hora local 'YYYY-MM-DDTHH:mm:ss' de `timeZone` al instante UTC equivalente. */
+export function zonedTimeToUtc(localIso: string, timeZone: string): Date {
+  const utcGuess = Date.parse(`${localIso}Z`)
+  if (Number.isNaN(utcGuess)) return new Date(utcGuess)
+  // Dos pasas para corregir el offset en bordes de DST (el offset válido depende del instante).
+  let ts = utcGuess - timeZoneOffsetMs(utcGuess, timeZone)
+  ts = utcGuess - timeZoneOffsetMs(ts, timeZone)
+  return new Date(ts)
+}
+
+function isValidTimezone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Lee la zona horaria configurada en Company Settings del tenant (default America/Caracas
+ * si no hay config o el valor no es un IANA timezone válido). Usa el fetcher RLS del caller.
+ */
+export async function resolveTenantTimezone(
+  fetchSettings: () => Promise<{ docs: unknown[] }>,
+): Promise<string> {
+  try {
+    const res = await fetchSettings()
+    const tz = (res.docs[0] as { timezone?: string } | undefined)?.timezone?.trim()
+    return tz && isValidTimezone(tz) ? tz : DEFAULT_TENANT_TIMEZONE
+  } catch {
+    return DEFAULT_TENANT_TIMEZONE
+  }
+}
+
+/**
+ * Resuelve el rango ISO actual y el previo comparable según timeRange.
+ * Las fechas calendario se calculan en la zona horaria del tenant (no la del servidor).
+ */
+export function resolveTimeRangeWindow(
+  timeRange: TimeRangeKey,
+  { now = new Date(), timeZone = DEFAULT_TENANT_TIMEZONE }: { now?: Date; timeZone?: string } = {},
+): TimeWindow {
   const nowTime = now.getTime()
+  const tz = isValidTimezone(timeZone) ? timeZone : DEFAULT_TENANT_TIMEZONE
 
   if (timeRange === 'hoy') {
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const yesterdayStart = new Date(todayStart.getTime() - 24 * 3600_000)
+    const localDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now)
+    const todayStart = zonedTimeToUtc(`${localDate}T00:00:00`, tz)
+    // El período previo cubre exactamente el mismo lapso transcurrido del día,
+    // para no comparar un día parcial contra un día completo.
+    const elapsed = Math.max(0, nowTime - todayStart.getTime())
     return {
       periodStartIso: todayStart.toISOString(),
       periodEndIso: now.toISOString(),
-      previousStartIso: yesterdayStart.toISOString(),
+      previousStartIso: new Date(todayStart.getTime() - elapsed).toISOString(),
       previousEndIso: todayStart.toISOString(),
     }
   }
 
-  if (timeRange === '7d') {
-    const start = new Date(nowTime - 7 * 24 * 3600_000)
-    const prevStart = new Date(nowTime - 14 * 24 * 3600_000)
-    return {
-      periodStartIso: start.toISOString(),
-      periodEndIso: now.toISOString(),
-      previousStartIso: prevStart.toISOString(),
-      previousEndIso: start.toISOString(),
-    }
-  }
-
-  if (timeRange === '90d') {
-    const start = new Date(nowTime - 90 * 24 * 3600_000)
-    const prevStart = new Date(nowTime - 180 * 24 * 3600_000)
-    return {
-      periodStartIso: start.toISOString(),
-      periodEndIso: now.toISOString(),
-      previousStartIso: prevStart.toISOString(),
-      previousEndIso: start.toISOString(),
-    }
-  }
-
-  if (timeRange === 'ano') {
-    const start = new Date(nowTime - 365 * 24 * 3600_000)
-    const prevStart = new Date(nowTime - 730 * 24 * 3600_000)
-    return {
-      periodStartIso: start.toISOString(),
-      periodEndIso: now.toISOString(),
-      previousStartIso: prevStart.toISOString(),
-      previousEndIso: start.toISOString(),
-    }
-  }
-
-  // '30d' o default mensual
-  const startOfMonth = startOfMonthIso()
-  const startOfLastMonth = startOfLastMonthIso()
+  // Ventanas rodantes de N días terminando ahora, con el período previo contiguo de igual duración.
+  const days = timeRange === '7d' ? 7 : timeRange === '90d' ? 90 : timeRange === 'ano' ? 365 : 30
+  const start = new Date(nowTime - days * 24 * 3600_000)
+  const prevStart = new Date(nowTime - 2 * days * 24 * 3600_000)
   return {
-    periodStartIso: startOfMonth,
+    periodStartIso: start.toISOString(),
     periodEndIso: now.toISOString(),
-    previousStartIso: startOfLastMonth,
-    previousEndIso: startOfMonth,
+    previousStartIso: prevStart.toISOString(),
+    previousEndIso: start.toISOString(),
   }
 }
 
@@ -160,10 +208,32 @@ export async function getWorkspaceOverviewData({
   const now = new Date()
   const nowTime = now.getTime()
   const yearAgo = daysAgoIso(364)
-  const { periodStartIso, periodEndIso, previousStartIso, previousEndIso } = resolveTimeRangeWindow(timeRange)
+
+  // La zona horaria del tenant define los límites calendario (p. ej. el inicio de 'hoy').
+  const timeZone = await resolveTenantTimezone(() =>
+    q({
+      collection: 'company-settings',
+      limit: 1,
+      depth: 0,
+      where: tenantWhere(tenantId),
+    }),
+  )
+  const { periodStartIso, periodEndIso, previousStartIso, previousEndIso } = resolveTimeRangeWindow(
+    timeRange,
+    { now, timeZone },
+  )
 
   const dateTitle = now
-    .toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    .toLocaleDateString(
+      'es-ES',
+      {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone,
+      },
+    )
     .replace(/^\w/, (c) => c.toUpperCase())
 
   const [
@@ -191,11 +261,31 @@ export async function getWorkspaceOverviewData({
     followups,
     systemHealth,
   ] = await Promise.all([
-    q({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { status: { equals: 'nuevo' } }) }),
-    q({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { status: { equals: 'contactado' } }) }),
-    q({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { status: { equals: 'calificado' } }) }),
-    q({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, { status: { equals: 'descartado' } }) }),
-    q({ collection: 'clients', limit: 0, where: tenantWhere(tenantId, { stage: { equals: 'activo' } }) }),
+    q({
+      collection: 'leads',
+      limit: 0,
+      where: tenantWhere(tenantId, { status: { equals: 'nuevo' } }),
+    }),
+    q({
+      collection: 'leads',
+      limit: 0,
+      where: tenantWhere(tenantId, { status: { equals: 'contactado' } }),
+    }),
+    q({
+      collection: 'leads',
+      limit: 0,
+      where: tenantWhere(tenantId, { status: { equals: 'calificado' } }),
+    }),
+    q({
+      collection: 'leads',
+      limit: 0,
+      where: tenantWhere(tenantId, { status: { equals: 'descartado' } }),
+    }),
+    q({
+      collection: 'clients',
+      limit: 0,
+      where: tenantWhere(tenantId, { stage: { equals: 'activo' } }),
+    }),
     q({
       collection: 'payments',
       limit: 5,
@@ -203,9 +293,27 @@ export async function getWorkspaceOverviewData({
       depth: 1,
       where: tenantWhere(tenantId, { status: { equals: 'pagado' } }),
     }),
-    q({ collection: 'conversations', limit: 30, sort: '-updatedAt', depth: 1, where: tenantWhere(tenantId) }),
-    q({ collection: 'conversation-summaries', limit: 5, sort: '-createdAt', depth: 1, where: tenantWhere(tenantId) }),
-    q({ collection: 'email-log', limit: 5, sort: '-createdAt', depth: 0, where: tenantWhere(tenantId) }),
+    q({
+      collection: 'conversations',
+      limit: 30,
+      sort: '-updatedAt',
+      depth: 1,
+      where: tenantWhere(tenantId),
+    }),
+    q({
+      collection: 'conversation-summaries',
+      limit: 5,
+      sort: '-createdAt',
+      depth: 1,
+      where: tenantWhere(tenantId),
+    }),
+    q({
+      collection: 'email-log',
+      limit: 5,
+      sort: '-createdAt',
+      depth: 0,
+      where: tenantWhere(tenantId),
+    }),
     paymentsAggregate(payload, tenantId, ['pagado'], periodStartIso, periodEndIso),
     paymentsAggregate(payload, tenantId, ['pagado'], previousStartIso, previousEndIso),
     paymentsAggregate(payload, tenantId, ['pendiente', 'vencido']),
@@ -213,7 +321,10 @@ export async function getWorkspaceOverviewData({
       collection: 'tasks',
       limit: 0,
       where: tenantWhere(tenantId, {
-        and: [{ dueDate: { less_than: now.toISOString() } }, { status: { not_in: ['completada', 'cancelada'] } }],
+        and: [
+          { dueDate: { less_than: now.toISOString() } },
+          { status: { not_in: ['completada', 'cancelada'] } },
+        ],
       }),
     }),
     q({
@@ -227,13 +338,26 @@ export async function getWorkspaceOverviewData({
       depth: 0,
       where: tenantWhere(tenantId),
     }),
-    q({ collection: 'activities', limit: 3000, depth: 0, where: tenantWhere(tenantId, { createdAt: { greater_than_equal: yearAgo } }) }),
-    q({ collection: 'messages', limit: 3000, depth: 0, where: tenantWhere(tenantId, { createdAt: { greater_than_equal: yearAgo } }) }),
+    q({
+      collection: 'activities',
+      limit: 3000,
+      depth: 0,
+      where: tenantWhere(tenantId, { createdAt: { greater_than_equal: yearAgo } }),
+    }),
+    q({
+      collection: 'messages',
+      limit: 3000,
+      depth: 0,
+      where: tenantWhere(tenantId, { createdAt: { greater_than_equal: yearAgo } }),
+    }),
     q({
       collection: 'payments',
       limit: 3000,
       depth: 0,
-      where: tenantWhere(tenantId, { status: { equals: 'pagado' }, paidAt: { greater_than_equal: yearAgo } }),
+      where: tenantWhere(tenantId, {
+        status: { equals: 'pagado' },
+        paidAt: { greater_than_equal: yearAgo },
+      }),
     }),
     q({
       collection: 'leads',
@@ -255,7 +379,8 @@ export async function getWorkspaceOverviewData({
   const hotLeads = hotLeadsRes.docs as Lead[]
 
   // Métricas agregadas
-  const totalLeadsActive = leadsNuevo.totalDocs + leadsContactado.totalDocs + leadsCalificado.totalDocs
+  const totalLeadsActive =
+    leadsNuevo.totalDocs + leadsContactado.totalDocs + leadsCalificado.totalDocs
   const totalConvertedClients = clientsActive.totalDocs
   const totalHistoricLeads = totalLeadsActive + leadsDescartado.totalDocs + totalConvertedClients
   const globalConversionRate = stageRate(totalConvertedClients, totalHistoricLeads)
@@ -265,8 +390,15 @@ export async function getWorkspaceOverviewData({
   const estimatedRevenueContacted = leadsContactado.totalDocs * 700
   const estimatedRevenueQualified = leadsCalificado.totalDocs * 1350
   const weightedPipelineTotal =
-    estimatedRevenueNew * 0.2 + estimatedRevenueContacted * 0.45 + estimatedRevenueQualified * 0.75 + revenuePending.total
-  const pipelineBase = estimatedRevenueNew + estimatedRevenueContacted + estimatedRevenueQualified + revenuePending.total
+    estimatedRevenueNew * 0.2 +
+    estimatedRevenueContacted * 0.45 +
+    estimatedRevenueQualified * 0.75 +
+    revenuePending.total
+  const pipelineBase =
+    estimatedRevenueNew +
+    estimatedRevenueContacted +
+    estimatedRevenueQualified +
+    revenuePending.total
   const weightedProbabilityPct = pipelineBase > 0 ? (weightedPipelineTotal / pipelineBase) * 100 : 0
 
   // Tendencia período contra período previo
@@ -310,7 +442,8 @@ export async function getWorkspaceOverviewData({
     operationalAlerts.push({
       id: 'whatsapp-24h-sla',
       title: `${critical24hCount} conversación${critical24hCount > 1 ? 'es' : ''} de WhatsApp con ventana por expirar`,
-      subtitle: 'La ventana de atención de 24 horas de Meta está próxima a vencer (< 4h restantes). Responde ahora para evitar tarifas de plantilla.',
+      subtitle:
+        'La ventana de atención de 24 horas de Meta está próxima a vencer (< 4h restantes). Responde ahora para evitar tarifas de plantilla.',
       severity: 'critical',
       href: '/workspace/inbox',
       actionText: 'Abrir Inbox',
@@ -322,7 +455,8 @@ export async function getWorkspaceOverviewData({
     operationalAlerts.push({
       id: 'payments-overdue',
       title: `${overduePaymentsRes.totalDocs} cobro${overduePaymentsRes.totalDocs > 1 ? 's' : ''} vencido${overduePaymentsRes.totalDocs > 1 ? 's' : ''} pendiente${overduePaymentsRes.totalDocs > 1 ? 's' : ''}`,
-      subtitle: 'Hay cuentas por cobrar que han superado su fecha límite de pago acordada con el cliente.',
+      subtitle:
+        'Hay cuentas por cobrar que han superado su fecha límite de pago acordada con el cliente.',
       severity: 'warning',
       href: '/workspace/billing',
       actionText: 'Ver Facturación',
@@ -343,18 +477,20 @@ export async function getWorkspaceOverviewData({
   }
 
   // Flujo de caja real de 6 meses: cobrado (por paid_at) + pendiente (por due_date)
-  const cashflowPoints: MonthlyCashflowPoint[] = paidSeries.map((point, i) => {
-    const [year, month] = point.month.split('-').map(Number)
-    const monthName = new Date(year, month - 1, 1)
-      .toLocaleDateString('es-ES', { month: 'short' })
-      .replace(/\./g, '')
-      .toUpperCase()
-    return {
-      monthName,
-      paid: point.total,
-      pending: pendingSeries[i]?.total ?? 0,
-    }
-  })
+  const cashflowPoints: MonthlyCashflowPoint[] = paidSeries.map(
+    (point: MonthlyRevenuePoint, i: number) => {
+      const [year, month] = point.month.split('-').map(Number)
+      const monthName = new Date(year, month - 1, 1)
+        .toLocaleDateString('es-ES', { month: 'short' })
+        .replace(/\./g, '')
+        .toUpperCase()
+      return {
+        monthName,
+        paid: point.total,
+        pending: pendingSeries[i]?.total ?? 0,
+      }
+    },
+  )
 
   // Matriz de actividad de 364 días
   const dayBuckets = buildEmptyDayBuckets()

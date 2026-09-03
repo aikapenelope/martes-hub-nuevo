@@ -104,6 +104,7 @@ export function CockpitFocusViews({
         dateTitle={dateTitle}
         canEdit={canEdit}
         clients={clients}
+        timeRange={data.timeRange}
       />
 
       {/* 2. Selector de Vistas de Enfoque (Tabs OLED) */}
@@ -289,6 +290,7 @@ export function CockpitFocusViews({
           <CockpitKpiGrid
             metrics={data.metrics}
             revenueSeries={data.cashflowPoints.map((p) => p.paid)}
+            timeRange={data.timeRange}
           />
 
           {/* Bento Superior: Flujo de Caja (7 cols) + Embudo de Conversión (5 cols) */}
