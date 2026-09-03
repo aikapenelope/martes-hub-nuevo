@@ -49,6 +49,16 @@ export const Notifications: CollectionConfig = {
       },
     },
     {
+      name: 'occurredAt',
+      type: 'date',
+      label: 'Ocurrencia',
+      admin: {
+        position: 'sidebar',
+        description:
+          'Momento real del incidente según la fuente (p. ej. created_at del log de OpenBSP). Vacío = momento de creación de la notificación.',
+      },
+    },
+    {
       name: 'read',
       type: 'checkbox',
       defaultValue: false,
