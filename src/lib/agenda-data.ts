@@ -2,6 +2,9 @@ import type { Payload, Where } from 'payload'
 import type { Appointment, Client, Membership, Payment, Task, User } from '@/payload-types'
 
 export interface AgendaItem {
+  id?: number
+  leadId?: number
+  clientId?: number
   type: 'task' | 'membership' | 'payment' | 'cita'
   date: string
   label: string
@@ -110,6 +113,7 @@ export async function getUpcomingAgenda(
 
   const items: AgendaItem[] = [
     ...(tasksRes.docs as Task[]).map((t) => ({
+      id: t.id,
       type: 'task' as const,
       date: t.dueDate!,
       label: t.title,
@@ -119,6 +123,7 @@ export async function getUpcomingAgenda(
     ...(membershipsRes.docs as Membership[]).map((m) => {
       const clientName = typeof m.client === 'object' && m.client ? (m.client as Client).name : `Cliente #${m.client}`
       return {
+        id: m.id,
         type: 'membership' as const,
         date: m.renewalDate,
         label: `Renovación · ${clientName}`,
@@ -129,6 +134,7 @@ export async function getUpcomingAgenda(
     ...(paymentsRes.docs as Payment[]).map((p) => {
       const clientName = typeof p.client === 'object' && p.client ? (p.client as Client).name : `Cliente #${p.client}`
       return {
+        id: p.id,
         type: 'payment' as const,
         date: p.dueDate,
         label: `Cobro · ${clientName}`,
@@ -138,10 +144,15 @@ export async function getUpcomingAgenda(
     }),
     ...(appointmentsRes.docs as Appointment[]).map((a) => {
       const clientObj = typeof a.client === 'object' && a.client ? (a.client as Client) : null
-      const leadId = typeof a.lead === 'object' && a.lead ? a.lead.id : a.lead
+      const leadId = typeof a.lead === 'object' && a.lead ? a.lead.id : (typeof a.lead === 'number' ? a.lead : undefined)
       const timeFmt = new Intl.DateTimeFormat('es-VE', { hour: '2-digit', minute: '2-digit' })
       const hora = a.allDay ? 'todo el día' : timeFmt.format(new Date(a.start))
       return {
+        id: a.id,
+        leadId,
+        // syncGcal puede poblar client Y lead; el cliente es el vínculo
+        // principal de la cita (igual criterio que el href de abajo).
+        clientId: clientObj?.id,
         type: 'cita' as const,
         date: a.start,
         label: `Cita · ${a.title}`,

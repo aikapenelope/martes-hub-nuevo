@@ -19,7 +19,13 @@ const MAX_SHOWN = 4
  * servidor. Cada tarjeta ofrece el contacto directo por WhatsApp y el
  * acceso a la ficha del CRM.
  */
-export function CockpitFollowupsToday({ items }: { items: FollowUpItem[] }) {
+export function CockpitFollowupsToday({
+  items,
+  onOpenLead,
+}: {
+  items: FollowUpItem[]
+  onOpenLead?: (leadId: number) => void
+}) {
   const shown = items.slice(0, MAX_SHOWN)
   const extra = items.length - shown.length
 
@@ -85,12 +91,22 @@ export function CockpitFollowupsToday({ items }: { items: FollowUpItem[] }) {
                 >
                   <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
                 </a>
-                <Link
-                  href={item.crmUrl}
-                  className="inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-[10px] font-bold uppercase font-mono transition"
-                >
-                  Ficha <ArrowRight className="w-3 h-3" />
-                </Link>
+                {item.kind === 'lead' && onOpenLead ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenLead(item.id)}
+                    className="inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-[10px] font-bold uppercase font-mono transition"
+                  >
+                    Ficha <ArrowRight className="w-3 h-3" />
+                  </button>
+                ) : (
+                  <Link
+                    href={item.crmUrl}
+                    className="inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-[10px] font-bold uppercase font-mono transition"
+                  >
+                    Ficha <ArrowRight className="w-3 h-3" />
+                  </Link>
+                )}
               </div>
             </div>
           ))}

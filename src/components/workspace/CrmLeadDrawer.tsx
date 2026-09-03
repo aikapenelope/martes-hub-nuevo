@@ -36,20 +36,24 @@ const TABS: { key: TabKey; label: string; icon: typeof Mail }[] = [
 export function CrmLeadDrawer({
   leadId,
   canEdit,
-  assignees,
-  segments,
+  assignees = [],
+  segments = [],
   onUpdated,
 }: {
   leadId: number
   canEdit: boolean
-  assignees: User[]
-  segments: Segment[]
+  assignees?: User[]
+  segments?: Segment[]
   onUpdated?: () => void
 }) {
   const [tab, setTab] = useState<TabKey>('whatsapp')
   const [data, setData] = useState<LeadDrawerData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Se incrementa al guardar en "Datos CRM" para volver a traer la ficha: sin
+  // esto el snapshot local queda obsoleto y re-visitar la pestaña muestra (y
+  // puede re-guardar) valores viejos.
+  const [reloadToken, setReloadToken] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -77,7 +81,7 @@ export function CrmLeadDrawer({
     return () => {
       active = false
     }
-  }, [leadId])
+  }, [leadId, reloadToken])
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -118,7 +122,17 @@ export function CrmLeadDrawer({
             </Link>
           </div>
           {tab === 'datos' && (
-            <LeadDrawerDataTab lead={data.lead} canEdit={canEdit} assignees={assignees} segments={segments} onSaved={onUpdated} />
+            <LeadDrawerDataTab
+              lead={data.lead}
+              canEdit={canEdit}
+              assignees={assignees}
+              segments={segments}
+              onSaved={() => {
+                // Refresca la ficha local + los server components del dashboard
+                setReloadToken((t) => t + 1)
+                onUpdated?.()
+              }}
+            />
           )}
           {tab === 'timeline' && <LeadDrawerTimelineTab activities={data.activities} />}
           {tab === 'whatsapp' && <LeadDrawerWhatsAppTab leadId={leadId} canEdit={canEdit} />}

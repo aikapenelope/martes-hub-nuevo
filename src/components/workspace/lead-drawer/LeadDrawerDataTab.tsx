@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { updateLeadFieldsAction } from '@/lib/crm-pipeline-actions'
 import type { Lead, Segment, User } from '@/payload-types'
 
@@ -11,6 +11,79 @@ const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider
 function relId(value: number | { id: number } | null | undefined): number | null {
   if (value == null) return null
   return typeof value === 'object' ? value.id : value
+}
+
+/**
+ * Construye el payload del formulario a partir del FormData.
+ *
+ * Regla crítica: si el caller no proveyó opciones para `segment` o
+ * `assignedTo` (p. ej. el drawer del cockpit), esos campos se OMITEN
+ * (`undefined` → el update no los toca). El select sin opciones renderiza la
+ * opción vacía aunque el lead tenga relación previa, y enviarla borraría la
+ * asignación/rubro existente. Con opciones presentes, la elección explícita
+ * del usuario (incluida "Sin asignar") sí se envía.
+ *
+ * Además, los campos de texto que no cambiaron respecto al lead se omiten:
+ * guardar un campo ajeno nunca re-envía (y trunca) notas largas existentes.
+ */
+export function collectLeadFieldsInput(
+  form: FormData,
+  lead: Lead,
+  opts: { hasAssigneeChoices: boolean; hasSegmentChoices: boolean },
+): Parameters<typeof updateLeadFieldsAction>[1] {
+  const segmentRaw = form.get('segment')
+  const assignedToRaw = form.get('assignedTo')
+
+  // Omitir el campo si el valor enviado es idéntico al ya guardado
+  const ifChanged = (formKey: string, current: string | null | undefined, capped: string | undefined) => {
+    const submitted = String(form.get(formKey) ?? '')
+    return submitted === (current ?? '') ? undefined : capped
+  }
+
+  return {
+    fullName: String(form.get('fullName') ?? ''),
+    companyName: ifChanged('companyName', lead.companyName, capText(String(form.get('companyName') ?? ''), 200)),
+    position: ifChanged('position', lead.position, capText(String(form.get('position') ?? ''), 120)),
+    phone: ifChanged('phone', lead.phone, capText(String(form.get('phone') ?? ''), 40)),
+    email: ifChanged('email', lead.email, capText(String(form.get('email') ?? ''), 320)),
+    city: ifChanged('city', lead.city, capText(String(form.get('city') ?? ''), 120)),
+    address: ifChanged('address', lead.address, capText(String(form.get('address') ?? ''), 300)),
+    googleMapsUrl: ifChanged('googleMapsUrl', lead.googleMapsUrl, capText(String(form.get('googleMapsUrl') ?? ''), 500)),
+    socialHandle: ifChanged('socialHandle', lead.socialHandle, capText(String(form.get('socialHandle') ?? ''), 120)),
+    source: form.get('source') as
+      | 'manual'
+      | 'google_maps'
+      | 'puerta_fria'
+      | 'whatsapp'
+      | 'instagram_dm'
+      | 'linkedin'
+      | 'tally'
+      | 'apify'
+      | 'referido',
+    segment: opts.hasSegmentChoices
+      ? segmentRaw
+        ? Number(segmentRaw)
+        : null
+      : undefined,
+    estimatedValue: form.get('estimatedValue') ? Number(form.get('estimatedValue')) : null,
+    assignedTo: opts.hasAssigneeChoices
+      ? assignedToRaw
+        ? Number(assignedToRaw)
+        : null
+      : undefined,
+    commercialNotes: ifChanged(
+      'commercialNotes',
+      lead.commercialNotes,
+      capText(String(form.get('commercialNotes') ?? ''), 20000),
+    ),
+    notes: ifChanged('notes', lead.notes, capText(String(form.get('notes') ?? ''), 20000)),
+  }
+}
+
+/** Recorta texto acotado; vacío → undefined (omitir). */
+function capText(value: string, max: number): string | undefined {
+  const trimmed = value.trim()
+  return trimmed ? trimmed.slice(0, max) : undefined
 }
 
 export function LeadDrawerDataTab({
@@ -32,6 +105,31 @@ export function LeadDrawerDataTab({
   const segmentId = relId(lead.segment)
   const assignedToId = relId(lead.assignedTo)
 
+  // Opciones efectivas: si la relación actual del lead no está entre las
+  // opciones provistas (agente inactivo filtrado de la lista, límite de
+  // paginación), se sintetiza una opción con su valor real. Sin esto el
+  // select caería a "Sin asignar"/"Sin rubro" y guardar borraría la relación.
+  const segmentOptions = useMemo<Segment[]>(() => {
+    if (segmentId == null || segments.some((s) => s.id === segmentId)) return segments
+    const current = lead.segment
+    const label =
+      typeof current === 'object' && current && 'name' in current && current.name
+        ? current.name
+        : `Rubro #${segmentId}`
+    return [...segments, { id: segmentId, name: label } as Segment]
+  }, [segments, segmentId, lead.segment])
+
+  const assigneeOptions = useMemo<User[]>(() => {
+    if (assignedToId == null || assignees.some((a) => a.id === assignedToId)) return assignees
+    const current = lead.assignedTo
+    let label = `Agente #${assignedToId}`
+    if (typeof current === 'object' && current) {
+      const name = [current.firstName, current.lastName].filter(Boolean).join(' ')
+      label = name || current.email || label
+    }
+    return [...assignees, { id: assignedToId, email: label } as User]
+  }, [assignees, assignedToId, lead.assignedTo])
+
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
     if (!canEdit) return
@@ -39,23 +137,13 @@ export function LeadDrawerDataTab({
     setError(null)
     setFeedback(null)
     const form = new FormData(event.currentTarget)
-    const result = await updateLeadFieldsAction(lead.id, {
-      fullName: String(form.get('fullName') ?? ''),
-      companyName: String(form.get('companyName') ?? ''),
-      position: String(form.get('position') ?? ''),
-      phone: String(form.get('phone') ?? ''),
-      email: String(form.get('email') ?? ''),
-      city: String(form.get('city') ?? ''),
-      address: String(form.get('address') ?? ''),
-      googleMapsUrl: String(form.get('googleMapsUrl') ?? ''),
-      socialHandle: String(form.get('socialHandle') ?? ''),
-      source: form.get('source') as 'manual' | 'google_maps' | 'puerta_fria' | 'whatsapp' | 'instagram_dm' | 'linkedin' | 'tally' | 'apify' | 'referido',
-      segment: form.get('segment') ? Number(form.get('segment')) : null,
-      estimatedValue: form.get('estimatedValue') ? Number(form.get('estimatedValue')) : null,
-      assignedTo: form.get('assignedTo') ? Number(form.get('assignedTo')) : null,
-      commercialNotes: String(form.get('commercialNotes') ?? ''),
-      notes: String(form.get('notes') ?? ''),
-    })
+    const result = await updateLeadFieldsAction(
+      lead.id,
+      collectLeadFieldsInput(form, lead, {
+        hasAssigneeChoices: assigneeOptions.length > 0,
+        hasSegmentChoices: segmentOptions.length > 0,
+      }),
+    )
     setSaving(false)
     if (!result.ok) {
       setError(result.error)
@@ -137,7 +225,7 @@ export function LeadDrawerDataTab({
             Rubro
             <select name="segment" defaultValue={segmentId ?? ''} className={inputCls}>
               <option value="">Sin rubro</option>
-              {segments.map((segment) => (
+              {segmentOptions.map((segment) => (
                 <option key={segment.id} value={segment.id}>
                   {segment.name}
                 </option>
@@ -154,7 +242,7 @@ export function LeadDrawerDataTab({
           Agente asignado
           <select name="assignedTo" defaultValue={assignedToId ?? ''} className={inputCls}>
             <option value="">Sin asignar</option>
-            {assignees.map((agent) => (
+            {assigneeOptions.map((agent) => (
               <option key={agent.id} value={agent.id}>
                 {[agent.firstName, agent.lastName].filter(Boolean).join(' ') || agent.email}
               </option>

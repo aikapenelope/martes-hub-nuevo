@@ -9,6 +9,8 @@ import { z } from 'zod'
 import type { Lead, Message, Tenant } from '@/payload-types'
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { getAssignableUsers } from '@/lib/tasks-data'
+import { buildLeadUpdateData, type LeadFieldsInput } from '@/lib/lead-update-data'
 import { sendText } from '@/integrations/openbsp/client'
 import { renderEmailHtml } from '@/email/layout'
 import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
@@ -272,25 +274,7 @@ export async function sendLeadEmailAction(
  */
 export async function updateLeadFieldsAction(
   leadId: number,
-  input: {
-    fullName: string
-    companyName?: string
-    position?: string
-    phone?: string
-    email?: string
-    city?: string
-    state?: string
-    address?: string
-    googleMapsUrl?: string
-    socialHandle?: string
-    source?: 'manual' | 'google_maps' | 'puerta_fria' | 'whatsapp' | 'instagram_dm' | 'linkedin' | 'tally' | 'apify' | 'referido'
-    segment?: number | null
-    estimatedValue?: number | null
-    assignedTo?: number | null
-    lastContactChannel?: 'whatsapp' | 'instagram_dm' | 'llamada' | 'en_persona' | 'email' | 'otro'
-    commercialNotes?: string
-    notes?: string
-  },
+  input: LeadFieldsInput,
 ): Promise<ActionResult> {
   try {
     const { context } = await scopedLead(leadId)
@@ -299,30 +283,41 @@ export async function updateLeadFieldsAction(
     const fullName = input.fullName.trim().slice(0, 160)
     if (!fullName) throw new Error('El nombre es obligatorio')
 
+    // Validación de tenancy: el editor podría enviar IDs arbitrarios de otros
+    // tenants. El segmento debe pertenecer al tenant activo y el agente debe
+    // ser asignable (miembro del tenant o admin global).
+    if (input.segment != null) {
+      const segment = await context.payload.findByID({
+        collection: 'segments',
+        id: input.segment,
+        depth: 0,
+        overrideAccess: false,
+        user: context.user,
+      })
+      const segmentTenant = (segment as { tenant?: number | null } | null | undefined)?.tenant
+      if (!segment || (segmentTenant != null && segmentTenant !== context.tenantId)) {
+        throw new Error('El rubro seleccionado no pertenece a este tenant')
+      }
+    }
+    if (input.assignedTo != null) {
+      const assignables = await getAssignableUsers({
+        payload: context.payload,
+        user: context.user,
+        tenantId: context.tenantId,
+      })
+      if (!assignables.some((u) => u.id === input.assignedTo)) {
+        throw new Error('El agente asignado no es válido para este tenant')
+      }
+    }
+
     await context.payload.update({
       collection: 'leads',
       id: leadId,
       overrideAccess: false,
       user: context.user,
-      data: {
-        fullName,
-        companyName: input.companyName?.trim() || undefined,
-        position: input.position?.trim() || undefined,
-        phone: input.phone?.trim() || undefined,
-        email: input.email?.trim() || undefined,
-        city: input.city?.trim() || undefined,
-        state: input.state?.trim() || undefined,
-        address: input.address?.trim() || undefined,
-        googleMapsUrl: input.googleMapsUrl?.trim() || undefined,
-        socialHandle: input.socialHandle?.trim() || undefined,
-        source: input.source || undefined,
-        segment: input.segment ?? undefined,
-        estimatedValue: input.estimatedValue ?? undefined,
-        assignedTo: input.assignedTo ?? undefined,
-        lastContactChannel: input.lastContactChannel || undefined,
-        commercialNotes: input.commercialNotes?.trim() || undefined,
-        notes: input.notes?.trim() || undefined,
-      },
+      // buildLeadUpdateData: null = limpiar la relación (elección explícita),
+      // undefined = omitir el campo (no toca el valor guardado).
+      data: buildLeadUpdateData(input),
     })
 
     revalidatePath('/workspace/crm')

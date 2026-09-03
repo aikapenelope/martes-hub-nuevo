@@ -8,7 +8,13 @@ const currency = new Intl.NumberFormat('es-VE', {
   maximumFractionDigits: 0,
 })
 
-export function CockpitPipelinePriorities({ hotLeads }: { hotLeads: Lead[] }) {
+export function CockpitPipelinePriorities({
+  hotLeads,
+  onOpenLead,
+}: {
+  hotLeads: Lead[]
+  onOpenLead?: (leadId: number) => void
+}) {
   return (
     <div className="p-4 oled-card space-y-3.5">
       <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800">
@@ -73,12 +79,22 @@ export function CockpitPipelinePriorities({ hotLeads }: { hotLeads: Lead[] }) {
                   <span className="text-[10px] text-indigo-400 flex items-center gap-1">
                     <Sparkles className="w-3 h-3" /> {actionLabel}
                   </span>
-                  <Link
-                    href={`/workspace/crm/leads/${lead.id}`}
-                    className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] uppercase font-bold transition inline-flex items-center gap-1"
-                  >
-                    Abrir →
-                  </Link>
+                  {onOpenLead ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenLead(lead.id)}
+                      className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] uppercase font-bold transition inline-flex items-center gap-1"
+                    >
+                      Abrir →
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/workspace/crm/leads/${lead.id}`}
+                      className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] uppercase font-bold transition inline-flex items-center gap-1"
+                    >
+                      Abrir →
+                    </Link>
+                  )}
                 </div>
               </div>
             )
