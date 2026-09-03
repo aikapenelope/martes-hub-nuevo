@@ -120,6 +120,7 @@ describe('getIntegrationsHealth — salud de integraciones', () => {
       expect(health.recentErrorCount).toBe(3)
       expect(webhooks?.status).toBe('warning')
       expect(webhooks?.badge).toBe('3 ERRORES')
+      expect(webhooks?.actionHref).toBe('/workspace/notifications')
 
       const find = payload.find as ReturnType<typeof vi.fn>
       const queriedCollections = find.mock.calls.map((c: unknown[]) => (c[0] as { collection: string }).collection)
@@ -143,6 +144,52 @@ describe('getIntegrationsHealth — salud de integraciones', () => {
 
       expect(webhooks?.status).toBe('error')
       expect(health.overallStatus).toBe('error')
+    })
+
+    it('marca telemetría caída en vez de reportar estabilidad falsa si falla una consulta', async () => {
+      vi.stubEnv('OPENBSP_API_KEY', 'key')
+      vi.stubEnv('OPENBSP_PUBLISHABLE_KEY', 'pub')
+      vi.stubEnv('OPENBSP_ORG_ID', 'org')
+      vi.stubEnv('OPENBSP_PHONE_NUMBER_ID', 'phone')
+
+      const payload = {
+        find: vi.fn().mockImplementation(({ collection }: { collection: string }) =>
+          collection === 'notifications'
+            ? Promise.reject(new Error('db down'))
+            : Promise.resolve({ docs: [], totalDocs: 0 }),
+        ),
+      } as unknown as Payload
+
+      const health = await getIntegrationsHealth(payload, bareTenant, 10)
+      const webhooks = health.items.find((i) => i.id === 'webhooks')
+
+      // No debe ser 'healthy': no consultar no equivale a "0 fallos"
+      expect(webhooks?.status).toBe('warning')
+      expect(webhooks?.badge).toBe('TELEMETRÍA CAÍDA')
+      expect(health.overallStatus).toBe('warning')
+    })
+
+    it('usa updatedAt (no createdAt) para contar rebotes tardíos del email-log', async () => {
+      vi.stubEnv('OPENBSP_API_KEY', 'key')
+      vi.stubEnv('OPENBSP_PUBLISHABLE_KEY', 'pub')
+      vi.stubEnv('OPENBSP_ORG_ID', 'org')
+      vi.stubEnv('OPENBSP_PHONE_NUMBER_ID', 'phone')
+
+      const payload = {
+        find: vi.fn().mockResolvedValue({ docs: [], totalDocs: 0 }),
+      } as unknown as Payload
+
+      await getIntegrationsHealth(payload, bareTenant, 10)
+
+      const find = payload.find as ReturnType<typeof vi.fn>
+      const emailLogCall = find.mock.calls
+        .map((c: unknown[]) => c[0] as { collection: string; where: { and: Record<string, unknown>[] } })
+        .find((a) => a.collection === 'email-log')
+
+      expect(emailLogCall).toBeDefined()
+      const filters = emailLogCall!.where.and.map((f) => Object.keys(f)[0])
+      expect(filters).toContain('updatedAt')
+      expect(filters).not.toContain('createdAt')
     })
   })
 })

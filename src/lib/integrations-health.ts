@@ -99,12 +99,13 @@ export async function getIntegrationsHealth(
 
   // 4. Webhooks & Tareas Asíncronas: fallos reales persistidos en las últimas 24h.
   // - notifications (severity=error): errores de Meta/OpenBSP y workers que persiste openbsp-error-poll
-  // - email-log (status failed/bounced): rebotes y fallos que reporta el webhook de Resend
+  // - email-log (status failed/bounced por updatedAt): el rebote llega después del envío original
   // (Activities no sirve como fuente: su type solo admite nota/llamada/whatsapp/email/reunion/otro)
   let recentErrorCount = 0
+  let telemetryAvailable = true
   try {
     const tenantFilter = resolvedTenantId ? [{ tenant: { equals: resolvedTenantId } }] : []
-    const [errorNotifications, failedEmails] = await Promise.all([
+    const [notificationsRes, emailRes] = await Promise.allSettled([
       payload.find({
         collection: 'notifications',
         limit: 0,
@@ -128,20 +129,39 @@ export async function getIntegrationsHealth(
         where: {
           and: [
             ...tenantFilter,
-            { createdAt: { greater_than_equal: oneDayAgo } },
+            { updatedAt: { greater_than_equal: oneDayAgo } },
             { status: { in: ['failed', 'bounced'] } },
           ],
         },
       }),
     ])
-    recentErrorCount = errorNotifications.totalDocs + failedEmails.totalDocs
+    // Si una fuente falla no se asume "0 fallos": el canal se marca con
+    // telemetría caída en vez de reportar estabilidad falsa.
+    if (notificationsRes.status === 'fulfilled') recentErrorCount += notificationsRes.value.totalDocs
+    else telemetryAvailable = false
+    if (emailRes.status === 'fulfilled') recentErrorCount += emailRes.value.totalDocs
+    else telemetryAvailable = false
   } catch {
-    recentErrorCount = 0
+    telemetryAvailable = false
   }
 
-  const webhookStatus: IntegrationStatus = recentErrorCount > 5 ? 'error' : recentErrorCount > 0 ? 'warning' : 'healthy'
-  const webhookBadge = recentErrorCount === 0 ? 'ESTABLE' : `${recentErrorCount} ERRORES`
-  const webhookMsg = recentErrorCount === 0 ? 'Sin fallos de webhooks o sync en 24h.' : `${recentErrorCount} excepciones en las últimas 24 horas.`
+  const webhookStatus: IntegrationStatus = !telemetryAvailable
+    ? 'warning'
+    : recentErrorCount > 5
+      ? 'error'
+      : recentErrorCount > 0
+        ? 'warning'
+        : 'healthy'
+  const webhookBadge = !telemetryAvailable
+    ? 'TELEMETRÍA CAÍDA'
+    : recentErrorCount === 0
+      ? 'ESTABLE'
+      : `${recentErrorCount} ERRORES`
+  const webhookMsg = !telemetryAvailable
+    ? 'No se pudo consultar notifications / email-log: el estado de fallos es desconocido.'
+    : recentErrorCount === 0
+      ? 'Sin fallos de webhooks o sync en 24h.'
+      : `${recentErrorCount} fallos en las últimas 24 horas.`
 
   const items: IntegrationHealthItem[] = [
     {
@@ -187,10 +207,10 @@ export async function getIntegrationsHealth(
       status: webhookStatus,
       badge: webhookBadge,
       message: webhookMsg,
-      detail: 'Tally, OpenBSP Webhooks y background workers',
+      detail: 'Fallos de Tally, OpenBSP y workers (notifications + email-log)',
       lastChecked: nowIso,
-      actionHref: '/workspace/activities',
-      actionLabel: 'Ver Actividades',
+      actionHref: '/workspace/notifications',
+      actionLabel: 'Ver Incidentes',
     },
   ]
 
