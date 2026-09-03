@@ -47,25 +47,46 @@ function relationshipField(
   return value === undefined ? undefined : value
 }
 
+/** Recorta y limpia texto acotado: las server actions no deben poder crear registros gigantes. */
+function cap(value: string | undefined, max: number): string | undefined {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed.slice(0, max) : undefined
+}
+
+// Límites por campo alineados con el tamaño real de la UI (textarea/input).
+const LIMITS = {
+  companyName: 200,
+  position: 120,
+  phone: 40,
+  email: 320,
+  city: 120,
+  state: 120,
+  address: 300,
+  googleMapsUrl: 500,
+  socialHandle: 120,
+  commercialNotes: 2000,
+  notes: 2000,
+} as const
+
 export function buildLeadUpdateData(input: LeadFieldsInput): Record<string, unknown> {
   const fullName = input.fullName.trim().slice(0, 160)
   return {
     fullName,
-    companyName: input.companyName?.trim() || undefined,
-    position: input.position?.trim() || undefined,
-    phone: input.phone?.trim() || undefined,
-    email: input.email?.trim() || undefined,
-    city: input.city?.trim() || undefined,
-    state: input.state?.trim() || undefined,
-    address: input.address?.trim() || undefined,
-    googleMapsUrl: input.googleMapsUrl?.trim() || undefined,
-    socialHandle: input.socialHandle?.trim() || undefined,
+    companyName: cap(input.companyName, LIMITS.companyName),
+    position: cap(input.position, LIMITS.position),
+    phone: cap(input.phone, LIMITS.phone),
+    email: cap(input.email, LIMITS.email),
+    city: cap(input.city, LIMITS.city),
+    state: cap(input.state, LIMITS.state),
+    address: cap(input.address, LIMITS.address),
+    googleMapsUrl: cap(input.googleMapsUrl, LIMITS.googleMapsUrl),
+    socialHandle: cap(input.socialHandle, LIMITS.socialHandle),
     source: input.source || undefined,
     segment: relationshipField(input.segment),
     estimatedValue: relationshipField(input.estimatedValue),
     assignedTo: relationshipField(input.assignedTo),
     lastContactChannel: input.lastContactChannel || undefined,
-    commercialNotes: input.commercialNotes?.trim() || undefined,
-    notes: input.notes?.trim() || undefined,
+    commercialNotes: cap(input.commercialNotes, LIMITS.commercialNotes),
+    notes: cap(input.notes, LIMITS.notes),
   }
 }

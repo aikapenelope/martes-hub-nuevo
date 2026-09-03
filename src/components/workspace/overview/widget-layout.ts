@@ -1,7 +1,14 @@
 import { useCallback, useSyncExternalStore } from 'react'
 
 export type OperativeWidgetKey = 'alerts' | 'health' | 'followups' | 'agenda' | 'feed'
-export type ExecutiveWidgetKey = 'kpis' | 'cashflow' | 'funnel' | 'heatmap' | 'sources' | 'priorities'
+export type ExecutiveWidgetKey =
+  | 'health'
+  | 'kpis'
+  | 'cashflow'
+  | 'funnel'
+  | 'heatmap'
+  | 'sources'
+  | 'priorities'
 
 export interface WidgetConfig<T extends string> {
   key: T
@@ -18,6 +25,7 @@ export const DEFAULT_OPERATIVE_WIDGETS: WidgetConfig<OperativeWidgetKey>[] = [
 ]
 
 export const DEFAULT_EXECUTIVE_WIDGETS: WidgetConfig<ExecutiveWidgetKey>[] = [
+  { key: 'health', label: 'Monitor de Salud de Canales e Integraciones', visible: true },
   { key: 'kpis', label: 'Tarjetas KPI de Rendimiento', visible: true },
   { key: 'cashflow', label: 'Flujo de Caja (6 Meses)', visible: true },
   { key: 'funnel', label: 'Embudo de Conversión Real', visible: true },

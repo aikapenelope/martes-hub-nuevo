@@ -9,6 +9,7 @@ import { z } from 'zod'
 import type { Lead, Message, Tenant } from '@/payload-types'
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { getAssignableUsers } from '@/lib/tasks-data'
 import { buildLeadUpdateData, type LeadFieldsInput } from '@/lib/lead-update-data'
 import { sendText } from '@/integrations/openbsp/client'
 import { renderEmailHtml } from '@/email/layout'
@@ -281,6 +282,33 @@ export async function updateLeadFieldsAction(
 
     const fullName = input.fullName.trim().slice(0, 160)
     if (!fullName) throw new Error('El nombre es obligatorio')
+
+    // Validación de tenancy: el editor podría enviar IDs arbitrarios de otros
+    // tenants. El segmento debe pertenecer al tenant activo y el agente debe
+    // ser asignable (miembro del tenant o admin global).
+    if (input.segment != null) {
+      const segment = await context.payload.findByID({
+        collection: 'segments',
+        id: input.segment,
+        depth: 0,
+        overrideAccess: false,
+        user: context.user,
+      })
+      const segmentTenant = (segment as { tenant?: number | null } | null | undefined)?.tenant
+      if (!segment || (segmentTenant != null && segmentTenant !== context.tenantId)) {
+        throw new Error('El rubro seleccionado no pertenece a este tenant')
+      }
+    }
+    if (input.assignedTo != null) {
+      const assignables = await getAssignableUsers({
+        payload: context.payload,
+        user: context.user,
+        tenantId: context.tenantId,
+      })
+      if (!assignables.some((u) => u.id === input.assignedTo)) {
+        throw new Error('El agente asignado no es válido para este tenant')
+      }
+    }
 
     await context.payload.update({
       collection: 'leads',

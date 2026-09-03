@@ -455,9 +455,9 @@ export function CockpitFocusViews({
         </div>
       ) : (
         <div className="space-y-4 animate-fadeIn">
-          {/* Salud de Integraciones & Canales (única instancia en esta vista;
-              en la operativa vive como widget del bento) */}
-          <CockpitIntegrationHealth health={data.systemHealth} />
+          {/* Salud de Integraciones & Canales (widget configurable; en la
+              operativa vive con su propio toggle del bento) */}
+          {isExVisible('health') && <CockpitIntegrationHealth health={data.systemHealth} />}
 
           {/* Tarjetas KPI de Rendimiento */}
           {isExVisible('kpis') && (
