@@ -57,7 +57,6 @@ export default async function NotificationsPage() {
 
   const notifications = notificationsRes.docs as Notification[]
   const failedEmails = failedEmailsRes.docs as EmailLog[]
-
   return (
     <div className="space-y-6">
       <PageHero
@@ -78,7 +77,7 @@ export default async function NotificationsPage() {
       <section className="space-y-2">
         <h2 className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-zinc-300">
           <BellRing size={14} className="text-amber-400" />
-          Notificaciones del sistema ({notifications.length})
+          Notificaciones del sistema ({notificationsRes.totalDocs})
         </h2>
         <OledCard className="!p-0">
           {notifications.length === 0 ? (
@@ -118,7 +117,7 @@ export default async function NotificationsPage() {
                       )}
                     </div>
                     <span className="shrink-0 text-[11px] font-mono text-zinc-500">
-                      {datetimeFmt.format(new Date(n.createdAt))}
+                      {datetimeFmt.format(new Date(n.occurredAt ?? n.createdAt))}
                     </span>
                   </div>
                 )
@@ -132,7 +131,7 @@ export default async function NotificationsPage() {
       <section className="space-y-2">
         <h2 className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-zinc-300">
           <MailWarning size={14} className="text-red-400" />
-          Emails fallidos o rebotados ({failedEmails.length})
+          Emails fallidos o rebotados ({failedEmailsRes.totalDocs})
         </h2>
         <OledCard className="!p-0">
           {failedEmails.length === 0 ? (

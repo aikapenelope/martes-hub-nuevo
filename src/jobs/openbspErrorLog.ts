@@ -60,40 +60,90 @@ export const openbspErrorsTask: TaskConfig = {
       return { output: { notified: 0, skippedReason: message } }
     }
 
-    let notified = 0
-    for (const tenant of tenants.docs) {
-      for (const row of rows) {
-        // Dedupe por título compuesto: si ya notificamos ese error exacto, saltar
-        const title = `[OpenBSP] ${row.category ?? row.service ?? 'error'}`
-        const dupes = await req.payload.count({
-          collection: 'notifications',
-          where: {
-            and: [
-              { title: { equals: title } },
-              { body: { equals: `${row.message} (${row.created_at})` } },
-              { tenant: { equals: tenant.id } },
-            ],
-          },
-          overrideAccess: true,
-          req,
-        })
-        if (dupes.totalDocs > 0) continue
+    // Identificadores por tenant para atribuir cada log de OpenBSP al tenant
+    // correcto (el stream de logs es global a la instancia OpenBSP): el phone
+    // number / organización del tenant debe aparecer en el mensaje o metadata.
+    const tenantIdentifiers = tenants.docs.map((tenant) => ({
+      tenant,
+      ids: [tenant.openbspPhoneNumberId, tenant.openbspOrganizationId].filter(
+        (id): id is string => Boolean(id),
+      ),
+    }))
 
-        await req.payload.create({
-          collection: 'notifications',
-          data: {
-            title,
-            body: `${row.message} (${row.created_at})`,
-            severity: 'error',
-            source: 'openbsp',
-            read: false,
-            tenant: tenant.id,
-          },
-          overrideAccess: true,
-          req,
-        })
-        notified += 1
+    const findMatchingTenants = (row: LogRow) => {
+      const haystack = JSON.stringify({ message: row.message, metadata: row.metadata })
+      return tenantIdentifiers.filter(({ ids }) => ids.some((id) => haystack.includes(id)))
+    }
+
+    let notified = 0
+    for (const row of rows) {
+      const title = `[OpenBSP] ${row.category ?? row.service ?? 'error'}`
+      const body = `${row.message} (${row.created_at})`
+
+      const matched = findMatchingTenants(row)
+
+      if (matched.length > 0) {
+        // Incidente atribuible: una notificación por cada tenant coincidente.
+        for (const { tenant } of matched) {
+          const dupes = await req.payload.count({
+            collection: 'notifications',
+            where: {
+              and: [
+                { title: { equals: title } },
+                { body: { equals: body } },
+                { tenant: { equals: tenant.id } },
+              ],
+            },
+            overrideAccess: true,
+            req,
+          })
+          if (dupes.totalDocs > 0) continue
+
+          await req.payload.create({
+            collection: 'notifications',
+            data: {
+              title,
+              body,
+              severity: 'error',
+              source: 'openbsp',
+              occurredAt: row.created_at,
+              read: false,
+              tenant: tenant.id,
+            },
+            overrideAccess: true,
+            req,
+          })
+          notified += 1
+        }
+        continue
       }
+
+      // Incidente global de plataforma (sin tenant identificable): una sola
+      // notificación sin tenant en lugar de duplicarla en la salud de todos.
+      const dupes = await req.payload.count({
+        collection: 'notifications',
+        where: {
+          and: [{ title: { equals: title } }, { body: { equals: body } }, { tenant: { exists: false } }],
+        },
+        overrideAccess: true,
+        req,
+      })
+      if (dupes.totalDocs > 0) continue
+
+      await req.payload.create({
+        collection: 'notifications',
+        data: {
+          title,
+          body,
+          severity: 'error',
+          source: 'openbsp',
+          occurredAt: row.created_at,
+          read: false,
+        },
+        overrideAccess: true,
+        req,
+      })
+      notified += 1
     }
 
     if (notified > 0) req.payload.logger.warn({ msg: 'openbsp-error-poll', notified })

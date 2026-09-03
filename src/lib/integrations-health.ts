@@ -115,7 +115,20 @@ export async function getIntegrationsHealth(
         where: {
           and: [
             ...tenantFilter,
-            { createdAt: { greater_than_equal: oneDayAgo } },
+            // occurredAt = momento real del incidente (openbsp-error-poll lo
+            // importa después); sin occurredAt (notificaciones viejas) se cae
+            // a createdAt para no perderlas.
+            {
+              or: [
+                { occurredAt: { greater_than_equal: oneDayAgo } },
+                {
+                  and: [
+                    { occurredAt: { exists: false } },
+                    { createdAt: { greater_than_equal: oneDayAgo } },
+                  ],
+                },
+              ],
+            },
             { severity: { equals: 'error' } },
           ],
         },

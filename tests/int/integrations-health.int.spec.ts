@@ -191,5 +191,36 @@ describe('getIntegrationsHealth — salud de integraciones', () => {
       expect(filters).toContain('updatedAt')
       expect(filters).not.toContain('createdAt')
     })
+
+    it('filtra notificaciones por occurredAt real con fallback a createdAt para las viejas', async () => {
+      vi.stubEnv('OPENBSP_API_KEY', 'key')
+      vi.stubEnv('OPENBSP_PUBLISHABLE_KEY', 'pub')
+      vi.stubEnv('OPENBSP_ORG_ID', 'org')
+      vi.stubEnv('OPENBSP_PHONE_NUMBER_ID', 'phone')
+
+      const payload = {
+        find: vi.fn().mockResolvedValue({ docs: [], totalDocs: 0 }),
+      } as unknown as Payload
+
+      await getIntegrationsHealth(payload, bareTenant, 10)
+
+      const find = payload.find as ReturnType<typeof vi.fn>
+      const notificationsCall = find.mock.calls
+        .map((c: unknown[]) => c[0] as { collection: string; where: { and: Array<Record<string, unknown>> } })
+        .find((a) => a.collection === 'notifications')
+
+      expect(notificationsCall).toBeDefined()
+      const orFilter = notificationsCall!.where.and.find((f) => 'or' in f) as {
+        or: Array<Record<string, unknown>>
+      }
+      expect(orFilter).toBeDefined()
+      const keys = orFilter.or.flatMap((branch) => {
+        const andArr = (branch as { and?: Array<Record<string, unknown>> }).and
+        const objs = andArr ?? [branch]
+        return objs.flatMap((o) => Object.keys(o as Record<string, unknown>))
+      })
+      expect(keys).toContain('occurredAt')
+      expect(keys).toContain('createdAt')
+    })
   })
 })

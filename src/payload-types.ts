@@ -969,6 +969,10 @@ export interface Notification {
    * openbsp / jobs / formularios…
    */
   source?: string | null;
+  /**
+   * Momento real del incidente según la fuente (p. ej. created_at del log de OpenBSP). Vacío = momento de creación de la notificación.
+   */
+  occurredAt?: string | null;
   read?: boolean | null;
   updatedAt: string;
   createdAt: string;
@@ -2167,6 +2171,7 @@ export interface NotificationsSelect<T extends boolean = true> {
   body?: T;
   severity?: T;
   source?: T;
+  occurredAt?: T;
   read?: T;
   updatedAt?: T;
   createdAt?: T;
