@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { updateLeadFieldsAction } from '@/lib/crm-pipeline-actions'
 import type { Lead, Segment, User } from '@/payload-types'
 
@@ -84,6 +84,31 @@ export function LeadDrawerDataTab({
   const segmentId = relId(lead.segment)
   const assignedToId = relId(lead.assignedTo)
 
+  // Opciones efectivas: si la relación actual del lead no está entre las
+  // opciones provistas (agente inactivo filtrado de la lista, límite de
+  // paginación), se sintetiza una opción con su valor real. Sin esto el
+  // select caería a "Sin asignar"/"Sin rubro" y guardar borraría la relación.
+  const segmentOptions = useMemo<Segment[]>(() => {
+    if (segmentId == null || segments.some((s) => s.id === segmentId)) return segments
+    const current = lead.segment
+    const label =
+      typeof current === 'object' && current && 'name' in current && current.name
+        ? current.name
+        : `Rubro #${segmentId}`
+    return [...segments, { id: segmentId, name: label } as Segment]
+  }, [segments, segmentId, lead.segment])
+
+  const assigneeOptions = useMemo<User[]>(() => {
+    if (assignedToId == null || assignees.some((a) => a.id === assignedToId)) return assignees
+    const current = lead.assignedTo
+    let label = `Agente #${assignedToId}`
+    if (typeof current === 'object' && current) {
+      const name = [current.firstName, current.lastName].filter(Boolean).join(' ')
+      label = name || current.email || label
+    }
+    return [...assignees, { id: assignedToId, email: label } as User]
+  }, [assignees, assignedToId, lead.assignedTo])
+
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
     if (!canEdit) return
@@ -94,8 +119,8 @@ export function LeadDrawerDataTab({
     const result = await updateLeadFieldsAction(
       lead.id,
       collectLeadFieldsInput(form, {
-        hasAssigneeChoices: assignees.length > 0,
-        hasSegmentChoices: segments.length > 0,
+        hasAssigneeChoices: assigneeOptions.length > 0,
+        hasSegmentChoices: segmentOptions.length > 0,
       }),
     )
     setSaving(false)
@@ -179,7 +204,7 @@ export function LeadDrawerDataTab({
             Rubro
             <select name="segment" defaultValue={segmentId ?? ''} className={inputCls}>
               <option value="">Sin rubro</option>
-              {segments.map((segment) => (
+              {segmentOptions.map((segment) => (
                 <option key={segment.id} value={segment.id}>
                   {segment.name}
                 </option>
@@ -196,7 +221,7 @@ export function LeadDrawerDataTab({
           Agente asignado
           <select name="assignedTo" defaultValue={assignedToId ?? ''} className={inputCls}>
             <option value="">Sin asignar</option>
-            {assignees.map((agent) => (
+            {assigneeOptions.map((agent) => (
               <option key={agent.id} value={agent.id}>
                 {[agent.firstName, agent.lastName].filter(Boolean).join(' ') || agent.email}
               </option>

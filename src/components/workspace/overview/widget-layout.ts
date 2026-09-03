@@ -76,13 +76,23 @@ function readStoredWidgetLayout<K extends string>(
 
 // Suscriptores del store de layouts (cross-tab vía evento 'storage' y
 // misma-pestaña vía notifyLayoutChange al persistir).
-const listeners = new Set<() => void>()
-function subscribe(onStoreChange: () => void): () => void {
+const listeners = new Set<(event?: StorageEvent) => void>()
+function subscribe(onStoreChange: (event?: StorageEvent) => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    // Un write exitoso en otra pestaña invalida el modo memory-only local
+    if (event.key === null) {
+      for (const entry of snapshotCache.values()) entry.memoryOnly = false
+    } else {
+      const entry = snapshotCache.get(event.key)
+      if (entry) entry.memoryOnly = false
+    }
+    onStoreChange(event)
+  }
   listeners.add(onStoreChange)
-  window.addEventListener('storage', onStoreChange)
+  window.addEventListener('storage', onStorage)
   return () => {
     listeners.delete(onStoreChange)
-    window.removeEventListener('storage', onStoreChange)
+    window.removeEventListener('storage', onStorage)
   }
 }
 function notifyLayoutChange(): void {
@@ -91,20 +101,27 @@ function notifyLayoutChange(): void {
 
 // Cache por clave: getSnapshot debe devolver identidad estable mientras el
 // contenido crudo de localStorage no cambie (React compara con Object.is).
-const snapshotCache = new Map<string, { raw: string | null; value: unknown }>()
+// `memoryOnly` marca una clave cuyo último write a localStorage falló
+// (storage bloqueado/lleno): el valor en memoria pasa a ser la fuente
+// autoritativa hasta que un evento 'storage' de otra pestaña lo sincronice.
+const snapshotCache = new Map<
+  string,
+  { raw: string | null; value: unknown; memoryOnly?: boolean }
+>()
 
 function getLayoutSnapshot<K extends string>(
   storageKey: string,
   validKeys: readonly K[],
   defaults: WidgetConfig<K>[],
 ): WidgetConfig<K>[] {
+  const cached = snapshotCache.get(storageKey)
+  if (cached?.memoryOnly) return cached.value as WidgetConfig<K>[]
   let raw: string | null = null
   try {
     raw = localStorage.getItem(storageKey)
   } catch {
     return defaults
   }
-  const cached = snapshotCache.get(storageKey)
   if (cached && cached.raw === raw) return cached.value as WidgetConfig<K>[]
   const value = readStoredWidgetLayout(storageKey, validKeys) ?? defaults
   snapshotCache.set(storageKey, { raw, value })
@@ -144,10 +161,13 @@ export function useWidgetLayout<K extends string>(
       const resolved = typeof next === 'function' ? next(current) : next
       try {
         localStorage.setItem(storageKey, JSON.stringify(resolved))
+        // Write exitoso: storage vuelve a ser la fuente autoritativa
+        snapshotCache.set(storageKey, { raw: JSON.stringify(resolved), value: resolved })
       } catch {
-        // storage lleno/bloqueado: el layout vive solo para esta sesión
+        // Storage bloqueado o lleno: el layout vive en memoria (memory-only)
+        // para que los toggles sigan funcionando durante la sesión
+        snapshotCache.set(storageKey, { raw: null, value: resolved, memoryOnly: true })
       }
-      snapshotCache.set(storageKey, { raw: JSON.stringify(resolved), value: resolved })
       notifyLayoutChange()
     },
     [storageKey, validKeys, defaults],

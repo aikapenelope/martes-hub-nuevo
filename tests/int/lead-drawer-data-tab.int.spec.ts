@@ -44,7 +44,7 @@ beforeEach(() => {
 })
 
 describe('LeadDrawerDataTab — preservación de relaciones al guardar', () => {
-  it('drawer del cockpit (sin opciones): guardar otro campo NO envía segment ni assignedTo', async () => {
+  it('drawer del cockpit (sin opciones): guardar otro campo conserva rubro y asignación', async () => {
     renderTab({ lead: assignedLead, canEdit: true, assignees: [], segments: [] })
 
     fillAndSubmit('Juan Pérez Editado')
@@ -54,9 +54,9 @@ describe('LeadDrawerDataTab — preservación de relaciones al guardar', () => {
     })
     const [, input] = mockedUpdate.mock.calls[0]
     expect(input.fullName).toBe('Juan Pérez Editado')
-    // undefined = el update no toca la relación → no se borra
-    expect(input.segment).toBeUndefined()
-    expect(input.assignedTo).toBeUndefined()
+    // La relación actual se re-envía tal cual (opción sintetizada), no se borra
+    expect(input.segment).toBe(5)
+    expect(input.assignedTo).toBe(3)
   })
 
   it('con opciones disponibles, elegir "Sin rubro"/"Sin asignar" sí envía null (elección explícita)', async () => {
@@ -93,6 +93,59 @@ describe('LeadDrawerDataTab — preservación de relaciones al guardar', () => {
     const [, input] = mockedUpdate.mock.calls[0]
     expect(input.assignedTo).toBe(9)
     expect(input.segment).toBe(5)
+  })
+
+  it('la relación actual fuera de la lista (agente inactivo/límite) se muestra y se conserva', async () => {
+    // lead asignado al agente 99, que no está entre las opciones activas
+    const orphanLead = {
+      ...assignedLead,
+      assignedTo: { id: 99, firstName: 'Inactivo', email: 'inactivo@martes.local' },
+    } as unknown as Lead
+    const segments = [{ id: 5, name: 'Restaurantes', tenant: 10 }] as unknown as Segment[]
+    const assignees = [{ id: 3, email: 'agente@martes.local' }] as unknown as User[]
+    renderTab({ lead: orphanLead, canEdit: true, assignees, segments })
+
+    // El select muestra al agente 99 gracias a la opción sintetizada
+    const assignedSelect = screen.getByLabelText('Agente asignado') as HTMLSelectElement
+    const values = Array.from(assignedSelect.options).map((o) => o.value)
+    expect(values).toContain('99')
+    expect(assignedSelect.value).toBe('99')
+
+    // Y guardar otro campo conserva la asignación 99 (no la borra)
+    fillAndSubmit('Juan Pérez Editado')
+    await waitFor(() => {
+      expect(mockedUpdate).toHaveBeenCalledTimes(1)
+    })
+    const [, input] = mockedUpdate.mock.calls[0]
+    expect(input.assignedTo).toBe(99)
+  })
+
+  it('la relación actual sin opciones provistas se sintetiza desde el lead y se conserva', async () => {
+    // drawer del cockpit sin opciones: lead con rubro 7 (el objeto viene
+    // poblado por depth=1 con su nombre) y asignación 99 sin nombre
+    const cockpitLead = {
+      ...assignedLead,
+      segment: { id: 7, name: 'Tiendas', tenant: 10 },
+      assignedTo: { id: 99, email: 'viejo@martes.local' },
+    } as unknown as Lead
+    renderTab({ lead: cockpitLead, canEdit: true, assignees: [], segments: [] })
+
+    const segmentSelect = screen.getByLabelText('Rubro') as HTMLSelectElement
+    expect(segmentSelect.value).toBe('7')
+    expect(Array.from(segmentSelect.options).map((o) => o.textContent)).toContain('Tiendas')
+
+    const assignedSelect = screen.getByLabelText('Agente asignado') as HTMLSelectElement
+    expect(Array.from(assignedSelect.options).map((o) => o.textContent)).toContain(
+      'viejo@martes.local',
+    )
+
+    fillAndSubmit('Juan Pérez Editado')
+    await waitFor(() => {
+      expect(mockedUpdate).toHaveBeenCalledTimes(1)
+    })
+    const [, input] = mockedUpdate.mock.calls[0]
+    expect(input.segment).toBe(7)
+    expect(input.assignedTo).toBe(99)
   })
 })
 
