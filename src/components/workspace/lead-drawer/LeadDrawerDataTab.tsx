@@ -13,6 +13,58 @@ function relId(value: number | { id: number } | null | undefined): number | null
   return typeof value === 'object' ? value.id : value
 }
 
+/**
+ * Construye el payload del formulario a partir del FormData.
+ *
+ * Regla crítica: si el caller no proveyó opciones para `segment` o
+ * `assignedTo` (p. ej. el drawer del cockpit), esos campos se OMITEN
+ * (`undefined` → el update no los toca). El select sin opciones renderiza la
+ * opción vacía aunque el lead tenga relación previa, y enviarla borraría la
+ * asignación/rubro existente. Con opciones presentes, la elección explícita
+ * del usuario (incluida "Sin asignar") sí se envía.
+ */
+export function collectLeadFieldsInput(
+  form: FormData,
+  opts: { hasAssigneeChoices: boolean; hasSegmentChoices: boolean },
+): Parameters<typeof updateLeadFieldsAction>[1] {
+  const segmentRaw = form.get('segment')
+  const assignedToRaw = form.get('assignedTo')
+  return {
+    fullName: String(form.get('fullName') ?? ''),
+    companyName: String(form.get('companyName') ?? ''),
+    position: String(form.get('position') ?? ''),
+    phone: String(form.get('phone') ?? ''),
+    email: String(form.get('email') ?? ''),
+    city: String(form.get('city') ?? ''),
+    address: String(form.get('address') ?? ''),
+    googleMapsUrl: String(form.get('googleMapsUrl') ?? ''),
+    socialHandle: String(form.get('socialHandle') ?? ''),
+    source: form.get('source') as
+      | 'manual'
+      | 'google_maps'
+      | 'puerta_fria'
+      | 'whatsapp'
+      | 'instagram_dm'
+      | 'linkedin'
+      | 'tally'
+      | 'apify'
+      | 'referido',
+    segment: opts.hasSegmentChoices
+      ? segmentRaw
+        ? Number(segmentRaw)
+        : null
+      : undefined,
+    estimatedValue: form.get('estimatedValue') ? Number(form.get('estimatedValue')) : null,
+    assignedTo: opts.hasAssigneeChoices
+      ? assignedToRaw
+        ? Number(assignedToRaw)
+        : null
+      : undefined,
+    commercialNotes: String(form.get('commercialNotes') ?? ''),
+    notes: String(form.get('notes') ?? ''),
+  }
+}
+
 export function LeadDrawerDataTab({
   lead,
   canEdit,
@@ -39,23 +91,13 @@ export function LeadDrawerDataTab({
     setError(null)
     setFeedback(null)
     const form = new FormData(event.currentTarget)
-    const result = await updateLeadFieldsAction(lead.id, {
-      fullName: String(form.get('fullName') ?? ''),
-      companyName: String(form.get('companyName') ?? ''),
-      position: String(form.get('position') ?? ''),
-      phone: String(form.get('phone') ?? ''),
-      email: String(form.get('email') ?? ''),
-      city: String(form.get('city') ?? ''),
-      address: String(form.get('address') ?? ''),
-      googleMapsUrl: String(form.get('googleMapsUrl') ?? ''),
-      socialHandle: String(form.get('socialHandle') ?? ''),
-      source: form.get('source') as 'manual' | 'google_maps' | 'puerta_fria' | 'whatsapp' | 'instagram_dm' | 'linkedin' | 'tally' | 'apify' | 'referido',
-      segment: form.get('segment') ? Number(form.get('segment')) : null,
-      estimatedValue: form.get('estimatedValue') ? Number(form.get('estimatedValue')) : null,
-      assignedTo: form.get('assignedTo') ? Number(form.get('assignedTo')) : null,
-      commercialNotes: String(form.get('commercialNotes') ?? ''),
-      notes: String(form.get('notes') ?? ''),
-    })
+    const result = await updateLeadFieldsAction(
+      lead.id,
+      collectLeadFieldsInput(form, {
+        hasAssigneeChoices: assignees.length > 0,
+        hasSegmentChoices: segments.length > 0,
+      }),
+    )
     setSaving(false)
     if (!result.ok) {
       setError(result.error)

@@ -17,7 +17,7 @@
 import 'server-only'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
-import type { Client } from '@/payload-types'
+import type { Client, Segment, User } from '@/payload-types'
 import { getWorkspaceOverviewData } from '@/lib/overview-data'
 import { getUpcomingAgenda } from '@/lib/agenda-data'
 import { CockpitFocusViews } from '@/components/workspace/overview/CockpitFocusViews'
@@ -47,18 +47,43 @@ export default async function WorkspacePage({
   ])
 
   // Lista ligera de clientes (solo id/name) para el dialog de "+ Cobro".
-  const clientsForDialog = canEdit
-    ? await payload.find({
-        collection: 'clients',
-        limit: 200,
-        sort: 'name',
-        depth: 0,
-        select: { name: true },
-        where: { tenant: { equals: tenantId } },
-        overrideAccess: false,
-        user,
-      })
-    : null
+  // Agentes asignables y rubros del tenant para la pestaña "Datos CRM" del
+  // drawer 360°: sin estas opciones el formulario perdería las relaciones
+  // existentes al guardar (mismos criterios que el pipeline del CRM).
+  const [clientsForDialog, agentsForDrawer, segmentsForDrawer] = await Promise.all([
+    canEdit
+      ? payload.find({
+          collection: 'clients',
+          limit: 200,
+          sort: 'name',
+          depth: 0,
+          select: { name: true },
+          where: { tenant: { equals: tenantId } },
+          overrideAccess: false,
+          user,
+        })
+      : Promise.resolve(null),
+    canEdit
+      ? payload.find({
+          collection: 'users',
+          where: { and: [{ roles: { in: ['admin', 'agente'] } }, { active: { equals: true } }] },
+          limit: 100,
+          depth: 0,
+          overrideAccess: false,
+          user,
+        })
+      : Promise.resolve(null),
+    canEdit
+      ? payload.find({
+          collection: 'segments',
+          where: { tenant: { equals: tenantId } },
+          limit: 200,
+          depth: 0,
+          overrideAccess: false,
+          user,
+        })
+      : Promise.resolve(null),
+  ])
 
   return (
     <CockpitFocusViews
@@ -66,6 +91,8 @@ export default async function WorkspacePage({
       dateTitle={data.dateTitle}
       canEdit={canEdit}
       clients={(clientsForDialog?.docs ?? []) as Client[]}
+      assignees={(agentsForDrawer?.docs ?? []) as User[]}
+      segments={(segmentsForDrawer?.docs ?? []) as Segment[]}
       data={data}
       agenda={agenda}
       initialView={initialView}

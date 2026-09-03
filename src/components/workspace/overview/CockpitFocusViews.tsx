@@ -18,7 +18,7 @@ import {
   SquareCheck,
   Zap,
 } from 'lucide-react'
-import type { Client, Tenant } from '@/payload-types'
+import type { Client, Segment, Tenant, User } from '@/payload-types'
 import type { WorkspaceOverviewData } from './types'
 import type { AgendaItem } from '@/lib/agenda-data'
 import { OledCard } from '@/components/workspace/oled'
@@ -26,7 +26,6 @@ import { Drawer } from '@/components/workspace/overlays'
 import { CrmLeadDrawer } from '@/components/workspace/CrmLeadDrawer'
 import { CockpitCommandStrip } from './CockpitCommandStrip'
 import { CockpitAlertStrip } from './CockpitAlertStrip'
-import { CockpitIntegrationHealth } from './CockpitIntegrationHealth'
 import { CockpitFollowupsToday } from './CockpitFollowupsToday'
 import { CockpitOmnichannelFeed } from './CockpitOmnichannelFeed'
 import { CockpitKpiGrid } from './CockpitKpiGrid'
@@ -35,7 +34,20 @@ import { CockpitConversionFunnel } from './CockpitConversionFunnel'
 import { CockpitCashflowChart } from './CockpitCashflowChart'
 import { CockpitSourceBreakdown } from './CockpitSourceBreakdown'
 import { CockpitPipelinePriorities } from './CockpitPipelinePriorities'
-import { CockpitIntegrationHealth } from './CockpitIntegrationHealth'
+import {
+  CockpitIntegrationHealth,
+} from './CockpitIntegrationHealth'
+import {
+  DEFAULT_EXECUTIVE_WIDGETS,
+  DEFAULT_OPERATIVE_WIDGETS,
+  EXECUTIVE_WIDGET_KEYS,
+  OPERATIVE_WIDGET_KEYS,
+  STORAGE_KEY_EXECUTIVE,
+  STORAGE_KEY_OPERATIVE,
+  useWidgetLayout,
+  type ExecutiveWidgetKey,
+  type OperativeWidgetKey,
+} from './widget-layout'
 
 const agendaDateFmt = new Intl.DateTimeFormat('es-VE', {
   weekday: 'short',
@@ -60,37 +72,11 @@ interface CockpitFocusViewsProps {
   clients: Client[]
   data: WorkspaceOverviewData
   agenda: AgendaItem[]
+  /** Opciones del drawer 360°: agentes asignables y rubros del tenant. */
+  assignees?: User[]
+  segments?: Segment[]
   initialView?: 'operativa' | 'ejecutiva'
 }
-
-type OperativeWidgetKey = 'alerts' | 'health' | 'followups' | 'agenda' | 'feed'
-type ExecutiveWidgetKey = 'kpis' | 'cashflow' | 'funnel' | 'heatmap' | 'sources' | 'priorities'
-
-interface WidgetConfig<T extends string> {
-  key: T
-  label: string
-  visible: boolean
-}
-
-const DEFAULT_OPERATIVE_WIDGETS: WidgetConfig<OperativeWidgetKey>[] = [
-  { key: 'alerts', label: 'Alertas Operativas Proactivas', visible: true },
-  { key: 'health', label: 'Monitor de Salud de Canales e Integraciones', visible: true },
-  { key: 'followups', label: 'Seguimientos Proactivos de Hoy (SLA)', visible: true },
-  { key: 'agenda', label: 'Agenda de Próximos 7 Días', visible: true },
-  { key: 'feed', label: 'Feed Omnicanal en Vivo', visible: true },
-]
-
-const DEFAULT_EXECUTIVE_WIDGETS: WidgetConfig<ExecutiveWidgetKey>[] = [
-  { key: 'kpis', label: 'Tarjetas KPI de Rendimiento', visible: true },
-  { key: 'cashflow', label: 'Flujo de Caja (6 Meses)', visible: true },
-  { key: 'funnel', label: 'Embudo de Conversión Real', visible: true },
-  { key: 'heatmap', label: 'Matriz Anual de Actividad (364 Días)', visible: true },
-  { key: 'sources', label: 'Canales de Captación', visible: true },
-  { key: 'priorities', label: 'Radar de Prioridades Comerciales', visible: true },
-]
-
-const STORAGE_KEY_OPERATIVE = 'martes_cockpit_layout_operative_v1'
-const STORAGE_KEY_EXECUTIVE = 'martes_cockpit_layout_executive_v1'
 
 export function CockpitFocusViews({
   tenant,
@@ -99,35 +85,28 @@ export function CockpitFocusViews({
   clients,
   data,
   agenda,
+  assignees = [],
+  segments = [],
   initialView = 'operativa',
 }: CockpitFocusViewsProps) {
   const [activeView, setActiveView] = useState<'operativa' | 'ejecutiva'>(initialView)
   const [showConfig, setShowConfig] = useState(false)
 
-  // Layout modular Bento persistido en LocalStorage
-  const [operativeWidgets, setOperativeWidgets] = useState<WidgetConfig<OperativeWidgetKey>[]>(() => {
-    if (typeof window === 'undefined') return DEFAULT_OPERATIVE_WIDGETS
-    try {
-      const savedOp = localStorage.getItem(STORAGE_KEY_OPERATIVE)
-      if (savedOp) {
-        const parsed = JSON.parse(savedOp) as WidgetConfig<OperativeWidgetKey>[]
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      }
-    } catch {}
-    return DEFAULT_OPERATIVE_WIDGETS
-  })
-
-  const [executiveWidgets, setExecutiveWidgets] = useState<WidgetConfig<ExecutiveWidgetKey>[]>(() => {
-    if (typeof window === 'undefined') return DEFAULT_EXECUTIVE_WIDGETS
-    try {
-      const savedEx = localStorage.getItem(STORAGE_KEY_EXECUTIVE)
-      if (savedEx) {
-        const parsed = JSON.parse(savedEx) as WidgetConfig<ExecutiveWidgetKey>[]
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      }
-    } catch {}
-    return DEFAULT_EXECUTIVE_WIDGETS
-  })
+  // Layout modular Bento persistido en LocalStorage.
+  // El hook SIEMPRE arranca con los defaults y restaura lo guardado en un
+  // efecto posterior a la hidratación (ver widget-layout.ts): leer
+  // localStorage en el render inicial rompe la hidratación cuando hay
+  // widgets ocultos.
+  const [operativeWidgets, setOperativeWidgets] = useWidgetLayout(
+    STORAGE_KEY_OPERATIVE,
+    DEFAULT_OPERATIVE_WIDGETS,
+    OPERATIVE_WIDGET_KEYS,
+  )
+  const [executiveWidgets, setExecutiveWidgets] = useWidgetLayout(
+    STORAGE_KEY_EXECUTIVE,
+    DEFAULT_EXECUTIVE_WIDGETS,
+    EXECUTIVE_WIDGET_KEYS,
+  )
 
   // Drawer 360° Polimórfico
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null)
@@ -549,6 +528,8 @@ export function CockpitFocusViews({
           <CrmLeadDrawer
             leadId={selectedLeadId}
             canEdit={canEdit}
+            assignees={assignees}
+            segments={segments}
             onUpdated={() => {
               // Si se guarda o cambia una etapa, se mantiene el contexto
             }}
