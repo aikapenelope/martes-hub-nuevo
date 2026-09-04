@@ -17,7 +17,31 @@ export const Media: CollectionConfig = {
       required: true,
     },
   ],
-  upload: true,
+  // Allowlist explícita (docs: /docs/upload/overview — "Restrict mimeTypes in
+  // the file picker"). Los ejecutables/HTML ya vienen bloqueados por defecto,
+  // pero SVG no: un SVG con <script> servido desde el mismo origen es XSS
+  // almacenado. No se usa `image/*` genérico para no dejarlo pasar.
+  // PDF: los sube payload-invoicepdf · video: adjuntos de publicaciones sociales.
+  upload: {
+    mimeTypes: [
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+      'image/gif',
+      'application/pdf',
+      'video/mp4',
+      'video/webm',
+    ],
+    // Los archivos que no son imagen (PDF/video) se descargan en vez de
+    // renderizarse inline: niega cualquier vía de XSS por contenido subido.
+    modifyResponseHeaders: ({ headers }) => {
+      const contentType = headers.get('content-type') ?? ''
+      if (!contentType.startsWith('image/')) {
+        headers.set('content-disposition', 'attachment')
+      }
+      return headers
+    },
+  },
   hooks: {
     beforeValidate: [
       async ({ data, req }) => {

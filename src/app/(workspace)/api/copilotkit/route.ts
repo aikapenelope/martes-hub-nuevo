@@ -5,6 +5,7 @@ import configPromise from '@payload-config'
 import { streamText, type LanguageModel } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { openai, createOpenAI } from '@ai-sdk/openai'
+import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
 import {
   BuiltInAgent,
   CopilotRuntime,
@@ -57,6 +58,10 @@ const agent = new BuiltInAgent({
       model,
       system: SYSTEM_PROMPT,
       messages: convertMessagesToVercelAISDKMessages(input.messages),
+      // Techo de tokens por respuesta: sin límite, un script del propio
+      // usuario autenticado puede quemar la cuota del proveedor sin control
+      // (OWASP LLM10 — unbounded consumption).
+      maxOutputTokens: 2048,
       abortSignal,
     })
   },
@@ -69,22 +74,37 @@ const runtime = new CopilotRuntime({
 
 const runtimeHandler = createCopilotRuntimeHandler({ runtime, basePath: '/api/copilotkit' })
 
-/** Verifica sesión de Payload antes de dejar pasar cualquier request al runtime. */
-async function requireAuthenticatedUser(): Promise<Response | null> {
+/**
+ * Verifica sesión de Payload antes de dejar pasar cualquier request al runtime
+ * y devuelve el usuario para el rate limit por usuario.
+ */
+async function requireAuthenticatedUser(): Promise<{ user: { id: number } } | Response> {
   const payload = await getPayload({ config: configPromise })
   const { user } = await payload.auth({ headers: await nextHeaders() })
   if (!user) return Response.json({ error: 'No autenticado' }, { status: 401 })
-  return null
+
+  // Rate limit por usuario (mismo mecanismo que crm-pipeline-actions para
+  // whatsapp/email/ai-summary). Protege el coste de LLM por cuenta comprometida
+  // o automatizada.
+  if (!(await checkUserActionRateLimit(user.id, 'copilot'))) {
+    return Response.json({ error: 'Demasiadas peticiones al asistente' }, { status: 429 })
+  }
+
+  return { user }
+}
+
+function isResponse(value: unknown): value is Response {
+  return value instanceof Response
 }
 
 export async function GET(req: NextRequest) {
-  const unauthorized = await requireAuthenticatedUser()
-  if (unauthorized) return unauthorized
+  const auth = await requireAuthenticatedUser()
+  if (isResponse(auth)) return auth
   return runtimeHandler(req)
 }
 
 export async function POST(req: NextRequest) {
-  const unauthorized = await requireAuthenticatedUser()
-  if (unauthorized) return unauthorized
+  const auth = await requireAuthenticatedUser()
+  if (isResponse(auth)) return auth
   return runtimeHandler(req)
 }

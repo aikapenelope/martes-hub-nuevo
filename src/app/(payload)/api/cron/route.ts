@@ -40,11 +40,19 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const payload = await getPayload({ config: configPromise })
+
+    // Encolar los jobs cuyo schedule.cron venció ANTES de ejecutar la cola.
+    // Según /docs/jobs-queue/scheduling, `handleSchedules` y `run` son
+    // operaciones separadas: `run()` solo ejecuta lo que ya está en la cola,
+    // así que sin este paso los schedules de las tasks (payment-reminders,
+    // daily-digest, send-scheduled-campaigns...) nunca se encolan en serverless
+    // (jobs.autoRun está prohibido en Vercel por la misma doc).
+    const schedules = await payload.jobs.handleSchedules({ allQueues: true })
     const result = await payload.jobs.run()
 
-    payload.logger.info({ msg: 'cron: job queue ejecutado', result })
+    payload.logger.info({ msg: 'cron: job queue ejecutado', schedules, result })
 
-    return Response.json({ ok: true, result })
+    return Response.json({ ok: true, schedules, result })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error desconocido'
     return Response.json({ error: message }, { status: 500 })

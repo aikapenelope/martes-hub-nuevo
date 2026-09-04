@@ -38,6 +38,16 @@ export const FormSubmissions: CollectionConfig = {
       },
     },
     {
+      name: 'eventId',
+      type: 'text',
+      index: true,
+      label: 'ID de evento (idempotencia)',
+      admin: {
+        position: 'sidebar',
+        description: 'eventId/responseId del webhook: si ya existe, la reentrega se ignora',
+      },
+    },
+    {
       name: 'source',
       type: 'select',
       required: true,

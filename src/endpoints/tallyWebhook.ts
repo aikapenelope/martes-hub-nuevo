@@ -4,7 +4,6 @@ import {
   parseTallyFields,
   resolveOrCreateTallyContact,
   resolveTallyTenant,
-  timingSafeEqual,
   verifyTallySignature,
   type TallyEnvelope,
 } from './tally-helpers'
@@ -37,16 +36,13 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
   }
 
   const sigHeader = req.headers.get('tally-signature')
-  const authHeader = req.headers.get('authorization')
-  const url = new URL(req.url ?? 'http://local.payload/api/webhooks/tally')
-  const querySecret = url.searchParams.get('secret')
 
-  const isHmacValid = sigHeader ? verifyTallySignature(rawBody, sigHeader, secret) : false
-  const isBearerValid = timingSafeEqual(authHeader, `Bearer ${secret}`)
-  const isQueryValid = timingSafeEqual(querySecret, secret)
-
-  if (!isHmacValid && !isBearerValid && !isQueryValid) {
-    return Response.json({ error: 'Firma o token de webhook inválido' }, { status: 401 })
+  // Autenticación SOLO por firma HMAC de Tally sobre el raw body. Se eliminan
+  // las alternativas Bearer y ?secret=: el secreto en la query queda en logs
+  // de acceso/proxies y es un canal de fuga; la firma nativa de Tally cubre
+  // todos los casos legítimos.
+  if (!sigHeader || !verifyTallySignature(rawBody, sigHeader, secret)) {
+    return Response.json({ error: 'Firma de webhook inválida' }, { status: 401 })
   }
 
   let envelope: TallyEnvelope
@@ -67,7 +63,26 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
 
   const parsed = parseTallyFields(fields)
 
-  // Si se envió query param ?tenant=ID
+  // Idempotencia: la reentrega de un evento Tally no debe crear form-submissions
+  // (ni notificaciones/tareas urgentes de queja) duplicadas. Mismo patrón que
+  // openbspWebhook con openbspId/externalId.
+  const dedupeEventId = envelope.eventId || data.responseId || data.submissionId || ''
+  if (dedupeEventId) {
+    const dupe = await req.payload.find({
+      collection: 'form-submissions',
+      where: { eventId: { equals: dedupeEventId } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+    if (dupe.docs[0]) {
+      return Response.json({ ok: true, duplicate: true, submissionId: dupe.docs[0].id })
+    }
+  }
+
+  // Si se envió query param ?tenant=ID (solo aislamiento de tenant, nunca de auth)
+  const url = new URL(req.url ?? 'http://local.payload/api/webhooks/tally')
   const qTenant = url.searchParams.get('tenant')
   const resolvedTenantId =
     qTenant && Number.isInteger(Number(qTenant)) ? Number(qTenant) : parsed.explicitTenantId
@@ -92,6 +107,7 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
     data: {
       formName,
       formId,
+      eventId: dedupeEventId || undefined,
       source: 'tally',
       respondentName: parsed.respondentName || undefined,
       respondentEmail: parsed.respondentEmail || undefined,

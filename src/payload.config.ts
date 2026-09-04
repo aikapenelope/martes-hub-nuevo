@@ -60,6 +60,7 @@ import { summarizeConversationTask } from './jobs/summarizeConversation'
 import { sweepConversationsTask } from './jobs/sweepConversations'
 import { Appointments } from './collections/Appointments'
 import type { User } from './payload-types'
+import { adminOnly } from './access'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -317,6 +318,21 @@ export default buildConfig({
           },
         },
       },
+      // Solo un admin emite API keys del MCP (docs:
+      // payloadcms.com/docs/plugins/mcp → overrideApiKeyCollection). El default
+      // deja a cualquier usuario autenticado crear keys a su nombre, tokens
+      // persistentes sin expiración que sobreviven a la desactivación de la
+      // sesión. El access control por rol/tenant sigue aplicando dentro de cada
+      // tool (los resource tools usan overrideAccess: false).
+      overrideApiKeyCollection: (collection) => ({
+        ...collection,
+        access: {
+          ...collection.access,
+          create: adminOnly,
+          delete: adminOnly,
+          update: adminOnly,
+        },
+      }),
     }),
     ...(process.env.S3_BUCKET
       ? [
@@ -439,6 +455,16 @@ export default buildConfig({
     migrationDir: './src/migrations',
   }),
   sharp,
+  // Límite de tamaño de subida: options de Busboy que se pasan al parser
+  // multipart (payload.config.bodyParser — ver addDataAndFileToRequest).
+  // Sin esto, cualquier agente puede subir archivos de tamaño ilimitado a
+  // Media/Documents (coste S3 + memoria). Aplica a todo multipart/form-data,
+  // también al import de CSV (su propio límite es 5 MB).
+  bodyParser: {
+    limits: {
+      fileSize: 25 * 1024 * 1024,
+    },
+  },
   i18n: {
     fallbackLanguage: 'es',
   },

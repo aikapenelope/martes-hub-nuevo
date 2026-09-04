@@ -10,11 +10,18 @@ function firstTenantId(user: User): number | null {
   return typeof membership === 'object' ? membership.id : membership
 }
 
-/** Escapa un valor para CSV: envuelve en comillas si tiene coma, comilla o salto de línea. */
-function csvCell(value: unknown): string {
+/**
+ * Escapa un valor para CSV: envuelve en comillas si tiene coma, comilla o
+ * salto de línea, y neutraliza CSV/formula injection (OWASP): una celda que
+ * empieza con `=` `+` `-` `@` (o tab/CR) se interpreta como fórmula por
+ * Excel/LibreOffice/Sheets al abrir el export. El prefijo `'` la fuerza a
+ * texto plano.
+ */
+export function csvCell(value: unknown): string {
   const str = value === null || value === undefined ? '' : String(value)
-  if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`
-  return str
+  const safe = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str
+  if (/[",\n]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`
+  return safe
 }
 
 /**
