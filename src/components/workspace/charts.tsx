@@ -122,3 +122,12 @@ export function Sparkline({ data, color = '#38bdf8' }: { data: number[]; color?:
     </ResponsiveContainer>
   )
 }
+
+export {
+  MonoAreaChart,
+  MonoDonutChart,
+  MonoFunnel,
+  MonoCashflowBarChart,
+  MONO_PALETTE,
+} from './monocharts'
+

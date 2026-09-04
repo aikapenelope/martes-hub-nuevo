@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { TrendingUp, Wallet } from 'lucide-react'
 import type { MonthlyCashflowPoint } from './types'
+import { MonoCashflowBarChart } from '@/components/workspace/monocharts'
 
 const currency = new Intl.NumberFormat('es-VE', {
   style: 'currency',
@@ -18,9 +19,8 @@ interface CockpitCashflowChartProps {
 }
 
 /**
- * Flujo de caja de 6 meses: barras cobradas (sólidas) vs pendientes (huecas),
- * por paid_at y due_date respectivamente. Server component con barras CSS —
- * mismo patrón que el resto del cockpit (sin cliente, sin librería de charts).
+ * Flujo de caja de 6 meses: comparativa visual monocromática interactiva
+ * entre cobrado y por cobrar con Recharts y tooltips enriquecidos.
  */
 export function CockpitCashflowChart({ points }: CockpitCashflowChartProps) {
   const totalPaid = points.reduce((acc, p) => acc + p.paid, 0)
@@ -48,38 +48,8 @@ export function CockpitCashflowChart({ points }: CockpitCashflowChartProps) {
       </div>
 
       {hasData ? (
-        <div className="flex items-end justify-between gap-2 sm:gap-4 h-40 px-1">
-          {points.map((point) => {
-            const paidPct = (point.paid / max) * 100
-            const pendingPct = (point.pending / max) * 100
-            const isCurrent = point === points[points.length - 1]
-            return (
-              <div key={point.monthName + point.paid} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                <div className="flex items-end justify-center gap-1 w-full h-full">
-                  {/* Cobrado */}
-                  <div
-                    className="w-4 sm:w-6 rounded-t-sm bg-gradient-to-t from-sky-600 to-sky-400 min-h-[2px] transition-all duration-500"
-                    style={{ height: `${Math.max(paidPct, point.paid > 0 ? 2 : 0)}%` }}
-                    title={`Cobrado: ${currency.format(point.paid)}`}
-                  />
-                  {/* Pendiente */}
-                  <div
-                    className="w-4 sm:w-6 rounded-t-sm border border-dashed border-amber-400/70 bg-amber-400/10 min-h-[2px] transition-all duration-500"
-                    style={{ height: `${Math.max(pendingPct, point.pending > 0 ? 2 : 0)}%` }}
-                    title={`Pendiente: ${currency.format(point.pending)}`}
-                  />
-                </div>
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-[10px] font-mono text-zinc-300 font-bold">{compact.format(point.paid)}</span>
-                  <span
-                    className={`text-[10px] font-mono uppercase font-bold ${isCurrent ? 'text-sky-400' : 'text-zinc-500'}`}
-                  >
-                    {point.monthName}
-                  </span>
-                </div>
-              </div>
-            )
-          })}
+        <div className="pt-2">
+          <MonoCashflowBarChart points={points} height={160} />
         </div>
       ) : (
         <div className="h-40 flex items-center justify-center text-center">
