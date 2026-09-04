@@ -86,6 +86,29 @@ async function handleMessage(req: PayloadRequest, action: string, data: OpenBSPE
     req,
   })
 
+  // Encolar resumen de conversación asíncrono para mensajes entrantes (Worker Ligero de IA)
+  // No bloquea el webhook de Meta/OpenBSP; se procesa en segundo plano por el job runner
+  if (data.sender_address) {
+    try {
+      await req.payload.jobs.queue({
+        task: 'summarize-conversation',
+        input: {
+          conversationId,
+          tenantId: tenant.id,
+          trigger: 'inbound_message',
+        },
+        overrideAccess: true,
+        req,
+      })
+    } catch (queueErr) {
+      req.payload.logger.error({
+        msg: 'openbsp-webhook: error no crítico al encolar summarize-conversation',
+        conversationId,
+        err: queueErr,
+      })
+    }
+  }
+
   return json({ ok: true, created: true })
 }
 

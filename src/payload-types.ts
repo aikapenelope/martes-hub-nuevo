@@ -197,6 +197,8 @@ export interface Config {
       'send-scheduled-campaigns': TaskSendScheduledCampaigns;
       'sync-email': TaskSyncEmail;
       'sync-gcal': TaskSyncGcal;
+      'summarize-conversation': TaskSummarizeConversation;
+      'sweep-unsummarized-conversations': TaskSweepUnsummarizedConversations;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -1138,6 +1140,22 @@ export interface CompanySetting {
   currency: 'USD';
   digestHour: number;
   internalNotificationsEmail?: string | null;
+  /**
+   * Motor de inferencia para resúmenes de chat y análisis en segundo plano
+   */
+  aiProvider?: ('groq' | 'openrouter' | 'custom') | null;
+  /**
+   * Clave de Groq u OpenRouter. Si se deja vacía, se usará la variable de entorno GROQ_API_KEY / OPENROUTER_API_KEY.
+   */
+  aiApiKey?: string | null;
+  /**
+   * Ej: llama-3.3-70b-versatile (Groq), meta-llama/llama-3.3-70b-instruct (OpenRouter)
+   */
+  aiModel?: string | null;
+  /**
+   * Analizar automáticamente las conversaciones de WhatsApp cuando se detecte inactividad tras una ráfaga de mensajes
+   */
+  aiAutoSummarize?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1591,6 +1609,8 @@ export interface PayloadJob {
           | 'send-scheduled-campaigns'
           | 'sync-email'
           | 'sync-gcal'
+          | 'summarize-conversation'
+          | 'sweep-unsummarized-conversations'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -1636,6 +1656,8 @@ export interface PayloadJob {
         | 'send-scheduled-campaigns'
         | 'sync-email'
         | 'sync-gcal'
+        | 'summarize-conversation'
+        | 'sweep-unsummarized-conversations'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -2397,6 +2419,10 @@ export interface CompanySettingsSelect<T extends boolean = true> {
   currency?: T;
   digestHour?: T;
   internalNotificationsEmail?: T;
+  aiProvider?: T;
+  aiApiKey?: T;
+  aiModel?: T;
+  aiAutoSummarize?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2930,6 +2956,32 @@ export interface TaskSyncGcal {
   output: {
     synced?: number | null;
     summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSummarize-conversation".
+ */
+export interface TaskSummarizeConversation {
+  input: {
+    conversationId: number;
+    tenantId: number;
+    trigger?: string | null;
+  };
+  output: {
+    summaryId?: number | null;
+    skippedReason?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSweep-unsummarized-conversations".
+ */
+export interface TaskSweepUnsummarizedConversations {
+  input?: unknown;
+  output: {
+    queued?: number | null;
+    skipped?: number | null;
   };
 }
 /**

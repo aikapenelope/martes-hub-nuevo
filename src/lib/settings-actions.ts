@@ -69,6 +69,21 @@ export async function updateCompanySettingsAction(formData: FormData): Promise<v
     internalNotificationsEmail = rawEmail.toLowerCase()
   }
 
+  // 6. Validar y procesar parámetros de IA (Worker Ligero)
+  const rawAiProvider = String(formData.get('aiProvider') ?? 'groq').trim()
+  const aiProvider = (['groq', 'openrouter', 'custom'].includes(rawAiProvider) ? rawAiProvider : 'groq') as
+    | 'groq'
+    | 'openrouter'
+    | 'custom'
+
+  const rawAiApiKey = String(formData.get('aiApiKey') ?? '').trim()
+  const aiApiKey = rawAiApiKey ? rawAiApiKey.slice(0, 500) : null
+
+  const rawAiModel = String(formData.get('aiModel') ?? '').trim()
+  const aiModel = rawAiModel ? rawAiModel.slice(0, 150) : 'llama-3.3-70b-versatile'
+
+  const aiAutoSummarize = formData.get('aiAutoSummarize') === 'on' || formData.get('aiAutoSummarize') === 'true'
+
   // Buscar settings existentes para el tenant activo
   const existingRes = await context.payload.find({
     collection: 'company-settings',
@@ -88,6 +103,10 @@ export async function updateCompanySettingsAction(formData: FormData): Promise<v
         currency,
         digestHour,
         internalNotificationsEmail, // null borra explícitamente el valor en la base de datos
+        aiProvider,
+        ...(aiApiKey !== null ? { aiApiKey } : rawAiApiKey === '' ? { aiApiKey: null } : {}),
+        aiModel,
+        aiAutoSummarize,
       },
       overrideAccess: true,
     })
@@ -100,11 +119,16 @@ export async function updateCompanySettingsAction(formData: FormData): Promise<v
         currency,
         digestHour,
         internalNotificationsEmail,
+        aiProvider,
+        aiApiKey,
+        aiModel,
+        aiAutoSummarize,
         tenant: context.tenantId,
       },
       overrideAccess: true,
     })
   }
+
 
   // Si el nombre de la empresa cambió, sincronizar con el tenant activo
   if (companyName !== context.tenant.name) {
