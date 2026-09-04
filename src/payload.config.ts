@@ -56,6 +56,8 @@ import { sendCampaignTask } from './jobs/sendCampaignTask'
 import { sendScheduledCampaignsTask } from './jobs/sendScheduledCampaigns'
 import { syncEmailTask } from './jobs/syncEmail'
 import { syncGcalTask } from './jobs/syncGcal'
+import { summarizeConversationTask } from './jobs/summarizeConversation'
+import { sweepConversationsTask } from './jobs/sweepConversations'
 import { Appointments } from './collections/Appointments'
 import type { User } from './payload-types'
 
@@ -348,6 +350,8 @@ export default buildConfig({
       sendScheduledCampaignsTask,
       syncEmailTask,
       syncGcalTask,
+      summarizeConversationTask,
+      sweepConversationsTask,
     ],
   },
   editor: lexicalEditor(),

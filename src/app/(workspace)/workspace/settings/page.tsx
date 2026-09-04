@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { CheckCircle2, Building, Shield } from 'lucide-react'
+import { CheckCircle2, Building, Shield, Bot, Sparkles } from 'lucide-react'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { updateCompanySettingsAction } from '@/lib/settings-actions'
 import type { CompanySetting } from '@/payload-types'
@@ -26,15 +26,25 @@ export default async function SettingsPage({
     overrideAccess: true,
   })
 
-  const settings: CompanySetting | undefined = settingsRes.docs[0] as CompanySetting | undefined
+  const settings = settingsRes.docs[0] as (CompanySetting & {
+    aiProvider?: 'groq' | 'openrouter' | 'custom' | null
+    aiApiKey?: string | null
+    aiModel?: string | null
+    aiAutoSummarize?: boolean | null
+  }) | undefined
 
   const companyName = settings?.companyName || context.tenant.name
   const timezone = settings?.timezone || 'America/Caracas'
   const currency = settings?.currency || 'USD'
   const digestHour = settings?.digestHour ?? 8
   const internalNotificationsEmail = settings?.internalNotificationsEmail || ''
+  const aiProvider = settings?.aiProvider || 'groq'
+  const aiApiKey = settings?.aiApiKey || ''
+  const aiModel = settings?.aiModel || 'llama-3.3-70b-versatile'
+  const aiAutoSummarize = settings?.aiAutoSummarize ?? true
 
   const isAdmin = Boolean(context.user.roles?.includes('admin'))
+
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -180,6 +190,84 @@ export default async function SettingsPage({
               </label>
             </div>
 
+            {/* Configuración de IA (Worker Ligero: Groq / OpenRouter) */}
+            <div className="pt-5 border-t border-zinc-900 space-y-4">
+              <div className="flex items-center gap-2">
+                <Bot className="w-4 h-4 text-sky-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-white flex items-center gap-2">
+                  <span>Inteligencia Artificial (Worker Ligero de Fondo)</span>
+                  <span className="text-[9px] px-1.5 py-0.2 border border-sky-800 text-sky-300 bg-sky-950/40">
+                    Auto-Digest & Profiling
+                  </span>
+                </h3>
+              </div>
+              <p className="text-xs text-zinc-400">
+                Configura el motor de inferencia liviano para resumir chats de WhatsApp en segundo plano y pre-digerir contexto para Hermes.
+              </p>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className={labelCls}>
+                  Proveedor de IA
+                  <select name="aiProvider" defaultValue={aiProvider} className={inputCls}>
+                    <option value="groq">Groq (Recomendado: Ultrarrápido y coste mínimo)</option>
+                    <option value="openrouter">OpenRouter (Catálogo abierto: DeepSeek, Qwen, etc.)</option>
+                    <option value="custom">Personalizado (OpenAI compatible)</option>
+                  </select>
+                  <span className="text-[11px] text-zinc-500 font-sans normal-case">
+                    Utiliza la infraestructura Serverless sin VPS ni procesos pesados.
+                  </span>
+                </label>
+
+                <label className={labelCls}>
+                  Modelo de Inferencia
+                  <input
+                    name="aiModel"
+                    defaultValue={aiModel}
+                    required
+                    maxLength={150}
+                    placeholder="llama-3.3-70b-versatile"
+                    className={inputCls}
+                  />
+                  <span className="text-[11px] text-zinc-500 font-sans normal-case">
+                    Para Groq: llama-3.3-70b-versatile | Para OpenRouter: meta-llama/llama-3.3-70b-instruct
+                  </span>
+                </label>
+              </div>
+
+              <label className={labelCls}>
+                API Key de IA ({aiProvider === 'openrouter' ? 'OpenRouter' : 'Groq'})
+                <input
+                  name="aiApiKey"
+                  type="password"
+                  defaultValue={aiApiKey}
+                  maxLength={500}
+                  placeholder={aiApiKey ? '••••••••••••••••••••••••' : 'gsk_... o sk-or-... (dejar vacío para usar env var)'}
+                  className={inputCls}
+                />
+                <span className="text-[11px] text-zinc-500 font-sans normal-case">
+                  Clave privada almacenada de forma aislada para este tenant. Si no se indica, usará GROQ_API_KEY o OPENROUTER_API_KEY de las variables de entorno.
+                </span>
+              </label>
+
+              <label className="flex items-start gap-2.5 p-3 border border-zinc-900 bg-black/60 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="aiAutoSummarize"
+                  defaultChecked={aiAutoSummarize}
+                  className="mt-0.5 accent-sky-400"
+                />
+                <div className="space-y-0.5">
+                  <span className="text-xs font-mono font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles size={12} className="text-sky-400" />
+                    Habilitar Resumen Automático de Conversaciones
+                  </span>
+                  <p className="text-[11px] text-zinc-400 font-sans">
+                    El worker analizará automáticamente las conversaciones de WhatsApp cuando se detecte inactividad tras una ráfaga de mensajes, guardando el perfil y sentimiento sin intervención humana.
+                  </p>
+                </div>
+              </label>
+            </div>
+
             <div className="pt-2">
               <button
                 type="submit"
@@ -188,6 +276,7 @@ export default async function SettingsPage({
                 Guardar Ajustes
               </button>
             </div>
+
           </form>
         ) : (
           <div className="mt-4 p-4 border border-zinc-800 bg-black text-xs text-zinc-400 font-mono">

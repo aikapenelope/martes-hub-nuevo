@@ -2,9 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { generateObject } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
-import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
+import { getTenantAiModel } from '@/lib/ai-provider'
 
 import type { Lead, Message, Tenant } from '@/payload-types'
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
@@ -352,12 +351,11 @@ export async function summarizeLeadWithAIAction(leadId: number): Promise<ActionR
       return { ok: false, error: 'Demasiados resúmenes de IA seguidos — espera un minuto e intenta de nuevo' }
     }
 
-    const model = process.env.ANTHROPIC_API_KEY
-      ? anthropic('claude-3-5-haiku-latest')
-      : process.env.OPENAI_API_KEY
-        ? openai('gpt-4o-mini')
-        : null
-    if (!model) throw new Error('Sin proveedor de IA: configura ANTHROPIC_API_KEY u OPENAI_API_KEY')
+    const resolvedAi = await getTenantAiModel(context.payload, context.tenantId)
+    if (!resolvedAi) {
+      throw new Error('Sin proveedor de IA: configura Groq u OpenRouter en Ajustes del Workspace o define variables de entorno')
+    }
+    const model = resolvedAi.model
 
     const conversations = await context.payload.find({
       collection: 'conversations',
