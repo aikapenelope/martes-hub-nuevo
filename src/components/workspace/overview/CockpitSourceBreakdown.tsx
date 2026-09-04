@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Compass, MapPin, MessageCircle, Camera, Globe, Users2, Share2, UserPlus } from 'lucide-react'
 import type { ChannelSourceMetric } from './types'
+import { MonoDonutChart, MONO_PALETTE } from '@/components/workspace/monocharts'
 
 interface CockpitSourceBreakdownProps {
   sources: ChannelSourceMetric[]
@@ -27,6 +28,11 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
   }
 
   const totalLeads = sources.reduce((acc, s) => acc + s.count, 0)
+  const donutData = sources.slice(0, 5).map((s, i) => ({
+    label: s.label,
+    value: s.count,
+    color: MONO_PALETTE[i % MONO_PALETTE.length],
+  }))
 
   return (
     <div className="p-4 oled-card space-y-3.5">
@@ -42,7 +48,12 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
         </span>
       </div>
 
-      <div className="space-y-2.5 font-mono text-xs">
+      {/* Mini Donut Monocromático */}
+      <div className="pt-1 pb-2">
+        <MonoDonutChart data={donutData} centerLabel="LEADS" innerRadius={36} outerRadius={48} />
+      </div>
+
+      <div className="space-y-2 font-mono text-xs border-t border-zinc-900 pt-2.5">
         {sources.slice(0, 5).map((item) => {
           const Icon = SOURCE_ICONS[item.source] || Compass
           return (
@@ -74,3 +85,4 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
     </div>
   )
 }
+

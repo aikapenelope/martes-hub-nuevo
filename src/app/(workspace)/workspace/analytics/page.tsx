@@ -20,7 +20,12 @@ import { getAnalyticsData } from '@/lib/analytics-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { monthlyRevenueSeries } from '@/lib/db-aggregates'
 import { EmptyState, HeroAction, KpiCard, OledCard, PageHero, SectionHeader } from '@/components/workspace/oled'
-import { DonutChart, RevenueTrendChart } from '@/components/workspace/charts'
+import {
+  MonoAreaChart,
+  MonoDonutChart,
+  MonoFunnel,
+  type FunnelStage,
+} from '@/components/workspace/monocharts'
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
@@ -104,7 +109,9 @@ export default async function AnalyticsPage() {
         {revenueTrend.every((p) => p.value === 0) ? (
           <EmptyState>Aún no hay pagos confirmados en los últimos 12 meses.</EmptyState>
         ) : (
-          <RevenueTrendChart data={revenueTrend} unit="USD" />
+          <div className="pt-2">
+            <MonoAreaChart data={revenueTrend} unit="USD" height={190} />
+          </div>
         )}
       </OledCard>
 
@@ -124,41 +131,35 @@ export default async function AnalyticsPage() {
             <EmptyState>Sin leads registrados en el tenant activo.</EmptyState>
           ) : (
             <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-xs font-mono mb-1.5">
-                  <span className="text-zinc-300">
-                    Nuevo ➔ Contactado ({funnel.contactado + funnel.calificado + funnel.convertedToClients} de {funnel.totalLeads})
-                  </span>
-                  <span className="font-bold text-emerald-400">{funnel.nuevoToContactadoPct}%</span>
-                </div>
-                <div className="h-2 bg-zinc-900 overflow-hidden">
-                  <div className="h-full bg-emerald-400 transition-all duration-300" style={{ width: `${Math.min(100, Math.max(funnel.nuevoToContactadoPct, 4))}%` }} />
-                </div>
-              </div>
+              <MonoFunnel
+                stages={[
+                  {
+                    label: 'Nuevo / Inbound',
+                    count: funnel.nuevo,
+                    colorAccent: '#71717a',
+                  },
+                  {
+                    label: 'Contactado',
+                    count: funnel.contactado,
+                    conversionRate: funnel.nuevoToContactadoPct,
+                    colorAccent: '#38bdf8',
+                  },
+                  {
+                    label: 'Calificado',
+                    count: funnel.calificado,
+                    conversionRate: funnel.contactadoToCalificadoPct,
+                    colorAccent: '#818cf8',
+                  },
+                  {
+                    label: 'Cliente Activo',
+                    count: funnel.convertedToClients,
+                    conversionRate: funnel.leadToClientPct,
+                    colorAccent: '#ffffff',
+                  },
+                ]}
+              />
 
-              <div>
-                <div className="flex justify-between text-xs font-mono mb-1.5">
-                  <span className="text-zinc-300">
-                    Contactado ➔ Calificado ({funnel.calificado + funnel.convertedToClients} de {funnel.contactado + funnel.calificado + funnel.convertedToClients})
-                  </span>
-                  <span className="font-bold text-amber-400">{funnel.contactadoToCalificadoPct}%</span>
-                </div>
-                <div className="h-2 bg-zinc-900 overflow-hidden">
-                  <div className="h-full bg-amber-400 transition-all duration-300" style={{ width: `${Math.min(100, Math.max(funnel.contactadoToCalificadoPct, 4))}%` }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-mono mb-1.5">
-                  <span className="text-zinc-300">Calificado ➔ Cliente ({funnel.convertedToClients} clientes activos)</span>
-                  <span className="font-bold text-sky-400">{funnel.leadToClientPct}% global</span>
-                </div>
-                <div className="h-2 bg-zinc-900 overflow-hidden">
-                  <div className="h-full bg-sky-400 transition-all duration-300" style={{ width: `${Math.min(100, Math.max(funnel.leadToClientPct, 4))}%` }} />
-                </div>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-zinc-800 grid grid-cols-4 gap-2 text-center text-xs font-mono">
+              <div className="pt-3 border-t border-zinc-900 grid grid-cols-4 gap-2 text-center text-xs font-mono">
                 <div>
                   <div className="text-[10px] uppercase text-zinc-500">Nuevos</div>
                   <div className="font-bold text-white mt-0.5">{funnel.nuevo}</div>
@@ -173,7 +174,7 @@ export default async function AnalyticsPage() {
                 </div>
                 <div>
                   <div className="text-[10px] uppercase text-zinc-500">Descartados</div>
-                  <div className="font-bold text-red-400 mt-0.5">{funnel.descartado}</div>
+                  <div className="font-bold text-rose-400 mt-0.5">{funnel.descartado}</div>
                 </div>
               </div>
             </div>
@@ -231,7 +232,7 @@ export default async function AnalyticsPage() {
           {sources.length === 0 ? (
             <EmptyState>Sin datos suficientes todavía.</EmptyState>
           ) : (
-            <DonutChart data={sources.map((s) => ({ label: s.label, value: s.count }))} />
+            <MonoDonutChart data={sources.map((s) => ({ label: s.label, value: s.count }))} centerLabel="LEADS" />
           )}
         </OledCard>
         <OledCard>
@@ -239,7 +240,7 @@ export default async function AnalyticsPage() {
           {clientsByStage.length === 0 ? (
             <EmptyState>Sin clientes registrados todavía.</EmptyState>
           ) : (
-            <DonutChart data={clientsByStage} />
+            <MonoDonutChart data={clientsByStage} centerLabel="CLIENTES" />
           )}
         </OledCard>
       </section>
