@@ -26,6 +26,7 @@ import {
   type TeamMember,
 } from './inbox/InboxCrmContextPanel'
 import {
+  getInboxAssigneesAction,
   replyConversationAction,
   updateConversationMetaAction,
 } from '@/lib/inbox-actions'
@@ -34,10 +35,12 @@ export function InboxWorkspace({
   canEdit,
   tenantId: _tenantId,
   initialConversationId,
+  initialTeam,
 }: {
   canEdit: boolean
   tenantId: number
   initialConversationId?: number | null
+  initialTeam?: TeamMember[]
 }) {
   const [conversations, setConversations] = useState<ConvListItem[] | null>(null)
   const [statusFilter, setStatusFilter] = useState<'open' | 'pending' | 'resolved' | 'all'>('open')
@@ -45,14 +48,23 @@ export function InboxWorkspace({
   const [selectedConv, setSelectedConv] = useState<ConvListItem | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [notes, setNotes] = useState<ConversationNote[]>([])
-  const [team, setTeam] = useState<TeamMember[]>([])
+  const [team, setTeam] = useState<TeamMember[]>(initialTeam || [])
   const [hasMore, setHasMore] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [sending, setSending] = useState(false)
   const [isContextPanelOpen, setIsContextPanelOpen] = useState(true)
   const [nowTs, setNowTs] = useState(0)
+  const [mobileView, setMobileView] = useState<'list' | 'chat' | 'crm'>('list')
 
   const latestConvRef = useRef<number | null>(null)
+
+  // Avanzar tiempo de referencia periódicamente (30s) para actualizar etiquetas relativas y ventana 24h
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNowTs(Date.now())
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [])
 
   const buildConvParams = useCallback((filter: typeof statusFilter): string => {
     const params = new URLSearchParams({ limit: '60', sort: '-lastMessageAt', depth: '1' })
@@ -126,23 +138,31 @@ export function InboxWorkspace({
       })
       .catch(() => {})
 
-    fetch('/api/users?limit=50&sort=firstName&where[active][equals]=true', { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { docs: TeamMember[] } | null) => {
-        if (!cancelled && data) setTeam(data.docs)
-      })
-      .catch(() => {})
-
     return () => {
       cancelled = true
     }
   }, [statusFilter, buildConvParams])
+
+  // Carga fallback de usuarios asignables tenant-aware si no vienen en initialTeam
+  useEffect(() => {
+    if (initialTeam && initialTeam.length > 0) return
+    let cancelled = false
+    getInboxAssigneesAction()
+      .then((users) => {
+        if (!cancelled && users) setTeam(users)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [initialTeam])
 
   const handleSelect = useCallback(
     (conv: ConvListItem) => {
       latestConvRef.current = conv.id
       setSelectedId(conv.id)
       setSelectedConv(conv)
+      setMobileView('chat')
       setNotes([])
       void loadThread(conv.id)
       void loadNotes(conv.id)
@@ -175,8 +195,12 @@ export function InboxWorkspace({
     setLoadingOlder(false)
   }
 
-  const handleSendMessage = async (text: string): Promise<boolean> => {
-    if (!selectedId || sending) return false
+  const handleSendMessage = async (
+    text: string,
+  ): Promise<{ ok: boolean; error?: string; needsTemplate?: boolean }> => {
+    if (!selectedId || sending) {
+      return { ok: false, error: 'No hay conversación activa' }
+    }
     setSending(true)
     try {
       const res = await replyConversationAction(selectedId, text)
@@ -184,12 +208,15 @@ export function InboxWorkspace({
       if (res.ok) {
         await loadThread(selectedId)
         await loadConversations()
-        return true
+        return { ok: true }
       }
-      return false
-    } catch {
+      return { ok: false, error: res.error, needsTemplate: res.needsTemplate }
+    } catch (err) {
       setSending(false)
-      return false
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Error al enviar mensaje',
+      }
     }
   }
 
@@ -212,6 +239,11 @@ export function InboxWorkspace({
     await loadConversations()
   }
 
+  const handleToggleContext = () => {
+    setIsContextPanelOpen((prev) => !prev)
+    setMobileView((prev) => (prev === 'crm' ? 'chat' : 'crm'))
+  }
+
   return (
     <div className="flex h-[calc(100vh-6.5rem)] flex-col gap-2">
       {/* Título y resumen superior */}
@@ -224,10 +256,14 @@ export function InboxWorkspace({
         </div>
       </div>
 
-      {/* Split-View Operativo de 3 Paneles */}
-      <div className="flex flex-1 gap-2 overflow-hidden">
-        {/* Panel 1: Lista de Conversaciones (Ancho Fijo / Responsive) */}
-        <div className="w-full sm:w-80 lg:w-84 xl:w-96 shrink-0 h-full">
+      {/* Split-View Operativo de 3 Paneles con modo responsivo real */}
+      <div className="flex flex-1 gap-2 min-h-0 overflow-hidden">
+        {/* Panel 1: Lista de Conversaciones */}
+        <div
+          className={`${
+            mobileView === 'list' ? 'block w-full' : 'hidden'
+          } lg:block lg:w-80 xl:w-96 shrink-0 h-full`}
+        >
           <InboxConversationList
             conversations={conversations}
             selectedId={selectedId}
@@ -239,9 +275,14 @@ export function InboxWorkspace({
         </div>
 
         {/* Panel 2: Chat Activo */}
-        <div className="flex-1 h-full min-w-0">
+        <div
+          className={`${
+            mobileView === 'chat' ? 'block w-full' : 'hidden'
+          } lg:block flex-1 h-full min-w-0`}
+        >
           {selectedConv ? (
             <InboxChatPanel
+              key={selectedConv.id}
               conversation={selectedConv}
               messages={messages}
               hasMore={hasMore}
@@ -250,10 +291,11 @@ export function InboxWorkspace({
               canEdit={canEdit}
               isContextPanelOpen={isContextPanelOpen}
               nowTs={nowTs}
-              onToggleContextPanel={() => setIsContextPanelOpen((prev) => !prev)}
+              onToggleContextPanel={handleToggleContext}
               onLoadMore={() => void loadMoreMessages()}
               onSendMessage={handleSendMessage}
               onStatusChange={(s) => void handleStatusChange(s)}
+              onBack={() => setMobileView('list')}
             />
           ) : (
             <div className="flex h-full flex-col items-center justify-center border border-zinc-800 bg-zinc-950 p-6 text-center">
@@ -265,16 +307,22 @@ export function InboxWorkspace({
           )}
         </div>
 
-        {/* Panel 3: Ficha CRM 360° y Notas Privadas (Colapsable) */}
-        {selectedConv && isContextPanelOpen && (
-          <div className="hidden lg:block w-80 xl:w-96 shrink-0 h-full">
+        {/* Panel 3: Ficha CRM 360° y Notas Privadas (Keyed por conversation.id) */}
+        {selectedConv && (
+          <div
+            className={`${
+              mobileView === 'crm' ? 'block w-full' : 'hidden'
+            } ${isContextPanelOpen ? 'lg:block' : 'lg:hidden'} lg:w-80 xl:w-96 shrink-0 h-full`}
+          >
             <InboxCrmContextPanel
+              key={selectedConv.id}
               conversation={selectedConv}
               notes={notes}
               team={team}
               canEdit={canEdit}
               onNoteAdded={() => void loadNotes(selectedConv.id)}
               onMetaUpdated={() => void handleReloadSelected()}
+              onBack={() => setMobileView('chat')}
             />
           </div>
         )}

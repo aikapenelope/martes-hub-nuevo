@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeAll, beforeEach } from 'vitest'
 import { getPayload, type Payload } from 'payload'
 import configPromise from '@/payload.config'
 import type { Tenant, User, Conversation } from '@/payload-types'
@@ -32,7 +32,7 @@ describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }
   let tenant1: Tenant
   let tenant2: Tenant
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     payload = await getPayload({ config: configPromise })
 
     const userDoc = (await payload.find({ collection: 'users', limit: 1 })).docs[0]
@@ -54,7 +54,9 @@ describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }
         },
       })
     }
+  }, 40000)
 
+  beforeEach(() => {
     vi.mocked(getWorkspaceContext).mockResolvedValue({
       payload,
       user,
@@ -170,6 +172,84 @@ describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }
         expect(result.error).toContain('tenant activo')
       }
     })
+
+    it('enruta respuestas según conversation.channel para instagram_dm', async () => {
+      const { sendText } = await import('@/integrations/openbsp/client')
+      const conversation = (await payload.create({
+        collection: 'conversations',
+        overrideAccess: true,
+        data: {
+          contactAddress: 'ig_user_12345',
+          channel: 'instagram_dm',
+          status: 'open',
+          lastInboundAt: new Date().toISOString(),
+          tenant: tenant1.id,
+        },
+      })) as Conversation
+
+      const result = await replyConversationAction(conversation.id, 'Hola desde Instagram DM')
+      expect(result.ok).toBe(true)
+      expect(sendText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'ig_user_12345',
+          service: 'instagram_dm',
+          text: 'Hola desde Instagram DM',
+        }),
+      )
+    })
+
+    it('rechaza canales no soportados para respuestas automáticas', async () => {
+      const conversation = (await payload.create({
+        collection: 'conversations',
+        overrideAccess: true,
+        data: {
+          contactAddress: 'web_session_999',
+          channel: 'whatsapp_web',
+          status: 'open',
+          lastInboundAt: new Date().toISOString(),
+          tenant: tenant1.id,
+        },
+      })) as Conversation
+
+      const result = await replyConversationAction(conversation.id, 'Mensaje no soportado')
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error).toContain('no admite respuestas salientes')
+      }
+    })
+
+    it('idempotencia: reintentos con la misma clave no duplican el envío a OpenBSP', async () => {
+      const { sendText } = await import('@/integrations/openbsp/client')
+      vi.mocked(sendText).mockClear()
+
+      const conversation = (await payload.create({
+        collection: 'conversations',
+        overrideAccess: true,
+        data: {
+          contactAddress: '584127778899',
+          channel: 'whatsapp',
+          status: 'open',
+          lastInboundAt: new Date().toISOString(),
+          tenant: tenant1.id,
+        },
+      })) as Conversation
+
+      const idempotencyKey = 'test-idemp-' + Date.now()
+
+      // Primer envío
+      const res1 = await replyConversationAction(conversation.id, 'Mensaje idempotente', idempotencyKey)
+      expect(res1.ok).toBe(true)
+      expect(sendText).toHaveBeenCalledTimes(1)
+
+      // Segundo intento con la misma clave de idempotencia
+      const res2 = await replyConversationAction(conversation.id, 'Mensaje idempotente', idempotencyKey)
+      expect(res2.ok).toBe(true)
+      // No debe haber invocado sendText nuevamente
+      expect(sendText).toHaveBeenCalledTimes(1)
+      if (res1.ok && res2.ok) {
+        expect(res2.messageId).toBe(res1.messageId)
+      }
+    })
   })
 
   describe('updateConversationMetaAction', () => {
@@ -202,6 +282,37 @@ describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }
       expect(updated.status).toBe('resolved')
       expect(updated.priority).toBe('alta')
       expect(updated.labels).toEqual(['urgente', 'facturacion'])
+    })
+
+    it('permite asignar un usuario administrador global aunque pertenezca a otro tenant', async () => {
+      // user es admin global
+      const conversation = (await payload.create({
+        collection: 'conversations',
+        overrideAccess: true,
+        data: {
+          contactAddress: '584249998877',
+          channel: 'whatsapp',
+          status: 'open',
+          tenant: tenant1.id,
+        },
+      })) as Conversation
+
+      const result = await updateConversationMetaAction(conversation.id, {
+        assignee: user.id,
+      })
+
+      expect(result.ok).toBe(true)
+
+      const updated = await payload.findByID({
+        collection: 'conversations',
+        id: conversation.id,
+        overrideAccess: true,
+      })
+      const assigneeId =
+        typeof updated.assignee === 'object' && updated.assignee !== null
+          ? updated.assignee.id
+          : updated.assignee
+      expect(assigneeId).toBe(user.id)
     })
   })
 

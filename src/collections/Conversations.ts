@@ -19,8 +19,11 @@ export const Conversations: CollectionConfig = {
           const tenantId = typeof tenantRaw === 'object' && tenantRaw ? tenantRaw.id : tenantRaw
           if (tenantId) {
             const user = await req.payload.findByID({ collection: 'users', id: assignee as number, depth: 0, overrideAccess: false, user: req.user })
+            const isGlobalAdmin = user.roles?.includes('admin')
             const userTenants = (user.tenants ?? []).map((t) => (typeof t.tenant === 'object' ? t.tenant.id : t.tenant))
-            if (!userTenants.includes(tenantId as number)) throw new Error('El agente no pertenece al tenant de la conversación')
+            if (!isGlobalAdmin && !userTenants.includes(tenantId as number)) {
+              throw new Error('El agente no pertenece al tenant de la conversación')
+            }
           }
         }
         return data

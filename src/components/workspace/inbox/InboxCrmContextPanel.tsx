@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import {
+  ArrowLeft,
   Building2,
   CheckCircle2,
   DollarSign,
@@ -27,6 +28,7 @@ export interface TeamMember {
   firstName?: string | null
   lastName?: string | null
   email?: string | null
+  roles?: string[] | null
 }
 
 export interface ConversationNote {
@@ -43,6 +45,7 @@ export function InboxCrmContextPanel({
   canEdit,
   onNoteAdded,
   onMetaUpdated,
+  onBack,
 }: {
   conversation: ConvListItem
   notes: ConversationNote[]
@@ -50,6 +53,7 @@ export function InboxCrmContextPanel({
   canEdit: boolean
   onNoteAdded?: () => void
   onMetaUpdated?: () => void
+  onBack?: () => void
 }) {
   const [activeTab, setActiveTab] = useState<'crm' | 'notes'>('crm')
   const [noteDraft, setNoteDraft] = useState('')
@@ -66,6 +70,7 @@ export function InboxCrmContextPanel({
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
+
 
   const lead = typeof conversation.lead === 'object' ? conversation.lead : null
   const client = typeof conversation.client === 'object' ? conversation.client : null
@@ -142,12 +147,23 @@ export function InboxCrmContextPanel({
 
   return (
     <div className="flex h-full flex-col border border-zinc-800 bg-zinc-950">
-      {/* Switcher de Pestañas */}
-      <div className="flex border-b border-zinc-800 bg-zinc-950/80 p-1">
+      {/* Switcher de Pestañas / Barra de Navegación */}
+      <div className="flex items-center border-b border-zinc-800 bg-zinc-950/80 p-1 gap-1">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="lg:hidden inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs font-mono text-zinc-300 hover:text-white shrink-0"
+            title="Volver al chat"
+          >
+            <ArrowLeft size={12} />
+            <span>Chat</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setActiveTab('crm')}
-          className={`flex-1 py-1.5 text-xs font-mono uppercase tracking-wider text-center transition ${
+          className={`flex-1 py-1.5 text-xs font-mono uppercase tracking-wider text-center transition rounded ${
             activeTab === 'crm' ? 'bg-white text-black font-bold' : 'text-zinc-400 hover:text-white'
           }`}
         >
@@ -156,7 +172,7 @@ export function InboxCrmContextPanel({
         <button
           type="button"
           onClick={() => setActiveTab('notes')}
-          className={`flex-1 py-1.5 text-xs font-mono uppercase tracking-wider text-center transition ${
+          className={`flex-1 py-1.5 text-xs font-mono uppercase tracking-wider text-center transition rounded ${
             activeTab === 'notes' ? 'bg-white text-black font-bold' : 'text-zinc-400 hover:text-white'
           }`}
         >

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
+  ArrowLeft,
   Check,
   CheckCheck,
   Clock,
@@ -81,6 +82,7 @@ export function InboxChatPanel({
   onLoadMore,
   onSendMessage,
   onStatusChange,
+  onBack,
 }: {
   conversation: ConvListItem
   messages: ChatMessage[]
@@ -92,11 +94,13 @@ export function InboxChatPanel({
   nowTs: number
   onToggleContextPanel: () => void
   onLoadMore: () => void
-  onSendMessage: (text: string) => Promise<boolean>
+  onSendMessage: (text: string) => Promise<{ ok: boolean; error?: string; needsTemplate?: boolean }>
   onStatusChange: (status: 'open' | 'pending' | 'resolved') => void
+  onBack?: () => void
 }) {
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [needsTemplate, setNeedsTemplate] = useState<boolean>(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -113,15 +117,22 @@ export function InboxChatPanel({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+
   async function handleSend(): Promise<void> {
     const trimmed = draft.trim()
     if (!trimmed || sending) return
     setError(null)
+    setNeedsTemplate(false)
 
-    const success = await onSendMessage(trimmed)
-    if (success) {
+    const res = await onSendMessage(trimmed)
+    if (res.ok) {
+      setError(null)
+      setNeedsTemplate(false)
       setDraft('')
       textareaRef.current?.focus()
+    } else {
+      setError(res.error || 'Error enviando mensaje')
+      setNeedsTemplate(Boolean(res.needsTemplate))
     }
   }
 
@@ -137,6 +148,17 @@ export function InboxChatPanel({
       {/* Cabecera del Chat Activo */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 p-3 bg-zinc-950/80">
         <div className="flex items-center gap-3 min-w-0">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="lg:hidden inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs font-mono text-zinc-300 hover:text-white"
+              title="Volver a la lista de conversaciones"
+            >
+              <ArrowLeft size={12} />
+              <span>Atrás</span>
+            </button>
+          )}
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2">
               <strong className="truncate text-sm font-bold text-white">{contactName}</strong>
@@ -320,15 +342,15 @@ export function InboxChatPanel({
             ))}
           </div>
 
-          {/* Banner si la ventana 24h expiró */}
-          {!isWindowActive && (
+          {/* Banner si la ventana 24h expiró o la acción requirió plantilla */}
+          {(!isWindowActive || needsTemplate) && (
             <div className="border border-amber-800/80 bg-amber-950/40 px-3 py-1.5 text-[11px] font-mono text-amber-300 rounded">
               ⚠️ La ventana de 24 horas de Meta ha vencido. Solo se pueden enviar plantillas pre-aprobadas si se trata de WhatsApp oficial.
             </div>
           )}
 
-          {error && (
-            <div className="border border-red-800 bg-red-900/30 px-3 py-1.5 text-xs text-red-300 font-mono">
+          {error && !needsTemplate && (
+            <div className="border border-red-800 bg-red-900/30 px-3 py-1.5 text-xs text-red-300 font-mono rounded">
               {error}
             </div>
           )}

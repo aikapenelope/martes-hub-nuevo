@@ -7,8 +7,10 @@ import { z } from 'zod'
 import type { Conversation, Message, Tenant } from '@/payload-types'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { getTenantAiModel } from '@/lib/ai-provider'
-import { sendText } from '@/integrations/openbsp/client'
+import { sendText, type OpenBSPService, type OpenBSPMessageRow } from '@/integrations/openbsp/client'
 import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
+import { getAssignableUsers } from '@/lib/tasks-data'
+import type { TeamMember } from '@/components/workspace/inbox/InboxCrmContextPanel'
 
 const WINDOW_MS = 24 * 60 * 60 * 1000
 
@@ -22,11 +24,36 @@ function relId(value: number | { id: number } | null | undefined): number | null
 }
 
 /**
+ * Carga los usuarios asignables para el tenant activo respetando el contrato
+ * canónico (usuarios activos pertenecientes al tenant o administradores globales).
+ */
+export async function getInboxAssigneesAction(): Promise<TeamMember[]> {
+  const context = await getWorkspaceContext()
+  const users = await getAssignableUsers({
+    payload: context.payload,
+    user: context.user,
+    tenantId: context.tenantId,
+  })
+  return users.map((u) => ({
+    id: u.id,
+    firstName: u.firstName,
+    lastName: u.lastName,
+    email: u.email,
+    roles: u.roles,
+  }))
+}
+
+/**
  * Envía una respuesta por WhatsApp o Instagram en la conversación activa.
+ * - Enruta según conversation.channel (rechaza canales no soportados como whatsapp_web).
+ * - Persiste un registro pendiente con clave de idempotencia antes del despacho externo.
+ * - Si el envío a OpenBSP tiene éxito pero la actualización posterior de Payload falla,
+ *   reconcilia sin reportar error de envío al cliente y evita entregas duplicadas en reintentos.
  */
 export async function replyConversationAction(
   conversationId: number,
   text: string,
+  idempotencyKey?: string,
 ): Promise<ActionResult<{ messageId: number }>> {
   try {
     const trimmed = text.trim()
@@ -54,6 +81,19 @@ export async function replyConversationAction(
       throw new Error('La conversación no pertenece al tenant activo')
     }
 
+    // Regla de enrutamiento por canal y rechazo explícito de no soportados
+    let service: OpenBSPService
+    if (conversation.channel === 'whatsapp') {
+      service = 'whatsapp'
+    } else if (conversation.channel === 'instagram_dm') {
+      service = 'instagram_dm'
+    } else {
+      return {
+        ok: false,
+        error: `El canal "${conversation.channel}" no admite respuestas salientes automáticas por API`,
+      }
+    }
+
     // Regla de ventana de 24 horas de Meta
     if (
       !conversation.lastInboundAt ||
@@ -75,39 +115,145 @@ export async function replyConversationAction(
     })
     const tenant = tenants.docs[0] as Tenant | undefined
 
-    const row = await sendText({
-      to: conversation.contactAddress,
-      text: trimmed,
-      tenant: tenant ?? undefined,
-    })
+    const stableKey =
+      idempotencyKey ||
+      `msg_${conversationId}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 
-    const created = await context.payload.create({
+    // Verificar si ya existe un mensaje reciente con esta clave de idempotencia
+    const recentMessages = await context.payload.find({
       collection: 'messages',
-      overrideAccess: true,
-      data: {
-        conversation: conversation.id,
-        direction: 'outbound',
-        openbspId: row.id,
-        externalId: row.external_id ?? undefined,
-        type: 'text',
-        text: trimmed,
-        content: {},
-        statusJson: row.status ?? {},
-        sentAt: new Date().toISOString(),
-        performedBy: context.user.id,
-        tenant: context.tenantId,
+      where: {
+        and: [
+          { tenant: { equals: context.tenantId } },
+          { conversation: { equals: conversation.id } },
+        ],
       },
+      limit: 30,
+      sort: '-createdAt',
+      overrideAccess: true,
     })
 
-    await context.payload.update({
-      collection: 'conversations',
-      id: conversation.id,
-      overrideAccess: true,
-      data: { lastMessageAt: new Date().toISOString() },
-    })
+    const existing = recentMessages.docs.find((m) => {
+      const s = m.statusJson as Record<string, unknown> | undefined
+      return s?.idempotencyKey === stableKey || m.openbspId === `pending:${stableKey}`
+    }) as Message | undefined
+
+    let pendingRecord = existing
+
+    // Si ya existía y fue despachado previamente a OpenBSP, reconciliar y retornar sin reenviar
+    const statusJson = pendingRecord?.statusJson as Record<string, unknown> | undefined
+    if (
+      pendingRecord &&
+      (statusJson?.dispatchStatus === 'dispatched' ||
+        (pendingRecord.openbspId && !pendingRecord.openbspId.startsWith('pending:')))
+    ) {
+      try {
+        await context.payload.update({
+          collection: 'conversations',
+          id: conversation.id,
+          overrideAccess: true,
+          data: { lastMessageAt: new Date().toISOString() },
+        })
+      } catch {
+        // Silencioso: no bloquear si la actualización de timestamp ya está al día
+      }
+      return { ok: true, messageId: pendingRecord.id }
+    }
+
+    // Si no existe registro previo, crear el registro pendiente con la clave de idempotencia antes del dispatch
+    if (!pendingRecord) {
+      pendingRecord = (await context.payload.create({
+        collection: 'messages',
+        overrideAccess: true,
+        data: {
+          conversation: conversation.id,
+          direction: 'outbound',
+          openbspId: `pending:${stableKey}`,
+          type: 'text',
+          text: trimmed,
+          content: {},
+          statusJson: {
+            idempotencyKey: stableKey,
+            dispatchStatus: 'pending',
+          },
+          sentAt: new Date().toISOString(),
+          performedBy: context.user.id,
+          tenant: context.tenantId,
+        },
+      })) as Message
+    }
+
+    // Despacho externo a OpenBSP consciente del canal
+    let row: OpenBSPMessageRow
+    try {
+      row = await sendText({
+        to: conversation.contactAddress,
+        text: trimmed,
+        tenant: tenant ?? undefined,
+        service,
+      })
+    } catch (dispatchErr) {
+      // Registrar fallo para permitir reintento seguro sin duplicar
+      await context.payload
+        .update({
+          collection: 'messages',
+          id: pendingRecord.id,
+          overrideAccess: true,
+          data: {
+            statusJson: {
+              idempotencyKey: stableKey,
+              dispatchStatus: 'failed',
+              error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+            },
+          },
+        })
+        .catch(() => {})
+      throw dispatchErr
+    }
+
+    // Despacho externo exitoso: persistir identificadores devueltos
+    try {
+      await context.payload.update({
+        collection: 'messages',
+        id: pendingRecord.id,
+        overrideAccess: true,
+        data: {
+          openbspId: row.id,
+          externalId: row.external_id ?? undefined,
+          statusJson: {
+            ...(typeof row.status === 'object' && row.status ? row.status : {}),
+            idempotencyKey: stableKey,
+            dispatchStatus: 'dispatched',
+          },
+        },
+      })
+    } catch (postDispatchUpdateErr) {
+      // La entrega externa ya se produjo: registrar pero NO reportar fallo al cliente
+      context.payload.logger.error({
+        msg: 'inbox: failed to update message row after successful OpenBSP dispatch',
+        err: postDispatchUpdateErr,
+        messageId: pendingRecord.id,
+        openbspId: row.id,
+      })
+    }
+
+    try {
+      await context.payload.update({
+        collection: 'conversations',
+        id: conversation.id,
+        overrideAccess: true,
+        data: { lastMessageAt: new Date().toISOString() },
+      })
+    } catch (postDispatchConvErr) {
+      context.payload.logger.error({
+        msg: 'inbox: failed to update conversation lastMessageAt after successful dispatch',
+        err: postDispatchConvErr,
+        conversationId: conversation.id,
+      })
+    }
 
     revalidatePath('/workspace/inbox')
-    return { ok: true, messageId: created.id }
+    return { ok: true, messageId: pendingRecord.id }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error enviando mensaje'
     const notConfigured = message.startsWith('OpenBSP no configurado')
@@ -146,7 +292,7 @@ export async function updateConversationMetaAction(
       throw new Error('La conversación no pertenece al tenant activo')
     }
 
-    // Validar asignación de agente dentro del tenant
+    // Validar asignación de agente dentro del tenant o administrador global
     if (patch.assignee) {
       const assigneeUser = await context.payload.findByID({
         collection: 'users',
@@ -155,10 +301,14 @@ export async function updateConversationMetaAction(
         overrideAccess: false,
         user: context.user,
       })
-      const userTenants = (assigneeUser?.tenants ?? []).map((t) =>
+      if (!assigneeUser || assigneeUser.active === false) {
+        throw new Error('El usuario asignado no está disponible')
+      }
+      const isGlobalAdmin = assigneeUser.roles?.includes('admin')
+      const userTenants = (assigneeUser.tenants ?? []).map((t) =>
         typeof t.tenant === 'object' && t.tenant !== null ? t.tenant.id : t.tenant,
       )
-      if (!userTenants.includes(context.tenantId)) {
+      if (!isGlobalAdmin && !userTenants.includes(context.tenantId)) {
         throw new Error('El agente no pertenece al tenant activo')
       }
     }
