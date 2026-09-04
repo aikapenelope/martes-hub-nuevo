@@ -51,6 +51,12 @@ export interface WorkspaceOverviewMetrics {
   revenuePendingCount: number
   overduePaymentsCount: number
 
+  /** Ticket promedio en el período seleccionado */
+  averageTicket: number
+  /** Cotizaciones activas en negociación (draft + sent) */
+  quotesActiveCount: number
+  quotesActiveTotal: number
+
   estimatedRevenueNew: number
   estimatedRevenueContacted: number
   estimatedRevenueQualified: number

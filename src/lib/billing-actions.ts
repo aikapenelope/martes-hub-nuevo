@@ -177,7 +177,10 @@ export async function createQuoteAction(formData: FormData): Promise<void> {
   })
 
   revalidatePath('/workspace/billing')
-  redirect(`/workspace/billing?created=quote-${quote.id}`)
+  revalidatePath('/workspace/offers')
+  revalidatePath('/workspace')
+  const redirectTo = optionalText(formData, 'redirectTo', 200) || `/workspace/billing?created=quote-${quote.id}`
+  redirect(redirectTo)
 }
 
 /**
@@ -384,6 +387,7 @@ export async function convertQuoteToInvoiceAction(params: {
 
     revalidatePath('/workspace')
     revalidatePath('/workspace/billing')
+    revalidatePath('/workspace/offers')
     return { ok: true, invoiceId: invoice.id }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error al convertir cotización a factura'
@@ -430,6 +434,7 @@ export async function updateQuoteStatusAction(params: {
     })
 
     revalidatePath('/workspace/billing')
+    revalidatePath('/workspace/offers')
     return { ok: true }
   } catch (err: unknown) {
     return { ok: false, error: err instanceof Error ? err.message : 'Error al actualizar cotización' }

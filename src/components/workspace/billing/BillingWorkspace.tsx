@@ -11,13 +11,16 @@ import {
   CheckCircle2,
   CircleAlert,
   Clock3,
+  Copy,
   ExternalLink,
   FileCheck,
   FileText,
   Loader2,
+  MessageSquare,
   Receipt,
   RotateCcw,
   Search,
+  Share2,
   X,
 } from 'lucide-react'
 
@@ -88,6 +91,33 @@ export function BillingWorkspace({
     'pago_movil' | 'transferencia' | 'zelle' | 'binance' | 'efectivo' | 'otro'
   >('transferencia')
   const [payNotes, setPayNotes] = useState('')
+  const [bcvRate, setBcvRate] = useState<string>('65.00')
+  const [payReference, setPayReference] = useState<string>('')
+
+  // Estado para recordatorio de cobro por WhatsApp
+  const [reminderPayment, setReminderPayment] = useState<Payment | null>(null)
+  const [copiedReminder, setCopiedReminder] = useState(false)
+
+  function generatePaymentReminderText(payment: Payment): string {
+    const cName = getClientName(payment.client)
+    const dueDateStr = payment.dueDate ? dateFmt.format(new Date(payment.dueDate)) : 'Pronto'
+    const nowMs = Date.now()
+    const dueMs = payment.dueDate ? new Date(payment.dueDate).getTime() : null
+    const diffDays = dueMs ? Math.round((dueMs - nowMs) / 86400000) : 0
+    const isOverdue = diffDays < 0
+
+    return (
+      `*Recordatorio de Cobro · ${tenantName}*\n\n` +
+      `Hola ${cName}, esperamos que estés muy bien.\n\n` +
+      `Te recordamos la gestión de pago pendiente por el siguiente concepto:\n` +
+      `• *Concepto:* ${payment.concept || 'Servicios profesionales'}\n` +
+      `• *Monto a pagar:* ${usd.format(payment.amount)} USD\n` +
+      `• *Fecha de vencimiento:* ${dueDateStr}\n` +
+      (isOverdue ? `⚠️ _Registra ${Math.abs(diffDays)} día(s) de mora._\n` : '') +
+      `\nSi ya realizaste la transferencia o Pago Móvil, por favor compártenos el comprobante o número de referencia por este medio para conciliarlo en el sistema.\n\n` +
+      `¡Muchas gracias por tu confianza!`
+    )
+  }
 
   function pdfUrl(doc: Quote | Invoice): string | null {
     const first = doc.generatedPdfs?.[0]
@@ -167,18 +197,33 @@ export function BillingWorkspace({
     setActionError(null)
     setActionSuccess(null)
     startTransition(async () => {
+      const rateNum = Number(bcvRate)
+      const bsEquivalent = rateNum > 0 ? (payingPayment.amount * rateNum).toFixed(2) : null
+      const noteDetails = [
+        payReference ? `Ref: ${payReference}` : null,
+        bsEquivalent ? `Tasa BCV: ${bcvRate} (Bs. ${bsEquivalent})` : null,
+        payNotes ? payNotes.trim() : null,
+      ]
+        .filter(Boolean)
+        .join(' | ')
+
+      const finalNotes = payingPayment.notes
+        ? `${payingPayment.notes}\n[Conciliación]: ${noteDetails}`
+        : noteDetails || undefined
+
       const res = await updatePaymentStatusAction({
         paymentId: payingPayment.id,
         status: 'pagado',
         method: payMethod,
-        notes: payNotes || undefined,
+        notes: finalNotes,
       })
       if (!res.ok) {
         setActionError(res.error || 'No se pudo registrar el pago')
       } else {
-        setActionSuccess('Pago registrado exitosamente')
+        setActionSuccess('Pago registrado y conciliado exitosamente')
         setPayingPayment(null)
         setPayNotes('')
+        setPayReference('')
         router.refresh()
       }
     })
@@ -441,6 +486,10 @@ export function BillingWorkspace({
                     const isPaid = p.status === 'pagado'
                     const isCancelled = p.status === 'anulado'
 
+                    const nowMs = Date.now()
+                    const dueMs = p.dueDate ? new Date(p.dueDate).getTime() : null
+                    const diffDays = dueMs ? Math.round((dueMs - nowMs) / 86400000) : null
+
                     return (
                       <tr
                         key={p.id}
@@ -472,7 +521,18 @@ export function BillingWorkspace({
                           </StatusBadge>
                         </td>
                         <td className="px-4 py-3 font-mono text-zinc-400">
-                          {p.dueDate ? dateFmt.format(new Date(p.dueDate)) : '—'}
+                          <div>{p.dueDate ? dateFmt.format(new Date(p.dueDate)) : '—'}</div>
+                          {diffDays !== null && (isPendingState || isOverdue) && (
+                            <div className="text-[10px] mt-0.5">
+                              {diffDays < 0 ? (
+                                <span className="text-rose-400 font-bold">Venció hace {Math.abs(diffDays)}d</span>
+                              ) : diffDays === 0 ? (
+                                <span className="text-amber-400 font-bold">Vence hoy</span>
+                              ) : diffDays <= 5 ? (
+                                <span className="text-amber-300">En {diffDays}d</span>
+                              ) : null}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 font-mono text-zinc-400 capitalize">
                           {p.method ? p.method.replace('_', ' ') : '—'}
@@ -483,6 +543,18 @@ export function BillingWorkspace({
                         >
                           {canEdit && (
                             <div className="flex items-center justify-end gap-1.5">
+                              {(isPendingState || isOverdue) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setReminderPayment(p)}
+                                  className="px-2 py-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border border-emerald-800/80 text-[10px] font-mono transition flex items-center gap-1"
+                                  title="Enviar recordatorio por WhatsApp"
+                                >
+                                  <MessageSquare size={11} />
+                                  <span>WhatsApp</span>
+                                </button>
+                              )}
+
                               {(isPendingState || isOverdue) && (
                                 <button
                                   type="button"
@@ -819,13 +891,46 @@ export function BillingWorkspace({
                 </select>
               </label>
 
+              {/* Tasa BCV y cálculo en Bolívares */}
+              {(payMethod === 'pago_movil' || payMethod === 'transferencia') && (
+                <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                    <span>Tasa BCV Referencial (Bs./USD)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="1"
+                      value={bcvRate}
+                      onChange={(e) => setBcvRate(e.target.value)}
+                      className="bg-black border border-zinc-700 px-2 py-0.5 text-xs text-emerald-400 font-mono w-24 text-right"
+                    />
+                  </div>
+                  {Number(bcvRate) > 0 && (
+                    <div className="text-right text-xs font-mono text-emerald-300 font-bold">
+                      ≈ Bs. {(payingPayment.amount * Number(bcvRate)).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <label className="flex flex-col gap-1 text-[11px] text-zinc-400 uppercase">
-                Referencia / Notas del Pago (opcional)
+                Número de Referencia Bancaria / Comprobante
+                <input
+                  type="text"
+                  value={payReference}
+                  onChange={(e) => setPayReference(e.target.value)}
+                  placeholder="Ej: Ref #948291 Banesco"
+                  className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1 text-[11px] text-zinc-400 uppercase">
+                Notas adicionales (opcional)
                 <input
                   type="text"
                   value={payNotes}
                   onChange={(e) => setPayNotes(e.target.value)}
-                  placeholder="Ej: Ref #948291 Banesco"
+                  placeholder="Comentarios o detalles de auditoría"
                   className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
                 />
               </label>
@@ -848,6 +953,66 @@ export function BillingWorkspace({
                 {isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={14} />}
                 <span>Confirmar Cobro</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Recordatorio de Cobro por WhatsApp */}
+      {reminderPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fadeIn font-mono text-xs">
+          <div className="w-full max-w-lg border border-emerald-800/80 bg-zinc-950 p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <MessageSquare size={16} />
+                <h3 className="text-sm font-bold uppercase tracking-wider">
+                  Recordatorio de Cobro por WhatsApp
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReminderPayment(null)}
+                className="text-zinc-500 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[11px] text-zinc-400">
+                Mensaje pre-formateado para enviar al cliente {getClientName(reminderPayment.client)}:
+              </p>
+              <textarea
+                readOnly
+                rows={9}
+                value={generatePaymentReminderText(reminderPayment)}
+                className="w-full bg-black border border-zinc-800 p-3 text-xs text-emerald-300 font-mono focus:outline-none select-all"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-zinc-900">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(generatePaymentReminderText(reminderPayment))
+                  setCopiedReminder(true)
+                  setTimeout(() => setCopiedReminder(false), 2500)
+                }}
+                className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold transition flex items-center gap-1.5"
+              >
+                {copiedReminder ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                <span>{copiedReminder ? '¡Copiado!' : 'Copiar Mensaje'}</span>
+              </button>
+
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(generatePaymentReminderText(reminderPayment))}`}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-lg shadow-emerald-950"
+              >
+                <Share2 size={13} />
+                <span>Abrir WhatsApp</span>
+              </a>
             </div>
           </div>
         </div>

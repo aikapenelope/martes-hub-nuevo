@@ -204,6 +204,8 @@ export async function getWorkspaceOverviewData({
 }: OverviewOptions): Promise<WorkspaceOverviewData> {
   const q = <T extends Parameters<typeof payload.find>[0]>(opts: T) =>
     payload.find({ ...opts, overrideAccess: false, user } as T)
+  const c = <T extends Parameters<typeof payload.count>[0]>(opts: T) =>
+    payload.count({ ...opts, overrideAccess: false, user } as T)
 
   const now = new Date()
   const nowTime = now.getTime()
@@ -251,6 +253,7 @@ export async function getWorkspaceOverviewData({
     revenuePending,
     overdueTasks,
     overduePaymentsRes,
+    activeQuotesRes,
     allLeadsRes,
     yearActivities,
     yearMessages,
@@ -261,29 +264,24 @@ export async function getWorkspaceOverviewData({
     followups,
     systemHealth,
   ] = await Promise.all([
-    q({
+    c({
       collection: 'leads',
-      limit: 0,
       where: tenantWhere(tenantId, { status: { equals: 'nuevo' } }),
     }),
-    q({
+    c({
       collection: 'leads',
-      limit: 0,
       where: tenantWhere(tenantId, { status: { equals: 'contactado' } }),
     }),
-    q({
+    c({
       collection: 'leads',
-      limit: 0,
       where: tenantWhere(tenantId, { status: { equals: 'calificado' } }),
     }),
-    q({
+    c({
       collection: 'leads',
-      limit: 0,
       where: tenantWhere(tenantId, { status: { equals: 'descartado' } }),
     }),
-    q({
+    c({
       collection: 'clients',
-      limit: 0,
       where: tenantWhere(tenantId, { stage: { equals: 'activo' } }),
     }),
     q({
@@ -317,9 +315,8 @@ export async function getWorkspaceOverviewData({
     paymentsAggregate(payload, tenantId, ['pagado'], periodStartIso, periodEndIso),
     paymentsAggregate(payload, tenantId, ['pagado'], previousStartIso, previousEndIso),
     paymentsAggregate(payload, tenantId, ['pendiente', 'vencido']),
-    q({
+    c({
       collection: 'tasks',
-      limit: 0,
       where: tenantWhere(tenantId, {
         and: [
           { dueDate: { less_than: now.toISOString() } },
@@ -327,10 +324,17 @@ export async function getWorkspaceOverviewData({
         ],
       }),
     }),
-    q({
+    c({
       collection: 'payments',
-      limit: 0,
       where: tenantWhere(tenantId, { status: { equals: 'vencido' } }),
+    }),
+    q({
+      collection: 'quotes',
+      limit: 50,
+      depth: 0,
+      where: tenantWhere(tenantId, {
+        status: { in: ['draft', 'sent'] },
+      }),
     }),
     q({
       collection: 'leads',
@@ -403,6 +407,12 @@ export async function getWorkspaceOverviewData({
 
   // Tendencia período contra período previo
   const revenueTrendPct = pctChange(revenuePeriod.total, revenuePreviousPeriod.total)
+
+  // Cotizaciones activas y Ticket promedio
+  const activeQuotes = activeQuotesRes.docs as { total?: number | null }[]
+  const quotesActiveCount = activeQuotes.length
+  const quotesActiveTotal = activeQuotes.reduce((acc, q) => acc + (q.total || 0), 0)
+  const averageTicket = revenuePeriod.count > 0 ? Math.round(revenuePeriod.total / revenuePeriod.count) : 0
 
   // Salud 24h WhatsApp
   const critical24hCount = convList.filter((c) => {
@@ -522,6 +532,10 @@ export async function getWorkspaceOverviewData({
     revenuePendingTotal: revenuePending.total,
     revenuePendingCount: revenuePending.count,
     overduePaymentsCount: overduePaymentsRes.totalDocs,
+
+    averageTicket,
+    quotesActiveCount,
+    quotesActiveTotal,
 
     estimatedRevenueNew,
     estimatedRevenueContacted,
