@@ -73,7 +73,16 @@ export function InboxCrmContextPanel({
 
 
   const lead = typeof conversation.lead === 'object' ? conversation.lead : null
-  const client = typeof conversation.client === 'object' ? conversation.client : null
+  const directClient = typeof conversation.client === 'object' ? conversation.client : null
+  const leadConvertedClient =
+    typeof lead?.convertedClient === 'object' && lead.convertedClient ? lead.convertedClient : null
+
+  const effectiveClient = directClient || leadConvertedClient
+  const effectiveClientId =
+    effectiveClient?.id ||
+    convertedClientId ||
+    (typeof lead?.convertedClient === 'number' ? lead.convertedClient : null)
+  const hasConvertedClient = Boolean(effectiveClient || effectiveClientId)
 
   async function handleConvertLead(): Promise<void> {
     if (!lead || !canEdit || convertingLead) return
@@ -228,12 +237,12 @@ export function InboxCrmContextPanel({
 
                 {/* Botón / Estado de Conversión In-Situ */}
                 <div className="pt-1 border-t border-zinc-850">
-                  {convertedClientId ? (
+                  {hasConvertedClient ? (
                     <Link
-                      href={`/workspace/crm/clientes/${convertedClientId}`}
+                      href={`/workspace/crm/clientes/${effectiveClientId}`}
                       className="inline-flex items-center gap-1 text-xs font-mono text-emerald-400 hover:underline"
                     >
-                      <CheckCircle2 size={12} /> Cliente #{convertedClientId} creado
+                      <CheckCircle2 size={12} /> Cliente #{effectiveClientId} registrado
                     </Link>
                   ) : canEdit ? (
                     <button
@@ -255,14 +264,14 @@ export function InboxCrmContextPanel({
             )}
 
             {/* Contexto del Cliente Oficial */}
-            {client && (
+            {effectiveClient && (
               <div className="border border-emerald-800/60 bg-emerald-950/20 p-3 space-y-2 rounded">
                 <div className="flex items-center justify-between gap-1">
                   <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold">
                     Cliente Registrado
                   </span>
                   <Link
-                    href={`/workspace/crm/clientes/${client.id}`}
+                    href={`/workspace/crm/clientes/${effectiveClient.id}`}
                     className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-300 hover:text-white"
                     title="Ver ficha de cliente"
                   >
@@ -271,17 +280,19 @@ export function InboxCrmContextPanel({
                 </div>
 
                 <div>
-                  <strong className="block text-xs font-bold text-white">{client.name}</strong>
-                  {client.companyName && (
+                  <strong className="block text-xs font-bold text-white">
+                    {effectiveClient.name || `Cliente #${effectiveClient.id}`}
+                  </strong>
+                  {effectiveClient.companyName && (
                     <span className="flex items-center gap-1 text-[10px] font-medium text-zinc-400 mt-0.5">
-                      <Building2 size={10} className="text-zinc-500" /> {client.companyName}
+                      <Building2 size={10} className="text-zinc-500" /> {effectiveClient.companyName}
                     </span>
                   )}
                 </div>
               </div>
             )}
 
-            {!lead && !client && (
+            {!lead && !effectiveClient && (
               <div className="border border-zinc-850 bg-zinc-900/40 p-3 rounded text-center">
                 <span className="block text-xs text-zinc-400 font-mono">Sin vincular al CRM</span>
                 <span className="block text-[10px] text-zinc-500 mt-0.5 font-mono">
@@ -362,6 +373,25 @@ export function InboxCrmContextPanel({
                         </option>
                       )
                     })}
+                  </select>
+                </label>
+
+                {/* Prioridad */}
+                <label className="flex flex-col gap-1 text-[10px] font-mono uppercase text-zinc-400">
+                  Prioridad
+                  <select
+                    value={conversation.priority ?? 'media'}
+                    disabled={savingMeta}
+                    onChange={(e) =>
+                      void handlePatchMeta({
+                        priority: e.target.value as 'baja' | 'media' | 'alta',
+                      })
+                    }
+                    className="border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white rounded font-sans"
+                  >
+                    <option value="baja">Baja</option>
+                    <option value="media">Media</option>
+                    <option value="alta">Alta</option>
                   </select>
                 </label>
 

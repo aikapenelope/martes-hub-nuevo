@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
+  AlertCircle,
   ArrowLeft,
   Check,
   CheckCheck,
@@ -263,6 +264,11 @@ export function InboxChatPanel({
               {/* Burbujas del Grupo */}
               {group.messages.map((m) => {
                 const isInbound = m.direction === 'inbound'
+                const isFailed =
+                  m.statusJson?.dispatchStatus === 'failed' ||
+                  Boolean(m.statusJson?.error) ||
+                  Boolean(m.statusJson?.errors)
+                const isPending = m.statusJson?.dispatchStatus === 'pending'
                 const isDelivered = Boolean(m.statusJson?.delivered_at || m.statusJson?.read_at)
                 const isRead = Boolean(m.statusJson?.read_at)
 
@@ -275,7 +281,9 @@ export function InboxChatPanel({
                       className={`max-w-[80%] sm:max-w-[70%] rounded-lg px-3.5 py-2 text-xs leading-relaxed ${
                         isInbound
                           ? 'border border-zinc-800 bg-zinc-900 text-zinc-100'
-                          : 'bg-white text-black font-medium'
+                          : isFailed
+                            ? 'border border-red-800/80 bg-red-950/40 text-red-200'
+                            : 'bg-white text-black font-medium'
                       }`}
                     >
                       {m.type !== 'text' && (
@@ -301,7 +309,29 @@ export function InboxChatPanel({
                       </span>
                       {!isInbound && (
                         <span>
-                          {isRead ? (
+                          {isFailed ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-red-400 font-mono"
+                              title={String(m.statusJson?.error || 'Error en el envío')}
+                            >
+                              <AlertCircle size={11} className="text-red-400" />
+                              <span>Error de envío</span>
+                              {canEdit && m.text && (
+                                <button
+                                  type="button"
+                                  onClick={() => void onSendMessage(m.text || '')}
+                                  className="ml-1 text-[9px] text-red-300 underline hover:text-white"
+                                >
+                                  Reintentar
+                                </button>
+                              )}
+                            </span>
+                          ) : isPending ? (
+                            <span title="Enviando..." className="inline-flex items-center gap-1 text-zinc-500 font-mono">
+                              <Clock size={11} className="animate-pulse" />
+                              <span>Enviando...</span>
+                            </span>
+                          ) : isRead ? (
                             <span title="Leído"><CheckCheck size={11} className="text-sky-400" /></span>
                           ) : isDelivered ? (
                             <span title="Entregado"><CheckCheck size={11} className="text-zinc-400" /></span>

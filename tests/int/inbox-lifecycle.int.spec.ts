@@ -7,6 +7,7 @@ import {
   replyConversationAction,
   updateConversationMetaAction,
   addConversationNoteAction,
+  summarizeConversationWithAiAction,
 } from '@/lib/inbox-actions'
 import { DEFAULT_QUICK_SNIPPETS } from '@/components/workspace/inbox/inbox-snippets'
 
@@ -16,6 +17,23 @@ vi.mock('next/cache', () => ({
 
 vi.mock('@/lib/workspace-context', () => ({
   getWorkspaceContext: vi.fn(),
+}))
+
+vi.mock('@/lib/ai-provider', () => ({
+  getTenantAiModel: vi.fn().mockResolvedValue({
+    model: 'mock-model',
+  }),
+}))
+
+vi.mock('ai', () => ({
+  generateObject: vi.fn().mockResolvedValue({
+    object: {
+      summary: 'Resumen de prueba de IA',
+      sentiment: 'positivo',
+      objections: 'Ninguna',
+      nextSteps: 'Enviar presupuesto',
+    },
+  }),
 }))
 
 vi.mock('@/integrations/openbsp/client', () => ({
@@ -365,6 +383,121 @@ describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }
       expect(result.ok).toBe(false)
       if (!result.ok) {
         expect(result.error).toContain('no puede estar vacía')
+      }
+    })
+  })
+
+  describe('summarizeConversationWithAiAction', () => {
+    it('retorna éxito incluso si la actualización de notas del lead falla (evitando duplicados en retry)', async () => {
+      const lead = await payload.create({
+        collection: 'leads',
+        overrideAccess: true,
+        data: {
+          fullName: 'Lead Prueba IA',
+          status: 'nuevo',
+          source: 'manual',
+          tenant: tenant1.id,
+        },
+      })
+
+      const conversation = (await payload.create({
+        collection: 'conversations',
+        overrideAccess: true,
+        data: {
+          contactAddress: '584125554433',
+          channel: 'whatsapp',
+          status: 'open',
+          lead: lead.id,
+          lastInboundAt: new Date().toISOString(),
+          tenant: tenant1.id,
+        },
+      })) as Conversation
+
+      // Crear al menos un mensaje para resumir
+      await payload.create({
+        collection: 'messages',
+        overrideAccess: true,
+        data: {
+          conversation: conversation.id,
+          direction: 'inbound',
+          type: 'text',
+          text: 'Hola, quiero comprar el servicio',
+          sentAt: new Date().toISOString(),
+          tenant: tenant1.id,
+        },
+      })
+
+      // Espiar payload.update para que falle ÚNICAMENTE cuando actualiza la colección 'leads'
+      const originalUpdate = payload.update.bind(payload)
+      const updateSpy = vi.spyOn(payload, 'update').mockImplementation(((args: unknown) => {
+        const a = args as { collection?: string }
+        if (a?.collection === 'leads') {
+          throw new Error('Fallo simulado al actualizar notas del lead')
+        }
+        return (originalUpdate as unknown as (a: unknown) => Promise<unknown>)(args)
+      }) as unknown as typeof payload.update)
+
+      try {
+        const result = await summarizeConversationWithAiAction(conversation.id)
+        expect(result.ok).toBe(true)
+        if (result.ok) {
+          expect(result.summaryId).toBeDefined()
+          expect(result.summaryText).toContain('Resumen de prueba')
+
+          // Verificar que el resumen canónico existe en la base de datos
+          const summaryDoc = await payload.findByID({
+            collection: 'conversation-summaries',
+            id: result.summaryId,
+            overrideAccess: true,
+          })
+          expect(summaryDoc).toBeDefined()
+        }
+      } finally {
+        updateSpy.mockRestore()
+      }
+    })
+  })
+
+  describe('convertLeadInSituAction en contexto del Inbox', () => {
+    it('vincula automáticamente la conversación del lead al nuevo cliente', async () => {
+      const { convertLeadInSituAction } = await import('@/lib/crm-pipeline-actions')
+      const lead = await payload.create({
+        collection: 'leads',
+        overrideAccess: true,
+        data: {
+          fullName: 'Lead Para Conversion Inbox',
+          status: 'nuevo',
+          source: 'manual',
+          tenant: tenant1.id,
+        },
+      })
+
+      const conversation = (await payload.create({
+        collection: 'conversations',
+        overrideAccess: true,
+        data: {
+          contactAddress: '584126667788',
+          channel: 'whatsapp',
+          status: 'open',
+          lead: lead.id,
+          lastInboundAt: new Date().toISOString(),
+          tenant: tenant1.id,
+        },
+      })) as Conversation
+
+      const res = await convertLeadInSituAction(lead.id)
+      expect(res.ok).toBe(true)
+      if (res.ok) {
+        const updatedConv = await payload.findByID({
+          collection: 'conversations',
+          id: conversation.id,
+          overrideAccess: true,
+        })
+        const clientId =
+          typeof updatedConv.client === 'object' && updatedConv.client !== null
+            ? updatedConv.client.id
+            : updatedConv.client
+        expect(clientId).toBe(res.clientId)
       }
     })
   })

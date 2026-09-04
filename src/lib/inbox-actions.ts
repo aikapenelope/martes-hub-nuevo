@@ -160,8 +160,22 @@ export async function replyConversationAction(
       return { ok: true, messageId: pendingRecord.id }
     }
 
-    // Si no existe registro previo, crear el registro pendiente con la clave de idempotencia antes del dispatch
-    if (!pendingRecord) {
+    // Si ya existía y estaba marcado como fallido, actualizarlo a pending para el nuevo intento
+    if (pendingRecord && statusJson?.dispatchStatus === 'failed') {
+      await context.payload
+        .update({
+          collection: 'messages',
+          id: pendingRecord.id,
+          overrideAccess: true,
+          data: {
+            statusJson: {
+              idempotencyKey: stableKey,
+              dispatchStatus: 'pending',
+            },
+          },
+        })
+        .catch(() => {})
+    } else if (!pendingRecord) {
       pendingRecord = (await context.payload.create({
         collection: 'messages',
         overrideAccess: true,
@@ -476,26 +490,35 @@ export async function summarizeConversationWithAiAction(
       },
     })
 
-    // Si tiene lead asociado, anexar también a las notas del lead
+    // Si tiene lead asociado, anexar también a las notas del lead como seguimiento no crítico
     if (leadId) {
-      const leadDoc = await context.payload.findByID({
-        collection: 'leads',
-        id: leadId,
-        depth: 0,
-        overrideAccess: false,
-        user: context.user,
-      })
-      if (leadDoc) {
-        await context.payload.update({
+      try {
+        const leadDoc = await context.payload.findByID({
           collection: 'leads',
           id: leadId,
+          depth: 0,
           overrideAccess: false,
           user: context.user,
-          data: {
-            notes: [leadDoc.notes, `[IA Inbox ${new Date().toLocaleDateString('es-ES')}] ${object.summary}`]
-              .filter(Boolean)
-              .join('\n\n'),
-          },
+        })
+        if (leadDoc) {
+          await context.payload.update({
+            collection: 'leads',
+            id: leadId,
+            overrideAccess: false,
+            user: context.user,
+            data: {
+              notes: [leadDoc.notes, `[IA Inbox ${new Date().toLocaleDateString('es-ES')}] ${object.summary}`]
+                .filter(Boolean)
+                .join('\n\n'),
+            },
+          })
+        }
+      } catch (leadNoteErr) {
+        context.payload.logger.error({
+          msg: 'inbox: fallo al anexar resumen a notas del lead (no crítico)',
+          err: leadNoteErr,
+          leadId,
+          summaryId: created.id,
         })
       }
     }

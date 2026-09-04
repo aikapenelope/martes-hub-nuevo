@@ -24,7 +24,13 @@ export interface ConvListItem {
   lastInboundAt: string | null
   assignee?: { id: number; firstName?: string; lastName?: string; email?: string } | number | null
   client?: { id: number; name?: string; companyName?: string | null } | number | null
-  lead?: { id: number; fullName?: string; companyName?: string | null; estimatedValue?: number | null } | number | null
+  lead?: {
+    id: number
+    fullName?: string
+    companyName?: string | null
+    estimatedValue?: number | null
+    convertedClient?: { id: number; name?: string; companyName?: string | null } | number | null
+  } | number | null
 }
 
 const STATUS_META: Record<string, { label: string; dot: string; text: string }> = {
