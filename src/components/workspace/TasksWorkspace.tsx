@@ -1,9 +1,9 @@
 import Link from 'next/link'
-import { CheckCircle2, CircleAlert, Clock3, ListFilter, Plus, Search, UserRound } from 'lucide-react'
+import { CheckCircle2, CircleAlert, ListFilter, Plus, Search } from 'lucide-react'
 import type { Client, Lead, Task, User } from '@/payload-types'
-import { checklistProgress, dueState, TASK_PRIORITIES, TASK_STATUSES, type TaskFilters, type TaskStatus } from '@/lib/tasks-filters'
+import { dueState, TASK_PRIORITIES, TASK_STATUSES, type TaskFilters, type TaskStatus } from '@/lib/tasks-filters'
 import { createTaskAction } from '@/lib/tasks-actions'
-import { TaskStatusSelect } from '@/components/workspace/TaskStatusSelect'
+import { TasksKanbanBoard } from '@/components/workspace/tasks/TasksKanbanBoard'
 
 const statusLabel: Record<TaskStatus, string> = { pendiente: 'Pendiente', en_progreso: 'En progreso', bloqueada: 'Bloqueada', completada: 'Completada', cancelada: 'Cancelada' }
 const priorityLabel = { baja: 'Baja', media: 'Media', alta: 'Alta', urgente: 'Urgente' }
@@ -27,41 +27,6 @@ const inputCls = 'border border-zinc-800 bg-black px-3 py-1.5 text-xs text-zinc-
 const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
 const formInputCls = 'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
 
-function TaskCard({ task, canEdit }: { task: Task; canEdit: boolean }) {
-  const progress = checklistProgress(task.checklist)
-  const due = dueState(task.dueDate)
-  return (
-    <article className="oled-card p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className={`text-[10px] font-mono px-1.5 py-0.5 ${priorityCls[task.priority]}`}>{priorityLabel[task.priority]}</span>
-        <span className={`flex items-center gap-1 text-[10px] font-mono ${dueCls[due]}`}><Clock3 size={12} />{dateLabel(task.dueDate)}</span>
-      </div>
-      <Link href={`/workspace/tasks/${task.id}`} className="mt-2 block text-sm font-semibold text-white hover:underline">{task.title}</Link>
-      <p className="mt-1 text-xs text-zinc-500">{relation(task)}</p>
-      {progress.total > 0 && (
-        <div className="mt-2">
-          <div className="flex justify-between text-[10px] font-mono text-zinc-500"><span>{progress.done}/{progress.total} subtareas</span><span>{progress.percent}%</span></div>
-          <progress
-            max="100"
-            value={progress.percent}
-            aria-label={`Progreso del checklist: ${progress.done} de ${progress.total} (${progress.percent}%)`}
-            className="mt-1 h-1 w-full accent-white"
-          />
-        </div>
-      )}
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-zinc-800 pt-2">
-        <span className="flex items-center gap-1.5 text-[10px] text-zinc-400"><UserRound size={13} />{person(task.assignedTo)}</span>
-        {canEdit && (
-          <TaskStatusSelect
-            taskId={task.id}
-            status={task.status}
-            label={`Cambiar estado de ${task.title}`}
-          />
-        )}
-      </div>
-    </article>
-  )
-}
 
 export function TasksWorkspace({
   data,
@@ -175,20 +140,7 @@ export function TasksWorkspace({
           <p className="text-xs font-mono">Ajusta los filtros o crea la primera tarea para empezar.</p>
         </div>
       ) : filters.view === 'tablero' ? (
-        <section className="grid gap-3 lg:grid-cols-5" aria-label="Tablero de tareas">
-          {data.columns.map((column) => (
-            <section key={column.status} className="oled-card">
-              <header className="flex items-center gap-2 border-b border-zinc-800 p-3">
-                <span className="h-2 w-2 rounded-full bg-white" />
-                <h2 className="flex-1 text-xs font-bold text-white uppercase tracking-wider">{statusLabel[column.status]}</h2>
-                <span className="text-xs font-mono text-zinc-500">{column.total}</span>
-              </header>
-              <div className="flex flex-col gap-2 p-2">
-                {column.tasks.length ? column.tasks.map((task) => <TaskCard key={task.id} task={task} canEdit={canEdit} />) : <p className="p-3 text-center text-xs text-zinc-600">Sin tareas</p>}
-              </div>
-            </section>
-          ))}
-        </section>
+        <TasksKanbanBoard initialColumns={data.columns} canEdit={canEdit} />
       ) : (
         <section className="oled-card">
           <div className="grid grid-cols-5 gap-2 border-b border-zinc-800 px-4 py-2 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
