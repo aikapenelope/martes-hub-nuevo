@@ -134,7 +134,17 @@ export function CrmLeadDrawer({
               }}
             />
           )}
-          {tab === 'timeline' && <LeadDrawerTimelineTab activities={data.activities} />}
+          {tab === 'timeline' && (
+            <LeadDrawerTimelineTab
+              leadId={leadId}
+              activities={data.activities}
+              canEdit={canEdit}
+              onActivityAdded={() => {
+                setReloadToken((t) => t + 1)
+                onUpdated?.()
+              }}
+            />
+          )}
           {tab === 'whatsapp' && <LeadDrawerWhatsAppTab leadId={leadId} canEdit={canEdit} />}
           {tab === 'email' && <LeadDrawerEmailTab leadId={leadId} email={data.lead.email} canEdit={canEdit} />}
           {tab === 'ai' && <LeadDrawerAiTab leadId={leadId} canEdit={canEdit} />}

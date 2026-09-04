@@ -1,7 +1,9 @@
 'use client'
 
 import { useMemo, useState, type FormEvent } from 'react'
-import { updateLeadFieldsAction } from '@/lib/crm-pipeline-actions'
+import Link from 'next/link'
+import { CheckCircle2, ExternalLink, Loader2, UserCheck } from 'lucide-react'
+import { convertLeadInSituAction, updateLeadFieldsAction } from '@/lib/crm-pipeline-actions'
 import type { Lead, Segment, User } from '@/payload-types'
 
 const inputCls =
@@ -100,6 +102,9 @@ export function LeadDrawerDataTab({
   onSaved?: () => void
 }) {
   const [saving, setSaving] = useState(false)
+  const [converting, setConverting] = useState(false)
+  const [justConvertedId, setJustConvertedId] = useState<number | null>(null)
+  const convertedId = relId(lead.convertedClient) ?? justConvertedId
   const [feedback, setFeedback] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const segmentId = relId(lead.segment)
@@ -130,6 +135,22 @@ export function LeadDrawerDataTab({
     return [...assignees, { id: assignedToId, email: label } as User]
   }, [assignees, assignedToId, lead.assignedTo])
 
+  async function handleConvert(): Promise<void> {
+    if (!canEdit || converting) return
+    setConverting(true)
+    setError(null)
+    setFeedback(null)
+    const result = await convertLeadInSituAction(lead.id)
+    setConverting(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    setJustConvertedId(result.clientId)
+    setFeedback(`¡Prospecto convertido exitosamente a Cliente #${result.clientId}!`)
+    onSaved?.()
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
     if (!canEdit) return
@@ -155,7 +176,51 @@ export function LeadDrawerDataTab({
 
   return (
     <form onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-3 pb-6">
-      <fieldset disabled={!canEdit || saving} className="flex flex-col gap-3">
+      <fieldset disabled={!canEdit || saving || converting} className="flex flex-col gap-3">
+        {/* Banner de Estado / Conversión a Cliente */}
+        <div className="border border-zinc-800 bg-zinc-950 p-3">
+          {convertedId ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs text-emerald-400">
+                <CheckCircle2 size={16} className="shrink-0 text-emerald-400" />
+                <span>
+                  Este prospecto está convertido a <strong>Cliente #{convertedId}</strong>.
+                </span>
+              </div>
+              <Link
+                href={`/workspace/crm/clientes/${convertedId}`}
+                className="inline-flex items-center gap-1 border border-emerald-800 bg-emerald-950/60 px-2.5 py-1 text-[11px] font-mono text-emerald-300 hover:bg-emerald-900/60 transition"
+              >
+                <ExternalLink size={12} /> Ver Ficha de Cliente
+              </Link>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Conversión Comercial</span>
+                <span className="text-[11px] text-zinc-400">
+                  Crea la cuenta oficial de cliente heredando datos, notas y timeline in-situ.
+                </span>
+              </div>
+              {canEdit && (
+                <button
+                  type="button"
+                  disabled={converting || saving}
+                  onClick={() => void handleConvert()}
+                  className="inline-flex items-center gap-1.5 border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-black transition hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  {converting ? (
+                    <Loader2 size={13} className="animate-spin text-black" />
+                  ) : (
+                    <UserCheck size={13} />
+                  )}
+                  Convertir a Cliente
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Identidad y Empresa */}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className={labelCls}>

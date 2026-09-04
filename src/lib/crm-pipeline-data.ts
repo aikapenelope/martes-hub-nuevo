@@ -32,6 +32,7 @@ export interface PipelineCard {
   minutesSinceLastInbound: number | null
   lastMessage: { direction: Message['direction']; text: string; relative: string } | null
   aiSummary: { sentiment: ConversationSummary['sentiment']; summary: string } | null
+  convertedClientId: number | null
 }
 
 export interface PipelineColumn {
@@ -90,6 +91,7 @@ export async function getCrmPipelineData({
       assignedTo: true,
       notes: true,
       createdAt: true,
+      convertedClient: true,
     },
   })
   const leads = leadsResult.docs as Lead[]
@@ -195,6 +197,7 @@ export async function getCrmPipelineData({
           }
         : null,
       aiSummary: summary ? { sentiment: summary.sentiment, summary: summary.summary } : null,
+      convertedClientId: relationId(lead.convertedClient) ?? null,
     }
   })
 
