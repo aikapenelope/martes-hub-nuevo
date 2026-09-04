@@ -13,7 +13,7 @@
  */
 
 import { useState, useTransition, type DragEvent } from 'react'
-import { Camera, CircleAlert, DollarSign, MapPin, MessageCircle, UserRound, Building2 } from 'lucide-react'
+import { Camera, CircleAlert, DollarSign, GripVertical, MapPin, MessageCircle, UserRound, Building2 } from 'lucide-react'
 
 import { EmptyState } from '@/components/workspace/ui'
 import { Drawer } from '@/components/workspace/overlays'
@@ -69,14 +69,18 @@ function PipelineCardView({
   card,
   selected,
   canEdit,
+  isBeingDragged = false,
   onSelect,
   onDragStart,
+  onDragEnd,
 }: {
   card: PipelineCard
   selected: boolean
   canEdit: boolean
+  isBeingDragged?: boolean
   onSelect: () => void
   onDragStart: (event: DragEvent<HTMLElement>) => void
+  onDragEnd?: () => void
 }) {
   const tone = windowTone(card.windowMinutesRemaining)
   const showInactivityAlert = card.needsReply && (card.minutesSinceLastInbound ?? 0) > 30
@@ -85,6 +89,7 @@ function PipelineCardView({
     <article
       draggable={canEdit}
       onDragStart={canEdit ? onDragStart : undefined}
+      onDragEnd={onDragEnd}
       role="button"
       tabIndex={0}
       onClick={onSelect}
@@ -95,11 +100,25 @@ function PipelineCardView({
         }
       }}
       aria-pressed={selected}
-      className={`border bg-zinc-950 p-3 text-left transition ${canEdit ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
-        selected ? 'border-white' : 'border-zinc-800 hover:border-zinc-600'
+      className={`border bg-zinc-950 p-3 text-left transition-all duration-150 relative group ${
+        canEdit ? 'cursor-grab active:cursor-grabbing hover:border-zinc-700' : 'cursor-pointer'
+      } ${
+        selected ? 'border-white' : 'border-zinc-800'
+      } ${
+        isBeingDragged
+          ? 'opacity-30 scale-[0.97] border-sky-400/80 shadow-[0_0_15px_rgba(56,189,248,0.3)]'
+          : ''
       }`}
     >
       <div className="flex items-start gap-2">
+        {canEdit && (
+          <span
+            className="mt-1 text-zinc-600 group-hover:text-zinc-400 transition shrink-0"
+            title="Arrastra para mover de columna"
+          >
+            <GripVertical size={13} />
+          </span>
+        )}
         <span className="flex h-7 w-7 shrink-0 items-center justify-center bg-zinc-800 text-[10px] font-bold text-white">
           {initialsOf(card.fullName)}
         </span>
@@ -193,6 +212,7 @@ export function CrmPipelineWorkspace({
   const [columns, setColumns] = useState(initialColumns)
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null)
   const [dragOverStatus, setDragOverStatus] = useState<LeadStatus | null>(null)
+  const [draggingLeadId, setDraggingLeadId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
@@ -200,6 +220,7 @@ export function CrmPipelineWorkspace({
     if (!canEdit) return
     setError(null)
     setDragOverStatus(null)
+    setDraggingLeadId(null)
     const previousColumns = columns
 
     let moved: PipelineCard | undefined
@@ -233,61 +254,82 @@ export function CrmPipelineWorkspace({
   return (
     <>
       {error && (
-        <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300" role="alert">
+        <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300 font-mono" role="alert">
           {error}
         </div>
       )}
 
       <section className="grid gap-3 lg:grid-cols-4" aria-label="Pipeline de ventas Kanban">
-        {columns.map((column) => (
-          <section
-            key={column.status}
-            className={`flex flex-col border bg-zinc-950 transition-colors ${
-              dragOverStatus === column.status
-                ? 'kanban-column-drop-active'
-                : 'border-zinc-800'
-            }`}
-            onDragOver={(event) => {
-              if (canEdit) {
+        {columns.map((column) => {
+          const isTarget = dragOverStatus === column.status
+          return (
+            <section
+              key={column.status}
+              className={`flex flex-col border bg-zinc-950 transition-all duration-150 ${
+                isTarget
+                  ? 'kanban-column-drop-active shadow-[0_0_15px_rgba(56,189,248,0.15)] ring-1 ring-sky-500/50'
+                  : 'border-zinc-800'
+              }`}
+              onDragOver={(event) => {
+                if (canEdit) {
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                  if (dragOverStatus !== column.status) setDragOverStatus(column.status)
+                }
+              }}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                  if (dragOverStatus === column.status) setDragOverStatus(null)
+                }
+              }}
+              onDrop={(event) => {
+                if (!canEdit) return
                 event.preventDefault()
-                if (dragOverStatus !== column.status) setDragOverStatus(column.status)
-              }
-            }}
-            onDragLeave={() => {
-              if (dragOverStatus === column.status) setDragOverStatus(null)
-            }}
-            onDrop={(event) => {
-              if (!canEdit) return
-              event.preventDefault()
-              setDragOverStatus(null)
-              const leadId = Number(event.dataTransfer.getData('text/plain'))
-              if (Number.isInteger(leadId)) moveCard(leadId, column.status)
-            }}
-          >
-            <header className="flex items-center justify-between gap-2 border-b border-zinc-800 p-3">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-white">{COLUMN_LABEL[column.status]}</h2>
-              <span className="border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-mono text-zinc-300">
-                {column.total}
-              </span>
-            </header>
-            <div className="flex flex-1 flex-col gap-2 p-2" style={{ minHeight: '8rem' }}>
-              {column.cards.length === 0 ? (
-                <EmptyState>Sin leads en esta columna</EmptyState>
-              ) : (
-                column.cards.map((card) => (
-                  <PipelineCardView
-                    key={card.id}
-                    card={card}
-                    canEdit={canEdit}
-                    selected={card.id === selectedLeadId}
-                    onSelect={() => setSelectedLeadId(card.id)}
-                    onDragStart={(event) => event.dataTransfer.setData('text/plain', String(card.id))}
-                  />
-                ))
-              )}
-            </div>
-          </section>
-        ))}
+                setDragOverStatus(null)
+                setDraggingLeadId(null)
+                const leadId = Number(event.dataTransfer.getData('text/plain'))
+                if (Number.isInteger(leadId) && leadId > 0) moveCard(leadId, column.status)
+              }}
+            >
+              <header className="flex items-center justify-between gap-2 border-b border-zinc-800 p-3 bg-zinc-950/60">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-white">{COLUMN_LABEL[column.status]}</h2>
+                <span className="border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-mono text-zinc-300">
+                  {column.total}
+                </span>
+              </header>
+              <div className="flex flex-1 flex-col gap-2 p-2" style={{ minHeight: '8rem' }}>
+                {isTarget && (
+                  <div className="border border-dashed border-sky-400/60 bg-sky-950/20 py-3 text-center text-[10px] font-mono uppercase tracking-wider text-sky-300 rounded transition-all animate-pulse">
+                    Soltar aquí para mover a {COLUMN_LABEL[column.status]}
+                  </div>
+                )}
+                {column.cards.length === 0 && !isTarget ? (
+                  <EmptyState>Sin leads en esta columna</EmptyState>
+                ) : (
+                  column.cards.map((card) => (
+                    <PipelineCardView
+                      key={card.id}
+                      card={card}
+                      canEdit={canEdit}
+                      selected={card.id === selectedLeadId}
+                      isBeingDragged={draggingLeadId === card.id}
+                      onSelect={() => setSelectedLeadId(card.id)}
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData('text/plain', String(card.id))
+                        event.dataTransfer.effectAllowed = 'move'
+                        setDraggingLeadId(card.id)
+                      }}
+                      onDragEnd={() => {
+                        setDraggingLeadId(null)
+                        setDragOverStatus(null)
+                      }}
+                    />
+                  ))
+                )}
+              </div>
+            </section>
+          )
+        })}
       </section>
 
       <Drawer

@@ -8,6 +8,8 @@ import {
   STORAGE_KEY_OPERATIVE,
   isValidWidgetLayout,
   useWidgetLayout,
+  getWidgetSpanClass,
+  cycleWidgetSpan,
 } from '@/components/workspace/overview/widget-layout'
 import type { WidgetConfig } from '@/components/workspace/overview/widget-layout'
 
@@ -198,5 +200,42 @@ describe('useWidgetLayout — layout persistido seguro para hidratación', () =>
     expect(
       isValidWidgetLayout([{ key: 'alerts', label: 'X', visible: true }], OPERATIVE_WIDGET_KEYS),
     ).toBe(true)
+  })
+
+  it('getWidgetSpanClass mapea spans a clases de Tailwind Grid correspondientes', () => {
+    expect(getWidgetSpanClass('compact')).toBe('lg:col-span-4 md:col-span-1 col-span-1')
+    expect(getWidgetSpanClass('normal')).toBe('lg:col-span-6 md:col-span-1 col-span-1')
+    expect(getWidgetSpanClass('wide')).toBe('lg:col-span-8 md:col-span-2 col-span-1')
+    expect(getWidgetSpanClass('full')).toBe('lg:col-span-12 md:col-span-2 col-span-1')
+    expect(getWidgetSpanClass(undefined)).toBe('lg:col-span-6 md:col-span-1 col-span-1')
+  })
+
+  it('cycleWidgetSpan cicla correctamente de compacto a completo y reinicia', () => {
+    expect(cycleWidgetSpan('compact')).toBe('normal')
+    expect(cycleWidgetSpan('normal')).toBe('wide')
+    expect(cycleWidgetSpan('wide')).toBe('full')
+    expect(cycleWidgetSpan('full')).toBe('compact')
+    expect(cycleWidgetSpan(undefined)).toBe('compact')
+  })
+
+  it('persiste y restaura span y orden personalizado del widget layout', async () => {
+    const customized: WidgetConfig<'alerts'>[] = [
+      { key: 'alerts', label: 'Alertas', visible: true, span: 'compact', order: 2 },
+    ]
+    localStorage.setItem(STORAGE_KEY_OPERATIVE, JSON.stringify(customized))
+
+    const { result } = renderHook(() =>
+      useWidgetLayout(
+        STORAGE_KEY_OPERATIVE,
+        DEFAULT_OPERATIVE_WIDGETS as unknown as WidgetConfig<'alerts'>[],
+        OPERATIVE_WIDGET_KEYS as readonly 'alerts'[],
+      ),
+    )
+
+    await waitFor(() => {
+      const alerts = result.current[0].find((w) => w.key === 'alerts')
+      expect(alerts?.span).toBe('compact')
+      expect(alerts?.order).toBe(2)
+    })
   })
 })

@@ -117,6 +117,29 @@ export async function updateTaskAction(form: FormData) {
   revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath(`/workspace/tasks/${taskId}`); redirect(`/workspace/tasks/${taskId}?updated=1`)
 }
 
+export async function updateTaskStatusAction(
+  taskId: number,
+  newStatus: TaskStatus,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    if (!TASK_STATUSES.includes(newStatus)) throw new Error('Estado de tarea inválido')
+    const { context } = await scopedTask(taskId)
+    assertEditor(context.canEdit)
+    await context.payload.update({
+      collection: 'tasks',
+      id: taskId,
+      overrideAccess: false,
+      user: context.user,
+      data: { status: newStatus },
+    })
+    revalidatePath('/workspace/tasks')
+    revalidatePath('/workspace')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error actualizando tarea' }
+  }
+}
+
 export async function changeTaskStatusAction(form: FormData) {
   const taskId = id(form, 'id'); const status = text(form, 'status', 30)
   if (!taskId || !TASK_STATUSES.includes(status as TaskStatus)) throw new Error('Cambio de estado inválido')

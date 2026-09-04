@@ -10,28 +10,32 @@ export type ExecutiveWidgetKey =
   | 'sources'
   | 'priorities'
 
+export type WidgetSpan = 'compact' | 'normal' | 'wide' | 'full'
+
 export interface WidgetConfig<T extends string> {
   key: T
   label: string
   visible: boolean
+  span?: WidgetSpan
+  order?: number
 }
 
 export const DEFAULT_OPERATIVE_WIDGETS: WidgetConfig<OperativeWidgetKey>[] = [
-  { key: 'alerts', label: 'Alertas Operativas Proactivas', visible: true },
-  { key: 'health', label: 'Monitor de Salud de Canales e Integraciones', visible: true },
-  { key: 'followups', label: 'Seguimientos Proactivos de Hoy (SLA)', visible: true },
-  { key: 'agenda', label: 'Agenda de Próximos 7 Días', visible: true },
-  { key: 'feed', label: 'Feed Omnicanal en Vivo', visible: true },
+  { key: 'alerts', label: 'Alertas Operativas Proactivas', visible: true, span: 'full', order: 1 },
+  { key: 'health', label: 'Monitor de Salud de Canales e Integraciones', visible: true, span: 'full', order: 2 },
+  { key: 'followups', label: 'Seguimientos Proactivos de Hoy (SLA)', visible: true, span: 'full', order: 3 },
+  { key: 'agenda', label: 'Agenda de Próximos 7 Días', visible: true, span: 'wide', order: 4 },
+  { key: 'feed', label: 'Feed Omnicanal en Vivo', visible: true, span: 'compact', order: 5 },
 ]
 
 export const DEFAULT_EXECUTIVE_WIDGETS: WidgetConfig<ExecutiveWidgetKey>[] = [
-  { key: 'health', label: 'Monitor de Salud de Canales e Integraciones', visible: true },
-  { key: 'kpis', label: 'Tarjetas KPI de Rendimiento', visible: true },
-  { key: 'cashflow', label: 'Flujo de Caja (6 Meses)', visible: true },
-  { key: 'funnel', label: 'Embudo de Conversión Real', visible: true },
-  { key: 'heatmap', label: 'Matriz Anual de Actividad (364 Días)', visible: true },
-  { key: 'sources', label: 'Canales de Captación', visible: true },
-  { key: 'priorities', label: 'Radar de Prioridades Comerciales', visible: true },
+  { key: 'health', label: 'Monitor de Salud de Canales e Integraciones', visible: true, span: 'full', order: 1 },
+  { key: 'kpis', label: 'Tarjetas KPI de Rendimiento', visible: true, span: 'full', order: 2 },
+  { key: 'cashflow', label: 'Flujo de Caja (6 Meses)', visible: true, span: 'wide', order: 3 },
+  { key: 'funnel', label: 'Embudo de Conversión Real', visible: true, span: 'compact', order: 4 },
+  { key: 'heatmap', label: 'Matriz Anual de Actividad (364 Días)', visible: true, span: 'wide', order: 5 },
+  { key: 'sources', label: 'Canales de Captación', visible: true, span: 'compact', order: 6 },
+  { key: 'priorities', label: 'Radar de Prioridades Comerciales', visible: true, span: 'full', order: 7 },
 ]
 
 export const OPERATIVE_WIDGET_KEYS: readonly OperativeWidgetKey[] = DEFAULT_OPERATIVE_WIDGETS.map(
@@ -83,19 +87,62 @@ function readStoredWidgetLayout<K extends string>(
 }
 
 /**
- * Casca la visibilidad guardada (por clave) sobre los defaults actuales: un
- * layout persistido incompleto (viejo o truncado) no pierde widgets — los
- * faltantes heredan su entrada del default y siguen configurables, y los
- * nuevos widgets que lleguen en el futuro aparecen solos.
+ * Casca la visibilidad, tamaño (span) y orden guardado sobre los defaults:
+ * un layout persistido incompleto (viejo o truncado) no pierde widgets — los
+ * faltantes heredan su entrada del default y siguen configurables.
  */
 function normalizeWidgetLayout<K extends string>(
   stored: WidgetConfig<K>[],
   defaults: WidgetConfig<K>[],
 ): WidgetConfig<K>[] {
-  return defaults.map((d) => {
+  const merged = defaults.map((d) => {
     const found = stored.find((w) => w.key === d.key)
-    return found ? { ...d, visible: found.visible } : d
+    return found
+      ? {
+          ...d,
+          visible: found.visible,
+          span: found.span || d.span,
+          order: found.order !== undefined ? found.order : d.order,
+        }
+      : d
   })
+  return merged.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+}
+
+/**
+ * Retorna las clases de CSS Grid adecuadas para el span especificado en una
+ * grilla de 12 columnas con auto-flow denso.
+ */
+export function getWidgetSpanClass(span?: WidgetSpan, fallback: WidgetSpan = 'normal'): string {
+  const effective = span || fallback
+  switch (effective) {
+    case 'compact':
+      return 'lg:col-span-4 md:col-span-1 col-span-1'
+    case 'wide':
+      return 'lg:col-span-8 md:col-span-2 col-span-1'
+    case 'full':
+      return 'lg:col-span-12 md:col-span-2 col-span-1'
+    case 'normal':
+    default:
+      return 'lg:col-span-6 md:col-span-1 col-span-1'
+  }
+}
+
+/**
+ * Cicla entre tamaños de widget para el control directo en la tarjeta.
+ */
+export function cycleWidgetSpan(current?: WidgetSpan): WidgetSpan {
+  switch (current) {
+    case 'compact':
+      return 'normal'
+    case 'normal':
+      return 'wide'
+    case 'wide':
+      return 'full'
+    case 'full':
+    default:
+      return 'compact'
+  }
 }
 
 // Suscriptores del store de layouts (cross-tab vía evento 'storage' y

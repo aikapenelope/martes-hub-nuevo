@@ -5,7 +5,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Activity,
+  ArrowDown,
   ArrowRight,
+  ArrowUp,
   BarChart3,
   CalendarClock,
   CircleDollarSign,
@@ -46,8 +48,10 @@ import {
   STORAGE_KEY_EXECUTIVE,
   STORAGE_KEY_OPERATIVE,
   useWidgetLayout,
+  getWidgetSpanClass,
   type ExecutiveWidgetKey,
   type OperativeWidgetKey,
+  type WidgetSpan,
 } from './widget-layout'
 
 const agendaDateFmt = new Intl.DateTimeFormat('es-VE', {
@@ -127,6 +131,50 @@ export function CockpitFocusViews({
     }
   }
 
+  const updateWidgetSpan = (key: string, span: WidgetSpan, isExecutive: boolean) => {
+    if (isExecutive) {
+      setExecutiveWidgets((prev) =>
+        prev.map((w) => (w.key === key ? { ...w, span } : w)),
+      )
+    } else {
+      setOperativeWidgets((prev) =>
+        prev.map((w) => (w.key === key ? { ...w, span } : w)),
+      )
+    }
+  }
+
+  const moveWidget = (key: string, direction: 'up' | 'down', isExecutive: boolean) => {
+    if (isExecutive) {
+      setExecutiveWidgets((prev) => {
+        const index = prev.findIndex((w) => w.key === key)
+        if (index === -1) return prev
+        const targetIndex = direction === 'up' ? index - 1 : index + 1
+        if (targetIndex < 0 || targetIndex >= prev.length) return prev
+        const updated = [...prev]
+        const current = updated[index]
+        const target = updated[targetIndex]
+        if (!current || !target) return prev
+        updated[index] = target
+        updated[targetIndex] = current
+        return updated.map((item, idx) => ({ ...item, order: idx + 1 }))
+      })
+    } else {
+      setOperativeWidgets((prev) => {
+        const index = prev.findIndex((w) => w.key === key)
+        if (index === -1) return prev
+        const targetIndex = direction === 'up' ? index - 1 : index + 1
+        if (targetIndex < 0 || targetIndex >= prev.length) return prev
+        const updated = [...prev]
+        const current = updated[index]
+        const target = updated[targetIndex]
+        if (!current || !target) return prev
+        updated[index] = target
+        updated[targetIndex] = current
+        return updated.map((item, idx) => ({ ...item, order: idx + 1 }))
+      })
+    }
+  }
+
   const resetWidgets = () => {
     setOperativeWidgets(DEFAULT_OPERATIVE_WIDGETS)
     setExecutiveWidgets(DEFAULT_EXECUTIVE_WIDGETS)
@@ -165,8 +213,156 @@ export function CockpitFocusViews({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const isOpVisible = (k: OperativeWidgetKey) => operativeWidgets.find((w) => w.key === k)?.visible ?? true
-  const isExVisible = (k: ExecutiveWidgetKey) => executiveWidgets.find((w) => w.key === k)?.visible ?? true
+  const renderOperativeWidget = (key: OperativeWidgetKey) => {
+    switch (key) {
+      case 'alerts':
+        return <CockpitAlertStrip alerts={data.operationalAlerts} />
+      case 'health':
+        return <CockpitIntegrationHealth health={data.systemHealth} />
+      case 'followups':
+        return (
+          <CockpitFollowupsToday
+            items={data.followupsToday}
+            onOpenLead={(id) => setSelectedLeadId(id)}
+          />
+        )
+      case 'agenda':
+        return (
+          <section className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-mono uppercase tracking-wider text-zinc-300 flex items-center gap-2">
+                <span className="w-2 h-2 bg-sky-400 inline-block shadow-[0_0_8px_rgba(56,189,248,0.5)]" />
+                Agenda próxima · 7 días ({agenda.length})
+              </h2>
+              <Link
+                href="/workspace/calendar"
+                className="text-[11px] font-mono text-sky-400 hover:text-sky-300 transition flex items-center gap-1 font-bold"
+              >
+                Ver calendario completo →
+              </Link>
+            </div>
+
+            <OledCard className="!p-0">
+              {agenda.length === 0 ? (
+                <div className="p-6 text-center text-xs font-mono text-zinc-500 space-y-1">
+                  <Zap size={20} className="mx-auto text-zinc-600 mb-2" />
+                  <p className="text-zinc-400 font-bold">Nada pendiente en la agenda esta semana.</p>
+                  <p className="text-[11px] text-zinc-600">
+                    Las reuniones agendadas en Google Calendar, cobros y tareas aparecerán aquí automáticamente.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col divide-y divide-zinc-900/80">
+                  {agenda.slice(0, 8).map((item, i) => {
+                    const badge = agendaTypeBadge[item.type]
+                    const isLeadCita =
+                      item.type === 'cita' &&
+                      typeof item.leadId === 'number' &&
+                      typeof item.clientId !== 'number'
+
+                    return (
+                      <div
+                        key={`${item.type}-${i}-${item.date}`}
+                        onClick={() => {
+                          if (isLeadCita && item.leadId) {
+                            setSelectedLeadId(item.leadId)
+                          } else {
+                            setSelectedAgendaItem(item)
+                          }
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-900/40 transition group cursor-pointer"
+                      >
+                        <span className="text-zinc-500 group-hover:text-white transition shrink-0">
+                          {item.type === 'cita' ? (
+                            <CalendarClock size={16} className="text-sky-400" />
+                          ) : item.type === 'task' ? (
+                            <SquareCheck size={16} className="text-indigo-400" />
+                          ) : item.type === 'payment' ? (
+                            <CircleDollarSign size={16} className="text-amber-400" />
+                          ) : (
+                            <RefreshCcw size={16} className="text-emerald-400" />
+                          )}
+                        </span>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <strong className="truncate text-sm text-white group-hover:text-sky-300 transition">
+                              {item.label}
+                            </strong>
+                            <span
+                              className={`font-mono text-[9px] uppercase border px-1.5 py-0.2 shrink-0 ${badge.cls}`}
+                            >
+                              {badge.label}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-mono text-zinc-400 truncate block mt-0.5">
+                            {item.sublabel}
+                          </span>
+                        </div>
+
+                        <span className="shrink-0 text-[11px] font-mono text-zinc-400 text-right">
+                          {agendaDateFmt.format(new Date(item.date))}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </OledCard>
+          </section>
+        )
+      case 'feed':
+        return (
+          <CockpitOmnichannelFeed
+            conversations={data.recentConversations}
+            summaries={data.recentSummaries}
+            emails={data.recentEmails}
+            payments={data.recentPayments}
+            nowTime={data.nowTime}
+            onOpenLead={(id) => setSelectedLeadId(id)}
+          />
+        )
+      default:
+        return null
+    }
+  }
+
+  const renderExecutiveWidget = (key: ExecutiveWidgetKey) => {
+    switch (key) {
+      case 'health':
+        return <CockpitIntegrationHealth health={data.systemHealth} />
+      case 'kpis':
+        return (
+          <CockpitKpiGrid
+            metrics={data.metrics}
+            revenueSeries={data.cashflowPoints.map((p) => p.paid)}
+            timeRange={data.timeRange}
+          />
+        )
+      case 'cashflow':
+        return <CockpitCashflowChart points={data.cashflowPoints} />
+      case 'funnel':
+        return <CockpitConversionFunnel metrics={data.metrics} />
+      case 'heatmap':
+        return (
+          <ActivityHeatmap
+            daysData={data.dayBuckets}
+            totalInteractions={data.totalYearInteractions}
+          />
+        )
+      case 'sources':
+        return <CockpitSourceBreakdown sources={data.sourceBreakdown} />
+      case 'priorities':
+        return (
+          <CockpitPipelinePriorities
+            hotLeads={data.hotLeads}
+            onOpenLead={(id) => setSelectedLeadId(id)}
+          />
+        )
+      default:
+        return null
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -276,242 +472,178 @@ export function CockpitFocusViews({
         </div>
       </nav>
 
-      {/* Panel Desplegable: Personalización del Bento Modular */}
+      {/* Panel Desplegable: Personalización del Bento Modular y Elástico */}
       {showConfig && (
-        <div className="p-4 oled-card border-sky-900/50 bg-sky-950/10 space-y-3 animate-fadeIn font-mono text-xs">
-          <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-            <span className="font-bold text-white flex items-center gap-2">
-              <LayoutGrid size={14} className="text-sky-400" />
-              Configuración de Widgets ({activeView === 'operativa' ? 'Vista Operativa' : 'Vista Ejecutiva'})
-            </span>
+        <div className="p-4 oled-card border-sky-900/50 bg-sky-950/15 space-y-3 animate-fadeIn font-mono text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
+            <div className="flex items-center gap-2">
+              <LayoutGrid size={15} className="text-sky-400" />
+              <span className="font-bold text-white text-sm">
+                Personalizar Bento ({activeView === 'operativa' ? 'Vista Operativa' : 'Vista Ejecutiva'})
+              </span>
+              <span className="hidden sm:inline text-[10px] text-zinc-500 bg-zinc-900 px-2 py-0.5 border border-zinc-800">
+                Auto-flow elástico
+              </span>
+            </div>
             <button
               type="button"
               onClick={resetWidgets}
-              className="text-[10px] text-zinc-400 hover:text-white flex items-center gap-1 transition"
+              className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1.5 transition self-start sm:self-auto px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800"
             >
-              <RotateCcw size={11} /> Restaurar por defecto
+              <RotateCcw size={12} /> Restaurar distribución original
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {activeView === 'operativa'
-              ? operativeWidgets.map((w) => (
-                  <button
-                    key={w.key}
-                    type="button"
-                    onClick={() => toggleWidget(w.key, false)}
-                    className={`px-3 py-1.5 border text-xs flex items-center gap-2 transition ${
-                      w.visible
-                        ? 'bg-zinc-900 text-white border-zinc-700'
-                        : 'bg-black text-zinc-600 border-zinc-900 line-through'
-                    }`}
-                  >
-                    {w.visible ? <Eye size={12} className="text-emerald-400" /> : <EyeOff size={12} />}
-                    <span>{w.label}</span>
-                  </button>
-                ))
-              : executiveWidgets.map((w) => (
-                  <button
-                    key={w.key}
-                    type="button"
-                    onClick={() => toggleWidget(w.key, true)}
-                    className={`px-3 py-1.5 border text-xs flex items-center gap-2 transition ${
-                      w.visible
-                        ? 'bg-zinc-900 text-white border-zinc-700'
-                        : 'bg-black text-zinc-600 border-zinc-900 line-through'
-                    }`}
-                  >
-                    {w.visible ? <Eye size={12} className="text-emerald-400" /> : <EyeOff size={12} />}
-                    <span>{w.label}</span>
-                  </button>
-                ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 pt-1">
+            {(activeView === 'operativa' ? operativeWidgets : executiveWidgets).map((w, idx, arr) => {
+              const isFirst = idx === 0
+              const isLast = idx === arr.length - 1
+              const isExec = activeView === 'ejecutiva'
+              const currentSpan: WidgetSpan = w.span || 'normal'
+
+              return (
+                <div
+                  key={w.key}
+                  className={`p-2.5 border transition flex flex-col justify-between gap-2 ${
+                    w.visible
+                      ? 'bg-zinc-950/90 border-zinc-800 hover:border-zinc-700'
+                      : 'bg-black/80 border-zinc-900/80 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleWidget(w.key, isExec)}
+                      className="flex items-center gap-2 min-w-0 text-left hover:text-sky-300 transition"
+                      title={w.visible ? 'Ocultar widget' : 'Mostrar widget'}
+                    >
+                      {w.visible ? (
+                        <Eye size={13} className="text-emerald-400 shrink-0" />
+                      ) : (
+                        <EyeOff size={13} className="text-zinc-600 shrink-0" />
+                      )}
+                      <span
+                        className={`text-xs truncate font-sans font-medium ${
+                          w.visible ? 'text-zinc-200' : 'text-zinc-500 line-through'
+                        }`}
+                      >
+                        {w.label}
+                      </span>
+                    </button>
+
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={isFirst}
+                        onClick={() => moveWidget(w.key, 'up', isExec)}
+                        className="p-1 text-zinc-400 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-400 hover:bg-zinc-800 rounded transition"
+                        title="Subir posición"
+                      >
+                        <ArrowUp size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isLast}
+                        onClick={() => moveWidget(w.key, 'down', isExec)}
+                        className="p-1 text-zinc-400 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-400 hover:bg-zinc-800 rounded transition"
+                        title="Bajar posición"
+                      >
+                        <ArrowDown size={12} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {w.visible && (
+                    <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-zinc-900 text-[10px]">
+                      <span className="text-zinc-500 font-mono">Ancho:</span>
+                      <div className="inline-flex items-center bg-zinc-900/90 border border-zinc-800 p-0.5 rounded gap-0.5">
+                        {(
+                          [
+                            { id: 'compact' as const, label: '1/3' },
+                            { id: 'normal' as const, label: '1/2' },
+                            { id: 'wide' as const, label: '2/3' },
+                            { id: 'full' as const, label: 'Full' },
+                          ] as const
+                        ).map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => updateWidgetSpan(w.key, opt.id, isExec)}
+                            className={`px-1.5 py-0.5 font-mono transition ${
+                              currentSpan === opt.id
+                                ? 'bg-sky-400 text-black font-bold shadow-sm'
+                                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                            }`}
+                            title={`Tamaño ${opt.label}`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
 
-      {/* 4. Contenido según Vista de Enfoque (Bento Modular) */}
+      {/* 4. Contenido según Vista de Enfoque (Bento Modular Elástico) */}
       {activeView === 'operativa' ? (
-        <div className="space-y-4 animate-fadeIn">
-          {/* Tira de Alertas Operativas */}
-          {isOpVisible('alerts') && <CockpitAlertStrip alerts={data.operationalAlerts} />}
-
-          {/* Salud de Integraciones y Canales */}
-          {isOpVisible('health') && <CockpitIntegrationHealth health={data.systemHealth} />}
-
-          {/* Seguimientos Proactivos de Hoy (SLA) con apertura en Drawer */}
-          {isOpVisible('followups') && (
-            <CockpitFollowupsToday
-              items={data.followupsToday}
-              onOpenLead={(id) => setSelectedLeadId(id)}
-            />
-          )}
-
-          {/* Bento Operativo: Agenda 7 Días (izq) + Feed Omnicanal (der) */}
-          {(isOpVisible('agenda') || isOpVisible('feed')) && (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 items-start">
-              {/* Agenda próxima 7 días */}
-              {isOpVisible('agenda') && (
-                <section className={isOpVisible('feed') ? 'lg:col-span-7 space-y-2' : 'lg:col-span-12 space-y-2'}>
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xs font-mono uppercase tracking-wider text-zinc-300 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-sky-400 inline-block shadow-[0_0_8px_rgba(56,189,248,0.5)]" />
-                      Agenda próxima · 7 días ({agenda.length})
-                    </h2>
-                    <Link
-                      href="/workspace/calendar"
-                      className="text-[11px] font-mono text-sky-400 hover:text-sky-300 transition flex items-center gap-1 font-bold"
-                    >
-                      Ver calendario completo →
-                    </Link>
-                  </div>
-
-                  <OledCard className="!p-0">
-                    {agenda.length === 0 ? (
-                      <div className="p-6 text-center text-xs font-mono text-zinc-500 space-y-1">
-                        <Zap size={20} className="mx-auto text-zinc-600 mb-2" />
-                        <p className="text-zinc-400 font-bold">Nada pendiente en la agenda esta semana.</p>
-                        <p className="text-[11px] text-zinc-600">
-                          Las reuniones agendadas en Google Calendar, cobros y tareas aparecerán aquí automáticamente.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col divide-y divide-zinc-900/80">
-                        {agenda.slice(0, 8).map((item, i) => {
-                          const badge = agendaTypeBadge[item.type]
-                          // Cita vinculada a un cliente: la ficha principal es
-                          // la del cliente (syncGcal puede poblar ambos) —
-                          // abrir el drawer de lead usaría el vínculo equivocado.
-                          const isLeadCita =
-                            item.type === 'cita' &&
-                            typeof item.leadId === 'number' &&
-                            typeof item.clientId !== 'number'
-
-                          return (
-                            <div
-                              key={`${item.type}-${i}-${item.date}`}
-                              onClick={() => {
-                                if (isLeadCita && item.leadId) {
-                                  setSelectedLeadId(item.leadId)
-                                } else {
-                                  setSelectedAgendaItem(item)
-                                }
-                              }}
-                              className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-900/40 transition group cursor-pointer"
-                            >
-                              <span className="text-zinc-500 group-hover:text-white transition shrink-0">
-                                {item.type === 'cita' ? (
-                                  <CalendarClock size={16} className="text-sky-400" />
-                                ) : item.type === 'task' ? (
-                                  <SquareCheck size={16} className="text-indigo-400" />
-                                ) : item.type === 'payment' ? (
-                                  <CircleDollarSign size={16} className="text-amber-400" />
-                                ) : (
-                                  <RefreshCcw size={16} className="text-emerald-400" />
-                                )}
-                              </span>
-
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <strong className="truncate text-sm text-white group-hover:text-sky-300 transition">
-                                    {item.label}
-                                  </strong>
-                                  <span
-                                    className={`font-mono text-[9px] uppercase border px-1.5 py-0.2 shrink-0 ${badge.cls}`}
-                                  >
-                                    {badge.label}
-                                  </span>
-                                </div>
-                                <span className="text-[11px] font-mono text-zinc-400 truncate block mt-0.5">
-                                  {item.sublabel}
-                                </span>
-                              </div>
-
-                              <span className="shrink-0 text-[11px] font-mono text-zinc-400 text-right">
-                                {agendaDateFmt.format(new Date(item.date))}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </OledCard>
-                </section>
-              )}
-
-              {/* Feed Omnicanal en Vivo */}
-              {isOpVisible('feed') && (
-                <section className={isOpVisible('agenda') ? 'lg:col-span-5' : 'lg:col-span-12'}>
-                  <CockpitOmnichannelFeed
-                    conversations={data.recentConversations}
-                    summaries={data.recentSummaries}
-                    emails={data.recentEmails}
-                    payments={data.recentPayments}
-                    nowTime={data.nowTime}
-                    onOpenLead={(id) => setSelectedLeadId(id)}
-                  />
-                </section>
-              )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 [grid-auto-flow:dense] items-start animate-fadeIn">
+          {operativeWidgets
+            .filter((w) => w.visible)
+            .map((w) => {
+              const spanClass = getWidgetSpanClass(w.span, 'normal')
+              const content = renderOperativeWidget(w.key)
+              if (!content) return null
+              return (
+                <div key={w.key} className={`${spanClass} w-full transition-all duration-200`}>
+                  {content}
+                </div>
+              )
+            })}
+          {operativeWidgets.every((w) => !w.visible) && (
+            <div className="col-span-full p-8 text-center border border-dashed border-zinc-800 text-zinc-500 font-mono text-xs space-y-2">
+              <p className="text-zinc-400 font-bold">No hay widgets visibles en la vista operativa.</p>
+              <p>Abre «Personalizar Bento» arriba para activar los bloques que desees ver.</p>
+              <button
+                type="button"
+                onClick={resetWidgets}
+                className="mt-2 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-sky-400 border border-zinc-800 text-xs font-mono inline-flex items-center gap-1.5"
+              >
+                <RotateCcw size={12} /> Restaurar distribución original
+              </button>
             </div>
           )}
         </div>
       ) : (
-        <div className="space-y-4 animate-fadeIn">
-          {/* Salud de Integraciones & Canales (widget configurable; en la
-              operativa vive con su propio toggle del bento) */}
-          {isExVisible('health') && <CockpitIntegrationHealth health={data.systemHealth} />}
-
-          {/* Tarjetas KPI de Rendimiento */}
-          {isExVisible('kpis') && (
-            <CockpitKpiGrid
-              metrics={data.metrics}
-              revenueSeries={data.cashflowPoints.map((p) => p.paid)}
-              timeRange={data.timeRange}
-            />
-          )}
-
-          {/* Bento Superior: Flujo de Caja (7 cols) + Embudo de Conversión (5 cols) */}
-          {(isExVisible('cashflow') || isExVisible('funnel')) && (
-            <section className="grid grid-cols-1 gap-3.5 lg:grid-cols-12">
-              {isExVisible('cashflow') && (
-                <div className={isExVisible('funnel') ? 'lg:col-span-7' : 'lg:col-span-12'}>
-                  <CockpitCashflowChart points={data.cashflowPoints} />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 [grid-auto-flow:dense] items-start animate-fadeIn">
+          {executiveWidgets
+            .filter((w) => w.visible)
+            .map((w) => {
+              const spanClass = getWidgetSpanClass(w.span, 'normal')
+              const content = renderExecutiveWidget(w.key)
+              if (!content) return null
+              return (
+                <div key={w.key} className={`${spanClass} w-full transition-all duration-200`}>
+                  {content}
                 </div>
-              )}
-              {isExVisible('funnel') && (
-                <div className={isExVisible('cashflow') ? 'lg:col-span-5' : 'lg:col-span-12'}>
-                  <CockpitConversionFunnel metrics={data.metrics} />
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* Bento Medio: Matriz Anual Heatmap (8 cols) + Canales de Captación (4 cols) */}
-          {(isExVisible('heatmap') || isExVisible('sources')) && (
-            <section className="grid grid-cols-1 gap-3.5 lg:grid-cols-12">
-              {isExVisible('heatmap') && (
-                <div className={isExVisible('sources') ? 'lg:col-span-8' : 'lg:col-span-12'}>
-                  <ActivityHeatmap
-                    daysData={data.dayBuckets}
-                    totalInteractions={data.totalYearInteractions}
-                  />
-                </div>
-              )}
-              {isExVisible('sources') && (
-                <div className={isExVisible('heatmap') ? 'lg:col-span-4' : 'lg:col-span-12'}>
-                  <CockpitSourceBreakdown sources={data.sourceBreakdown} />
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* Bento Inferior: Radar de Prioridades Comerciales con apertura en Drawer */}
-          {isExVisible('priorities') && (
-            <section>
-              <CockpitPipelinePriorities
-                hotLeads={data.hotLeads}
-                onOpenLead={(id) => setSelectedLeadId(id)}
-              />
-            </section>
+              )
+            })}
+          {executiveWidgets.every((w) => !w.visible) && (
+            <div className="col-span-full p-8 text-center border border-dashed border-zinc-800 text-zinc-500 font-mono text-xs space-y-2">
+              <p className="text-zinc-400 font-bold">No hay widgets visibles en la vista ejecutiva.</p>
+              <p>Abre «Personalizar Bento» arriba para activar los bloques que desees ver.</p>
+              <button
+                type="button"
+                onClick={resetWidgets}
+                className="mt-2 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-sky-400 border border-zinc-800 text-xs font-mono inline-flex items-center gap-1.5"
+              >
+                <RotateCcw size={12} /> Restaurar distribución original
+              </button>
+            </div>
           )}
         </div>
       )}
