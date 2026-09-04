@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
+import { isWholeUsd } from '../lib/money'
 
 export const Memberships: CollectionConfig = {
   slug: 'memberships',
@@ -37,10 +38,14 @@ export const Memberships: CollectionConfig = {
       name: 'monthlyPrice',
       type: 'number',
       required: true,
-      label: 'Precio mensual (USD)',
+      label: 'Precio mensual (USD entero)',
       min: 0,
+      // Montos enteros (sin centavos) — ver src/lib/money.ts
+      validate: (value: number | null | undefined) =>
+        value === null || value === undefined || isWholeUsd(value) ||
+        'El precio debe ser un número entero de USD (sin centavos)',
       admin: {
-        step: 0.01,
+        step: 1,
         position: 'sidebar',
       },
     },

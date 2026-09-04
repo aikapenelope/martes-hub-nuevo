@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { wholeUsd } from '@/lib/money'
 
 function requiredText(formData: FormData, key: string, max: number): string {
   const value = formData.get(key)
@@ -43,8 +44,9 @@ export async function createOfferAction(formData: FormData): Promise<void> {
   const context = await getWorkspaceContext()
   if (!context.canEdit) throw new Error('No tienes permiso para gestionar ofertas')
 
-  const price = Number(formData.get('price'))
-  if (!Number.isFinite(price) || price <= 0) throw new Error('El precio debe ser mayor a 0')
+  // Montos enteros (sin centavos) — ver src/lib/money.ts
+  const price = wholeUsd(formData.get('price'))
+  if (price === null || price <= 0) throw new Error('El precio debe ser un número entero mayor a 0')
 
   const segment = optionalNumericId(formData, 'segment')
   await assertTenantSegment(context, segment)

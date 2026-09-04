@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
+import { isWholeUsd } from '../lib/money'
 
 export const Offers: CollectionConfig = {
   slug: 'offers',
@@ -28,9 +29,16 @@ export const Offers: CollectionConfig = {
       name: 'price',
       type: 'number',
       required: true,
-      label: 'Precio (USD)',
+      label: 'Precio (USD entero)',
+      // Montos enteros (sin centavos) — ver src/lib/money.ts. Nota: el IVA
+      // del plugin invoicepdf puede generar totales con decimales; el cobro
+      // derivado se redondea a entero en convertQuoteToInvoiceAction.
+      validate: (value: number | null | undefined) =>
+        value === null || value === undefined || isWholeUsd(value) ||
+        'El precio debe ser un número entero de USD (sin centavos)',
       admin: {
         description: 'Precio base sin impuestos; el IVA se aplica al cotizar/facturar',
+        step: 1,
       },
     },
     {

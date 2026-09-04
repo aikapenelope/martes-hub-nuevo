@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { wholeUsd } from '@/lib/money'
 
 const MAX_CONCEPT = 240
 const MAX_NOTES = 2000
@@ -52,8 +53,9 @@ export async function createPaymentAction(formData: FormData): Promise<void> {
   })
   if (clientCheck.docs.length === 0) throw new Error('Cliente no encontrado en el tenant activo')
 
-  const amount = Number(formData.get('amount'))
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error('El monto debe ser mayor a 0')
+  // Montos enteros (sin centavos): se redondea la entrada y se valida > 0
+  const amount = wholeUsd(formData.get('amount'))
+  if (amount === null || amount <= 0) throw new Error('El monto debe ser un número entero mayor a 0')
 
   const dueDateRaw = requiredText(formData, 'dueDate', 20)
   const method = optionalText(formData, 'method', 30)
@@ -360,7 +362,9 @@ export async function convertQuoteToInvoiceAction(params: {
         data: {
           tenant: context.tenantId,
           client: customerId,
-          amount: invoice.total || quote.total || 0,
+          // El IVA del plugin puede generar decimales en el total: el cobro
+          // siempre nace entero (decisión de negocio — ver src/lib/money.ts)
+          amount: Math.round(invoice.total || quote.total || 0),
           concept: `Factura ${invoice.invoiceNumber || '#' + invoice.id} (${quote.quoteNumber || 'Cotización #' + quote.id})`,
           dueDate,
           status: 'pendiente',

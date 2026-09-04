@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
+import { isWholeUsd } from '../lib/money'
 
 export const Payments: CollectionConfig = {
   slug: 'payments',
@@ -28,10 +29,15 @@ export const Payments: CollectionConfig = {
       name: 'amount',
       type: 'number',
       required: true,
-      label: 'Monto (USD)',
+      label: 'Monto (USD entero)',
       min: 0,
+      // Decisión de negocio: montos enteros (sin centavos). La validación
+      // vive en el campo para que aplique desde /admin, REST y Local API.
+      validate: (value: number | null | undefined) =>
+        value === null || value === undefined || isWholeUsd(value) ||
+        'El monto debe ser un número entero de USD (sin centavos)',
       admin: {
-        step: 0.01,
+        step: 1,
         position: 'sidebar',
       },
     },

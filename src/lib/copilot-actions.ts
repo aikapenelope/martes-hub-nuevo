@@ -12,6 +12,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { wholeUsd } from '@/lib/money'
 import { TASK_PRIORITIES, TASK_STATUSES, type TaskPriority } from '@/lib/tasks-filters'
 import type { Client, Lead } from '@/payload-types'
 
@@ -92,7 +93,7 @@ export async function copilotCreateLead(args: {
         companyName: args.companyName?.trim(),
         source: args.source || 'manual',
         city: args.city?.trim(),
-        estimatedValue: typeof args.estimatedValue === 'number' && args.estimatedValue > 0 ? args.estimatedValue : undefined,
+        estimatedValue: typeof args.estimatedValue === 'number' && args.estimatedValue > 0 ? Math.round(args.estimatedValue) : undefined,
         commercialNotes: args.commercialNotes?.trim(),
         status: 'nuevo',
       },
@@ -226,7 +227,9 @@ export async function copilotRegisterPayment(args: {
     const context = await getWorkspaceContext()
     if (!context.canEdit) return { ok: false, error: 'No tienes permiso para registrar cobros' }
 
-    if (!Number.isFinite(args.amount) || args.amount <= 0) return { ok: false, error: 'El monto debe ser mayor a 0' }
+    // Montos enteros (sin centavos) — el asistente redondea la entrada
+    const amount = wholeUsd(args.amount)
+    if (amount === null || amount <= 0) return { ok: false, error: 'El monto debe ser un número entero mayor a 0' }
 
     const check = await context.payload.find({
       collection: 'clients',
@@ -244,7 +247,7 @@ export async function copilotRegisterPayment(args: {
       user: context.user,
       data: {
         client: args.clientId,
-        amount: args.amount,
+        amount,
         concept: args.concept?.trim().slice(0, 240),
         dueDate: args.dueDate ? new Date(args.dueDate).toISOString() : new Date().toISOString(),
         status: 'pendiente',
