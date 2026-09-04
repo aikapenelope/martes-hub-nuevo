@@ -442,3 +442,141 @@ export async function summarizeLeadWithAIAction(leadId: number): Promise<ActionR
     return { ok: false, error: err instanceof Error ? err.message : 'Error generando el resumen de IA' }
   }
 }
+
+/**
+ * Convierte un lead en cliente registrado in-situ (sin redirección forzada de página).
+ * Permite actualización reactiva directa desde el Kanban y el Drawer 360°.
+ */
+export async function convertLeadInSituAction(leadId: number): Promise<ActionResult<{ clientId: number }>> {
+  try {
+    const { lead, context } = await scopedLead(leadId)
+    if (!context.canEdit) throw new Error('No tienes permiso para convertir prospectos')
+
+    const existingClientId = convertedClientIdOf(lead)
+    if (existingClientId) {
+      return { ok: true, clientId: existingClientId }
+    }
+
+    const client = await context.payload.create({
+      collection: 'clients',
+      overrideAccess: false,
+      user: context.user,
+      context: { tenantId: context.tenantId, skipLeadConversion: true },
+      data: {
+        tenant: context.tenantId,
+        name: lead.fullName,
+        stage: 'nuevo',
+        email: lead.email ?? undefined,
+        phone: lead.phone ?? undefined,
+        city: lead.city ?? undefined,
+        address: lead.address ?? undefined,
+        googleMapsUrl: lead.googleMapsUrl ?? undefined,
+        socialHandle: lead.socialHandle ?? undefined,
+        segment: typeof lead.segment === 'number' ? lead.segment : lead.segment?.id,
+        company: typeof lead.company === 'number' ? lead.company : lead.company?.id,
+        companyName: lead.companyName ?? undefined,
+        assignedAgent: typeof lead.assignedTo === 'number' ? lead.assignedTo : lead.assignedTo?.id,
+        commercialNotes: lead.commercialNotes ?? undefined,
+        notes: lead.notes ?? undefined,
+      },
+    })
+
+    await context.payload.update({
+      collection: 'leads',
+      id: leadId,
+      overrideAccess: false,
+      user: context.user,
+      context: { tenantId: context.tenantId },
+      data: {
+        status: 'calificado',
+        convertedClient: client.id,
+      },
+    })
+
+    await Promise.all([
+      context.payload.create({
+        collection: 'activities',
+        overrideAccess: false,
+        user: context.user,
+        context: { tenantId: context.tenantId },
+        data: {
+          tenant: context.tenantId,
+          type: 'nota',
+          occurredAt: new Date().toISOString(),
+          summary: `Convertido desde prospecto #${lead.id} (${lead.fullName})`,
+          client: client.id,
+          performedBy: context.user.id,
+        },
+      }),
+      context.payload.create({
+        collection: 'activities',
+        overrideAccess: false,
+        user: context.user,
+        context: { tenantId: context.tenantId },
+        data: {
+          tenant: context.tenantId,
+          type: 'nota',
+          occurredAt: new Date().toISOString(),
+          summary: `Convertido a Cliente #${client.id}`,
+          lead: lead.id,
+          performedBy: context.user.id,
+        },
+      }),
+    ])
+
+    revalidatePath('/workspace/crm')
+    revalidatePath(`/workspace/crm/leads/${leadId}`)
+    revalidatePath(`/workspace/crm/clientes/${client.id}`)
+    return { ok: true, clientId: client.id }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error al convertir el prospecto'
+    return { ok: false, error: message }
+  }
+}
+
+export type LeadActivityType = 'llamada' | 'reunion' | 'email' | 'nota' | 'whatsapp' | 'otro' | 'correo'
+
+/**
+ * Registra una actividad o nota rápida en el timeline del lead in-situ.
+ */
+export async function addLeadActivityInSituAction(params: {
+  leadId: number
+  summary: string
+  type?: LeadActivityType
+}): Promise<ActionResult<{ activityId: number }>> {
+  try {
+    const { lead, context } = await scopedLead(params.leadId)
+    if (!context.canEdit) throw new Error('No tienes permiso para registrar actividades')
+
+    const summary = params.summary.trim().slice(0, 500)
+    if (!summary) throw new Error('El resumen de la actividad no puede estar vacío')
+
+    let validActivityType: 'llamada' | 'reunion' | 'email' | 'nota' | 'whatsapp' | 'otro' = 'nota'
+    if (params.type === 'correo' || params.type === 'email') {
+      validActivityType = 'email'
+    } else if (params.type === 'llamada' || params.type === 'reunion' || params.type === 'whatsapp' || params.type === 'otro') {
+      validActivityType = params.type
+    }
+
+    const activity = await context.payload.create({
+      collection: 'activities',
+      overrideAccess: false,
+      user: context.user,
+      context: { tenantId: context.tenantId },
+      data: {
+        tenant: context.tenantId,
+        type: validActivityType,
+        summary,
+        occurredAt: new Date().toISOString(),
+        lead: lead.id,
+        performedBy: context.user.id,
+      },
+    })
+
+    revalidatePath(`/workspace/crm/leads/${params.leadId}`)
+    return { ok: true, activityId: activity.id }
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al registrar la actividad' }
+  }
+}
+
