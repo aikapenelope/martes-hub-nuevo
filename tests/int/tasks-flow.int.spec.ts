@@ -99,7 +99,10 @@ describe('Flujo integral de Tareas: creación, detalle, actualización y borrado
   it('permite a un agente consultar usuarios asignables incluyendo administradores globales', async () => {
     const payload = await getPayload({ config: configPromise })
     const { getAssignableUsers } = await import('@/lib/tasks-data')
-    const tenant = (await payload.find({ collection: 'tenants', limit: 1 })).docs[0]
+    const adminUser = (await payload.find({ collection: 'users', limit: 1 })).docs[0]
+    const userTenant = adminUser.tenants?.[0]?.tenant
+    const tenantId = typeof userTenant === 'object' && userTenant !== null ? userTenant.id : (userTenant as number)
+    const tenant = await payload.findByID({ collection: 'tenants', id: tenantId })
 
     // Simular un agente perteneciente al tenant
     const agentUser = {
