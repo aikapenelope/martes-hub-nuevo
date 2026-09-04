@@ -302,7 +302,7 @@ export async function getWorkspaceOverviewData({
     }),
     q({
       collection: 'conversation-summaries',
-      limit: 5,
+      limit: 10,
       sort: '-createdAt',
       depth: 1,
       where: tenantWhere(tenantId),
