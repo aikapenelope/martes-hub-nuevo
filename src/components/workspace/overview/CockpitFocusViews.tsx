@@ -447,6 +447,7 @@ export function CockpitFocusViews({
                     emails={data.recentEmails}
                     payments={data.recentPayments}
                     nowTime={data.nowTime}
+                    onOpenLead={(id) => setSelectedLeadId(id)}
                   />
                 </section>
               )}
