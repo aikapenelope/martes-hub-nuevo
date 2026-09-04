@@ -62,7 +62,9 @@ export async function createPaymentAction(formData: FormData): Promise<void> {
     collection: 'payments',
     overrideAccess: false,
     user: context.user,
+    context: { tenantId: context.tenantId },
     data: {
+      tenant: context.tenantId,
       client: clientId,
       amount,
       concept: optionalText(formData, 'concept', MAX_CONCEPT),
@@ -163,6 +165,7 @@ export async function createQuoteAction(formData: FormData): Promise<void> {
     collection: 'quotes',
     overrideAccess: false,
     user: context.user,
+    context: { tenantId: context.tenantId },
     data: {
       tenant: context.tenantId,
       client,
@@ -193,6 +196,7 @@ export async function createInvoiceAction(formData: FormData): Promise<void> {
     collection: 'invoices',
     overrideAccess: false,
     user: context.user,
+    context: { tenantId: context.tenantId },
     data: {
       tenant: context.tenantId,
       client,
@@ -205,5 +209,276 @@ export async function createInvoiceAction(formData: FormData): Promise<void> {
 
   revalidatePath('/workspace/billing')
   redirect(`/workspace/billing?created=invoice-${invoice.id}`)
+}
+
+/**
+ * Actualiza el estado de un cobro in-situ (ej. marcar como pagado, anular o reactivar)
+ * sin salir del workspace ni requerir acceso a /admin.
+ */
+export async function updatePaymentStatusAction(params: {
+  paymentId: number
+  status: 'pendiente' | 'pagado' | 'vencido' | 'anulado'
+  method?: 'pago_movil' | 'transferencia' | 'zelle' | 'binance' | 'efectivo' | 'otro'
+  paidAt?: string
+  notes?: string
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const context = await getWorkspaceContext()
+    assertEditor(context.canEdit)
+
+    const check = await context.payload.find({
+      collection: 'payments',
+      where: {
+        and: [
+          { id: { equals: params.paymentId } },
+          { tenant: { equals: context.tenantId } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+
+    if (check.docs.length === 0) {
+      return { ok: false, error: 'Cobro no encontrado o sin permisos en este tenant' }
+    }
+
+    const dataToUpdate: Record<string, unknown> = {
+      status: params.status,
+    }
+
+    if (params.status === 'pagado') {
+      dataToUpdate.paidAt = params.paidAt || new Date().toISOString()
+      if (params.method) dataToUpdate.method = params.method
+    } else if (params.status === 'pendiente' || params.status === 'vencido') {
+      dataToUpdate.paidAt = null
+    }
+
+    if (params.notes !== undefined) {
+      dataToUpdate.notes = params.notes.slice(0, MAX_NOTES)
+    }
+
+    await context.payload.update({
+      collection: 'payments',
+      id: params.paymentId,
+      overrideAccess: false,
+      user: context.user,
+      data: dataToUpdate,
+    })
+
+    revalidatePath('/workspace')
+    revalidatePath('/workspace/billing')
+    return { ok: true }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error al actualizar el cobro'
+    return { ok: false, error: message }
+  }
+}
+
+/**
+ * Convierte una cotización en factura con 1 clic:
+ * 1. Clona los conceptos, cliente y datos a una nueva factura.
+ * 2. Asocia `sourceQuote` a la cotización de origen.
+ * 3. Actualiza el estado de la cotización a 'accepted'.
+ * 4. Si el cliente está en el CRM, genera el cobro pendiente asociado.
+ */
+export async function convertQuoteToInvoiceAction(params: {
+  quoteId: number
+  dueDate?: string
+}): Promise<{ ok: boolean; invoiceId?: number; error?: string }> {
+  try {
+    const context = await getWorkspaceContext()
+    assertEditor(context.canEdit)
+
+    const quote = await context.payload.findByID({
+      collection: 'quotes',
+      id: params.quoteId,
+      depth: 1,
+      overrideAccess: false,
+      user: context.user,
+    })
+
+    if (!quote) {
+      return { ok: false, error: 'Cotización no encontrada' }
+    }
+
+    const quoteTenantId = typeof quote.tenant === 'object' ? quote.tenant?.id : quote.tenant
+    if (quoteTenantId !== context.tenantId) {
+      return { ok: false, error: 'La cotización no pertenece al tenant activo' }
+    }
+
+    const items = (quote.items || []).map((it) => ({
+      description: it.description,
+      quantity: it.quantity,
+      unitPrice: it.unitPrice,
+      taxRate: it.taxRate ?? undefined,
+      ...(it.product && typeof it.product === 'object'
+        ? { product: it.product.id }
+        : typeof it.product === 'number'
+          ? { product: it.product }
+          : {}),
+    }))
+
+    const customerId =
+      typeof quote.client?.customer === 'object'
+        ? quote.client.customer?.id
+        : typeof quote.client?.customer === 'number'
+          ? quote.client.customer
+          : undefined
+
+    const dueDate = params.dueDate || new Date(Date.now() + 30 * 86400000).toISOString()
+
+    const invoice = await context.payload.create({
+      collection: 'invoices',
+      overrideAccess: false,
+      user: context.user,
+      context: { tenantId: context.tenantId },
+      data: {
+        tenant: context.tenantId,
+        client: {
+          customer: customerId,
+          name: quote.client.name,
+          email: quote.client.email,
+          address: quote.client.address,
+          vatNumber: quote.client.vatNumber,
+        },
+        items,
+        dueDate,
+        notes: quote.notes || undefined,
+        status: 'sent',
+        sourceQuote: quote.id,
+      },
+    })
+
+    if (customerId) {
+      await context.payload.create({
+        collection: 'payments',
+        overrideAccess: false,
+        user: context.user,
+        context: { tenantId: context.tenantId },
+        data: {
+          tenant: context.tenantId,
+          client: customerId,
+          amount: invoice.total || quote.total || 0,
+          concept: `Factura ${invoice.invoiceNumber || '#' + invoice.id} (${quote.quoteNumber || 'Cotización #' + quote.id})`,
+          dueDate,
+          status: 'pendiente',
+          notes: `Generado automáticamente desde cotización #${quote.id}`,
+        },
+      })
+    }
+
+    if (quote.status !== 'accepted') {
+      await context.payload.update({
+        collection: 'quotes',
+        id: quote.id,
+        overrideAccess: false,
+        user: context.user,
+        context: { tenantId: context.tenantId },
+        data: {
+          status: 'accepted',
+        },
+      })
+    }
+
+    revalidatePath('/workspace')
+    revalidatePath('/workspace/billing')
+    return { ok: true, invoiceId: invoice.id }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error al convertir cotización a factura'
+    return { ok: false, error: message }
+  }
+}
+
+/**
+ * Actualiza el estado de una cotización (draft -> sent -> accepted / rejected / expired).
+ */
+export async function updateQuoteStatusAction(params: {
+  quoteId: number
+  status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const context = await getWorkspaceContext()
+    assertEditor(context.canEdit)
+
+    const check = await context.payload.find({
+      collection: 'quotes',
+      where: {
+        and: [
+          { id: { equals: params.quoteId } },
+          { tenant: { equals: context.tenantId } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+
+    if (check.docs.length === 0) {
+      return { ok: false, error: 'Cotización no encontrada' }
+    }
+
+    await context.payload.update({
+      collection: 'quotes',
+      id: params.quoteId,
+      overrideAccess: false,
+      user: context.user,
+      context: { tenantId: context.tenantId },
+      data: { status: params.status },
+    })
+
+    revalidatePath('/workspace/billing')
+    return { ok: true }
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al actualizar cotización' }
+  }
+}
+
+/**
+ * Actualiza el estado de una factura (draft -> sent -> paid / overdue / cancelled).
+ */
+export async function updateInvoiceStatusAction(params: {
+  invoiceId: number
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const context = await getWorkspaceContext()
+    assertEditor(context.canEdit)
+
+    const check = await context.payload.find({
+      collection: 'invoices',
+      where: {
+        and: [
+          { id: { equals: params.invoiceId } },
+          { tenant: { equals: context.tenantId } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+
+    if (check.docs.length === 0) {
+      return { ok: false, error: 'Factura no encontrada' }
+    }
+
+    await context.payload.update({
+      collection: 'invoices',
+      id: params.invoiceId,
+      overrideAccess: false,
+      user: context.user,
+      context: { tenantId: context.tenantId },
+      data: { status: params.status },
+    })
+
+    revalidatePath('/workspace')
+    revalidatePath('/workspace/billing')
+    return { ok: true }
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al actualizar factura' }
+  }
 }
 
