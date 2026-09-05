@@ -1,8 +1,8 @@
 import 'server-only'
 
 import type { Payload, Where } from 'payload'
-import type { Activity, Lead, User } from '@/payload-types'
-import { paymentsAggregate, startOfMonthIso } from './db-aggregates'
+import type { Activity, User } from '@/payload-types'
+import { paymentsAggregate, quotesAggregate, startOfMonthIso } from './db-aggregates'
 
 interface AnalyticsOptions {
   payload: Payload
@@ -10,12 +10,27 @@ interface AnalyticsOptions {
   tenantId: number
 }
 
-const SOURCE_LABELS: Record<string, string> = {
+export const ALL_LEAD_SOURCES = [
+  'manual',
+  'google_maps',
+  'puerta_fria',
+  'whatsapp',
+  'instagram_dm',
+  'linkedin',
+  'tally',
+  'apify',
+  'referido',
+] as const
+
+export const SOURCE_LABELS: Record<string, string> = {
   manual: 'Manual',
-  apify: 'Apify',
-  tally: 'Tally',
+  google_maps: 'Google Maps',
+  puerta_fria: 'Puerta Fría',
   whatsapp: 'WhatsApp',
-  instagram_dm: 'Instagram',
+  instagram_dm: 'Instagram DM',
+  linkedin: 'LinkedIn',
+  tally: 'Formulario Web',
+  apify: 'Apify Scraper',
   referido: 'Referido',
 }
 
@@ -54,16 +69,25 @@ export interface AnalyticsData {
       otro: number
     }
   }
+  tasks: {
+    completedMonth: number
+    pendingTotal: number
+    overdueTotal: number
+    completionRate: number
+  }
   financials: {
     collectedMonth: number
     pendingCollection: number
     invoicesCount: number
     quotesCount: number
+    quotesActiveTotal: number
+    collectionRate: number
   }
 }
 
 export async function getAnalyticsData({ payload, user, tenantId }: AnalyticsOptions): Promise<AnalyticsData> {
   const startOfMonth = startOfMonthIso()
+  const todayStr = new Date().toISOString().slice(0, 10)
 
   const [
     leadsTotalRes,
@@ -79,11 +103,15 @@ export async function getAnalyticsData({ payload, user, tenantId }: AnalyticsOpt
     quotesRes,
     paidMonthAgg,
     pendingAgg,
-    allLeadsForSources,
+    quotesActiveAgg,
     clientsNuevoRes,
     clientsActivoRes,
     clientsInactivoRes,
     clientsPerdidoRes,
+    tasksCompletedMonthRes,
+    tasksPendingRes,
+    tasksOverdueRes,
+    ...sourceResList
   ] = await Promise.all([
     payload.find({ collection: 'leads', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId) }),
     payload.find({ collection: 'leads', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { status: { equals: 'nuevo' } }) }),
@@ -105,18 +133,45 @@ export async function getAnalyticsData({ payload, user, tenantId }: AnalyticsOpt
     payload.find({ collection: 'quotes', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId) }),
     paymentsAggregate(payload, tenantId, ['pagado'], startOfMonth),
     paymentsAggregate(payload, tenantId, ['pendiente', 'vencido']),
-    payload.find({
-      collection: 'leads',
-      limit: 500,
-      overrideAccess: false,
-      user,
-      select: { source: true },
-      where: tenantWhere(tenantId),
-    }),
+    quotesAggregate(payload, tenantId, ['borrador', 'enviada', 'aceptada']),
     payload.find({ collection: 'clients', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { stage: { equals: 'nuevo' } }) }),
     payload.find({ collection: 'clients', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { stage: { equals: 'activo' } }) }),
     payload.find({ collection: 'clients', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { stage: { equals: 'inactivo' } }) }),
     payload.find({ collection: 'clients', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { stage: { equals: 'perdido' } }) }),
+    payload.find({
+      collection: 'tasks',
+      limit: 0,
+      overrideAccess: false,
+      user,
+      where: tenantWhere(tenantId, {
+        and: [{ status: { equals: 'completada' } }, { updatedAt: { greater_than_equal: startOfMonth } }],
+      }),
+    }),
+    payload.find({
+      collection: 'tasks',
+      limit: 0,
+      overrideAccess: false,
+      user,
+      where: tenantWhere(tenantId, { status: { in: ['pendiente', 'en_progreso', 'bloqueada'] } }),
+    }),
+    payload.find({
+      collection: 'tasks',
+      limit: 0,
+      overrideAccess: false,
+      user,
+      where: tenantWhere(tenantId, {
+        and: [{ dueDate: { less_than: todayStr } }, { status: { not_in: ['completada', 'cancelada'] } }],
+      }),
+    }),
+    ...ALL_LEAD_SOURCES.map((source) =>
+      payload.find({
+        collection: 'leads',
+        limit: 0,
+        overrideAccess: false,
+        user,
+        where: tenantWhere(tenantId, { source: { equals: source } }),
+      }),
+    ),
   ])
 
   const totalLeads = leadsTotalRes.totalDocs
@@ -150,21 +205,27 @@ export async function getAnalyticsData({ payload, user, tenantId }: AnalyticsOpt
     }
   }
 
-  // Desglose de canales de leads
-  const sourceCounts: Record<string, number> = {}
-  for (const doc of allLeadsForSources.docs as Lead[]) {
-    const s = doc.source || 'manual'
-    sourceCounts[s] = (sourceCounts[s] || 0) + 1
-  }
-
-  const sources = Object.entries(sourceCounts)
-    .map(([source, count]) => ({
+  // Desglose exacto de canales de leads
+  const sources = ALL_LEAD_SOURCES.map((source, idx) => {
+    const count = sourceResList[idx]?.totalDocs ?? 0
+    return {
       source,
       label: SOURCE_LABELS[source] || source,
       count,
       pct: totalLeads > 0 ? Math.round((count / totalLeads) * 100) : 0,
-    }))
+    }
+  })
+    .filter((s) => s.count > 0)
     .sort((a, b) => b.count - a.count)
+
+  const totalInvoicedPeriod = paidMonthAgg.total + pendingAgg.total
+  const collectionRate = totalInvoicedPeriod > 0 ? Math.round((paidMonthAgg.total / totalInvoicedPeriod) * 100) : 0
+
+  const tasksCompletedMonth = tasksCompletedMonthRes.totalDocs
+  const tasksPendingTotal = tasksPendingRes.totalDocs
+  const tasksOverdueTotal = tasksOverdueRes.totalDocs
+  const taskDenom = tasksCompletedMonth + tasksPendingTotal
+  const taskCompletionRate = taskDenom > 0 ? Math.round((tasksCompletedMonth / taskDenom) * 100) : 100
 
   return {
     funnel: {
@@ -195,11 +256,19 @@ export async function getAnalyticsData({ payload, user, tenantId }: AnalyticsOpt
       totalMonth: activitiesMonthRes.totalDocs,
       byType,
     },
+    tasks: {
+      completedMonth: tasksCompletedMonth,
+      pendingTotal: tasksPendingTotal,
+      overdueTotal: tasksOverdueTotal,
+      completionRate: taskCompletionRate,
+    },
     financials: {
       collectedMonth: paidMonthAgg.total,
       pendingCollection: pendingAgg.total,
       invoicesCount: invoicesRes.totalDocs,
       quotesCount: quotesRes.totalDocs,
+      quotesActiveTotal: quotesActiveAgg.total,
+      collectionRate,
     },
   }
 }

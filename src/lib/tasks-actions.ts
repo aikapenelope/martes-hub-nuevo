@@ -103,6 +103,7 @@ export async function createTaskAction(form: FormData) {
   })
   revalidatePath('/workspace/tasks')
   revalidatePath('/workspace')
+  revalidatePath('/workspace/hoy')
   const rawRedirect = text(form, 'redirectTo', 200)
   const redirectTo = safeInternalRedirectUrl(rawRedirect, `/workspace/tasks/${task.id}?created=1`)
   redirect(redirectTo)
@@ -115,9 +116,6 @@ export async function updateTaskAction(form: FormData) {
   const currentAssignedId = typeof task.assignedTo === 'object' ? task.assignedTo?.id : task.assignedTo
   const isKeepingAssignee = Boolean(data.assignedTo && currentAssignedId && data.assignedTo === currentAssignedId)
 
-  // Si la tarea conserva exactamente su responsable actual (incluso si es un asignatario histórico
-  // fuera del tenant o inactivo), preservamos la relación existente sin validarla como nueva asignación.
-  // Cualquier asignación nueva o modificada debe validar que el usuario esté activo y pertenezca al tenant o sea admin.
   await Promise.all([
     ...(isKeepingAssignee ? [] : [assertRelation('users', data.assignedTo, context.tenantId, context)]),
     assertRelation('clients', data.client, context.tenantId, context),
@@ -136,7 +134,7 @@ export async function updateTaskAction(form: FormData) {
       checklist: data.checklist.map((item) => ({ ...item, done: existingDone.get(item.item) ?? false })),
     },
   })
-  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath(`/workspace/tasks/${taskId}`); redirect(`/workspace/tasks/${taskId}?updated=1`)
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); revalidatePath(`/workspace/tasks/${taskId}`); redirect(`/workspace/tasks/${taskId}?updated=1`)
 }
 
 export async function updateTaskStatusAction(
@@ -156,6 +154,7 @@ export async function updateTaskStatusAction(
     })
     revalidatePath('/workspace/tasks')
     revalidatePath('/workspace')
+    revalidatePath('/workspace/hoy')
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Error actualizando tarea' }
@@ -167,7 +166,7 @@ export async function changeTaskStatusAction(form: FormData) {
   if (!taskId || !TASK_STATUSES.includes(status as TaskStatus)) throw new Error('Cambio de estado inválido')
   const { context } = await scopedTask(taskId); assertEditor(context.canEdit)
   await context.payload.update({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user, data: { status: status as TaskStatus } })
-  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath(`/workspace/tasks/${taskId}`)
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); revalidatePath(`/workspace/tasks/${taskId}`)
 }
 
 export async function toggleChecklistAction(form: FormData) {
@@ -176,12 +175,12 @@ export async function toggleChecklistAction(form: FormData) {
   const { context, task } = await scopedTask(taskId); assertEditor(context.canEdit)
   const checklist = (task.checklist ?? []).map((item, position) => position === index ? { item: item.item, done: !item.done } : { item: item.item, done: Boolean(item.done) })
   await context.payload.update({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user, data: { checklist } })
-  revalidatePath('/workspace/tasks'); revalidatePath(`/workspace/tasks/${taskId}`)
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace/hoy'); revalidatePath(`/workspace/tasks/${taskId}`)
 }
 
 export async function deleteTaskAction(form: FormData) {
   const taskId = id(form, 'id'); if (!taskId) throw new Error('Identificador inválido')
   const { context } = await scopedTask(taskId); if (!context.isAdmin) throw new Error('Solo admin puede eliminar tareas')
   await context.payload.delete({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user })
-  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); redirect('/workspace/tasks?deleted=1')
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); redirect('/workspace/tasks?deleted=1')
 }
