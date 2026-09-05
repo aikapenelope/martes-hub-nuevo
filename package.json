@@ -25,6 +25,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.44",
     "@ai-sdk/openai": "^4.0.50",
+    "@floating-ui/react": "^0.27.20",
     "@payloadcms/db-postgres": "3.88.0",
     "@payloadcms/email-nodemailer": "3.88.0",
     "@payloadcms/email-resend": "3.88.0",
