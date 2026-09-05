@@ -87,20 +87,23 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
   const resolvedTenantId =
     qTenant && Number.isInteger(Number(qTenant)) ? Number(qTenant) : parsed.explicitTenantId
 
-  // Todo el procesamiento corre en UNA transacción: la reserva de idempotencia
-  // (índice UNIQUE de event_id), la resolución de tenant/contacto y los efectos
-  // secundarios (notificación + tarea de queja) se confirman o revocan juntos.
-  // Sin esto, dos entregas concurrentes con el mismo eventId pasan ambas el
-  // check de dedupe de arriba y duplican submission, lead y notificaciones.
+  // Resolución de tenant es solo lectura: se hace ANTES de abrir la transacción
+  // para que su rama de error (422) no pueda fugarse sin cerrarla.
+  const tenant = await resolveTallyTenant(req, resolvedTenantId)
+  if (!tenant) {
+    return Response.json({ error: 'Tenant no resoluble para este formulario' }, { status: 422 })
+  }
+
+  // Todo el procesamiento con escritura corre en UNA transacción: la reserva de
+  // idempotencia (índice UNIQUE de event_id), la resolución de contacto y los
+  // efectos secundarios (notificación + tarea de queja) se confirman o revocan
+  // juntos. Sin esto, dos entregas concurrentes con el mismo eventId pasan
+  // ambas el check de dedupe de arriba y duplican submission, lead y
+  // notificaciones. Toda salida posterior pasa por commit o rollback.
   const beginTransaction = await req.payload.db.beginTransaction()
   if (beginTransaction) req.transactionID = beginTransaction
 
   try {
-    const tenant = await resolveTallyTenant(req, resolvedTenantId)
-    if (!tenant) {
-      return Response.json({ error: 'Tenant no resoluble para este formulario' }, { status: 422 })
-    }
-
     const { clientId, leadId } = await resolveOrCreateTallyContact(req, tenant, {
       name: parsed.respondentName,
       email: parsed.respondentEmail,
@@ -166,7 +169,11 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
       })
     }
 
-    if (req.transactionID) await req.payload.db.commitTransaction(req.transactionID)
+    if (req.transactionID) {
+      const txnId = req.transactionID
+      req.transactionID = undefined
+      await req.payload.db.commitTransaction(txnId)
+    }
 
     return Response.json({
       ok: true,
