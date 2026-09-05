@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { wholeUsd } from '@/lib/money'
 
 function requiredText(formData: FormData, key: string, max: number): string {
   const value = formData.get(key)
@@ -35,8 +36,9 @@ export async function createMembershipAction(formData: FormData): Promise<void> 
   })
   if (clientCheck.docs.length === 0) throw new Error('Cliente no encontrado en el tenant activo')
 
-  const monthlyPrice = Number(formData.get('monthlyPrice'))
-  if (!Number.isFinite(monthlyPrice) || monthlyPrice <= 0) throw new Error('El precio mensual debe ser mayor a 0')
+  // Montos enteros (sin centavos) — ver src/lib/money.ts
+  const monthlyPrice = wholeUsd(formData.get('monthlyPrice'))
+  if (monthlyPrice === null || monthlyPrice <= 0) throw new Error('El precio mensual debe ser un número entero mayor a 0')
 
   const startDateRaw = requiredText(formData, 'startDate', 20)
   const renewalDateRaw = requiredText(formData, 'renewalDate', 20)

@@ -12,20 +12,49 @@ interface PoolLike {
   ) => Promise<{ rows: Array<{ total?: string | number | null; count?: string | number | null }> }>
 }
 
-export function startOfMonthIso(): string {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  return `${y}-${m}-01T00:00:00.000Z`
+// El negocio opera en Caracas: VET es UTC-4 fijo (sin DST desde 2016 — mismo
+// supuesto que caracasDayRange en paymentReminders). Sin esto, los cobros de
+// 20:00–23:59 VET del último día del mes se contaban en el mes equivocado.
+const CARACAS_TZ = 'America/Caracas'
+const CARACAS_OFFSET = '-04:00'
+
+/** 'YYYY-MM' del mes actual visto desde America/Caracas. */
+function caracasYearMonth(offsetMonths = 0): { y: number; m: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: CARACAS_TZ,
+    year: 'numeric',
+    month: '2-digit',
+  }).format(new Date())
+  const [y, m] = parts.split('-').map(Number)
+  const shifted = new Date(Date.UTC(y, m - 1 + offsetMonths, 1))
+  return { y: shifted.getUTCFullYear(), m: shifted.getUTCMonth() + 1 }
 }
 
-/** Primer día del mes anterior, en UTC ISO — para comparativas mes contra mes. */
+/** Inicio del mes (de Caracas) como instante ISO con su offset real. */
+function caracasMonthStartIso(offsetMonths = 0): string {
+  const { y, m } = caracasYearMonth(offsetMonths)
+  const mm = String(m).padStart(2, '0')
+  return `${y}-${mm}-01T00:00:00${CARACAS_OFFSET}`
+}
+
+/**
+ * Inicio del mes de negocio (etiquetado en Caracas) como medianoche UTC.
+ * Para columnas que guardan fechas calendario como UTC medianoche (`due_date`):
+ * el límite inferior incluye los vencimientos del día 1 del mes más antiguo.
+ */
+function utcMonthStartIso(offsetMonths = 0): string {
+  const { y, m } = caracasYearMonth(offsetMonths)
+  const mm = String(m).padStart(2, '0')
+  return `${y}-${mm}-01T00:00:00Z`
+}
+
+export function startOfMonthIso(): string {
+  return caracasMonthStartIso(0)
+}
+
+/** Primer día del mes anterior (en hora de Caracas) — para comparativas mes contra mes. */
 export function startOfLastMonthIso(): string {
-  const now = new Date()
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const y = lastMonth.getFullYear()
-  const m = String(lastMonth.getMonth() + 1).padStart(2, '0')
-  return `${y}-${m}-01T00:00:00.000Z`
+  return caracasMonthStartIso(-1)
 }
 
 /**
@@ -119,6 +148,12 @@ export interface MonthlyPendingPoint {
  * últimos `months` meses, agregada con `date_trunc` directo sobre el pool y
  * agrupada por `due_date` (cuando se espera el dinero, no cuando se registró).
  * Complementa a monthlyRevenueSeries para el flujo de caja del cockpit.
+ *
+ * IMPORTANTE: `due_date` se escribe como fecha calendario en UTC medianoche
+ * (`new Date('YYYY-MM-DD').toISOString()` en todos los paths de escritura), así
+ * que se agrupa y filtra por su fecha UTC **sin conversión de zona** — convertir
+ * a Caracas hacía caer los vencimientos del día 1 en el mes anterior y el límite
+ * inferior -04:00 excluía el primer día del mes más antiguo de la serie.
  */
 export async function monthlyPendingSeries(
   payload: Payload,
@@ -126,12 +161,14 @@ export async function monthlyPendingSeries(
   months: number,
 ): Promise<MonthlyPendingPoint[]> {
   const db = payload.db as { pool?: { query: (text: string, params?: unknown[]) => Promise<{ rows: Array<{ month: string; total: string | number }> }> } }
-  const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1)
+  // Las etiquetas de la serie son meses de negocio (Caracas); la agrupación de
+  // due_date es por fecha calendario UTC, que coincide con el 'YYYY-MM' escrito.
+  const { y: nowY, m: nowM } = caracasYearMonth()
+  const start = new Date(Date.UTC(nowY, nowM - 1 - (months - 1), 1))
 
   const series: MonthlyPendingPoint[] = Array.from({ length: months }, (_, i) => {
-    const d = new Date(start.getFullYear(), start.getMonth() + i, 1)
-    return { month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, total: 0 }
+    const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + i, 1))
+    return { month: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`, total: 0 }
   })
 
   if (!db.pool || typeof db.pool.query !== 'function') return series
@@ -142,7 +179,7 @@ export async function monthlyPendingSeries(
        FROM payments
        WHERE tenant_id = $1 AND status::text = ANY($2::text[]) AND due_date >= $3
        GROUP BY 1`,
-      [tenantId, ['pendiente', 'vencido'], start.toISOString()],
+      [tenantId, ['pendiente', 'vencido'], utcMonthStartIso(-(months - 1))],
     )
     const byMonth = new Map(res.rows.map((r) => [r.month, Number(r.total)]))
     for (const point of series) {
@@ -173,23 +210,24 @@ export async function monthlyRevenueSeries(
   months: number,
 ): Promise<MonthlyRevenuePoint[]> {
   const db = payload.db as { pool?: { query: (text: string, params?: unknown[]) => Promise<{ rows: Array<{ month: string; total: string | number }> }> } }
-  const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1)
+  // La serie se etiqueta y agrupa en hora de Caracas (no en la TZ del server)
+  const { y: nowY, m: nowM } = caracasYearMonth()
+  const start = new Date(Date.UTC(nowY, nowM - 1 - (months - 1), 1))
 
   const series: MonthlyRevenuePoint[] = Array.from({ length: months }, (_, i) => {
-    const d = new Date(start.getFullYear(), start.getMonth() + i, 1)
-    return { month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, total: 0 }
+    const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + i, 1))
+    return { month: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`, total: 0 }
   })
 
   if (!db.pool || typeof db.pool.query !== 'function') return series
 
   try {
     const res = await db.pool.query(
-      `SELECT to_char(date_trunc('month', paid_at), 'YYYY-MM') AS month, COALESCE(SUM(amount), 0)::float8 AS total
+      `SELECT to_char(date_trunc('month', paid_at AT TIME ZONE 'America/Caracas'), 'YYYY-MM') AS month, COALESCE(SUM(amount), 0)::float8 AS total
        FROM payments
        WHERE tenant_id = $1 AND status = 'pagado' AND paid_at >= $2
        GROUP BY 1`,
-      [tenantId, start.toISOString()],
+      [tenantId, caracasMonthStartIso(-(months - 1))],
     )
     const byMonth = new Map(res.rows.map((r) => [r.month, Number(r.total)]))
     for (const point of series) {
