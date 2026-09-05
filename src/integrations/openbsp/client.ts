@@ -71,21 +71,45 @@ async function insertMessageRow(cfg: OpenBSPConfig, row: Record<string, unknown>
   return (await res.json()) as OpenBSPMessageRow
 }
 
+export type OpenBSPService = 'whatsapp' | 'instagram_dm'
+
 interface SendBase {
-  to: string // conversation_address, E.164 sin +
+  to: string // conversation_address, E.164 sin + (o ID de usuario IG)
   tenant?: { openbspOrganizationId?: string | null; openbspPhoneNumberId?: string | null } | null
+  service?: OpenBSPService
+  // Remitente explícito (organization_address) de la cuenta por la que llegó el mensaje
+  // entrante. Requerido para instagram_dm; para whatsapp se usa el phone_number_id.
+  senderAddress?: string
 }
 
-export async function sendText(args: SendBase & { text: string }): Promise<OpenBSPMessageRow> {
+export async function sendText(
+  args: SendBase & { text: string; service?: OpenBSPService },
+): Promise<OpenBSPMessageRow> {
   const cfg = config(args.tenant)
-  if (!cfg.phoneNumberId && !args.tenant?.openbspPhoneNumberId) {
-    throw new Error('Falta phone_number_id del tenant')
+  const service = args.service ?? 'whatsapp'
+
+  if (service === 'whatsapp') {
+    if (!cfg.phoneNumberId && !args.tenant?.openbspPhoneNumberId) {
+      throw new Error('Falta phone_number_id del tenant')
+    }
   }
+
+  // Nunca usar el phone_number_id de WhatsApp como remitente de Instagram:
+  // respondería desde la cuenta equivocada o fallaría en OpenBSP.
+  const senderAddress =
+    args.senderAddress ||
+    (service === 'instagram_dm' ? process.env.OPENBSP_INSTAGRAM_ID || '' : undefined)
+  if (service === 'instagram_dm' && !senderAddress) {
+    throw new Error(
+      'No se puede responder por Instagram: falta organization_address de la conversación entrante (o OPENBSP_INSTAGRAM_ID)',
+    )
+  }
+
   return insertMessageRow(cfg, {
     organization_id: cfg.organizationId,
-    organization_address: args.tenant?.openbspPhoneNumberId || cfg.phoneNumberId,
+    organization_address: senderAddress || args.tenant?.openbspPhoneNumberId || cfg.phoneNumberId,
     conversation_address: args.to,
-    service: 'whatsapp',
+    service,
     content: { version: '1', type: 'text', kind: 'text', text: args.text },
   })
 }

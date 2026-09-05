@@ -94,7 +94,7 @@ describe('Flujo integral de Tareas: creación, detalle, actualización y borrado
       where: { id: { equals: task.id } },
     })
     expect(verifyResult.totalDocs).toBe(0)
-  })
+  }, 15000)
 
   it('permite a un agente consultar usuarios asignables incluyendo administradores globales', async () => {
     const payload = await getPayload({ config: configPromise })

@@ -27,7 +27,6 @@ import {
   Share2,
   Shield,
   Siren,
-  Sparkles,
   Tags,
   Users,
 } from 'lucide-react'
@@ -196,28 +195,8 @@ export function WorkspaceHeader({ tenantName, userHandle, userInitials, isAdmin 
           </div>
         </nav>
 
-        {/* Barra de Acciones: Copilot Button + Search + Notificaciones + Perfil */}
+        {/* Barra de Acciones: Search + Notificaciones + Perfil */}
         <div className="flex items-center gap-2">
-          {/* Botón Asistente Copilot */}
-          <button
-            type="button"
-            onClick={() => {
-              // Disparar evento o abrir el trigger de CopilotKit
-              const copilotBtn = document.querySelector('[aria-label="Open Copilot"]') as HTMLButtonElement | null
-              if (copilotBtn) {
-                copilotBtn.click()
-              } else {
-                window.dispatchEvent(new Event('workspace:open-copilot'))
-              }
-            }}
-            title="Abrir Copiloto IA Comercial"
-            className="flex items-center gap-1.5 border border-zinc-700/80 bg-zinc-900/80 hover:bg-zinc-800 hover:border-zinc-500 px-2.5 py-1.5 text-xs font-semibold text-white transition"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-            <span className="font-mono text-xs hidden sm:inline">Copilot IA</span>
-            <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          </button>
-
           {/* Búsqueda rápida ⌘K */}
           <button
             type="button"

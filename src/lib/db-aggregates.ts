@@ -91,6 +91,42 @@ export async function paymentsAggregate(
   }
 }
 
+export interface QuoteAggregate {
+  total: number
+  count: number
+}
+
+/**
+ * Suma agregada de cotizaciones activas por tenant usando SQL directo sobre Postgres.
+ */
+export async function quotesAggregate(
+  payload: Payload,
+  tenantId: number,
+  statuses: string[],
+): Promise<QuoteAggregate> {
+  const db = payload.db as { pool?: PoolLike }
+  if (!db.pool || typeof db.pool.query !== 'function' || statuses.length === 0) {
+    return { total: 0, count: 0 }
+  }
+
+  const params: unknown[] = [tenantId, statuses]
+  const where = 'tenant_id = $1 AND status::text = ANY($2::text[])'
+
+  try {
+    const res = await db.pool.query(
+      `SELECT COALESCE(SUM(total), 0)::float8 AS total, COUNT(*) AS count FROM quotes WHERE ${where}`,
+      params,
+    )
+    const row = res.rows[0]
+    return {
+      total: Number(row?.total ?? 0),
+      count: Number(row?.count ?? 0),
+    }
+  } catch {
+    return { total: 0, count: 0 }
+  }
+}
+
 export interface MonthlyPendingPoint {
   month: string // 'YYYY-MM'
   total: number

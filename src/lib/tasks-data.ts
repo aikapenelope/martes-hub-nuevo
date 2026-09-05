@@ -36,6 +36,8 @@ export async function getTasksData({ payload, user, tenantId, filters }: { paylo
   if (filters.due === 'hoy') extra.push({ dueDate: { equals: today } })
   if (filters.due === 'semana') extra.push({ and: [{ dueDate: { greater_than_equal: today } }, { dueDate: { less_than_equal: day(weekEnd) } }] })
   if (filters.due === 'sin_fecha') extra.push({ dueDate: { exists: false } })
+  if (filters.clientId) extra.push({ client: { equals: filters.clientId } })
+  if (filters.leadId) extra.push({ lead: { equals: filters.leadId } })
 
   const [result, pending, inProgress, overdue, completedWeek, assignees, clients, leads, ...counts] = await Promise.all([
     query({ collection: 'tasks', depth: 1, limit: filters.view === 'tablero' ? 100 : PAGE_SIZE, page: filters.page, sort: 'dueDate', where: tenantWhere(tenantId, extra) }),

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState, useTransition } from 'react'
+import React, { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -11,13 +11,16 @@ import {
   CheckCircle2,
   CircleAlert,
   Clock3,
+  Copy,
   ExternalLink,
   FileCheck,
   FileText,
   Loader2,
+  MessageSquare,
   Receipt,
   RotateCcw,
   Search,
+  Share2,
   X,
 } from 'lucide-react'
 
@@ -28,6 +31,7 @@ import {
   updatePaymentStatusAction,
   updateQuoteStatusAction,
 } from '@/lib/billing-actions'
+import { getLiveExchangeRatesAction, type LiveExchangeRates } from '@/lib/exchange-rates'
 import { Drawer } from '@/components/workspace/overlays'
 import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
 import { PaymentCreateDialog } from '@/components/workspace/PaymentCreateDialog'
@@ -35,6 +39,33 @@ import { QuoteInvoiceCreateDialog } from '@/components/workspace/QuoteInvoiceCre
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 const dateFmt = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric' })
+
+/**
+ * Compara dueDate y hoy como fechas calendario estrictas (YYYY-MM-DD) en la zona horaria
+ * del tenant para evitar desplazamientos por horas/mediodía o desfases de UTC.
+ */
+function getCalendarDayDiff(
+  dueDateStr: string | null | undefined,
+  timezone = 'America/Caracas',
+): number | null {
+  if (!dueDateStr) return null
+  const due = new Date(dueDateStr)
+  if (Number.isNaN(due.getTime())) return null
+
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const dueParts = fmt.format(due).split('-').map(Number)
+  const todayParts = fmt.format(new Date()).split('-').map(Number)
+
+  const dueUtc = Date.UTC(dueParts[0], dueParts[1] - 1, dueParts[2])
+  const todayUtc = Date.UTC(todayParts[0], todayParts[1] - 1, todayParts[2])
+
+  return Math.round((dueUtc - todayUtc) / (24 * 60 * 60 * 1000))
+}
 
 type BillingTab = 'todos_cobros' | 'pendientes' | 'pagados' | 'cotizaciones' | 'facturas'
 
@@ -49,6 +80,8 @@ interface BillingCard {
 interface BillingWorkspaceProps {
   canEdit: boolean
   tenantName: string
+  /** Zona horaria configurada del tenant (company-settings) para etiquetas de vencimiento */
+  timezone?: string
   clients: Client[]
   offers: Offer[]
   quotes: Quote[]
@@ -65,6 +98,7 @@ type SelectedDoc =
 export function BillingWorkspace({
   canEdit,
   tenantName,
+  timezone = 'America/Caracas',
   clients,
   offers,
   quotes,
@@ -88,6 +122,92 @@ export function BillingWorkspace({
     'pago_movil' | 'transferencia' | 'zelle' | 'binance' | 'efectivo' | 'otro'
   >('transferencia')
   const [payNotes, setPayNotes] = useState('')
+  const [payReference, setPayReference] = useState<string>('')
+
+  // Motor de Tasas de Cambio Referencial (Precios en USD base siempre)
+  const [rateSource, setRateSource] = useState<'bcv' | 'binance' | 'manual'>('bcv')
+  const [exchangeRate, setExchangeRate] = useState<string>('807.38')
+  const [liveRates, setLiveRates] = useState<LiveExchangeRates | null>(null)
+  // Inicia en true: el effect de monto lanza la primera carga de tasas
+  const [isFetchingRates, setIsFetchingRates] = useState<boolean>(true)
+
+  // No marca setIsFetchingRates(true) de forma síncrona: el caller lo hace en su
+  // propio handler (permitido) para evitar cascadas de render en el effect de montaje.
+  const fetchRates = async (force = false) => {
+    try {
+      const rates = await getLiveExchangeRatesAction(force)
+      setLiveRates(rates)
+      if (rateSource === 'bcv') {
+        setExchangeRate(String(rates.bcv.rate))
+      } else if (rateSource === 'binance') {
+        setExchangeRate(String(rates.binance.rate))
+      }
+    } catch (e) {
+      console.warn('Error obteniendo tasas en vivo:', e)
+    } finally {
+      setIsFetchingRates(false)
+    }
+  }
+
+  // Carga inicial de tasas: setState solo dentro de callbacks (no síncrono en el effect).
+  // En el montaje rateSource siempre es 'bcv', así que se aplica esa tasa directamente.
+  useEffect(() => {
+    let cancelled = false
+    getLiveExchangeRatesAction(false)
+      .then((rates) => {
+        if (cancelled) return
+        setLiveRates(rates)
+        setExchangeRate(String(rates.bcv.rate))
+      })
+      .catch((e) => {
+        console.warn('Error obteniendo tasas en vivo:', e)
+      })
+      .finally(() => {
+        if (!cancelled) setIsFetchingRates(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const handleSelectRateSource = (src: 'bcv' | 'binance' | 'manual') => {
+    setRateSource(src)
+    if (src === 'bcv' && liveRates) {
+      setExchangeRate(String(liveRates.bcv.rate))
+    } else if (src === 'binance' && liveRates) {
+      setExchangeRate(String(liveRates.binance.rate))
+    }
+  }
+
+  // Estado para recordatorio de cobro por WhatsApp
+  const [reminderPayment, setReminderPayment] = useState<Payment | null>(null)
+  const [copiedReminder, setCopiedReminder] = useState(false)
+
+  function generatePaymentReminderText(payment: Payment): string {
+    const cName = getClientName(payment.client)
+    const dueDateStr = payment.dueDate ? dateFmt.format(new Date(payment.dueDate)) : 'Pronto'
+    const diffDays = getCalendarDayDiff(payment.dueDate, timezone)
+    const isOverdue = diffDays !== null && diffDays < 0
+
+    const rateNum = Number(exchangeRate)
+    const bsEquivalent =
+      rateNum > 0 ? (payment.amount * rateNum).toLocaleString('es-VE', { minimumFractionDigits: 2 }) : null
+
+    return (
+      `*Recordatorio de Cobro · ${tenantName}*\n\n` +
+      `Hola ${cName}, esperamos que estés muy bien.\n\n` +
+      `Te recordamos la gestión de pago pendiente por el siguiente concepto:\n` +
+      `• *Concepto:* ${payment.concept || 'Servicios profesionales'}\n` +
+      `• *Monto a pagar:* ${usd.format(payment.amount)} USD (Base)\n` +
+      (bsEquivalent
+        ? `• *Referencia en Bolívares (Pago Móvil / Transferencia):* Bs. ${bsEquivalent} (Tasa: Bs. ${exchangeRate} / USD · ${rateSource.toUpperCase()})\n`
+        : '') +
+      `• *Fecha de vencimiento:* ${dueDateStr}\n` +
+      (isOverdue ? `⚠️ _Registra ${Math.abs(diffDays!)} día(s) de mora._\n` : '') +
+      `\nSi ya realizaste la transferencia o Pago Móvil, por favor compártenos el comprobante o número de referencia por este medio para conciliarlo en el sistema.\n\n` +
+      `¡Muchas gracias por tu confianza!`
+    )
+  }
 
   function pdfUrl(doc: Quote | Invoice): string | null {
     const first = doc.generatedPdfs?.[0]
@@ -167,18 +287,34 @@ export function BillingWorkspace({
     setActionError(null)
     setActionSuccess(null)
     startTransition(async () => {
+      const usesExchangeRate = payMethod === 'pago_movil' || payMethod === 'transferencia'
+      const rateNum = usesExchangeRate ? Number(exchangeRate) : 0
+      const bsEquivalent = rateNum > 0 ? (payingPayment.amount * rateNum).toFixed(2) : null
+      const noteDetails = [
+        payReference ? `Ref: ${payReference}` : null,
+        bsEquivalent ? `Tasa ${rateSource.toUpperCase()}: ${exchangeRate} (Bs. ${bsEquivalent})` : null,
+        payNotes ? payNotes.trim() : null,
+      ]
+        .filter(Boolean)
+        .join(' | ')
+
+      const finalNotes = payingPayment.notes
+        ? `${payingPayment.notes}\n[Conciliación]: ${noteDetails}`
+        : noteDetails || undefined
+
       const res = await updatePaymentStatusAction({
         paymentId: payingPayment.id,
         status: 'pagado',
         method: payMethod,
-        notes: payNotes || undefined,
+        notes: finalNotes,
       })
       if (!res.ok) {
         setActionError(res.error || 'No se pudo registrar el pago')
       } else {
-        setActionSuccess('Pago registrado exitosamente')
+        setActionSuccess('Pago registrado y conciliado exitosamente')
         setPayingPayment(null)
         setPayNotes('')
+        setPayReference('')
         router.refresh()
       }
     })
@@ -275,7 +411,7 @@ export function BillingWorkspace({
             <div className="flex flex-wrap items-center gap-2">
               <QuoteInvoiceCreateDialog kind="quote" clients={clients} offers={offers} />
               <QuoteInvoiceCreateDialog kind="invoice" clients={clients} offers={offers} />
-              <PaymentCreateDialog clients={clients} variant="primary" />
+              <PaymentCreateDialog clients={clients} variant="primary" defaultRate={exchangeRate} rateSource={rateSource} />
             </div>
           ) : undefined
         }
@@ -408,6 +544,87 @@ export function BillingWorkspace({
         </div>
       </div>
 
+      {/* Barra de Tasa Cambiaria Referencial (Base siempre USD) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-zinc-950 border border-zinc-800/80 font-mono text-xs">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+            <span>Base USD ($)</span>
+          </span>
+          <span className="text-zinc-400 text-[11px]">
+            Precios pactados en dólares. Tasa referencial para cobros en Bolívares:
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Selector de fuente */}
+          <div className="inline-flex items-center border border-zinc-800 bg-black p-0.5 text-[10px]">
+            <button
+              type="button"
+              onClick={() => handleSelectRateSource('bcv')}
+              className={`px-2 py-1 uppercase transition ${
+                rateSource === 'bcv'
+                  ? 'bg-emerald-500 text-black font-black'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              BCV {liveRates ? `(${liveRates.bcv.rate})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectRateSource('binance')}
+              className={`px-2 py-1 uppercase transition ${
+                rateSource === 'binance'
+                  ? 'bg-amber-400 text-black font-black'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Binance P2P {liveRates ? `(${liveRates.binance.rate})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRateSource('manual')}
+              className={`px-2 py-1 uppercase transition ${
+                rateSource === 'manual'
+                  ? 'bg-zinc-700 text-white font-black'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Manual
+            </button>
+          </div>
+
+          {/* Input de tasa editable en todo momento */}
+          <div className="flex items-center gap-1 bg-black border border-zinc-800 px-2 py-1">
+            <span className="text-zinc-500 text-[10px]">Bs./USD</span>
+            <input
+              type="number"
+              step="0.01"
+              min="1"
+              value={exchangeRate}
+              onChange={(e) => {
+                setExchangeRate(e.target.value)
+                setRateSource('manual')
+              }}
+              className="w-20 bg-transparent text-emerald-400 font-bold text-xs text-right focus:outline-none"
+            />
+          </div>
+
+          {/* Botón de refresco */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsFetchingRates(true)
+              void fetchRates(true)
+            }}
+            disabled={isFetchingRates}
+            className="p-1.5 border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white transition disabled:opacity-50"
+            title="Actualizar tasas en vivo desde API"
+          >
+            <RotateCcw size={12} className={isFetchingRates ? 'animate-spin text-sky-400' : ''} />
+          </button>
+        </div>
+      </div>
+
       {/* 5. Vistas de Contenido */}
 
       {/* 5.A. Tablas de Cobros (Todos / Pendientes / Pagados) */}
@@ -441,6 +658,8 @@ export function BillingWorkspace({
                     const isPaid = p.status === 'pagado'
                     const isCancelled = p.status === 'anulado'
 
+                    const diffDays = getCalendarDayDiff(p.dueDate, timezone)
+
                     return (
                       <tr
                         key={p.id}
@@ -472,7 +691,18 @@ export function BillingWorkspace({
                           </StatusBadge>
                         </td>
                         <td className="px-4 py-3 font-mono text-zinc-400">
-                          {p.dueDate ? dateFmt.format(new Date(p.dueDate)) : '—'}
+                          <div>{p.dueDate ? dateFmt.format(new Date(p.dueDate)) : '—'}</div>
+                          {diffDays !== null && (isPendingState || isOverdue) && (
+                            <div className="text-[10px] mt-0.5">
+                              {diffDays < 0 ? (
+                                <span className="text-rose-400 font-bold">Venció hace {Math.abs(diffDays)}d</span>
+                              ) : diffDays === 0 ? (
+                                <span className="text-amber-400 font-bold">Vence hoy</span>
+                              ) : diffDays <= 5 ? (
+                                <span className="text-amber-300">En {diffDays}d</span>
+                              ) : null}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 font-mono text-zinc-400 capitalize">
                           {p.method ? p.method.replace('_', ' ') : '—'}
@@ -483,6 +713,18 @@ export function BillingWorkspace({
                         >
                           {canEdit && (
                             <div className="flex items-center justify-end gap-1.5">
+                              {(isPendingState || isOverdue) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setReminderPayment(p)}
+                                  className="px-2 py-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border border-emerald-800/80 text-[10px] font-mono transition flex items-center gap-1"
+                                  title="Enviar recordatorio por WhatsApp"
+                                >
+                                  <MessageSquare size={11} />
+                                  <span>WhatsApp</span>
+                                </button>
+                              )}
+
                               {(isPendingState || isOverdue) && (
                                 <button
                                   type="button"
@@ -562,7 +804,7 @@ export function BillingWorkspace({
                 <tbody className="divide-y divide-zinc-900">
                   {filteredQuotes.map((q) => {
                     const url = pdfUrl(q)
-                    const canConvert = q.status !== 'accepted' && q.status !== 'rejected'
+                    const canConvert = q.status === 'draft' || q.status === 'sent'
 
                     return (
                       <tr
@@ -819,13 +1061,78 @@ export function BillingWorkspace({
                 </select>
               </label>
 
+              {/* Tasa y cálculo referencial en Bolívares */}
+              {(payMethod === 'pago_movil' || payMethod === 'transferencia') && (
+                <div className="p-3 bg-zinc-900/60 border border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                    <span className="font-bold text-zinc-300">Tasa Referencial (Bs./USD)</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectRateSource('bcv')}
+                        className={`px-1.5 py-0.5 text-[9px] uppercase border transition ${
+                          rateSource === 'bcv'
+                            ? 'bg-emerald-500 text-black font-bold border-emerald-500'
+                            : 'border-zinc-800 text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        BCV
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectRateSource('binance')}
+                        className={`px-1.5 py-0.5 text-[9px] uppercase border transition ${
+                          rateSource === 'binance'
+                            ? 'bg-amber-400 text-black font-bold border-amber-400'
+                            : 'border-zinc-800 text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        Binance
+                      </button>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="1"
+                        value={exchangeRate}
+                        onChange={(e) => {
+                          setExchangeRate(e.target.value)
+                          setRateSource('manual')
+                        }}
+                        className="bg-black border border-zinc-700 px-2 py-0.5 text-xs text-emerald-400 font-mono w-24 text-right"
+                      />
+                    </div>
+                  </div>
+                  {Number(exchangeRate) > 0 && (
+                    <div className="flex items-center justify-between pt-1 border-t border-zinc-800/60">
+                      <span className="text-[10px] text-zinc-500">
+                        Base USD: {usd.format(payingPayment.amount)}
+                      </span>
+                      <div className="text-right text-xs font-mono text-emerald-300 font-bold">
+                        ≈ Bs. {(payingPayment.amount * Number(exchangeRate)).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <label className="flex flex-col gap-1 text-[11px] text-zinc-400 uppercase">
-                Referencia / Notas del Pago (opcional)
+                Número de Referencia Bancaria / Comprobante
+                <input
+                  type="text"
+                  value={payReference}
+                  onChange={(e) => setPayReference(e.target.value)}
+                  placeholder="Ej: Ref #948291 Banesco"
+                  className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1 text-[11px] text-zinc-400 uppercase">
+                Notas adicionales (opcional)
                 <input
                   type="text"
                   value={payNotes}
                   onChange={(e) => setPayNotes(e.target.value)}
-                  placeholder="Ej: Ref #948291 Banesco"
+                  placeholder="Comentarios o detalles de auditoría"
                   className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
                 />
               </label>
@@ -848,6 +1155,66 @@ export function BillingWorkspace({
                 {isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={14} />}
                 <span>Confirmar Cobro</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Recordatorio de Cobro por WhatsApp */}
+      {reminderPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fadeIn font-mono text-xs">
+          <div className="w-full max-w-lg border border-emerald-800/80 bg-zinc-950 p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <MessageSquare size={16} />
+                <h3 className="text-sm font-bold uppercase tracking-wider">
+                  Recordatorio de Cobro por WhatsApp
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReminderPayment(null)}
+                className="text-zinc-500 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[11px] text-zinc-400">
+                Mensaje pre-formateado para enviar al cliente {getClientName(reminderPayment.client)}:
+              </p>
+              <textarea
+                readOnly
+                rows={9}
+                value={generatePaymentReminderText(reminderPayment)}
+                className="w-full bg-black border border-zinc-800 p-3 text-xs text-emerald-300 font-mono focus:outline-none select-all"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-zinc-900">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(generatePaymentReminderText(reminderPayment))
+                  setCopiedReminder(true)
+                  setTimeout(() => setCopiedReminder(false), 2500)
+                }}
+                className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold transition flex items-center gap-1.5"
+              >
+                {copiedReminder ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                <span>{copiedReminder ? '¡Copiado!' : 'Copiar Mensaje'}</span>
+              </button>
+
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(generatePaymentReminderText(reminderPayment))}`}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-lg shadow-emerald-950"
+              >
+                <Share2 size={13} />
+                <span>Abrir WhatsApp</span>
+              </a>
             </div>
           </div>
         </div>
@@ -918,7 +1285,7 @@ export function BillingWorkspace({
                   if (!custId) return null
                   return (
                     <Link
-                      href={`/workspace/crm/client/${custId}`}
+                      href={`/workspace/crm/clientes/${custId}`}
                       className="text-[11px] text-sky-400 hover:text-sky-300 font-bold flex items-center gap-1"
                     >
                       <span>Ficha 360°</span>

@@ -9,11 +9,6 @@ const currency = new Intl.NumberFormat('es-VE', {
   maximumFractionDigits: 0,
 })
 
-const compact = new Intl.NumberFormat('es-VE', {
-  notation: 'compact',
-  maximumFractionDigits: 1,
-})
-
 interface CockpitCashflowChartProps {
   points: MonthlyCashflowPoint[]
 }
@@ -25,7 +20,6 @@ interface CockpitCashflowChartProps {
 export function CockpitCashflowChart({ points }: CockpitCashflowChartProps) {
   const totalPaid = points.reduce((acc, p) => acc + p.paid, 0)
   const totalPending = points.reduce((acc, p) => acc + p.pending, 0)
-  const max = Math.max(...points.map((p) => Math.max(p.paid, p.pending)), 1)
   const hasData = totalPaid > 0 || totalPending > 0
 
   return (

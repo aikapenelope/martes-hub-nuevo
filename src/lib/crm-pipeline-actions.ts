@@ -524,9 +524,34 @@ export async function convertLeadInSituAction(leadId: number): Promise<ActionRes
       }),
     ])
 
+    // Vincular activamente las conversaciones asociadas al lead con el nuevo cliente
+    try {
+      await context.payload.update({
+        collection: 'conversations',
+        where: {
+          and: [
+            { tenant: { equals: context.tenantId } },
+            { lead: { equals: leadId } },
+          ],
+        },
+        data: {
+          client: client.id,
+        },
+        overrideAccess: true,
+      })
+    } catch (convLinkErr) {
+      context.payload.logger.error({
+        msg: 'crm: error al vincular conversaciones del lead al nuevo cliente',
+        err: convLinkErr,
+        leadId,
+        clientId: client.id,
+      })
+    }
+
     revalidatePath('/workspace/crm')
     revalidatePath(`/workspace/crm/leads/${leadId}`)
     revalidatePath(`/workspace/crm/clientes/${client.id}`)
+    revalidatePath('/workspace/inbox')
     return { ok: true, clientId: client.id }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error al convertir el prospecto'
