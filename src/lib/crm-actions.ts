@@ -8,6 +8,7 @@ import type { Payload } from 'payload'
 import type { Activity } from '@/payload-types'
 import { CLIENT_STAGES, LEAD_STATUSES, type ClientStage, type LeadStatus } from '@/lib/crm-data'
 import { LEAD_SOURCES, type LeadSource } from '@/lib/crm-filters'
+import { wholeUsd } from '@/lib/money'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
 // Valores válidos del select Activity.type (deben coincidir con Collections/Activities.ts)
@@ -166,7 +167,9 @@ export async function updateLeadAction(formData: FormData): Promise<void> {
   const companyId = optionalNumber(formData, 'company')
   const segmentId = optionalNumber(formData, 'segment')
   const assignedToId = optionalNumber(formData, 'assignedTo')
-  const estimatedValue = optionalNumber(formData, 'estimatedValue')
+  // Contrato entero (sin centavos): se normaliza con wholeUsd y null solo
+  // si el campo viene vacío o la entrada no es numérica (limpia el valor).
+  const estimatedValue = wholeUsd(formData.get('estimatedValue'))
   const rawSource = optionalText(formData, 'source', 50)
   const source: LeadSource | undefined =
     rawSource && LEAD_SOURCES.includes(rawSource as LeadSource)

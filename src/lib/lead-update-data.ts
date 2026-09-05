@@ -11,6 +11,8 @@
  *   "Sin rubro" / "Sin asignar").
  */
 
+import { wholeUsd } from './money'
+
 export interface LeadFieldsInput {
   fullName: string
   companyName?: string
@@ -45,6 +47,15 @@ function relationshipField(
   value: number | null | undefined,
 ): number | null | undefined {
   return value === undefined ? undefined : value
+}
+
+/** Dinero entero (sin centavos): undefined se omite; null limpia; decimales se redondean. */
+function wholeUsdField(
+  value: number | null | undefined,
+): number | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  return wholeUsd(value)
 }
 
 /** Recorta y limpia texto acotado: las server actions no deben poder crear registros gigantes. */
@@ -83,7 +94,7 @@ export function buildLeadUpdateData(input: LeadFieldsInput): Record<string, unkn
     socialHandle: cap(input.socialHandle, LIMITS.socialHandle),
     source: input.source || undefined,
     segment: relationshipField(input.segment),
-    estimatedValue: relationshipField(input.estimatedValue),
+    estimatedValue: wholeUsdField(input.estimatedValue),
     assignedTo: relationshipField(input.assignedTo),
     lastContactChannel: input.lastContactChannel || undefined,
     commercialNotes: cap(input.commercialNotes, LIMITS.commercialNotes),

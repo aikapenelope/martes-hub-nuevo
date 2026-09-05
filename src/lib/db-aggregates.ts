@@ -37,6 +37,17 @@ function caracasMonthStartIso(offsetMonths = 0): string {
   return `${y}-${mm}-01T00:00:00${CARACAS_OFFSET}`
 }
 
+/**
+ * Inicio del mes de negocio (etiquetado en Caracas) como medianoche UTC.
+ * Para columnas que guardan fechas calendario como UTC medianoche (`due_date`):
+ * el límite inferior incluye los vencimientos del día 1 del mes más antiguo.
+ */
+function utcMonthStartIso(offsetMonths = 0): string {
+  const { y, m } = caracasYearMonth(offsetMonths)
+  const mm = String(m).padStart(2, '0')
+  return `${y}-${mm}-01T00:00:00Z`
+}
+
 export function startOfMonthIso(): string {
   return caracasMonthStartIso(0)
 }
@@ -137,6 +148,12 @@ export interface MonthlyPendingPoint {
  * últimos `months` meses, agregada con `date_trunc` directo sobre el pool y
  * agrupada por `due_date` (cuando se espera el dinero, no cuando se registró).
  * Complementa a monthlyRevenueSeries para el flujo de caja del cockpit.
+ *
+ * IMPORTANTE: `due_date` se escribe como fecha calendario en UTC medianoche
+ * (`new Date('YYYY-MM-DD').toISOString()` en todos los paths de escritura), así
+ * que se agrupa y filtra por su fecha UTC **sin conversión de zona** — convertir
+ * a Caracas hacía caer los vencimientos del día 1 en el mes anterior y el límite
+ * inferior -04:00 excluía el primer día del mes más antiguo de la serie.
  */
 export async function monthlyPendingSeries(
   payload: Payload,
@@ -144,7 +161,8 @@ export async function monthlyPendingSeries(
   months: number,
 ): Promise<MonthlyPendingPoint[]> {
   const db = payload.db as { pool?: { query: (text: string, params?: unknown[]) => Promise<{ rows: Array<{ month: string; total: string | number }> }> } }
-  // La serie se etiqueta y agrupa en hora de Caracas (no en la TZ del server)
+  // Las etiquetas de la serie son meses de negocio (Caracas); la agrupación de
+  // due_date es por fecha calendario UTC, que coincide con el 'YYYY-MM' escrito.
   const { y: nowY, m: nowM } = caracasYearMonth()
   const start = new Date(Date.UTC(nowY, nowM - 1 - (months - 1), 1))
 
@@ -157,11 +175,11 @@ export async function monthlyPendingSeries(
 
   try {
     const res = await db.pool.query(
-      `SELECT to_char(date_trunc('month', due_date AT TIME ZONE 'America/Caracas'), 'YYYY-MM') AS month, COALESCE(SUM(amount), 0)::float8 AS total
+      `SELECT to_char(date_trunc('month', due_date), 'YYYY-MM') AS month, COALESCE(SUM(amount), 0)::float8 AS total
        FROM payments
        WHERE tenant_id = $1 AND status::text = ANY($2::text[]) AND due_date >= $3
        GROUP BY 1`,
-      [tenantId, ['pendiente', 'vencido'], caracasMonthStartIso(-(months - 1))],
+      [tenantId, ['pendiente', 'vencido'], utcMonthStartIso(-(months - 1))],
     )
     const byMonth = new Map(res.rows.map((r) => [r.month, Number(r.total)]))
     for (const point of series) {

@@ -6,15 +6,18 @@
  * de los `SUM()` de Postgres sin migrar columnas ni cambiar de tipo.
  */
 
-/** Normaliza cualquier entrada numérica a entero USD; null si no hay valor o no es finito. */
+/** Normaliza cualquier entrada numérica a entero USD; null si no hay valor, no es finito o excede el rango exacto de float64. */
 export function wholeUsd(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
   const n = Number(value)
   if (!Number.isFinite(n)) return null
-  return Math.round(n)
+  const rounded = Math.round(n)
+  // Beyond 2^53 los enteros dejan de ser exactos en float64: rechazar en vez
+  // de persistir un valor silenciosamente distinto al que envió el usuario.
+  return Number.isSafeInteger(rounded) ? rounded : null
 }
 
-/** Valida un monto ya numérico como entero (para validar en campos Payload). */
+/** Valida un monto ya numérico como entero exacto (para validar en campos Payload). */
 export function isWholeUsd(value: unknown): boolean {
-  return typeof value === 'number' && Number.isInteger(value)
+  return typeof value === 'number' && Number.isSafeInteger(value)
 }

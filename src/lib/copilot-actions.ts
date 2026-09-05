@@ -93,7 +93,7 @@ export async function copilotCreateLead(args: {
         companyName: args.companyName?.trim(),
         source: args.source || 'manual',
         city: args.city?.trim(),
-        estimatedValue: typeof args.estimatedValue === 'number' && args.estimatedValue > 0 ? Math.round(args.estimatedValue) : undefined,
+        estimatedValue: typeof args.estimatedValue === 'number' && args.estimatedValue > 0 ? (wholeUsd(args.estimatedValue) ?? undefined) : undefined,
         commercialNotes: args.commercialNotes?.trim(),
         status: 'nuevo',
       },

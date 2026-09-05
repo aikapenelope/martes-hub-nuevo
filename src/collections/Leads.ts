@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
+import { isWholeUsd } from '../lib/money'
 import { validateTenantRelations } from '../lib/tenant-relations'
 
 const AGENT_ROLES = ['admin', 'agente']
@@ -150,7 +151,13 @@ export const Leads: CollectionConfig = {
       type: 'number',
       min: 0,
       label: 'Valor estimado (USD)',
+      // Mismo contrato entero que Payments/Offers/Memberships: la validación
+      // vive en el campo para que aplique desde /admin, REST y Local API.
+      validate: (value: number | null | undefined) =>
+        value === null || value === undefined || isWholeUsd(value) ||
+        'El valor estimado debe ser un número entero de USD (sin centavos)',
       admin: {
+        step: 1,
         position: 'sidebar',
         description: 'Estimación de la oportunidad; alimenta el pipeline del workspace',
       },
