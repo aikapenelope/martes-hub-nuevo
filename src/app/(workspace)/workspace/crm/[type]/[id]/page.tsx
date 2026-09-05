@@ -9,7 +9,9 @@ import { notFound } from 'next/navigation'
 import {
   ArrowLeft,
   Building2,
+  Check,
   CheckCircle2,
+  CheckSquare,
   CircleDot,
   Globe,
   Mail,
@@ -30,7 +32,10 @@ import {
 } from '@/lib/crm-actions'
 import { getCrmRecord, type CrmView } from '@/lib/crm-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
-import type { Company, Segment, User } from '@/payload-types'
+import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
+import { getAssignableUsers } from '@/lib/tasks-data'
+import { changeTaskStatusAction } from '@/lib/tasks-actions'
+import type { Client, Company, Lead, Segment, User } from '@/payload-types'
 
 function relationName(value: number | Segment | User | Company | null | undefined): string {
   if (!value || typeof value === 'number') return 'Sin asignar'
@@ -51,12 +56,19 @@ const inputCls =
   'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600 font-sans'
 const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
 
+const priorityCls: Record<string, string> = {
+  baja: 'bg-zinc-900 text-zinc-400 border-zinc-800',
+  media: 'bg-zinc-800 text-zinc-300 border-zinc-700',
+  alta: 'bg-amber-950/60 text-amber-300 border-amber-800',
+  urgente: 'bg-rose-950/60 text-rose-300 border-rose-800',
+}
+
 export default async function CrmRecordPage({
   params,
   searchParams,
 }: {
   params: Promise<{ type: string; id: string }>
-  searchParams: Promise<{ created?: string; updated?: string; converted?: string }>
+  searchParams: Promise<{ created?: string; updated?: string; converted?: string; taskCreated?: string }>
 }) {
   const { type: rawType, id: rawId } = await params
   const feedback = await searchParams
@@ -75,7 +87,7 @@ export default async function CrmRecordPage({
   })
   if (!detail) notFound()
 
-  const [companiesRes, segmentsRes, agentsRes] = await Promise.all([
+  const [companiesRes, segmentsRes, agentsRes, assignees, clientsRes, leadsRes] = await Promise.all([
     context.payload.find({
       collection: 'companies',
       where: { tenant: { equals: context.tenantId } },
@@ -102,11 +114,36 @@ export default async function CrmRecordPage({
       overrideAccess: false,
       user: context.user,
     }),
+    getAssignableUsers({
+      payload: context.payload,
+      user: context.user,
+      tenantId: context.tenantId,
+    }),
+    context.payload.find({
+      collection: 'clients',
+      where: { tenant: { equals: context.tenantId } },
+      depth: 0,
+      limit: 100,
+      sort: 'name',
+      overrideAccess: false,
+      user: context.user,
+    }),
+    context.payload.find({
+      collection: 'leads',
+      where: { tenant: { equals: context.tenantId } },
+      depth: 0,
+      limit: 100,
+      sort: 'fullName',
+      overrideAccess: false,
+      user: context.user,
+    }),
   ])
 
   const availableCompanies = companiesRes.docs as Company[]
   const availableSegments = segmentsRes.docs as Segment[]
   const availableAgents = agentsRes.docs as User[]
+  const clientOptions = clientsRes.docs as Client[]
+  const leadOptions = leadsRes.docs as Lead[]
 
   const isLead = type === 'leads'
   const isCompany = type === 'empresas'
@@ -115,6 +152,13 @@ export default async function CrmRecordPage({
   const leadRecord = isLead ? detail.lead! : null
   const clientRecord = isClient ? detail.client! : null
   const companyRecord = isCompany ? detail.company! : null
+
+  if (clientRecord && !clientOptions.some((c) => c.id === clientRecord.id)) {
+    clientOptions.unshift(clientRecord)
+  }
+  if (leadRecord && !leadOptions.some((l) => l.id === leadRecord.id)) {
+    leadOptions.unshift(leadRecord)
+  }
 
   const name = isLead
     ? leadRecord?.fullName ?? ''
@@ -200,10 +244,16 @@ export default async function CrmRecordPage({
         <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Volver al CRM
       </Link>
 
-      {(feedback.created || feedback.updated || feedback.converted) && (
+      {(feedback.created || feedback.updated || feedback.converted || feedback.taskCreated) && (
         <div className="flex items-center gap-2 border border-emerald-800 bg-emerald-900/30 px-3 py-2 text-xs text-emerald-300" role="status">
           <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-          {feedback.created ? 'Registro creado correctamente.' : feedback.updated ? 'Cambios guardados.' : 'Lead convertido a cliente.'}
+          {feedback.taskCreated
+            ? 'Tarea creada correctamente.'
+            : feedback.created
+            ? 'Registro creado correctamente.'
+            : feedback.updated
+            ? 'Cambios guardados.'
+            : 'Lead convertido a cliente.'}
         </div>
       )}
 
@@ -253,13 +303,16 @@ export default async function CrmRecordPage({
               <MessageCircle className="w-4 h-4" aria-hidden="true" /> WhatsApp
             </a>
           )}
-          {!isCompany && (
-            <Link
-              className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono"
-              href={`/workspace/tasks?${isLead ? 'lead' : 'client'}=${id}`}
-            >
-              Crear tarea
-            </Link>
+          {!isCompany && context.canEdit && (
+            <TaskCreateDialog
+              assignees={assignees}
+              clients={clientOptions}
+              leads={leadOptions}
+              variant="secondary"
+              defaultClientId={isClient ? id : undefined}
+              defaultLeadId={isLead ? id : undefined}
+              redirectTo={`/workspace/crm/${type}/${id}?taskCreated=1`}
+            />
           )}
           {convertedId && (
             <Link
@@ -765,6 +818,117 @@ export default async function CrmRecordPage({
               </div>
             </section>
           )}
+
+          {/* Tareas y Compromisos asociados */}
+          <section className="oled-card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-4 h-4 text-zinc-400" />
+                <h2 className="text-base font-bold text-white">Tareas y compromisos</h2>
+                <span className="text-xs font-mono text-zinc-500">
+                  ({detail.tasks.filter((t) => t.status !== 'completada' && t.status !== 'cancelada').length} pendientes)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/workspace/tasks?${isLead ? 'lead' : isClient ? 'client' : ''}=${id}`}
+                  className="text-xs font-mono text-zinc-400 hover:text-white transition"
+                >
+                  Ver en Tareas →
+                </Link>
+                {context.canEdit && !isCompany && (
+                  <TaskCreateDialog
+                    assignees={assignees}
+                    clients={clientOptions}
+                    leads={leadOptions}
+                    variant="secondary"
+                    defaultClientId={isClient ? id : undefined}
+                    defaultLeadId={isLead ? id : undefined}
+                    redirectTo={`/workspace/crm/${type}/${id}?taskCreated=1`}
+                  />
+                )}
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-zinc-400">
+              {isCompany
+                ? 'Tareas asignadas a los contactos vinculados con esta empresa.'
+                : 'Compromisos, recordatorios y acciones asignadas a este contacto.'}
+            </p>
+
+            {detail.tasks.length === 0 ? (
+              <div className="mt-4 border border-zinc-800 bg-black/40 p-4 text-center">
+                <p className="text-xs text-zinc-500 font-mono">No hay tareas asociadas a este registro.</p>
+              </div>
+            ) : (
+              <ul className="mt-4 divide-y divide-zinc-900 border border-zinc-800">
+                {detail.tasks.map((task) => {
+                  const isDone = task.status === 'completada'
+                  const isCanceled = task.status === 'cancelada'
+                  const isOverdue = !isDone && !isCanceled && task.dueDate && new Date(task.dueDate) < new Date()
+                  const assigneeName = relationName(task.assignedTo)
+
+                  return (
+                    <li
+                      key={task.id}
+                      className="flex items-center justify-between p-3 gap-3 bg-black/40 hover:bg-zinc-900/30 transition"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {context.canEdit && (
+                          <form action={changeTaskStatusAction}>
+                            <input type="hidden" name="id" value={task.id} />
+                            <input type="hidden" name="status" value={isDone ? 'pendiente' : 'completada'} />
+                            <button
+                              type="submit"
+                              title={isDone ? 'Reabrir tarea' : 'Marcar como completada'}
+                              className={`h-4 w-4 rounded border flex items-center justify-center transition shrink-0 ${
+                                isDone
+                                  ? 'border-emerald-500 bg-emerald-950 text-emerald-300'
+                                  : 'border-zinc-700 bg-black text-transparent hover:border-emerald-600 hover:text-emerald-300'
+                              }`}
+                            >
+                              <Check size={11} />
+                            </button>
+                          </form>
+                        )}
+                        <div className="min-w-0">
+                          <Link
+                            href={`/workspace/tasks/${task.id}`}
+                            className={`text-xs font-medium block truncate hover:underline ${
+                              isDone ? 'text-zinc-500 line-through' : 'text-white'
+                            }`}
+                          >
+                            {task.title}
+                          </Link>
+                          <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[10px] font-mono text-zinc-400">
+                            <span className={`px-1.5 py-0.5 border text-[9px] uppercase ${priorityCls[task.priority] ?? priorityCls.media}`}>
+                              {task.priority}
+                            </span>
+                            <span>{task.status}</span>
+                            {task.dueDate && (
+                              <span className={isOverdue ? 'text-rose-400 font-bold' : 'text-zinc-500'}>
+                                {isOverdue ? '⚠ Vencida: ' : 'Vence: '}
+                                {new Intl.DateTimeFormat('es', { dateStyle: 'short' }).format(new Date(task.dueDate))}
+                              </span>
+                            )}
+                            {assigneeName !== 'Sin asignar' && (
+                              <span className="text-zinc-500">· {assigneeName}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <Link
+                        href={`/workspace/tasks/${task.id}`}
+                        className="text-xs text-zinc-400 hover:text-white font-mono shrink-0"
+                      >
+                        Ver →
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
         </div>
 
         <aside className="oled-card p-5">

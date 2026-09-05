@@ -104,6 +104,7 @@ export async function createTaskAction(form: FormData) {
   revalidatePath('/workspace/tasks')
   revalidatePath('/workspace')
   revalidatePath('/workspace/hoy')
+  revalidatePath('/workspace/crm')
   const rawRedirect = text(form, 'redirectTo', 200)
   const redirectTo = safeInternalRedirectUrl(rawRedirect, `/workspace/tasks/${task.id}?created=1`)
   redirect(redirectTo)
@@ -134,7 +135,7 @@ export async function updateTaskAction(form: FormData) {
       checklist: data.checklist.map((item) => ({ ...item, done: existingDone.get(item.item) ?? false })),
     },
   })
-  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); revalidatePath(`/workspace/tasks/${taskId}`); redirect(`/workspace/tasks/${taskId}?updated=1`)
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); revalidatePath('/workspace/crm'); revalidatePath(`/workspace/tasks/${taskId}`); redirect(`/workspace/tasks/${taskId}?updated=1`)
 }
 
 export async function updateTaskStatusAction(
@@ -155,6 +156,7 @@ export async function updateTaskStatusAction(
     revalidatePath('/workspace/tasks')
     revalidatePath('/workspace')
     revalidatePath('/workspace/hoy')
+    revalidatePath('/workspace/crm')
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Error actualizando tarea' }
@@ -166,7 +168,7 @@ export async function changeTaskStatusAction(form: FormData) {
   if (!taskId || !TASK_STATUSES.includes(status as TaskStatus)) throw new Error('Cambio de estado inválido')
   const { context } = await scopedTask(taskId); assertEditor(context.canEdit)
   await context.payload.update({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user, data: { status: status as TaskStatus } })
-  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); revalidatePath(`/workspace/tasks/${taskId}`)
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); revalidatePath('/workspace/crm'); revalidatePath(`/workspace/tasks/${taskId}`)
 }
 
 export async function toggleChecklistAction(form: FormData) {
@@ -182,5 +184,5 @@ export async function deleteTaskAction(form: FormData) {
   const taskId = id(form, 'id'); if (!taskId) throw new Error('Identificador inválido')
   const { context } = await scopedTask(taskId); if (!context.isAdmin) throw new Error('Solo admin puede eliminar tareas')
   await context.payload.delete({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user })
-  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); redirect('/workspace/tasks?deleted=1')
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); revalidatePath('/workspace/crm'); redirect('/workspace/tasks?deleted=1')
 }
