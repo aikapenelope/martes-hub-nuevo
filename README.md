@@ -2,7 +2,7 @@
 
 CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/Instagram, seguimiento proactivo, cobros, membresías, planificación de publicaciones en redes con métricas, formularios, citas y pipeline de ventas conversacional. La IA es una sola acción puntual dentro del CRM (resumen de conversaciones) — cualquier análisis o automatización más abierta (incluida la publicación real en redes sociales) se hace conectando un agente MCP externo (el modelo/cliente que prefieras) a `/api/mcp`.
 
-**Estado actual:** backend y modelo de F0–F9 implementados; workspace operativo (`/workspace/*`) con datos reales — CRM (tabla + pipeline Kanban), tareas, inbox, hoy, billing, analytics, social. CI real en GitLab (typecheck + lint + build + tests de integración contra Postgres) está verde. Drawer 360° del pipeline con copiloto IA (resumen puntual), email y chat WhatsApp/Instagram funcionando de punta a punta. F7 Social ya no depende de construir la Graph API de Meta nosotros mismos: este sistema planifica el contenido (Kanban, calendario, copy, imágenes) y la publicación real la hace un agente MCP conectado además al MCP oficial de Metricool o Composio — ver nota en la tabla de decisiones. Siguen pendientes las credenciales reales de OpenBSP, Resend y Tally (las provee el dueño del negocio, no requieren más código).
+**Estado actual:** backend y modelo de F0–F9 implementados; workspace operativo (`/workspace/*`) con datos reales — CRM (tabla + pipeline Kanban), tareas, inbox, hoy, billing, analytics, social. CI real en GitHub Actions (typecheck + lint + build) está verde. Drawer 360° del pipeline con copiloto IA (resumen puntual), email y chat WhatsApp/Instagram funcionando de punta a punta. F7 Social ya no depende de construir la Graph API de Meta nosotros mismos: este sistema planifica el contenido (Kanban, calendario, copy, imágenes) y la publicación real la hace un agente MCP conectado además al MCP oficial de Metricool o Composio — ver nota en la tabla de decisiones. Siguen pendientes las credenciales reales de OpenBSP, Resend y Tally (las provee el dueño del negocio, no requieren más código).
 
 | Fase | Estado |
 |---|---|
@@ -20,7 +20,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | **F8 Formularios y ciclo de vida** (Tally webhook firmado + `form-submissions` + matching lead/cliente + alertas) | ✅ |
 | **F9 MCP + Task manager** (`@payloadcms/plugin-mcp` + `tasks` kanban + `conversation-summaries`) | 🟡 copiloto IA in-app (solo resumen puntual) ✅ — MCP externo (`/api/mcp`) ahora con create/update en `conversation-summaries`/`social-posts`/`post-metrics`/`media` además de `clients`/`leads`/`tasks`: endurecer por rol/tenant antes de repartir API keys ⬜ |
 | F7 Social (planificación + publicación vía agente MCP) | ✅ planificación (Kanban, calendario, copy, imágenes) — publicación real delegada a un agente MCP conectado a Metricool/Composio, fuera de este repo |
-| F10 Hardening (CI real + suite de pruebas + rate limiting + seguridad PITR) | 🟡 CI GitLab + tests de integración con Postgres real ✅ · rate limiting en Server Actions de IA/email/WhatsApp ✅ · e2e Playwright en CI ✅ · MCP externo y backups PITR ⬜ |
+| F10 Hardening (CI real + suite de pruebas + rate limiting + seguridad PITR) | 🟡 CI GitHub Actions (typecheck + lint + build) ✅ · rate limiting en Server Actions de IA/email/WhatsApp ✅ · tests de integración (Vitest) y e2e (Playwright) en local ⏳ pendiente de subir a CI · MCP externo y backups PITR ⬜ |
 
 **Cómo vamos:** infraestructura, CRM, facturación, seguimiento diario, jobs, formularios, pipeline conversacional 360°, colecciones de tareas y CI real están implementados y verificados contra Postgres real en cada merge request. El MCP externo (para clientes MCP de terceros) tiene ahora más superficie de escritura (`clients`/`leads`/`tasks`/`conversation-summaries`/`social-posts`/`post-metrics`/`media`) y debe endurecerse por operación/rol/tenant antes de entregar una API key a nadie fuera del equipo. El workspace es la aplicación diaria integrada; `/admin` sigue como backoffice técnico.
 
@@ -39,7 +39,7 @@ CRM integral (una empresa, sus clientes hoy; SaaS-ready): mensajería WhatsApp/I
 | Formularios | Tally (webhooks firmados → `form-submissions`) |
 | Citas | Google Calendar API v3 (solo lectura; el agente de OpenBSP crea las citas) |
 | Publicación social | Este sistema solo planifica (Kanban, calendario, copy, imágenes en `social-posts`/`media`); la publicación real la hace un agente conectado por MCP a `/api/mcp` (este sistema) + al MCP oficial de Metricool o Composio (gestionan OAuth/tokens de Meta/TikTok/etc.) |
-| Agente IA / MCP | Protocolo MCP nativo vía `@payloadcms/plugin-mcp` (expone clientes, leads, tareas, resúmenes, publicaciones sociales y métricas) · Copiloto IA in-app: una sola acción puntual (resumen de conversación) vía Vercel AI SDK · Reactivo (entrantes): agente nativo de OpenBSP |
+| Agente IA / MCP | Protocolo MCP nativo vía `@payloadcms/plugin-mcp` (expone clientes, leads, tareas, resúmenes, publicaciones sociales y métricas) · Copiloto IA in-app: una sola acción puntual (resumen de conversación) vía Vercel AI SDK · AI Worker de fondo: auto-digest de chats (`summarizeConversation` + `sweepConversations`) con Groq/OpenRouter/OpenAI/Anthropic por tenant · Reactivo (entrantes): agente nativo de OpenBSP. Nota: CopilotKit fue eliminado — su sustituto es el AI Worker + el copiloto puntual + agentes MCP externos |
 
 ## Configuración regional
 
@@ -217,7 +217,8 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 - Objetivo: acceso externo por MCP y gestión de tareas interconectada; la IA interna se limita a una acción puntual.
 - Construido:
   - Integración oficial de `@payloadcms/plugin-mcp` registrada para clientes, leads, tareas, resúmenes, pagos, publicaciones sociales y métricas — expuesta en `/api/mcp` para clientes MCP externos (Claude Desktop, Cursor, o cualquier agente que conectes). Sigue pendiente restringir operaciones/rol/tenant antes de entregar una API key fuera del equipo (ver "Qué falta").
-  - Copiloto IA in-app: una sola acción puntual (botón "Generar resumen IA" del drawer del lead, vía Anthropic/OpenAI), no un chat de uso general — cualquier análisis más abierto se hace conectando un cliente MCP externo.
+  - Copiloto IA in-app: una sola acción puntual (botón "Generar resumen IA" del drawer del lead), no un chat de uso general — cualquier análisis más abierto se hace conectando un cliente MCP externo. El modelo se resuelve por tenant con `src/lib/ai-provider.ts` (Groq → OpenRouter → OpenAI → Anthropic, con fallback de variables de entorno) vía Vercel AI SDK. Histórico: se evaluó CopilotKit como copiloto embebido y se eliminó; el reemplazo es este copiloto puntual + el AI Worker de fondo + agentes MCP externos.
+  - AI Worker de fondo: `summarizeConversation` + `sweepConversations` auto-digestan chats cerrados/activos en `conversation-summaries` sin intervención manual, usando la config de IA del tenant (proveedor, clave y modelo en `/workspace/settings`).
   - Colección `tasks` (título, descripción, estados kanban, prioridad, checklist, fechas límite, cliente y lead vinculados).
   - Colección `conversation-summaries` (resúmenes ejecutivos, sentimiento, objeciones y próximos pasos) — generable desde el copiloto IA del drawer del lead o por un agente MCP externo.
   - Creación automática de tareas ante quejas en formularios (`tally_complaint`).
@@ -227,7 +228,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 - Objetivo: producción confiable.
 - Tareas: revisión seguridad (webhooks firmados, secrets, tokens cifrados), tests de webhooks y jobs, manejo de rate limits/reintentos, backups PITR Neon, CI real.
 - Construido:
-  - CI real en GitLab (`.gitlab-ci.yml`): typecheck + lint + build + tests de integración contra un Postgres de servicio, más un job de e2e (Playwright) con navegador headless.
+  - CI real en GitHub Actions (`.github/workflows/ci.yml`): typecheck + lint + build (con `PAYLOAD_SECRET`/`DATABASE_URL` dummy solo para el build) en cada push/PR a main. Segundo workflow (`.github/workflows/trigger-jobs.yml`): dispara la Job Queue de Payload cada 5 minutos vía `/api/cron` (nota: GitHub lo deshabilita tras 60 días sin actividad en el repo — si el repo va a estar dormido más de eso, migrar a Upstash QStash). Los tests de integración (Vitest, 26 specs) y e2e (Playwright) corren en local con `pnpm test`; subirlos a CI es pendiente de F10.
   - Rate limiting por usuario en las Server Actions de costo variable del pipeline (resumen de IA, envío de email, respuesta WhatsApp) — mismo mecanismo (Upstash Redis con fallback en memoria) que ya protegía los webhooks públicos.
 - Pendiente: endurecer MCP externo (ver "Qué falta"), backups PITR verificados por el dueño.
 - Done when: suite de webhooks e integración verde en CI con Postgres real (✅); auditoría de seguridad sin hallazgos High/Critical abiertos salvo el MCP externo (pendiente).
@@ -241,7 +242,7 @@ El esquema ya es multi-tenant; lo que falta es producto/comercial y se decide m�
 3. **Configurar Webhook Tally**: apuntar a `https://tu-dominio/api/webhooks/tally` y configurar `TALLY_SIGNING_SECRET`.
 4. ~~**Endurecer el MCP externo**~~ ✅ Resuelto: `clients`, `leads` y `tasks` ya no tienen `enabled: true` (CRUD sin restricción) — ahora es `{ find: true, create: true, update: true, delete: false }`, mismo criterio que `payments`/`invoices`/`quotes`/`conversation-summaries`/`social-posts`/`post-metrics`/`media`. Ningún agente MCP externo puede borrar un registro de negocio. Sigue pendiente: restringir además por rol/tenant si algún día se entrega una API key de este endpoint a alguien fuera del equipo (hoy solo hay un tenant activo).
 5. **Backups PITR de Neon**: verificar que estén activos y probar un restore real — no se puede confirmar desde el código.
-6. **Actualizar `sharp`** de `0.34.2` a `>=0.35.0`: vulnerabilidad alta (CVEs heredados de libvips) en la dependencia que procesa las imágenes subidas por usuarios (`pnpm audit`). Cambio de versión simple, sin riesgo de breaking changes conocido.
+6. ~~**Actualizar `sharp`**~~ ✅ Resuelto: `sharp` ya está en `0.35.4` (>=0.35.0), eliminadas las CVEs heredadas de libvips.
 7. **Configurar `DATABASE_URL_DIRECT` en Vercel**: copiar la connection string directa de Neon (sin `-pooler`, sin `pgbouncer=true`) y ponerla como esa variable — el código ya la usa para migraciones si existe (`scripts/migrate.mjs`), solo falta configurarla. Sin ella, `pnpm migrate` corre por el pooler, que Neon mismo desrecomienda para migraciones.
 
 No bloquean v1: multi-tenant real (SaaS). F7 Social ya no bloquea nada de código — solo falta que conectes un agente MCP a Metricool/Composio cuando quieras publicar de verdad.
@@ -254,6 +255,7 @@ No bloquean v1: multi-tenant real (SaaS). F7 Social ya no bloquea nada de códig
 - **Antes de CADA push**: correr `pnpm verify` (migrate + build + lint). Es exactamente lo que ejecuta Vercel; `typecheck`/`lint` solos NO bastan — `next build` compila también scripts y vistas cliente y detecta errores que se le escapan a tsc. Los fallos repetidos de deploy de Vercel en agosto 2025 vinieron todos de empujar sin este paso.
 - Seguridad: secretos solo en variables de entorno (Vercel/local `.env` nunca commiteado); tokens OAuth cifrados en BD.
 - Diagrama del sistema: `docs/diagrams/sistema.excalidraw` (editable en excalidraw.com o VS Code).
+- **Auditoría de corte:** antes de cada sprint o cuando sientas que el repo se fue de rumbo, correr el prompt maestro `docs/GRILLME.md` en modo plan — produce corte de features vivas/muertas, hallazgos con evidencia, score y plan de máximo 5 tareas.
 
 ## Roadmap opcional (post-F10)
 
