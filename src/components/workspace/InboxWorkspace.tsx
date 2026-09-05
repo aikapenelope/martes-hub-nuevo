@@ -163,6 +163,8 @@ export function InboxWorkspace({
       setSelectedId(conv.id)
       setSelectedConv(conv)
       setMobileView('chat')
+      setMessages([])
+      setHasMore(false)
       setNotes([])
       void loadThread(conv.id)
       void loadNotes(conv.id)
