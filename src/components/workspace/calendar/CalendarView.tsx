@@ -17,6 +17,8 @@ import {
   X,
 } from 'lucide-react'
 import type { CalendarEvent, CalendarMonthData } from '@/lib/calendar-data'
+import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
+import type { Client, Lead, User as PayloadUser } from '@/payload-types'
 
 type FilterType = 'all' | 'cita' | 'task' | 'payment' | 'membership'
 
@@ -90,7 +92,21 @@ function getCaracasToday(): { year: number; month: number; dateKey: string } {
   }
 }
 
-export function CalendarView({ data }: { data: CalendarMonthData }) {
+interface CalendarViewProps {
+  data: CalendarMonthData
+  canEdit?: boolean
+  assignees?: PayloadUser[]
+  clients?: Client[]
+  leads?: Lead[]
+}
+
+export function CalendarView({
+  data,
+  canEdit,
+  assignees,
+  clients,
+  leads,
+}: CalendarViewProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [filter, setFilter] = useState<FilterType>('all')
@@ -220,6 +236,16 @@ export function CalendarView({ data }: { data: CalendarMonthData }) {
           >
             Hoy
           </button>
+
+          {canEdit && assignees && assignees.length > 0 && (
+            <TaskCreateDialog
+              assignees={assignees}
+              clients={clients ?? []}
+              leads={leads ?? []}
+              variant="secondary"
+              redirectTo={`/workspace/calendar?year=${year}&month=${month}`}
+            />
+          )}
         </div>
 
         {/* Filtros rápidos */}

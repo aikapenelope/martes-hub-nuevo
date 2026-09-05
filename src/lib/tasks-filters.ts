@@ -15,6 +15,8 @@ export interface TaskSearchParams {
   responsable?: string | string[]
   vencimiento?: string | string[]
   page?: string | string[]
+  client?: string | string[]
+  lead?: string | string[]
 }
 
 export interface TaskFilters {
@@ -25,6 +27,8 @@ export interface TaskFilters {
   assignee: number | 'todos'
   due: DueFilter
   page: number
+  clientId?: number
+  leadId?: number
 }
 
 const first = (value?: string | string[]) => Array.isArray(value) ? value[0] : value
@@ -36,16 +40,23 @@ export function parseTaskFilters(params: TaskSearchParams): TaskFilters {
   const dueValue = first(params.vencimiento)
   const pageValue = Number(first(params.page))
   const assigneeValue = Number(first(params.responsable))
+  const clientValue = Number(first(params.client))
+  const leadValue = Number(first(params.lead))
 
-  return {
-    view: TASK_VIEWS.includes(viewValue as TaskView) ? viewValue as TaskView : 'tablero',
+  const filters: TaskFilters = {
+    view: TASK_VIEWS.includes(viewValue as TaskView) ? (viewValue as TaskView) : 'tablero',
     query: (first(params.q) ?? '').trim().slice(0, 120),
-    status: TASK_STATUSES.includes(statusValue as TaskStatus) ? statusValue as TaskStatus : 'todos',
-    priority: TASK_PRIORITIES.includes(priorityValue as TaskPriority) ? priorityValue as TaskPriority : 'todas',
+    status: TASK_STATUSES.includes(statusValue as TaskStatus) ? (statusValue as TaskStatus) : 'todos',
+    priority: TASK_PRIORITIES.includes(priorityValue as TaskPriority) ? (priorityValue as TaskPriority) : 'todas',
     assignee: Number.isInteger(assigneeValue) && assigneeValue > 0 ? assigneeValue : 'todos',
-    due: ['vencidas', 'hoy', 'semana', 'sin_fecha'].includes(dueValue ?? '') ? dueValue as DueFilter : 'todos',
+    due: ['vencidas', 'hoy', 'semana', 'sin_fecha'].includes(dueValue ?? '') ? (dueValue as DueFilter) : 'todos',
     page: Number.isInteger(pageValue) && pageValue > 0 ? Math.min(pageValue, 10000) : 1,
   }
+
+  if (Number.isInteger(clientValue) && clientValue > 0) filters.clientId = clientValue
+  if (Number.isInteger(leadValue) && leadValue > 0) filters.leadId = leadValue
+
+  return filters
 }
 
 export function checklistProgress(checklist: { done?: boolean | null }[] | null | undefined) {

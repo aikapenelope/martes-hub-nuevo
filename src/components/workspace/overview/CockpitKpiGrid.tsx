@@ -43,6 +43,9 @@ export function CockpitKpiGrid({
     revenuePendingTotal,
     revenuePendingCount,
     overduePaymentsCount,
+    averageTicket,
+    quotesActiveCount,
+    quotesActiveTotal,
   } = metrics
 
   const periodLabel = RANGE_LABELS[timeRange] ?? 'Cobrado en el Período'
@@ -75,9 +78,9 @@ export function CockpitKpiGrid({
         </div>
         <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400">
           <span>
-            {revenuePeriodCount} pago{revenuePeriodCount !== 1 ? 's' : ''} confirmado
-            {revenuePeriodCount !== 1 ? 's' : ''}
-            {revenueTrendPct === null && ' · sin período anterior'}
+            {revenuePeriodCount} pago{revenuePeriodCount !== 1 ? 's' : ''}
+            {averageTicket > 0 && ` · Ticket prom: ${currency.format(averageTicket)}`}
+            {revenueTrendPct === null && revenuePeriodCount === 0 && ' · sin período anterior'}
           </span>
           {revenueSeries && revenueSeries.length > 1 && <Sparkline data={revenueSeries} />}
         </div>
@@ -166,6 +169,9 @@ export function CockpitKpiGrid({
         </div>
         <div className="text-[11px] font-mono text-zinc-400">
           {revenuePendingCount} cobro{revenuePendingCount !== 1 ? 's' : ''} pendiente{revenuePendingCount !== 1 ? 's' : ''}
+          {quotesActiveTotal > 0 && (
+            <span className="text-zinc-300"> · {quotesActiveCount} cotiz. ({currency.format(quotesActiveTotal)})</span>
+          )}
           {overduePaymentsCount > 0 && (
             <span className="text-amber-400 font-bold"> · {overduePaymentsCount} vencido{overduePaymentsCount !== 1 ? 's' : ''}</span>
           )}

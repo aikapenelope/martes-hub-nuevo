@@ -2,18 +2,36 @@ import 'server-only'
 
 import Link from 'next/link'
 import {
+  AlertTriangle,
   Calendar,
+  Check,
   CheckCircle2,
   CheckSquare,
+  Clock3,
   CreditCard,
+  ExternalLink,
   MessageCircle,
   RefreshCw,
   Sparkles,
+  UserRound,
 } from 'lucide-react'
 
 import { getUpcomingAgenda } from '@/lib/agenda-data'
 import { collectFollowupsToday } from '@/lib/followups-today'
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
+import { getAssignableUsers } from '@/lib/tasks-data'
+import { changeTaskStatusAction } from '@/lib/tasks-actions'
+import type { Client, Lead, Payment, Task, User } from '@/payload-types'
+
+const priorityCls: Record<string, string> = {
+  baja: 'bg-zinc-800 text-zinc-300 border border-zinc-700',
+  media: 'bg-zinc-800 text-zinc-200 border border-zinc-600',
+  alta: 'bg-amber-900/50 text-amber-300 border border-amber-800',
+  urgente: 'bg-red-900/50 text-red-400 border border-red-800',
+}
+
+const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 
 export default async function HoyPage() {
   const context = await getWorkspaceContext()
@@ -43,7 +61,15 @@ export default async function HoyPage() {
 
   const startOfToday = new Date(`${isoDateStr}T00:00:00Z`)
 
-  const [agendaItems, followups] = await Promise.all([
+  const [
+    agendaItems,
+    followups,
+    overdueTasksRes,
+    overduePaymentsRes,
+    assignees,
+    clientsRes,
+    leadsRes,
+  ] = await Promise.all([
     getUpcomingAgenda({
       payload: context.payload,
       tenantId: context.tenantId,
@@ -56,11 +82,71 @@ export default async function HoyPage() {
       user: context.user,
       tenantId: context.tenantId,
     }),
+    context.payload.find({
+      collection: 'tasks',
+      limit: 20,
+      sort: 'dueDate',
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+      where: {
+        and: [
+          { tenant: { equals: context.tenantId } },
+          { dueDate: { less_than: startOfToday.toISOString() } },
+          { status: { not_in: ['completada', 'cancelada'] } },
+        ],
+      },
+    }),
+    context.payload.find({
+      collection: 'payments',
+      limit: 20,
+      sort: 'dueDate',
+      depth: 1,
+      overrideAccess: false,
+      user: context.user,
+      where: {
+        and: [
+          { tenant: { equals: context.tenantId } },
+          { dueDate: { less_than: startOfToday.toISOString() } },
+          { status: { in: ['pendiente', 'vencido'] } },
+        ],
+      },
+    }),
+    getAssignableUsers({
+      payload: context.payload,
+      user: context.user,
+      tenantId: context.tenantId,
+    }),
+    context.payload.find({
+      collection: 'clients',
+      depth: 0,
+      limit: 100,
+      sort: 'name',
+      where: { tenant: { equals: context.tenantId } },
+      select: { name: true },
+      overrideAccess: false,
+      user: context.user,
+    }),
+    context.payload.find({
+      collection: 'leads',
+      depth: 0,
+      limit: 100,
+      sort: 'fullName',
+      where: { tenant: { equals: context.tenantId } },
+      select: { fullName: true },
+      overrideAccess: false,
+      user: context.user,
+    }),
   ])
 
   const appointments = agendaItems.filter((i) => i.type === 'cita')
   const tasks = agendaItems.filter((i) => i.type === 'task')
   const payments = agendaItems.filter((i) => i.type === 'payment')
+  const overdueTasks = overdueTasksRes.docs as Task[]
+  const overduePayments = overduePaymentsRes.docs as Payment[]
+  // KPI de mora basado en totalDocs: las consultas de documentos vienen limitadas a 20
+  // para el preview visual, pero el total debe reflejar TODAS las tareas/cobros vencidos.
+  const totalOverdue = (overdueTasksRes.totalDocs ?? 0) + (overduePaymentsRes.totalDocs ?? 0)
   const totalCommitments = appointments.length + tasks.length + payments.length
 
   let todayDateFormatted = ''
@@ -84,7 +170,7 @@ export default async function HoyPage() {
   return (
     <div className="space-y-6">
       {/* Hero Header */}
-      <section className="border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
+      <section className="oled-card p-5 shadow-2xl">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <div className="mb-2 flex items-center gap-2 text-xs font-mono text-zinc-400 uppercase tracking-wider">
@@ -99,6 +185,15 @@ export default async function HoyPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {context.canEdit && (
+              <TaskCreateDialog
+                assignees={assignees}
+                clients={clientsRes.docs as Client[]}
+                leads={leadsRes.docs as Lead[]}
+                variant="primary"
+                redirectTo="/workspace/hoy"
+              />
+            )}
             <Link
               href="/workspace/hoy"
               className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition inline-flex items-center gap-1.5 uppercase tracking-wider font-mono"
@@ -110,7 +205,7 @@ export default async function HoyPage() {
       </section>
 
       {/* KPI Cards Strip */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <div className="oled-card p-4">
           <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
             <Calendar className="w-4 h-4 text-sky-400" /> Citas hoy
@@ -135,13 +230,112 @@ export default async function HoyPage() {
           </div>
           <p className="mt-2 text-2xl font-bold font-mono text-white">{followups.length}</p>
         </div>
+        <div className="oled-card p-4">
+          <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
+            <AlertTriangle className={`w-4 h-4 ${totalOverdue > 0 ? 'text-red-400' : 'text-zinc-500'}`} /> Vencidas
+          </div>
+          <p className={`mt-2 text-2xl font-bold font-mono ${totalOverdue > 0 ? 'text-red-400' : 'text-zinc-400'}`}>
+            {totalOverdue}
+          </p>
+        </div>
       </section>
+
+      {/* Alerta de Vencidas si existen compromisos atrasados */}
+      {totalOverdue > 0 && (
+        <section className="border border-red-900/60 bg-red-950/20 p-4 space-y-3">
+          <div className="flex items-center justify-between border-b border-red-900/40 pb-2">
+            <div className="flex items-center gap-2 text-red-300 text-xs font-bold font-mono uppercase tracking-wider">
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+              <span>Atención Prioritaria: Compromisos con Vencimiento Atrasado ({totalOverdue})</span>
+            </div>
+            <span className="text-[11px] font-mono text-red-400/80">Requieren acción inmediata</span>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {overdueTasks.map((t) => (
+              <div
+                key={`overdue-t-${t.id}`}
+                className="flex items-center justify-between gap-3 p-3 bg-zinc-950/80 border border-red-900/40 text-xs"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-mono px-1 py-0.2 text-red-400 bg-red-950 border border-red-800 uppercase">
+                      Tarea vencida
+                    </span>
+                    <span className={`text-[10px] font-mono px-1 py-0.2 ${priorityCls[t.priority] || ''}`}>
+                      {t.priority}
+                    </span>
+                  </div>
+                  <strong className="block text-white mt-1 truncate">{t.title}</strong>
+                  <span className="text-[10px] font-mono text-zinc-500">
+                    Límite: {t.dueDate?.slice(0, 10)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {context.canEdit && (
+                    <form action={changeTaskStatusAction}>
+                      <input type="hidden" name="id" value={t.id} />
+                      <input type="hidden" name="status" value="completada" />
+                      <button
+                        type="submit"
+                        title="Marcar como completada"
+                        className="p-1.5 bg-zinc-900 hover:bg-emerald-950 hover:text-emerald-300 border border-zinc-800 text-zinc-400 transition"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                    </form>
+                  )}
+                  <Link
+                    href={`/workspace/tasks/${t.id}`}
+                    className="text-xs text-sky-400 hover:text-white font-mono underline"
+                  >
+                    Ver
+                  </Link>
+                </div>
+              </div>
+            ))}
+
+            {overduePayments.map((p) => {
+              const clientObj = typeof p.client === 'object' && p.client ? (p.client as Client) : null
+              return (
+                <div
+                  key={`overdue-p-${p.id}`}
+                  className="flex items-center justify-between gap-3 p-3 bg-zinc-950/80 border border-red-900/40 text-xs"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-mono px-1 py-0.2 text-red-400 bg-red-950 border border-red-800 uppercase">
+                        Cobro vencido
+                      </span>
+                      <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                        {usd.format(p.amount)}
+                      </span>
+                    </div>
+                    <strong className="block text-white mt-1 truncate">
+                      {clientObj?.name ?? 'Cliente'}
+                    </strong>
+                    <span className="text-[10px] font-mono text-zinc-500">
+                      Venció: {p.dueDate?.slice(0, 10)}
+                    </span>
+                  </div>
+                  <Link
+                    href="/workspace/billing"
+                    className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs font-mono uppercase font-bold shrink-0 transition"
+                  >
+                    Cobrar →
+                  </Link>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Main Grid: Agenda & Followups */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Agenda del Día */}
         <div className="space-y-4">
-          <div className="border border-zinc-800 bg-zinc-950 p-5">
+          <div className="oled-card p-5">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-white" />
@@ -201,15 +395,30 @@ export default async function HoyPage() {
                           key={`task-${idx}`}
                           className="flex items-center justify-between p-2.5 bg-zinc-900/60 border border-zinc-800"
                         >
-                          <div>
-                            <Link href={item.href} className="text-xs font-semibold text-white hover:underline">
-                              {item.label}
-                            </Link>
-                            <p className="text-[10px] text-zinc-400 font-mono mt-0.5">{item.sublabel}</p>
+                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                            {context.canEdit && item.id && (
+                              <form action={changeTaskStatusAction}>
+                                <input type="hidden" name="id" value={item.id} />
+                                <input type="hidden" name="status" value="completada" />
+                                <button
+                                  type="submit"
+                                  title="Marcar como completada"
+                                  className="h-4 w-4 rounded border border-zinc-700 bg-black hover:bg-emerald-950 hover:border-emerald-600 flex items-center justify-center text-transparent hover:text-emerald-300 transition"
+                                >
+                                  <Check size={11} />
+                                </button>
+                              </form>
+                            )}
+                            <div className="truncate">
+                              <Link href={item.href} className="text-xs font-semibold text-white hover:underline truncate block">
+                                {item.label}
+                              </Link>
+                              <p className="text-[10px] text-zinc-400 font-mono mt-0.5 truncate">{item.sublabel}</p>
+                            </div>
                           </div>
                           <Link
                             href={item.href}
-                            className="text-xs text-zinc-400 hover:text-white font-mono"
+                            className="text-xs text-zinc-400 hover:text-white font-mono shrink-0"
                           >
                             Ver tarea →
                           </Link>
@@ -254,7 +463,7 @@ export default async function HoyPage() {
 
         {/* Seguimientos Proactivos (WhatsApp) */}
         <div className="space-y-4">
-          <div className="border border-zinc-800 bg-zinc-950 p-5">
+          <div className="oled-card p-5">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div className="flex items-center gap-2">
                 <MessageCircle className="w-4 h-4 text-[#25d366]" />

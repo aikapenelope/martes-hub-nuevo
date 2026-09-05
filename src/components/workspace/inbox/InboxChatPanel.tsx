@@ -107,7 +107,7 @@ export function InboxChatPanel({
   nowTs: number
   onToggleContextPanel: () => void
   onLoadMore: () => void
-  onSendMessage: (text: string) => Promise<{ ok: boolean; error?: string; needsTemplate?: boolean }>
+  onSendMessage: (text: string, idempotencyKey?: string) => Promise<{ ok: boolean; error?: string; needsTemplate?: boolean }>
   onStatusChange: (status: 'open' | 'pending' | 'resolved') => void
   onBack?: () => void
 }) {
@@ -131,19 +131,35 @@ export function InboxChatPanel({
   }, [messages])
 
 
+  // Clave de idempotencia del mensaje compuesto: se genera en el cliente y se
+  // conserva hasta que el envío tenga éxito, de modo que cualquier reintento del
+  // mismo borrador reutilice la misma clave y no duplique la entrega.
+  const draftKeyRef = useRef<string | null>(null)
+
+  function newIdempotencyKey(): string {
+    const random =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2)
+    return `msg_${Date.now()}_${random}`
+  }
+
   async function handleSend(): Promise<void> {
     const trimmed = draft.trim()
     if (!trimmed || sending) return
     setError(null)
     setNeedsTemplate(false)
+    if (!draftKeyRef.current) draftKeyRef.current = newIdempotencyKey()
 
-    const res = await onSendMessage(trimmed)
+    const res = await onSendMessage(trimmed, draftKeyRef.current)
     if (res.ok) {
       setError(null)
       setNeedsTemplate(false)
       setDraft('')
+      draftKeyRef.current = null
       textareaRef.current?.focus()
     } else {
+      // Conserva draftKeyRef para que un reintento del mismo mensaje use la misma clave
       setError(res.error || 'Error enviando mensaje')
       setNeedsTemplate(Boolean(res.needsTemplate))
     }
@@ -151,6 +167,8 @@ export function InboxChatPanel({
 
   function insertSnippet(snippet: QuickSnippet) {
     setDraft((prev) => (prev ? `${prev}\n${snippet.text}` : snippet.text))
+    // El texto cambió: el próximo envío es un mensaje nuevo
+    draftKeyRef.current = null
     textareaRef.current?.focus()
   }
 
@@ -330,7 +348,11 @@ export function InboxChatPanel({
                               {canEdit && m.text && (
                                 <button
                                   type="button"
-                                  onClick={() => void onSendMessage(m.text || '')}
+                                  onClick={() => {
+                                    // Reintento idempotente: conserva la clave original del mensaje fallido
+                                    const origKey = typeof m.statusJson?.idempotencyKey === 'string' ? m.statusJson.idempotencyKey : undefined
+                                    void onSendMessage(m.text || '', origKey)
+                                  }}
                                   className="ml-1 text-[9px] text-red-300 underline hover:text-white"
                                 >
                                   Reintentar
@@ -401,7 +423,11 @@ export function InboxChatPanel({
             <textarea
               ref={textareaRef}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value)
+                // El texto cambió: el próximo envío es un mensaje nuevo con clave propia
+                draftKeyRef.current = null
+              }}
               placeholder="Escribe tu mensaje... (Enter para enviar, Shift+Enter para salto de línea)"
               rows={2}
               className="flex-1 border border-zinc-800 bg-black px-3 py-2 text-xs text-white placeholder:text-zinc-500 focus:border-zinc-600 focus:outline-none font-sans rounded resize-none"

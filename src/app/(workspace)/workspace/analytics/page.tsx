@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   Activity,
   ArrowRight,
+  CheckSquare,
   CircleDollarSign,
   FileSpreadsheet,
   Layers,
@@ -36,7 +37,7 @@ export default async function AnalyticsPage() {
     monthlyRevenueSeries(context.payload, context.tenantId, 12),
   ])
 
-  const { funnel, satisfaction, sources, clientsByStage, activities, financials } = data
+  const { funnel, satisfaction, sources, clientsByStage, activities, financials, tasks } = data
 
   const monthNames = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
   const revenueTrend = revenueSeries.map((p) => ({
@@ -53,25 +54,25 @@ export default async function AnalyticsPage() {
       accent: 'cyan' as const,
     },
     {
-      label: 'Satisfacción Formularios',
-      value: `${satisfaction.satisfactionRate}%`,
-      note: `${satisfaction.positiveSubmissions} sin quejas de ${satisfaction.totalSubmissions} envíos`,
-      icon: Sparkles,
-      accent: 'indigo' as const,
+      label: 'Cobrado en el Mes (USD)',
+      value: usd.format(financials.collectedMonth),
+      note: `${financials.collectionRate}% efectividad (${usd.format(financials.pendingCollection)} pend.)`,
+      icon: CircleDollarSign,
+      accent: 'amber' as const,
     },
     {
-      label: 'Actividad Comercial (Mes)',
-      value: activities.totalMonth,
-      note: `${activities.byType.llamada} llamadas, ${activities.byType.reunion} reuniones, ${activities.byType.whatsapp} chats`,
-      icon: Activity,
+      label: 'Cotizaciones en Pipeline',
+      value: usd.format(financials.quotesActiveTotal),
+      note: `${financials.quotesCount} cotizaciones emitidas`,
+      icon: TrendingUp,
       accent: 'sky' as const,
     },
     {
-      label: 'Cobrado en el Mes',
-      value: usd.format(financials.collectedMonth),
-      note: `${usd.format(financials.pendingCollection)} pendiente por cobrar`,
-      icon: CircleDollarSign,
-      accent: 'amber' as const,
+      label: 'Eficiencia Operativa Tareas',
+      value: `${tasks.completionRate}%`,
+      note: `${tasks.completedMonth} completadas (${tasks.overdueTotal} vencidas)`,
+      icon: CheckSquare,
+      accent: 'indigo' as const,
     },
   ]
 
@@ -220,6 +221,38 @@ export default async function AnalyticsPage() {
               <div className="flex justify-between pt-1">
                 <span className="text-zinc-400 flex items-center gap-1.5"><Layers className="w-3 h-3" /> Notas y seguimiento</span>
                 <span className="font-bold text-white">{activities.byType.nota + activities.byType.email + activities.byType.otro}</span>
+              </div>
+            </div>
+          </OledCard>
+
+          <OledCard>
+            <SectionHeader
+              eyebrow="Operaciones"
+              title="Cumplimiento de Tareas"
+              action={
+                <Link href="/workspace/tasks" className="text-xs text-zinc-400 hover:text-white font-mono transition">
+                  Ver tareas →
+                </Link>
+              }
+            />
+            <div className="space-y-2 text-xs font-mono">
+              <div className="flex justify-between border-b border-zinc-900 pb-2">
+                <span className="text-zinc-400">Tasa de finalización</span>
+                <span className="text-emerald-400 font-bold">{tasks.completionRate}%</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-900 pb-2">
+                <span className="text-zinc-400">Completadas este mes</span>
+                <span className="font-bold text-white">{tasks.completedMonth}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-900 pb-2">
+                <span className="text-zinc-400">Pendientes activas</span>
+                <span className="font-bold text-amber-400">{tasks.pendingTotal}</span>
+              </div>
+              <div className="flex justify-between pt-1">
+                <span className="text-zinc-400">Atrasadas / Vencidas</span>
+                <span className={`font-bold ${tasks.overdueTotal > 0 ? 'text-red-400' : 'text-zinc-500'}`}>
+                  {tasks.overdueTotal} {tasks.overdueTotal === 1 ? 'tarea' : 'tareas'}
+                </span>
               </div>
             </div>
           </OledCard>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { Plus, Receipt, X } from 'lucide-react'
 
 import { createPaymentAction } from '@/lib/billing-actions'
@@ -10,13 +10,33 @@ const inputCls =
   'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
 const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
 
+interface PaymentCreateDialogProps {
+  clients: Client[]
+  variant?: 'primary' | 'secondary'
+  defaultRate?: string
+  rateSource?: 'bcv' | 'binance' | 'manual'
+}
+
 /**
  * Crea un cobro sin salir del workspace — reemplaza el link a
  * `/admin/collections/payments/create`. Mismo patrón de `<dialog>` +
  * Server Action que `CrmFormDialog`.
  */
-export function PaymentCreateDialog({ clients, variant = 'secondary' }: { clients: Client[]; variant?: 'primary' | 'secondary' }) {
+export function PaymentCreateDialog({
+  clients,
+  variant = 'secondary',
+  defaultRate,
+  rateSource = 'bcv',
+}: PaymentCreateDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const [amountVal, setAmountVal] = useState<string>('')
+
+  const rateNum = Number(defaultRate)
+  const numAmount = Number(amountVal)
+  const bsEquivalent =
+    rateNum > 0 && numAmount > 0
+      ? (numAmount * rateNum).toLocaleString('es-VE', { minimumFractionDigits: 2 })
+      : null
 
   const btnCls =
     variant === 'primary'
@@ -35,7 +55,10 @@ export function PaymentCreateDialog({ clients, variant = 'secondary' }: { client
         onCancel={() => dialogRef.current?.close()}
       >
         <header className="flex items-center justify-between gap-4 border-b border-zinc-800 px-4 py-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-white">Nuevo cobro</h2>
+          <div>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-white">Nuevo cobro</h2>
+            <p className="text-[10px] text-zinc-500 font-mono">Moneda base: Dólares estadounidenses (USD)</p>
+          </div>
           <button type="button" aria-label="Cerrar" onClick={() => dialogRef.current?.close()} className="text-zinc-400 hover:text-white">
             <X size={16} />
           </button>
@@ -57,10 +80,30 @@ export function PaymentCreateDialog({ clients, variant = 'secondary' }: { client
               </select>
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className={labelCls}>
-                Monto (USD)
-                <input name="amount" type="number" min={0.01} step={0.01} required className={inputCls} />
-              </label>
+              <div>
+                <label className={labelCls}>
+                  Monto (USD)
+                  <input
+                    name="amount"
+                    type="number"
+                    min={0.01}
+                    step={0.01}
+                    required
+                    value={amountVal}
+                    onChange={(e) => setAmountVal(e.target.value)}
+                    placeholder="0.00"
+                    className={inputCls}
+                  />
+                </label>
+                {bsEquivalent && (
+                  <div className="mt-1 text-[11px] font-mono text-emerald-400">
+                    ≈ Bs. {bsEquivalent}{' '}
+                    <span className="text-zinc-500 text-[10px]">
+                      ({rateSource.toUpperCase()} {defaultRate})
+                    </span>
+                  </div>
+                )}
+              </div>
               <label className={labelCls}>
                 Vencimiento
                 <input name="dueDate" type="date" required className={inputCls} />

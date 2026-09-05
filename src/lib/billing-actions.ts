@@ -4,10 +4,20 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import type { Client, Lead } from '@/payload-types'
 
 const MAX_CONCEPT = 240
 const MAX_NOTES = 2000
 const MAX_ITEM_ROWS = 6
+
+function safeInternalRedirectUrl(raw: string | undefined, fallback: string): string {
+  if (!raw) return fallback
+  // Evitar Open Redirect: debe ser ruta interna relativa absoluta iniciada por '/', sin '//' ni protocolos '://'
+  if (raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('://')) {
+    return raw
+  }
+  return fallback
+}
 
 function assertEditor(canEdit: boolean): void {
   if (!canEdit) throw new Error('No tienes permiso para modificar cobros')
@@ -148,6 +158,96 @@ async function resolveClientGroup(
 }
 
 /**
+ * Busca una factura previamente generada a partir de esta cotización.
+ * Es la guardia de idempotencia para conversiones repetidas o concurrentes.
+ */
+async function findExistingConversion(
+  context: Awaited<ReturnType<typeof getWorkspaceContext>>,
+  quoteId: number,
+): Promise<number | undefined> {
+  const existing = await context.payload.find({
+    collection: 'invoices',
+    where: {
+      and: [{ tenant: { equals: context.tenantId } }, { sourceQuote: { equals: quoteId } }],
+    },
+    limit: 1,
+    depth: 0,
+    overrideAccess: false,
+    user: context.user,
+  })
+  return existing.docs[0]?.id
+}
+
+/**
+ * Resuelve el cliente del CRM a partir de la identidad (email/nombre) registrada
+ * en cotizaciones creadas con destinatario Lead o manual, para no perder el cobro
+ * (receivable) al facturar.
+ */
+async function resolveCustomerIdFromQuoteIdentity(
+  context: Awaited<ReturnType<typeof getWorkspaceContext>>,
+  client: { name?: string | null; email?: string | null } | null | undefined,
+): Promise<number | undefined> {
+  if (!client) return undefined
+  if (client.email) {
+    const byEmail = await context.payload.find({
+      collection: 'clients',
+      where: { and: [{ tenant: { equals: context.tenantId } }, { email: { equals: client.email } }] },
+      limit: 1,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+    if (byEmail.docs[0]) return byEmail.docs[0].id
+  }
+  if (client.name) {
+    const byName = await context.payload.find({
+      collection: 'clients',
+      where: { and: [{ tenant: { equals: context.tenantId } }, { name: { equals: client.name } }] },
+      limit: 1,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+    if (byName.docs[0]) return byName.docs[0].id
+  }
+  return undefined
+}
+
+/**
+ * Verifica que los productos del catálogo referenciados en la cotización existan,
+ * pertenezcan al tenant y estén activos. Evita que un formulario manipulado
+ * adjunte ofertas pausadas.
+ */
+async function assertOffersQuotable(
+  context: Awaited<ReturnType<typeof getWorkspaceContext>>,
+  items: QuoteInvoiceItem[],
+): Promise<void> {
+  const ids = Array.from(
+    new Set(items.map((it) => it.product).filter((p): p is number => typeof p === 'number' && p > 0)),
+  )
+  if (ids.length === 0) return
+  const res = await context.payload.find({
+    collection: 'offers',
+    where: {
+      and: [
+        { tenant: { equals: context.tenantId } },
+        { id: { in: ids } },
+        { active: { equals: true } },
+      ],
+    },
+    limit: ids.length,
+    depth: 0,
+    overrideAccess: false,
+    user: context.user,
+  })
+  const found = new Set(res.docs.map((d) => d.id))
+  const invalid = ids.filter((id) => !found.has(id))
+  if (invalid.length > 0) {
+    throw new Error('Hay servicios del catálogo pausados o no disponibles: revisa las líneas de la cotización')
+  }
+}
+
+/**
  * Crea una cotización directamente desde el workspace — reemplaza el link
  * a `/admin/collections/quotes/create`. `payload-invoicepdf` genera el PDF
  * y el número de cotización en su propio `beforeChange` hook, igual que si
@@ -159,6 +259,7 @@ export async function createQuoteAction(formData: FormData): Promise<void> {
 
   const client = await resolveClientGroup(context, formData)
   const items = parseItemRows(formData)
+  await assertOffersQuotable(context, items)
   const validUntilRaw = optionalText(formData, 'validUntil', 20)
 
   const quote = await context.payload.create({
@@ -177,7 +278,11 @@ export async function createQuoteAction(formData: FormData): Promise<void> {
   })
 
   revalidatePath('/workspace/billing')
-  redirect(`/workspace/billing?created=quote-${quote.id}`)
+  revalidatePath('/workspace/offers')
+  revalidatePath('/workspace')
+  const rawRedirect = optionalText(formData, 'redirectTo', 200)
+  const redirectTo = safeInternalRedirectUrl(rawRedirect, `/workspace/billing?created=quote-${quote.id}`)
+  redirect(redirectTo)
 }
 
 /**
@@ -308,6 +413,21 @@ export async function convertQuoteToInvoiceAction(params: {
       return { ok: false, error: 'La cotización no pertenece al tenant activo' }
     }
 
+    if (quote.status !== 'draft' && quote.status !== 'sent') {
+      // Idempotencia: si ya se convirtió, devolver la factura existente en vez de fallar
+      const existingConversion = await findExistingConversion(context, params.quoteId)
+      if (existingConversion) {
+        return { ok: true, invoiceId: existingConversion }
+      }
+      return { ok: false, error: 'Solo se pueden facturar cotizaciones en borrador o enviadas' }
+    }
+
+    // Guardia de idempotencia: rechazar conversiones duplicadas de esta cotización
+    const existingInvoiceId = await findExistingConversion(context, params.quoteId)
+    if (existingInvoiceId) {
+      return { ok: true, invoiceId: existingInvoiceId }
+    }
+
     const items = (quote.items || []).map((it) => ({
       description: it.description,
       quantity: it.quantity,
@@ -325,66 +445,100 @@ export async function convertQuoteToInvoiceAction(params: {
         ? quote.client.customer?.id
         : typeof quote.client?.customer === 'number'
           ? quote.client.customer
-          : undefined
+          : // Cotizaciones de Lead/Manual no traen customer: resolvamos el cliente
+            // del CRM por identidad (email/nombre) para no perder el cobro asociado
+            (await resolveCustomerIdFromQuoteIdentity(context, quote.client))
 
     const dueDate = params.dueDate || new Date(Date.now() + 30 * 86400000).toISOString()
 
-    const invoice = await context.payload.create({
-      collection: 'invoices',
+    // Reclamo atómico de un solo ganador: el UPDATE condicional por estado garantiza
+    // que dos conversiones concurrentes no pasen ambas la verificación de elegibilidad.
+    const claim = await context.payload.update({
+      collection: 'quotes',
+      where: {
+        and: [
+          { id: { equals: params.quoteId } },
+          { tenant: { equals: context.tenantId } },
+          { status: { in: ['draft', 'sent'] } },
+        ],
+      },
+      data: { status: 'accepted' },
       overrideAccess: false,
       user: context.user,
       context: { tenantId: context.tenantId },
-      data: {
-        tenant: context.tenantId,
-        client: {
-          customer: customerId,
-          name: quote.client.name,
-          email: quote.client.email,
-          address: quote.client.address,
-          vatNumber: quote.client.vatNumber,
-        },
-        items,
-        dueDate,
-        notes: quote.notes || undefined,
-        status: 'sent',
-        sourceQuote: quote.id,
-      },
     })
 
-    if (customerId) {
-      await context.payload.create({
-        collection: 'payments',
+    if (!claim.docs || claim.docs.length === 0) {
+      // Otro proceso ganó el reclamo: devolver la conversión existente si existe
+      const winnerConversion = await findExistingConversion(context, params.quoteId)
+      if (winnerConversion) {
+        return { ok: true, invoiceId: winnerConversion }
+      }
+      return { ok: false, error: 'La cotización ya no está disponible para facturar' }
+    }
+
+    try {
+      const invoice = await context.payload.create({
+        collection: 'invoices',
         overrideAccess: false,
         user: context.user,
         context: { tenantId: context.tenantId },
         data: {
           tenant: context.tenantId,
-          client: customerId,
-          amount: invoice.total || quote.total || 0,
-          concept: `Factura ${invoice.invoiceNumber || '#' + invoice.id} (${quote.quoteNumber || 'Cotización #' + quote.id})`,
+          client: {
+            customer: customerId,
+            name: quote.client.name,
+            email: quote.client.email,
+            address: quote.client.address,
+            vatNumber: quote.client.vatNumber,
+          },
+          items,
           dueDate,
-          status: 'pendiente',
-          notes: `Generado automáticamente desde cotización #${quote.id}`,
+          notes: quote.notes || undefined,
+          status: 'sent',
+          sourceQuote: quote.id,
         },
       })
-    }
 
-    if (quote.status !== 'accepted') {
-      await context.payload.update({
-        collection: 'quotes',
-        id: quote.id,
-        overrideAccess: false,
-        user: context.user,
-        context: { tenantId: context.tenantId },
-        data: {
-          status: 'accepted',
-        },
-      })
-    }
+      if (customerId) {
+        await context.payload.create({
+          collection: 'payments',
+          overrideAccess: false,
+          user: context.user,
+          context: { tenantId: context.tenantId },
+          data: {
+            tenant: context.tenantId,
+            client: customerId,
+            amount: invoice.total || quote.total || 0,
+            concept: `Factura ${invoice.invoiceNumber || '#' + invoice.id} (${quote.quoteNumber || 'Cotización #' + quote.id})`,
+            dueDate,
+            status: 'pendiente',
+            notes: `Generado automáticamente desde cotización #${quote.id}`,
+          },
+        })
+      }
 
-    revalidatePath('/workspace')
-    revalidatePath('/workspace/billing')
-    return { ok: true, invoiceId: invoice.id }
+      revalidatePath('/workspace')
+      revalidatePath('/workspace/billing')
+      revalidatePath('/workspace/offers')
+      return { ok: true, invoiceId: invoice.id }
+    } catch (createErr) {
+      // Revertir el reclamo de estado para permitir un reintento limpio
+      await context.payload
+        .update({
+          collection: 'quotes',
+          id: quote.id,
+          overrideAccess: false,
+          user: context.user,
+          context: { tenantId: context.tenantId },
+          data: { status: quote.status },
+        })
+        .catch(() => {})
+      return {
+        ok: false,
+        error: createErr instanceof Error ? createErr.message : 'Error al convertir cotización a factura',
+      }
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error al convertir cotización a factura'
     return { ok: false, error: message }
@@ -430,6 +584,7 @@ export async function updateQuoteStatusAction(params: {
     })
 
     revalidatePath('/workspace/billing')
+    revalidatePath('/workspace/offers')
     return { ok: true }
   } catch (err: unknown) {
     return { ok: false, error: err instanceof Error ? err.message : 'Error al actualizar cotización' }
@@ -482,3 +637,91 @@ export async function updateInvoiceStatusAction(params: {
   }
 }
 
+export interface RecipientSearchResult {
+  id: string
+  name: string
+  companyName?: string
+  email?: string
+  type: 'client' | 'lead'
+  customerId?: number
+}
+
+/**
+ * Búsqueda reactiva de destinatarios (Clientes y Leads) que sobrepasa el límite inicial de 200,
+ * permitiendo al cotizador buscar cualquier registro histórico del CRM del tenant.
+ */
+export async function searchRecipientsAction(query: string): Promise<RecipientSearchResult[]> {
+  try {
+    const context = await getWorkspaceContext()
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+
+    const [clientsRes, leadsRes] = await Promise.all([
+      context.payload.find({
+        collection: 'clients',
+        where: {
+          and: [
+            { tenant: { equals: context.tenantId } },
+            {
+              or: [
+                { name: { contains: q } },
+                { companyName: { contains: q } },
+                { email: { contains: q } },
+              ],
+            },
+          ],
+        },
+        limit: 25,
+        depth: 0,
+        overrideAccess: false,
+        user: context.user,
+      }),
+      context.payload.find({
+        collection: 'leads',
+        where: {
+          and: [
+            { tenant: { equals: context.tenantId } },
+            { status: { not_in: ['descartado'] } },
+            {
+              or: [
+                { fullName: { contains: q } },
+                { companyName: { contains: q } },
+                { email: { contains: q } },
+              ],
+            },
+          ],
+        },
+        limit: 25,
+        depth: 0,
+        overrideAccess: false,
+        user: context.user,
+      }),
+    ])
+
+    const results: RecipientSearchResult[] = []
+    for (const c of clientsRes.docs as Client[]) {
+      results.push({
+        id: `client_${c.id}`,
+        customerId: c.id,
+        name: c.name,
+        companyName: c.companyName || undefined,
+        email: c.email || undefined,
+        type: 'client',
+      })
+    }
+    for (const l of leadsRes.docs as Lead[]) {
+      results.push({
+        id: `lead_${l.id}`,
+        name: l.fullName,
+        companyName: l.companyName || undefined,
+        email: l.email || undefined,
+        type: 'lead',
+      })
+    }
+
+    return results
+  } catch (err) {
+    console.error('[searchRecipientsAction] Error buscando destinatarios:', err)
+    return []
+  }
+}

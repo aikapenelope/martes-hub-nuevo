@@ -273,6 +273,7 @@ export interface CrmRecordDetail {
   relatedClients?: Client[]
   relatedLeads?: Lead[]
   activities: Activity[]
+  tasks: Task[]
   /** Timeline unificado: actividades + conversaciones + emails + citas + tareas + cobros + formularios. */
   timeline: TimelineEntry[]
   /** Conversaciones del registro para deep link al inbox (/workspace/inbox?c=id). */
@@ -336,24 +337,47 @@ export async function getCrmRecord({
     if (clientIds.length > 0) orClauses.push({ client: { in: clientIds } })
     if (leadIds.length > 0) orClauses.push({ lead: { in: leadIds } })
 
-    const activitiesRes = orClauses.length > 0
-      ? await query({
-          collection: 'activities',
-          depth: 1,
-          limit: 40,
-          sort: '-occurredAt',
-          where: tenantWhere(tenantId, [{ or: orClauses }]),
-        })
-      : { docs: [] }
+    const [activitiesRes, tasksRes] = await Promise.all([
+      orClauses.length > 0
+        ? query({
+            collection: 'activities',
+            depth: 1,
+            limit: 40,
+            sort: '-occurredAt',
+            where: tenantWhere(tenantId, [{ or: orClauses }]),
+          })
+        : Promise.resolve({ docs: [] }),
+      orClauses.length > 0
+        ? query({
+            collection: 'tasks',
+            depth: 1,
+            limit: 20,
+            sort: '-dueDate',
+            where: tenantWhere(tenantId, [{ or: orClauses }]),
+          })
+        : Promise.resolve({ docs: [] }),
+    ])
 
-    const timeline: TimelineEntry[] = (activitiesRes.docs as Activity[]).map((a) => ({
-      kind: 'actividad',
-      date: a.occurredAt || a.createdAt,
-      title: a.summary || 'Actividad registrada',
-      detail: a.type,
-      href: null,
-      direction: 'neutral',
-    }))
+    const timeline: TimelineEntry[] = [
+      ...(activitiesRes.docs as Activity[]).map((a) => ({
+        kind: 'actividad' as const,
+        date: a.occurredAt || a.createdAt,
+        title: a.summary || 'Actividad registrada',
+        detail: a.type,
+        href: null,
+        direction: 'neutral' as const,
+      })),
+      ...(tasksRes.docs as Task[]).map((task) => ({
+        kind: 'tarea' as const,
+        date: task.dueDate ?? task.createdAt ?? new Date().toISOString(),
+        title: task.title,
+        detail: `Tarea · ${task.status} · prioridad ${task.priority}`,
+        href: `/workspace/tasks/${task.id}`,
+        direction: 'neutral' as const,
+      })),
+    ]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 60)
 
     return {
       type: 'empresas',
@@ -361,6 +385,7 @@ export async function getCrmRecord({
       relatedClients: clientsRes.docs as Client[],
       relatedLeads: leadsRes.docs as Lead[],
       activities: activitiesRes.docs as Activity[],
+      tasks: tasksRes.docs as Task[],
       timeline,
       conversations: [],
     }
@@ -386,7 +411,7 @@ export async function getCrmRecord({
       query({ collection: 'email-messages', depth: 0, limit: 15, sort: '-date', where: recordWhere }),
       query({ collection: 'email-log', depth: 0, limit: 15, sort: '-createdAt', where: recordWhere }),
       query({ collection: 'appointments', depth: 0, limit: 10, sort: '-start', where: recordWhere }),
-      query({ collection: 'tasks', depth: 0, limit: 10, sort: '-dueDate', where: recordWhere }),
+      query({ collection: 'tasks', depth: 1, limit: 20, sort: '-dueDate', where: recordWhere }),
       query({ collection: 'form-submissions', depth: 0, limit: 10, sort: '-createdAt', where: recordWhere }),
       // Los cobros solo cuelgan de clientes (payments.client es required).
       isLead
@@ -519,6 +544,7 @@ export async function getCrmRecord({
     type,
     ...(isLead ? { lead: record as Lead } : { client: record as Client }),
     activities: activitiesRes.docs as Activity[],
+    tasks: tasksRes.docs as Task[],
     timeline,
     conversations: (conversations as Conversation[]).map((c) => ({
       id: c.id,

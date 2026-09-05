@@ -15,7 +15,7 @@ export default async function BillingPage({
   const context = await getWorkspaceContext(params)
   const { payload, user, tenantId, canEdit } = context
 
-  const [collected, pending, overdue, cancelled, recent, clientsRes, offersRes, quotesRes, invoicesRes] = await Promise.all([
+  const [collected, pending, overdue, cancelled, recent, settingsRes, clientsRes, offersRes, quotesRes, invoicesRes] = await Promise.all([
     paymentsAggregate(payload, tenantId, ['pagado'], startOfMonthIso()),
     paymentsAggregate(payload, tenantId, ['pendiente', 'vencido']),
     paymentsAggregate(payload, tenantId, ['vencido']),
@@ -28,6 +28,13 @@ export default async function BillingPage({
       sort: '-createdAt',
       overrideAccess: false,
       user,
+    }),
+    payload.find({
+      collection: 'company-settings',
+      where: { tenant: { equals: tenantId } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
     }),
     payload.find({
       collection: 'clients',
@@ -84,6 +91,7 @@ export default async function BillingPage({
     <BillingWorkspace
       canEdit={canEdit}
       tenantName={context.tenant.name}
+      timezone={settingsRes.docs[0]?.timezone || 'America/Caracas'}
       clients={clients}
       offers={offers}
       quotes={quotes}

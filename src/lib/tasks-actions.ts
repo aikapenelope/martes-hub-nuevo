@@ -16,6 +16,14 @@ const text = (form: FormData, key: string, max: number, required = false) => {
 const id = (form: FormData, key: string) => { const value = Number(form.get(key)); return Number.isInteger(value) && value > 0 ? value : undefined }
 const assertEditor = (canEdit: boolean) => { if (!canEdit) throw new Error('No tienes permiso para modificar tareas') }
 
+function safeInternalRedirectUrl(raw: string | undefined, fallback: string): string {
+  if (!raw) return fallback
+  if (raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('://')) {
+    return raw
+  }
+  return fallback
+}
+
 async function assertRelation(
   collection: 'users' | 'clients' | 'leads',
   relationId: number | null | undefined,
@@ -79,11 +87,27 @@ function taskData(form: FormData) {
 }
 
 export async function createTaskAction(form: FormData) {
-  const context = await getWorkspaceContext(); assertEditor(context.canEdit)
+  const context = await getWorkspaceContext()
+  assertEditor(context.canEdit)
   const data = taskData(form)
-  await Promise.all([assertRelation('users', data.assignedTo, context.tenantId, context), assertRelation('clients', data.client, context.tenantId, context), assertRelation('leads', data.lead, context.tenantId, context)])
-  const task = await context.payload.create({ collection: 'tasks', overrideAccess: false, user: context.user, data: { ...data, tenant: context.tenantId, source: 'manual' } })
-  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); redirect(`/workspace/tasks/${task.id}?created=1`)
+  await Promise.all([
+    assertRelation('users', data.assignedTo, context.tenantId, context),
+    assertRelation('clients', data.client, context.tenantId, context),
+    assertRelation('leads', data.lead, context.tenantId, context),
+  ])
+  const task = await context.payload.create({
+    collection: 'tasks',
+    overrideAccess: false,
+    user: context.user,
+    data: { ...data, tenant: context.tenantId, source: 'manual' },
+  })
+  revalidatePath('/workspace/tasks')
+  revalidatePath('/workspace')
+  revalidatePath('/workspace/hoy')
+  revalidatePath('/workspace/crm')
+  const rawRedirect = text(form, 'redirectTo', 200)
+  const redirectTo = safeInternalRedirectUrl(rawRedirect, `/workspace/tasks/${task.id}?created=1`)
+  redirect(redirectTo)
 }
 
 export async function updateTaskAction(form: FormData) {
@@ -93,9 +117,6 @@ export async function updateTaskAction(form: FormData) {
   const currentAssignedId = typeof task.assignedTo === 'object' ? task.assignedTo?.id : task.assignedTo
   const isKeepingAssignee = Boolean(data.assignedTo && currentAssignedId && data.assignedTo === currentAssignedId)
 
-  // Si la tarea conserva exactamente su responsable actual (incluso si es un asignatario histórico
-  // fuera del tenant o inactivo), preservamos la relación existente sin validarla como nueva asignación.
-  // Cualquier asignación nueva o modificada debe validar que el usuario esté activo y pertenezca al tenant o sea admin.
   await Promise.all([
     ...(isKeepingAssignee ? [] : [assertRelation('users', data.assignedTo, context.tenantId, context)]),
     assertRelation('clients', data.client, context.tenantId, context),
@@ -114,7 +135,7 @@ export async function updateTaskAction(form: FormData) {
       checklist: data.checklist.map((item) => ({ ...item, done: existingDone.get(item.item) ?? false })),
     },
   })
-  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath(`/workspace/tasks/${taskId}`); redirect(`/workspace/tasks/${taskId}?updated=1`)
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); revalidatePath('/workspace/crm'); revalidatePath(`/workspace/tasks/${taskId}`); redirect(`/workspace/tasks/${taskId}?updated=1`)
 }
 
 export async function updateTaskStatusAction(
@@ -134,6 +155,8 @@ export async function updateTaskStatusAction(
     })
     revalidatePath('/workspace/tasks')
     revalidatePath('/workspace')
+    revalidatePath('/workspace/hoy')
+    revalidatePath('/workspace/crm')
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Error actualizando tarea' }
@@ -145,7 +168,7 @@ export async function changeTaskStatusAction(form: FormData) {
   if (!taskId || !TASK_STATUSES.includes(status as TaskStatus)) throw new Error('Cambio de estado inválido')
   const { context } = await scopedTask(taskId); assertEditor(context.canEdit)
   await context.payload.update({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user, data: { status: status as TaskStatus } })
-  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath(`/workspace/tasks/${taskId}`)
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); revalidatePath('/workspace/crm'); revalidatePath(`/workspace/tasks/${taskId}`)
 }
 
 export async function toggleChecklistAction(form: FormData) {
@@ -154,12 +177,12 @@ export async function toggleChecklistAction(form: FormData) {
   const { context, task } = await scopedTask(taskId); assertEditor(context.canEdit)
   const checklist = (task.checklist ?? []).map((item, position) => position === index ? { item: item.item, done: !item.done } : { item: item.item, done: Boolean(item.done) })
   await context.payload.update({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user, data: { checklist } })
-  revalidatePath('/workspace/tasks'); revalidatePath(`/workspace/tasks/${taskId}`)
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace/hoy'); revalidatePath(`/workspace/tasks/${taskId}`)
 }
 
 export async function deleteTaskAction(form: FormData) {
   const taskId = id(form, 'id'); if (!taskId) throw new Error('Identificador inválido')
   const { context } = await scopedTask(taskId); if (!context.isAdmin) throw new Error('Solo admin puede eliminar tareas')
   await context.payload.delete({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user })
-  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); redirect('/workspace/tasks?deleted=1')
+  revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); revalidatePath('/workspace/crm'); redirect('/workspace/tasks?deleted=1')
 }

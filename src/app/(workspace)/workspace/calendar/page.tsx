@@ -4,6 +4,8 @@ import { getWorkspaceContext } from '@/lib/workspace-context'
 import { PageHero } from '@/components/workspace/oled'
 import { getCalendarMonthData } from '@/lib/calendar-data'
 import { CalendarView } from '@/components/workspace/calendar/CalendarView'
+import { getAssignableUsers } from '@/lib/tasks-data'
+import type { Client, Lead } from '@/payload-types'
 
 interface CalendarPageProps {
   searchParams: Promise<{
@@ -38,13 +40,36 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const year = Number.isInteger(parsedYear) && parsedYear >= 1 && parsedYear <= 9999 ? parsedYear : defaultYear
   const month = Number.isInteger(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12 ? parsedMonth : defaultMonth
 
-  const calendarData = await getCalendarMonthData({
-    payload,
-    user,
-    tenantId,
-    year,
-    month,
-  })
+  const [calendarData, assignees, clientsRes, leadsRes] = await Promise.all([
+    getCalendarMonthData({
+      payload,
+      user,
+      tenantId,
+      year,
+      month,
+    }),
+    getAssignableUsers({ payload, user, tenantId }),
+    payload.find({
+      collection: 'clients',
+      depth: 0,
+      limit: 100,
+      sort: 'name',
+      where: { tenant: { equals: tenantId } },
+      select: { name: true },
+      overrideAccess: false,
+      user,
+    }),
+    payload.find({
+      collection: 'leads',
+      depth: 0,
+      limit: 100,
+      sort: 'fullName',
+      where: { tenant: { equals: tenantId } },
+      select: { fullName: true },
+      overrideAccess: false,
+      user,
+    }),
+  ])
 
   return (
     <div className="space-y-4">
@@ -54,7 +79,13 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         description="Visualización centralizada de citas de Google Calendar, compromisos comerciales, tareas por vencer y cobros del mes."
       />
 
-      <CalendarView data={calendarData} />
+      <CalendarView
+        data={calendarData}
+        canEdit={context.canEdit}
+        assignees={assignees}
+        clients={clientsRes.docs as Client[]}
+        leads={leadsRes.docs as Lead[]}
+      />
     </div>
   )
 }

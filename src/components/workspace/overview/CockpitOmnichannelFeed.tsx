@@ -8,7 +8,6 @@ import {
   MailCheck,
   MessageCircle,
   Sparkles,
-  Zap,
 } from 'lucide-react'
 import type { Client, Conversation, ConversationSummary, EmailLog, Lead, Payment } from '@/payload-types'
 import { formatTimeAgo } from '@/lib/crm-pipeline-window'
@@ -89,7 +88,7 @@ export function CockpitOmnichannelFeed({
             }`}
           >
             <Sparkles size={11} className="text-indigo-400" />
-            <span>Agentes IA ({summaries.length})</span>
+            <span>Agentes IA ({aiSummaries.length})</span>
           </button>
         </div>
       </div>
@@ -97,7 +96,7 @@ export function CockpitOmnichannelFeed({
       {filterMode === 'ai' ? (
         /* Vista dedicada a actividad de Agentes IA (Hermes / Jena / OpenBSP) */
         <div className="space-y-2 font-mono text-xs">
-          {summaries.length === 0 ? (
+          {aiSummaries.length === 0 ? (
             <div className="p-6 text-center text-zinc-500 font-mono text-xs space-y-1">
               <Bot size={20} className="mx-auto text-zinc-600 mb-1.5" />
               <p className="text-zinc-400 font-bold">Sin resúmenes de IA registrados aún.</p>
@@ -106,7 +105,7 @@ export function CockpitOmnichannelFeed({
               </p>
             </div>
           ) : (
-            summaries.slice(0, 5).map((s) => {
+            aiSummaries.slice(0, 5).map((s) => {
               const sentiment = SENTIMENT_BADGES[s.sentiment] || SENTIMENT_BADGES.neutral
               const agentName = AGENT_LABELS[s.generatedBy || 'hermes_ai'] || 'Agente IA'
               const relatedLeadId =

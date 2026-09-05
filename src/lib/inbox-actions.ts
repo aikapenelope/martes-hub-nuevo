@@ -54,7 +54,7 @@ export async function replyConversationAction(
   conversationId: number,
   text: string,
   idempotencyKey?: string,
-): Promise<ActionResult<{ messageId: number }>> {
+): Promise<ActionResult<{ messageId: number; reconcilePending?: boolean }>> {
   try {
     const trimmed = text.trim()
     if (!trimmed) throw new Error('El mensaje no puede estar vacío')
@@ -198,6 +198,7 @@ export async function replyConversationAction(
     }
 
     // Despacho externo a OpenBSP consciente del canal
+    let reconcilePending = false
     let row: OpenBSPMessageRow
     try {
       row = await sendText({
@@ -205,6 +206,9 @@ export async function replyConversationAction(
         text: trimmed,
         tenant: tenant ?? undefined,
         service,
+        // El remitente debe coincidir con la cuenta por la que llegó el mensaje entrante
+        // (organization_address del webhook). En Instagram el phone_number_id es de WhatsApp.
+        senderAddress: conversation.organizationAddress || undefined,
       })
     } catch (dispatchErr) {
       // Registrar fallo para permitir reintento seguro sin duplicar
@@ -242,28 +246,58 @@ export async function replyConversationAction(
         },
       })
     } catch (postDispatchUpdateErr) {
-      // La entrega externa ya se produjo: intentar reconciliación mínima para persistir openbspId y evitar reenvíos duplicados
-      try {
-        await context.payload.update({
-          collection: 'messages',
-          id: pendingRecord.id,
-          overrideAccess: true,
-          data: {
-            openbspId: row.id,
-            statusJson: {
-              idempotencyKey: stableKey,
-              dispatchStatus: 'dispatched',
+      // La entrega externa ya se produjo: reintentar la persistencia para no dejar la fila
+      // indistinguible de un mensaje no despachado (evita reenvíos duplicados en reintentos).
+      let reconciled = false
+      let lastRetryErr: unknown = postDispatchUpdateErr
+      for (let attempt = 0; attempt < 3 && !reconciled; attempt++) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 250 * attempt))
+        }
+        try {
+          await context.payload.update({
+            collection: 'messages',
+            id: pendingRecord.id,
+            overrideAccess: true,
+            data: {
+              openbspId: row.id,
+              statusJson: {
+                ...(typeof row.status === 'object' && row.status ? row.status : {}),
+                idempotencyKey: stableKey,
+                dispatchStatus: 'dispatched',
+              },
             },
-          },
-        })
-      } catch (retryErr) {
+          })
+          reconciled = true
+        } catch (retryErr) {
+          lastRetryErr = retryErr
+        }
+      }
+      if (!reconciled) {
+        // Último recurso: conciliación mínima que persiste solo el identificador externo
+        try {
+          await context.payload.update({
+            collection: 'messages',
+            id: pendingRecord.id,
+            overrideAccess: true,
+            data: {
+              openbspId: row.id,
+            },
+          })
+          reconciled = true
+        } catch (minimalRetryErr) {
+          lastRetryErr = minimalRetryErr
+        }
+      }
+      if (!reconciled) {
         context.payload.logger.error({
-          msg: 'inbox: failed to update message row after successful OpenBSP dispatch',
-          err: retryErr,
-          originalErr: postDispatchUpdateErr,
+          msg: 'inbox: failed to persist message state after successful OpenBSP dispatch (reconciliation pending)',
+          err: lastRetryErr,
           messageId: pendingRecord.id,
           openbspId: row.id,
+          idempotencyKey: stableKey,
         })
+        reconcilePending = true
       }
     }
 
@@ -283,7 +317,7 @@ export async function replyConversationAction(
     }
 
     revalidatePath('/workspace/inbox')
-    return { ok: true, messageId: pendingRecord.id }
+    return { ok: true, messageId: pendingRecord.id, ...(reconcilePending ? { reconcilePending: true } : {}) }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error enviando mensaje'
     const notConfigured = message.startsWith('OpenBSP no configurado')
