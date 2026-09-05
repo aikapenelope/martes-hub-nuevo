@@ -71,21 +71,31 @@ async function insertMessageRow(cfg: OpenBSPConfig, row: Record<string, unknown>
   return (await res.json()) as OpenBSPMessageRow
 }
 
+export type OpenBSPService = 'whatsapp' | 'instagram_dm'
+
 interface SendBase {
-  to: string // conversation_address, E.164 sin +
+  to: string // conversation_address, E.164 sin + (o ID de usuario IG)
   tenant?: { openbspOrganizationId?: string | null; openbspPhoneNumberId?: string | null } | null
+  service?: OpenBSPService
 }
 
-export async function sendText(args: SendBase & { text: string }): Promise<OpenBSPMessageRow> {
+export async function sendText(
+  args: SendBase & { text: string; service?: OpenBSPService },
+): Promise<OpenBSPMessageRow> {
   const cfg = config(args.tenant)
-  if (!cfg.phoneNumberId && !args.tenant?.openbspPhoneNumberId) {
-    throw new Error('Falta phone_number_id del tenant')
+  const service = args.service ?? 'whatsapp'
+
+  if (service === 'whatsapp') {
+    if (!cfg.phoneNumberId && !args.tenant?.openbspPhoneNumberId) {
+      throw new Error('Falta phone_number_id del tenant')
+    }
   }
+
   return insertMessageRow(cfg, {
     organization_id: cfg.organizationId,
     organization_address: args.tenant?.openbspPhoneNumberId || cfg.phoneNumberId,
     conversation_address: args.to,
-    service: 'whatsapp',
+    service,
     content: { version: '1', type: 'text', kind: 'text', text: args.text },
   })
 }

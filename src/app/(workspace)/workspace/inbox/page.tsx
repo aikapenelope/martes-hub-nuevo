@@ -1,5 +1,6 @@
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { InboxWorkspace } from '@/components/workspace/InboxWorkspace'
+import { getAssignableUsers } from '@/lib/tasks-data'
 
 /**
  * InboxPage — `/workspace/inbox`. Conversaciones estilo Chatwoot:
@@ -16,10 +17,32 @@ export default async function InboxPage({
 }: {
   searchParams: Promise<{ c?: string }>
 }) {
-  const { canEdit, tenantId } = await getWorkspaceContext()
+  const { canEdit, tenantId, payload, user } = await getWorkspaceContext()
   const { c } = await searchParams
   const conversationId = Number(c)
   const initialConversationId = Number.isInteger(conversationId) && conversationId > 0 ? conversationId : null
 
-  return <InboxWorkspace canEdit={canEdit} tenantId={tenantId} initialConversationId={initialConversationId} />
+  // Cargar usuarios asignables según el contrato canónico del tenant
+  const assignees = await getAssignableUsers({
+    payload,
+    user,
+    tenantId,
+  })
+
+  const initialTeam = assignees.map((u) => ({
+    id: u.id,
+    firstName: u.firstName,
+    lastName: u.lastName,
+    email: u.email,
+    roles: u.roles,
+  }))
+
+  return (
+    <InboxWorkspace
+      canEdit={canEdit}
+      tenantId={tenantId}
+      initialConversationId={initialConversationId}
+      initialTeam={initialTeam}
+    />
+  )
 }
