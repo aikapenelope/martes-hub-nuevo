@@ -322,6 +322,10 @@ export async function convertQuoteToInvoiceAction(params: {
       return { ok: false, error: 'La cotización no pertenece al tenant activo' }
     }
 
+    if (quote.status !== 'draft' && quote.status !== 'sent') {
+      return { ok: false, error: 'Solo se pueden facturar cotizaciones en borrador o enviadas' }
+    }
+
     const items = (quote.items || []).map((it) => ({
       description: it.description,
       quantity: it.quantity,
@@ -383,18 +387,16 @@ export async function convertQuoteToInvoiceAction(params: {
       })
     }
 
-    if (quote.status !== 'accepted') {
-      await context.payload.update({
-        collection: 'quotes',
-        id: quote.id,
-        overrideAccess: false,
-        user: context.user,
-        context: { tenantId: context.tenantId },
-        data: {
-          status: 'accepted',
-        },
-      })
-    }
+    await context.payload.update({
+      collection: 'quotes',
+      id: quote.id,
+      overrideAccess: false,
+      user: context.user,
+      context: { tenantId: context.tenantId },
+      data: {
+        status: 'accepted',
+      },
+    })
 
     revalidatePath('/workspace')
     revalidatePath('/workspace/billing')

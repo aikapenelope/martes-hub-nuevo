@@ -167,11 +167,10 @@ export function TasksWorkspace({
             </span>
           </div>
           <Link
-            href={`/workspace/tasks?${new URLSearchParams({
-              vista: filters.view,
-              ...(filters.query ? { q: filters.query } : {}),
-              ...(filters.status !== 'todos' ? { estado: filters.status } : {}),
-            }).toString()}`}
+            href={buildTaskPaginationUrl(
+              { ...filters, clientId: undefined, leadId: undefined },
+              1,
+            )}
             className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-sky-300 hover:text-white transition"
           >
             <X size={13} />

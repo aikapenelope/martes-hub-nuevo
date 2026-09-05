@@ -133,7 +133,7 @@ export async function getAnalyticsData({ payload, user, tenantId }: AnalyticsOpt
     payload.find({ collection: 'quotes', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId) }),
     paymentsAggregate(payload, tenantId, ['pagado'], startOfMonth),
     paymentsAggregate(payload, tenantId, ['pendiente', 'vencido']),
-    quotesAggregate(payload, tenantId, ['borrador', 'enviada', 'aceptada']),
+    quotesAggregate(payload, tenantId, ['draft', 'sent']),
     payload.find({ collection: 'clients', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { stage: { equals: 'nuevo' } }) }),
     payload.find({ collection: 'clients', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { stage: { equals: 'activo' } }) }),
     payload.find({ collection: 'clients', limit: 0, overrideAccess: false, user, where: tenantWhere(tenantId, { stage: { equals: 'inactivo' } }) }),
@@ -144,7 +144,7 @@ export async function getAnalyticsData({ payload, user, tenantId }: AnalyticsOpt
       overrideAccess: false,
       user,
       where: tenantWhere(tenantId, {
-        and: [{ status: { equals: 'completada' } }, { updatedAt: { greater_than_equal: startOfMonth } }],
+        and: [{ status: { equals: 'completada' } }, { completedAt: { greater_than_equal: startOfMonth } }],
       }),
     }),
     payload.find({

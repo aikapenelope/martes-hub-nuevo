@@ -9,6 +9,7 @@ import {
   updatePaymentStatusAction,
   searchRecipientsAction,
 } from '@/lib/billing-actions'
+import { getLiveExchangeRatesAction } from '@/lib/exchange-rates'
 import { getWorkspaceOverviewData } from '@/lib/overview-data'
 
 vi.mock('next/cache', () => ({
@@ -155,6 +156,26 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
       expect(payment.amount).toBe(928)
       expect(payment.status).toBe('pendiente')
     })
+
+    it('rechaza convertir cotizaciones rechazadas o expiradas', async () => {
+      const rejectedQuote = (await payload.create({
+        collection: 'quotes',
+        overrideAccess: true,
+        data: {
+          tenant: tenant1.id,
+          status: 'rejected',
+          client: {
+            customer: client1.id,
+            name: client1.name,
+          },
+          items: [{ description: 'Item', quantity: 1, unitPrice: 100 }],
+        },
+      })) as Quote
+
+      const res = await convertQuoteToInvoiceAction({ quoteId: rejectedQuote.id })
+      expect(res.ok).toBe(false)
+      expect(res.error).toContain('Solo se pueden facturar cotizaciones en borrador o enviadas')
+    })
   })
 
   describe('updatePaymentStatusAction con conciliación bancaria', () => {
@@ -254,6 +275,21 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
       expect(results.length).toBeGreaterThan(0)
       expect(results[0].customerId).toBe(client1.id)
       expect(results[0].type).toBe('client')
+    })
+  })
+
+  describe('getLiveExchangeRatesAction', () => {
+    it('obtiene tasas referenciales en vivo (BCV y Binance) con soporte de forceRefresh', async () => {
+      const rates = await getLiveExchangeRatesAction(false)
+      expect(rates).toBeDefined()
+      expect(rates.bcv.rate).toBeGreaterThan(0)
+      expect(rates.binance.rate).toBeGreaterThan(0)
+      expect(rates.bcv.source).toBe('bcv')
+      expect(rates.binance.source).toBe('binance')
+
+      const freshRates = await getLiveExchangeRatesAction(true)
+      expect(freshRates.bcv.rate).toBeGreaterThan(0)
+      expect(freshRates.binance.rate).toBeGreaterThan(0)
     })
   })
 })

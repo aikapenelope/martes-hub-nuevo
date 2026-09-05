@@ -389,7 +389,7 @@ export function BillingWorkspace({
             <div className="flex flex-wrap items-center gap-2">
               <QuoteInvoiceCreateDialog kind="quote" clients={clients} offers={offers} />
               <QuoteInvoiceCreateDialog kind="invoice" clients={clients} offers={offers} />
-              <PaymentCreateDialog clients={clients} variant="primary" />
+              <PaymentCreateDialog clients={clients} variant="primary" defaultRate={exchangeRate} rateSource={rateSource} />
             </div>
           ) : undefined
         }
@@ -779,7 +779,7 @@ export function BillingWorkspace({
                 <tbody className="divide-y divide-zinc-900">
                   {filteredQuotes.map((q) => {
                     const url = pdfUrl(q)
-                    const canConvert = q.status !== 'accepted' && q.status !== 'rejected'
+                    const canConvert = q.status === 'draft' || q.status === 'sent'
 
                     return (
                       <tr
@@ -1260,7 +1260,7 @@ export function BillingWorkspace({
                   if (!custId) return null
                   return (
                     <Link
-                      href={`/workspace/crm/client/${custId}`}
+                      href={`/workspace/crm/clientes/${custId}`}
                       className="text-[11px] text-sky-400 hover:text-sky-300 font-bold flex items-center gap-1"
                     >
                       <span>Ficha 360°</span>

@@ -1,5 +1,7 @@
 'use server'
 
+import { getWorkspaceContext } from '@/lib/workspace-context'
+
 export interface ExchangeRateInfo {
   rate: number
   source: 'bcv' | 'binance' | 'manual'
@@ -17,12 +19,19 @@ export interface LiveExchangeRates {
 let cachedRates: LiveExchangeRates | null = null
 let cacheTimestamp = 0
 const CACHE_TTL_MS = 3 * 60 * 1000
+const MIN_FORCE_INTERVAL_MS = 10 * 1000
+let lastForceRefreshTimestamp = 0
 
 // Tasas base de resguardo ante fallos de conectividad
 const FALLBACK_BCV_RATE = 807.38
 const FALLBACK_BINANCE_RATE = 945.0
 
-async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = 4000): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeoutMs = 4000,
+  forceRefresh = false,
+): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -33,7 +42,7 @@ async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = 400
         Accept: 'application/json',
         ...(init?.headers || {}),
       },
-      next: { revalidate: 180 }, // Next.js ISR cache
+      ...(forceRefresh ? { cache: 'no-store' as const } : { next: { revalidate: 180 } }),
     })
     return res
   } finally {
@@ -44,9 +53,9 @@ async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = 400
 /**
  * Consulta la tasa oficial del BCV desde dolarapi.com
  */
-async function fetchBcvRate(): Promise<ExchangeRateInfo> {
+async function fetchBcvRate(forceRefresh = false): Promise<ExchangeRateInfo> {
   try {
-    const res = await fetchWithTimeout('https://ve.dolarapi.com/v1/dolares/oficial')
+    const res = await fetchWithTimeout('https://ve.dolarapi.com/v1/dolares/oficial', undefined, 4000, forceRefresh)
     if (res.ok) {
       const data = (await res.json()) as { promedio?: number; fechaActualizacion?: string }
       if (typeof data.promedio === 'number' && data.promedio > 0) {
@@ -73,22 +82,27 @@ async function fetchBcvRate(): Promise<ExchangeRateInfo> {
 /**
  * Consulta la tasa Binance P2P / Paralelo desde Binance P2P o dolarapi.com
  */
-async function fetchBinanceRate(): Promise<ExchangeRateInfo> {
+async function fetchBinanceRate(forceRefresh = false): Promise<ExchangeRateInfo> {
   // 1. Intentar directo de Binance P2P C2C API
   try {
-    const res = await fetchWithTimeout('https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        asset: 'USDT',
-        fiat: 'VES',
-        merchantCheck: false,
-        page: 1,
-        payTypes: ['PagoMovil'],
-        rows: 5,
-        tradeType: 'BUY',
-      }),
-    })
+    const res = await fetchWithTimeout(
+      'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asset: 'USDT',
+          fiat: 'VES',
+          merchantCheck: false,
+          page: 1,
+          payTypes: ['PagoMovil'],
+          rows: 5,
+          tradeType: 'BUY',
+        }),
+      },
+      4000,
+      forceRefresh,
+    )
 
     if (res.ok) {
       const data = (await res.json()) as {
@@ -115,7 +129,7 @@ async function fetchBinanceRate(): Promise<ExchangeRateInfo> {
 
   // 2. Fallback a dolarapi paralelo
   try {
-    const res = await fetchWithTimeout('https://ve.dolarapi.com/v1/dolares/paralelo')
+    const res = await fetchWithTimeout('https://ve.dolarapi.com/v1/dolares/paralelo', undefined, 4000, forceRefresh)
     if (res.ok) {
       const data = (await res.json()) as { promedio?: number; fechaActualizacion?: string }
       if (typeof data.promedio === 'number' && data.promedio > 0) {
@@ -148,7 +162,19 @@ export async function getLiveExchangeRates(forceRefresh = false): Promise<LiveEx
     return cachedRates
   }
 
-  const [bcv, binance] = await Promise.all([fetchBcvRate(), fetchBinanceRate()])
+  // Rate-limit forced refreshes to avoid spamming external provider quotas
+  const allowForce = forceRefresh && (now - lastForceRefreshTimestamp >= MIN_FORCE_INTERVAL_MS)
+  if (forceRefresh && !allowForce && cachedRates) {
+    return cachedRates
+  }
+  if (allowForce) {
+    lastForceRefreshTimestamp = now
+  }
+
+  const [bcv, binance] = await Promise.all([
+    fetchBcvRate(allowForce),
+    fetchBinanceRate(allowForce),
+  ])
 
   cachedRates = {
     bcv,
@@ -164,5 +190,6 @@ export async function getLiveExchangeRates(forceRefresh = false): Promise<LiveEx
  * Server Action para invocar desde el cliente en componentes de UI
  */
 export async function getLiveExchangeRatesAction(forceRefresh = false): Promise<LiveExchangeRates> {
+  await getWorkspaceContext()
   return getLiveExchangeRates(forceRefresh)
 }

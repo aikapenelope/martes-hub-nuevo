@@ -615,7 +615,7 @@ export function OffersWorkspace({
                             </button>
 
                             {/* Convertir a Factura */}
-                            {canEdit && !isAccepted && (
+                            {canEdit && (q.status === 'draft' || q.status === 'sent') && (
                               <button
                                 type="button"
                                 disabled={isPending}
