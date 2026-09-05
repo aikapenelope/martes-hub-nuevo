@@ -4,7 +4,6 @@ import {
   parseTallyFields,
   resolveOrCreateTallyContact,
   resolveTallyTenant,
-  timingSafeEqual,
   verifyTallySignature,
   type TallyEnvelope,
 } from './tally-helpers'
@@ -37,16 +36,13 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
   }
 
   const sigHeader = req.headers.get('tally-signature')
-  const authHeader = req.headers.get('authorization')
-  const url = new URL(req.url ?? 'http://local.payload/api/webhooks/tally')
-  const querySecret = url.searchParams.get('secret')
 
-  const isHmacValid = sigHeader ? verifyTallySignature(rawBody, sigHeader, secret) : false
-  const isBearerValid = timingSafeEqual(authHeader, `Bearer ${secret}`)
-  const isQueryValid = timingSafeEqual(querySecret, secret)
-
-  if (!isHmacValid && !isBearerValid && !isQueryValid) {
-    return Response.json({ error: 'Firma o token de webhook inválido' }, { status: 401 })
+  // Autenticación SOLO por firma HMAC de Tally sobre el raw body. Se eliminan
+  // las alternativas Bearer y ?secret=: el secreto en la query queda en logs
+  // de acceso/proxies y es un canal de fuga; la firma nativa de Tally cubre
+  // todos los casos legítimos.
+  if (!sigHeader || !verifyTallySignature(rawBody, sigHeader, secret)) {
+    return Response.json({ error: 'Firma de webhook inválida' }, { status: 401 })
   }
 
   let envelope: TallyEnvelope
@@ -67,85 +63,152 @@ export async function tallyWebhookHandler(req: PayloadRequest): Promise<Response
 
   const parsed = parseTallyFields(fields)
 
-  // Si se envió query param ?tenant=ID
+  // Idempotencia: la reentrega de un evento Tally no debe crear form-submissions
+  // (ni notificaciones/tareas urgentes de queja) duplicadas. Mismo patrón que
+  // openbspWebhook con openbspId/externalId.
+  const dedupeEventId = envelope.eventId || data.responseId || data.submissionId || ''
+  if (dedupeEventId) {
+    const dupe = await req.payload.find({
+      collection: 'form-submissions',
+      where: { eventId: { equals: dedupeEventId } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+    if (dupe.docs[0]) {
+      return Response.json({ ok: true, duplicate: true, submissionId: dupe.docs[0].id })
+    }
+  }
+
+  // Si se envió query param ?tenant=ID (solo aislamiento de tenant, nunca de auth)
+  const url = new URL(req.url ?? 'http://local.payload/api/webhooks/tally')
   const qTenant = url.searchParams.get('tenant')
   const resolvedTenantId =
     qTenant && Number.isInteger(Number(qTenant)) ? Number(qTenant) : parsed.explicitTenantId
 
+  // Resolución de tenant es solo lectura: se hace ANTES de abrir la transacción
+  // para que su rama de error (422) no pueda fugarse sin cerrarla.
   const tenant = await resolveTallyTenant(req, resolvedTenantId)
   if (!tenant) {
     return Response.json({ error: 'Tenant no resoluble para este formulario' }, { status: 422 })
   }
 
-  const { clientId, leadId } = await resolveOrCreateTallyContact(req, tenant, {
-    name: parsed.respondentName,
-    email: parsed.respondentEmail,
-    phone: parsed.respondentPhone,
-    formName,
-  })
+  // Todo el procesamiento con escritura corre en UNA transacción: la reserva de
+  // idempotencia (índice UNIQUE de event_id), la resolución de contacto y los
+  // efectos secundarios (notificación + tarea de queja) se confirman o revocan
+  // juntos. Sin esto, dos entregas concurrentes con el mismo eventId pasan
+  // ambas el check de dedupe de arriba y duplican submission, lead y
+  // notificaciones. Toda salida posterior pasa por commit o rollback.
+  const beginTransaction = await req.payload.db.beginTransaction()
+  if (beginTransaction) req.transactionID = beginTransaction
 
-  // 3. Crear el registro en FormSubmissions
-  const rawPayload: Record<string, unknown> = typeof envelope === 'object' && envelope !== null ? (envelope as Record<string, unknown>) : {}
-
-  const submission = await req.payload.create({
-    collection: 'form-submissions',
-    data: {
+  try {
+    const { clientId, leadId } = await resolveOrCreateTallyContact(req, tenant, {
+      name: parsed.respondentName,
+      email: parsed.respondentEmail,
+      phone: parsed.respondentPhone,
       formName,
-      formId,
-      source: 'tally',
-      respondentName: parsed.respondentName || undefined,
-      respondentEmail: parsed.respondentEmail || undefined,
-      respondentPhone: parsed.respondentPhone || undefined,
-      client: clientId,
-      lead: leadId,
-      isComplaint: parsed.isComplaint,
-      answersJson: parsed.answersRecord,
-      rawPayload,
-      tenant: tenant.id,
-    },
-    overrideAccess: true,
-    req,
-  })
-
-  // 4. Si es una queja o feedback negativo, generar alerta en notifications y crear tarea urgente
-  if (parsed.isComplaint) {
-    const person = parsed.respondentName || parsed.respondentEmail || parsed.respondentPhone || 'Usuario anónimo'
-    await req.payload.create({
-      collection: 'notifications',
-      data: {
-        title: `[Tally] Queja / Alerta en "${formName}"`,
-        body: `Envío de ${person} requiere atención urgente por queja o bajo puntaje de satisfacción.`,
-        severity: 'warning',
-        source: 'tally',
-        read: false,
-        tenant: tenant.id,
-      },
-      overrideAccess: true,
-      req,
     })
 
-    await req.payload.create({
-      collection: 'tasks',
+    // 3. Crear el registro en FormSubmissions
+    const rawPayload: Record<string, unknown> = typeof envelope === 'object' && envelope !== null ? (envelope as Record<string, unknown>) : {}
+
+    const submission = await req.payload.create({
+      collection: 'form-submissions',
       data: {
-        title: `Resolver queja en "${formName}" (${person})`,
-        description: `El cliente/lead reportó una queja o bajo NPS en el formulario "${formName}". Revisar respuestas en el envío #${submission.id}.`,
-        status: 'pendiente',
-        priority: 'urgente',
-        source: 'tally_complaint',
+        formName,
+        formId,
+        eventId: dedupeEventId || undefined,
+        source: 'tally',
+        respondentName: parsed.respondentName || undefined,
+        respondentEmail: parsed.respondentEmail || undefined,
+        respondentPhone: parsed.respondentPhone || undefined,
         client: clientId,
         lead: leadId,
+        isComplaint: parsed.isComplaint,
+        answersJson: parsed.answersRecord,
+        rawPayload,
         tenant: tenant.id,
       },
       overrideAccess: true,
       req,
     })
-  }
 
-  return Response.json({
-    ok: true,
-    submissionId: submission.id,
-    linkedClient: clientId,
-    linkedLead: leadId,
-    isComplaint: parsed.isComplaint,
-  })
+    // 4. Si es una queja o feedback negativo, generar alerta en notifications y crear tarea urgente
+    if (parsed.isComplaint) {
+      const person = parsed.respondentName || parsed.respondentEmail || parsed.respondentPhone || 'Usuario anónimo'
+      await req.payload.create({
+        collection: 'notifications',
+        data: {
+          title: `[Tally] Queja / Alerta en "${formName}"`,
+          body: `Envío de ${person} requiere atención urgente por queja o bajo puntaje de satisfacción.`,
+          severity: 'warning',
+          source: 'tally',
+          read: false,
+          tenant: tenant.id,
+        },
+        overrideAccess: true,
+        req,
+      })
+
+      await req.payload.create({
+        collection: 'tasks',
+        data: {
+          title: `Resolver queja en "${formName}" (${person})`,
+          description: `El cliente/lead reportó una queja o bajo NPS en el formulario "${formName}". Revisar respuestas en el envío #${submission.id}.`,
+          status: 'pendiente',
+          priority: 'urgente',
+          source: 'tally_complaint',
+          client: clientId,
+          lead: leadId,
+          tenant: tenant.id,
+        },
+        overrideAccess: true,
+        req,
+      })
+    }
+
+    if (req.transactionID) {
+      const txnId = req.transactionID
+      req.transactionID = undefined
+      await req.payload.db.commitTransaction(txnId)
+    }
+
+    return Response.json({
+      ok: true,
+      submissionId: submission.id,
+      linkedClient: clientId,
+      linkedLead: leadId,
+      isComplaint: parsed.isComplaint,
+    })
+  } catch (err) {
+    // Rollback de TODO lo hecho en la transacción (incluido el lead/contacto
+    // recién creado) antes de decidir la respuesta. commit/rollback son
+    // no-op seguros si la sesión ya terminó.
+    if (req.transactionID) {
+      const txnId = req.transactionID
+      req.transactionID = undefined
+      await req.payload.db.rollbackTransaction(txnId)
+    }
+
+    // Carrera de reentregas: otra entrega concurrente confirmó el mismo
+    // eventId primero (23505 sobre form_submissions_event_id_idx). Tras el
+    // rollback, verificar y responder como duplicado exitoso — Tally no debe
+    // reintentar una entrega que ya procesamos.
+    if (dedupeEventId) {
+      const dupe = await req.payload.find({
+        collection: 'form-submissions',
+        where: { eventId: { equals: dedupeEventId } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+      if (dupe.docs[0]) {
+        return Response.json({ ok: true, duplicate: true, submissionId: dupe.docs[0].id })
+      }
+    }
+
+    throw err
+  }
 }

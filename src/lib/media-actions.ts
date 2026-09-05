@@ -18,12 +18,14 @@ export interface UploadMediaResult {
  * el archivo directamente en Cloudflare R2 / S3. Si no, se guarda localmente.
  * Revalida la ruta `/workspace/media` para refrescar la galería sin salir al admin.
  */
+// Sin `image/svg+xml`: un SVG con <script> servido desde el mismo origen es
+// XSS almacenado. Debe coincidir con el mimeTypes de la colección `media`
+// (src/collections/Media.ts), que también lo prohíbe.
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
   'image/gif',
-  'image/svg+xml',
   'image/avif',
   'application/pdf',
   'text/plain',
@@ -40,7 +42,6 @@ const ALLOWED_EXTENSIONS = new Set([
   'png',
   'webp',
   'gif',
-  'svg',
   'avif',
   'pdf',
   'txt',

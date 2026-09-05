@@ -607,6 +607,10 @@ export interface FormSubmission {
    * Tally form_id o ID de la plataforma
    */
   formId?: string | null;
+  /**
+   * eventId/responseId del webhook: si ya existe, la reentrega se ignora
+   */
+  eventId?: string | null;
   source: 'tally' | 'typeform' | 'web' | 'otro';
   respondentName?: string | null;
   respondentEmail?: string | null;
@@ -2280,6 +2284,7 @@ export interface FormSubmissionsSelect<T extends boolean = true> {
   tenant?: T;
   formName?: T;
   formId?: T;
+  eventId?: T;
   source?: T;
   respondentName?: T;
   respondentEmail?: T;

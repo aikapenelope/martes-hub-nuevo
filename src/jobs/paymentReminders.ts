@@ -33,6 +33,10 @@ async function markOverdue(req: PayloadRequest): Promise<number> {
 export const paymentRemindersTask: TaskConfig = {
   slug: 'payment-reminders',
   label: 'Recordatorios de cobro',
+  // Reintento canónico de tasks (docs: /docs/jobs-queue/tasks — `retries`).
+  // Sin esto, un fallo transitorio de Resend/Neon descarta los recordatorios
+  // de ese día: la ventana de "vence mañana" ya habrá pasado al día siguiente.
+  retries: 2,
   schedule: [
     {
       cron: '0 12 * * *',
@@ -50,26 +54,38 @@ export const paymentRemindersTask: TaskConfig = {
 
     const markedOverdue = await markOverdue(req)
 
-    const dueTomorrow = await req.payload.find({
-      collection: 'payments',
-      depth: 1,
-      limit: 100,
-      where: {
-        and: [
-          { status: { equals: 'pendiente' } },
-          { dueDate: { greater_than_equal: tomorrow.start.toISOString() } },
-          { dueDate: { less_than_equal: tomorrow.end.toISOString() } },
-          { reminderSentAt: { exists: false } },
-        ],
-      },
-      overrideAccess: true,
-      req,
-    })
+    // Paginación completa (docs: /docs/queries/pagination): un `limit` fijo
+    // descartaba silenciosamente los cobros que quedaban fuera de la primera
+    // página — y como la ventana es "vence mañana", esos clientes nunca
+    // recibían su recordatorio.
+    const dueTomorrow: Payment[] = []
+    let page = 1
+    for (;;) {
+      const batch = await req.payload.find({
+        collection: 'payments',
+        depth: 1,
+        limit: 100,
+        page,
+        where: {
+          and: [
+            { status: { equals: 'pendiente' } },
+            { dueDate: { greater_than_equal: tomorrow.start.toISOString() } },
+            { dueDate: { less_than_equal: tomorrow.end.toISOString() } },
+            { reminderSentAt: { exists: false } },
+          ],
+        },
+        overrideAccess: true,
+        req,
+      })
+      dueTomorrow.push(...(batch.docs as Payment[]))
+      if (!batch.hasNextPage) break
+      page += 1
+    }
 
     let reminded = 0
     let skippedNoEmail = 0
 
-    for (const payment of dueTomorrow.docs as Payment[]) {
+    for (const payment of dueTomorrow) {
       const client = typeof payment.client === 'object' ? payment.client : null
       const email = client?.email
       if (!email) {

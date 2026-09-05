@@ -9,7 +9,14 @@ export const Users: CollectionConfig = {
     useAsTitle: 'email',
     group: 'Administración',
   },
-  auth: true,
+  // Opciones de auth explícitas (docs: /docs/authentication/overview).
+  // Sin unlock restringido, cualquier usuario autenticado puede desbloquear
+  // la cuenta de otro (advisory conocido del default de Payload).
+  auth: {
+    tokenExpiration: 60 * 60, // 1 hora de sesión
+    maxLoginAttempts: 5,
+    lockTime: 15 * 60 * 1000, // 15 minutos de bloqueo tras 5 intentos
+  },
   access: {
     // Admins ven todo; el resto solo ve administradores globales O usuarios que comparten al menos un tenant
     read: ({ req }): AccessResult => {
@@ -37,6 +44,11 @@ export const Users: CollectionConfig = {
       return Boolean('roles' in req.user && req.user.roles?.includes('admin'))
     },
     delete: adminOnly,
+    // Mitiga el advisory "Payload CMS default account-unlock access allows
+    // authenticated users to reset other accounts' lockouts" (sin patch a
+    // 3.88.0): solo un admin desbloquea cuentas. `unlock` es una access key
+    // canónica de colección (docs: /docs/access-control/overview).
+    unlock: adminOnly,
     admin: ({ req }) => Boolean(req.user && 'roles' in req.user && (req.user.roles?.includes('admin') || req.user.roles?.includes('agente'))),
   },
   hooks: {

@@ -230,7 +230,16 @@ export default async function CrmRecordPage({
         depth: 0,
         overrideAccess: true,
       })
-      if (missingAgent) {
+      // Misma regla que validateTenantAgent (crm-actions): el agente debe
+      // pertenecer al tenant activo o ser admin global. Sin este check —que
+      // sí tienen los fallbacks de company y segment— un ID adivinado filtraba
+      // el nombre de un usuario de otro tenant en el dropdown.
+      const agentTenants = (missingAgent?.tenants || []).map((t) =>
+        typeof t.tenant === 'object' && t.tenant ? t.tenant.id : t.tenant,
+      )
+      const isTenantAgent =
+        agentTenants.includes(context.tenantId) || Boolean(missingAgent?.roles?.includes('admin'))
+      if (missingAgent && isTenantAgent) {
         availableAgents.unshift(missingAgent as User)
       }
     } catch {

@@ -162,7 +162,7 @@ export function MediaUploadDialog() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*,.pdf,.svg,.webp"
+                  accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx"
                   onChange={onFileInputChange}
                   className="hidden"
                 />
@@ -197,7 +197,7 @@ export function MediaUploadDialog() {
                       Arrastra tu imagen o archivo aquí, o <span className="text-sky-400 underline">explora</span>
                     </p>
                     <p className="text-[10px] font-mono text-zinc-500">
-                      PNG, JPG, WEBP, SVG o PDF (Guardado automático en R2/S3)
+                      PNG, JPG, WEBP, AVIF, PDF, TXT, CSV, DOC/XLS (Guardado automático en R2/S3)
                     </p>
                   </div>
                 )}
