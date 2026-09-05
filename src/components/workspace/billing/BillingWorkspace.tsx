@@ -80,6 +80,8 @@ interface BillingCard {
 interface BillingWorkspaceProps {
   canEdit: boolean
   tenantName: string
+  /** Zona horaria configurada del tenant (company-settings) para etiquetas de vencimiento */
+  timezone?: string
   clients: Client[]
   offers: Offer[]
   quotes: Quote[]
@@ -96,6 +98,7 @@ type SelectedDoc =
 export function BillingWorkspace({
   canEdit,
   tenantName,
+  timezone = 'America/Caracas',
   clients,
   offers,
   quotes,
@@ -125,10 +128,12 @@ export function BillingWorkspace({
   const [rateSource, setRateSource] = useState<'bcv' | 'binance' | 'manual'>('bcv')
   const [exchangeRate, setExchangeRate] = useState<string>('807.38')
   const [liveRates, setLiveRates] = useState<LiveExchangeRates | null>(null)
-  const [isFetchingRates, setIsFetchingRates] = useState<boolean>(false)
+  // Inicia en true: el effect de monto lanza la primera carga de tasas
+  const [isFetchingRates, setIsFetchingRates] = useState<boolean>(true)
 
+  // No marca setIsFetchingRates(true) de forma síncrona: el caller lo hace en su
+  // propio handler (permitido) para evitar cascadas de render en el effect de montaje.
   const fetchRates = async (force = false) => {
-    setIsFetchingRates(true)
     try {
       const rates = await getLiveExchangeRatesAction(force)
       setLiveRates(rates)
@@ -144,8 +149,25 @@ export function BillingWorkspace({
     }
   }
 
+  // Carga inicial de tasas: setState solo dentro de callbacks (no síncrono en el effect).
+  // En el montaje rateSource siempre es 'bcv', así que se aplica esa tasa directamente.
   useEffect(() => {
-    void fetchRates()
+    let cancelled = false
+    getLiveExchangeRatesAction(false)
+      .then((rates) => {
+        if (cancelled) return
+        setLiveRates(rates)
+        setExchangeRate(String(rates.bcv.rate))
+      })
+      .catch((e) => {
+        console.warn('Error obteniendo tasas en vivo:', e)
+      })
+      .finally(() => {
+        if (!cancelled) setIsFetchingRates(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const handleSelectRateSource = (src: 'bcv' | 'binance' | 'manual') => {
@@ -164,7 +186,7 @@ export function BillingWorkspace({
   function generatePaymentReminderText(payment: Payment): string {
     const cName = getClientName(payment.client)
     const dueDateStr = payment.dueDate ? dateFmt.format(new Date(payment.dueDate)) : 'Pronto'
-    const diffDays = getCalendarDayDiff(payment.dueDate)
+    const diffDays = getCalendarDayDiff(payment.dueDate, timezone)
     const isOverdue = diffDays !== null && diffDays < 0
 
     const rateNum = Number(exchangeRate)
@@ -590,7 +612,10 @@ export function BillingWorkspace({
           {/* Botón de refresco */}
           <button
             type="button"
-            onClick={() => void fetchRates(true)}
+            onClick={() => {
+              setIsFetchingRates(true)
+              void fetchRates(true)
+            }}
             disabled={isFetchingRates}
             className="p-1.5 border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white transition disabled:opacity-50"
             title="Actualizar tasas en vivo desde API"
@@ -633,7 +658,7 @@ export function BillingWorkspace({
                     const isPaid = p.status === 'pagado'
                     const isCancelled = p.status === 'anulado'
 
-                    const diffDays = getCalendarDayDiff(p.dueDate)
+                    const diffDays = getCalendarDayDiff(p.dueDate, timezone)
 
                     return (
                       <tr

@@ -42,7 +42,7 @@ export default async function OffersPage({
       collection: 'quotes',
       where: { tenant: { equals: tenantId } },
       depth: 1,
-      limit: 500,
+      pagination: false,
       sort: '-createdAt',
       overrideAccess: false,
       user,

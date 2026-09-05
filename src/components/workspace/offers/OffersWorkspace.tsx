@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useTransition, useMemo } from 'react'
+import React, { useState, useTransition, useMemo, useRef } from 'react'
 import {
   Check,
   CheckCircle2,
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 
 import type { Client, Lead, Media, Offer, Quote, Segment } from '@/payload-types'
+import { useRouter } from 'next/navigation'
 import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
 import { OfferCreateDialog } from '@/components/workspace/OfferCreateDialog'
 import { Drawer } from '@/components/workspace/overlays'
@@ -73,6 +74,7 @@ export function OffersWorkspace({
   const [shareQuote, setShareQuote] = useState<Quote | null>(null)
   const [copied, setCopied] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const router = useRouter()
   const [actionNotice, setActionNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Diálogo rápido de crear cotización
@@ -137,31 +139,42 @@ export function OffersWorkspace({
   }, [quotes, searchQuery])
 
   const totalQuotePages = Math.max(1, Math.ceil(filteredQuotes.length / QUOTES_PER_PAGE))
+  // Página efectiva acotada al rango del filtro actual: evita "páginas vacías"
+  // cuando la búsqueda reduce el total de resultados.
+  const safeQuotePage = Math.min(quotePage, totalQuotePages)
   const paginatedQuotes = useMemo(() => {
-    const start = (quotePage - 1) * QUOTES_PER_PAGE
+    const start = (safeQuotePage - 1) * QUOTES_PER_PAGE
     return filteredQuotes.slice(start, start + QUOTES_PER_PAGE)
-  }, [filteredQuotes, quotePage])
+  }, [filteredQuotes, safeQuotePage])
 
   // Búsqueda interactiva de Destinatarios (Clientes y Prospectos) sin límite de carga
   const [recipientQuery, setRecipientQuery] = useState('')
   const [remoteRecipients, setRemoteRecipients] = useState<RecipientSearchResult[]>([])
   const [isSearchingRecipients, setIsSearchingRecipients] = useState(false)
+  const recipientSearchSeqRef = useRef(0)
 
   const handleSearchRecipients = async (query: string) => {
     setRecipientQuery(query)
     const q = query.trim()
+    const seq = ++recipientSearchSeqRef.current
     if (q.length < 2) {
       setRemoteRecipients([])
+      setIsSearchingRecipients(false)
       return
     }
     setIsSearchingRecipients(true)
     try {
       const results = await searchRecipientsAction(q)
-      setRemoteRecipients(results)
+      // Ignora respuestas fuera de orden: solo la búsqueda más reciente actualiza resultados
+      if (seq === recipientSearchSeqRef.current) {
+        setRemoteRecipients(results)
+      }
     } catch {
       // Manejo silencioso
     } finally {
-      setIsSearchingRecipients(false)
+      if (seq === recipientSearchSeqRef.current) {
+        setIsSearchingRecipients(false)
+      }
     }
   }
 
@@ -312,6 +325,12 @@ export function OffersWorkspace({
       const res = await convertQuoteToInvoiceAction({ quoteId })
       if (res.ok) {
         setActionNotice({ type: 'success', text: `Cotización #${quoteId} convertida a Factura exitosamente.` })
+        // Refresca datos del servidor y sincroniza el estado local para que la
+        // cotización convertida deje de ser facturable sin recargar manualmente
+        router.refresh()
+        setSelectedQuote((prev) =>
+          prev && prev.id === quoteId ? { ...prev, status: 'accepted' } : prev,
+        )
       } else {
         setActionNotice({ type: 'error', text: res.error || 'Error al convertir la cotización' })
       }
@@ -325,6 +344,9 @@ export function OffersWorkspace({
       const res = await updateQuoteStatusAction({ quoteId, status })
       if (res.ok) {
         setActionNotice({ type: 'success', text: `Estado actualizado a «${status}».` })
+        // Refresca datos del servidor y sincroniza el estado local de la cotización
+        router.refresh()
+        setSelectedQuote((prev) => (prev && prev.id === quoteId ? { ...prev, status } : prev))
       } else {
         setActionNotice({ type: 'error', text: res.error || 'Error al actualizar estado' })
       }
@@ -436,7 +458,10 @@ export function OffersWorkspace({
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value)
+            setQuotePage(1)
+          }}
           placeholder={activeTab === 'catalogo' ? 'Buscar oferta o rubro...' : 'Buscar cliente o cotización #...'}
           className="bg-black border border-zinc-800 px-3 py-1 text-xs text-white placeholder:text-zinc-600 font-mono w-64 focus:outline-none focus:border-zinc-600"
         />
@@ -488,7 +513,7 @@ export function OffersWorkspace({
                       )}
                     </div>
 
-                    {canEdit && (
+                    {canEdit && o.active && (
                       <div className="flex items-center justify-between pt-1 border-t border-zinc-900/50">
                         <button
                           type="button"
@@ -655,18 +680,18 @@ export function OffersWorkspace({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  disabled={quotePage <= 1}
+                  disabled={safeQuotePage <= 1}
                   onClick={() => setQuotePage((p) => Math.max(1, p - 1))}
                   className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 disabled:opacity-40 hover:text-white transition text-[11px]"
                 >
                   Anterior
                 </button>
                 <span className="text-zinc-400 text-[11px]">
-                  Página {quotePage} de {totalQuotePages}
+                  Página {safeQuotePage} de {totalQuotePages}
                 </span>
                 <button
                   type="button"
-                  disabled={quotePage >= totalQuotePages}
+                  disabled={safeQuotePage >= totalQuotePages}
                   onClick={() => setQuotePage((p) => Math.min(totalQuotePages, p + 1))}
                   className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 disabled:opacity-40 hover:text-white transition text-[11px]"
                 >
@@ -840,7 +865,7 @@ export function OffersWorkspace({
                         className="bg-black border border-zinc-800 text-[10px] text-sky-400 px-2 py-1 max-w-xs focus:outline-none"
                       >
                         <option value="">(Cargar desde Catálogo de Ofertas...)</option>
-                        {offers.map((o) => (
+                        {activeOffers.map((o) => (
                           <option key={o.id} value={o.id}>
                             {o.name} — {usd.format(o.price)}
                           </option>
@@ -1115,8 +1140,8 @@ export function OffersWorkspace({
               </a>
             )}
 
-            {/* Acciones del Drawer */}
-            {canEdit && selectedQuote.status !== 'accepted' && (
+            {/* Acciones del Drawer — solo cotizaciones aún facturables */}
+            {canEdit && (selectedQuote.status === 'draft' || selectedQuote.status === 'sent') && (
               <div className="pt-3 border-t border-zinc-850 space-y-2">
                 <button
                   type="button"

@@ -144,7 +144,9 @@ export default async function HoyPage() {
   const payments = agendaItems.filter((i) => i.type === 'payment')
   const overdueTasks = overdueTasksRes.docs as Task[]
   const overduePayments = overduePaymentsRes.docs as Payment[]
-  const totalOverdue = overdueTasks.length + overduePayments.length
+  // KPI de mora basado en totalDocs: las consultas de documentos vienen limitadas a 20
+  // para el preview visual, pero el total debe reflejar TODAS las tareas/cobros vencidos.
+  const totalOverdue = (overdueTasksRes.totalDocs ?? 0) + (overduePaymentsRes.totalDocs ?? 0)
   const totalCommitments = appointments.length + tasks.length + payments.length
 
   let todayDateFormatted = ''

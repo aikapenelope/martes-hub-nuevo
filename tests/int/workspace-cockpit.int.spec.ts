@@ -35,8 +35,21 @@ describe('Torre de Control Comercial — getWorkspaceOverviewData', () => {
       return Promise.resolve({ docs: [], totalDocs: 0 })
     })
 
+    const mockCount = vi.fn().mockImplementation(({ collection }: { collection: string }) => {
+      if (collection === 'leads') {
+        return Promise.resolve({ totalDocs: 15 })
+      }
+      if (collection === 'clients') {
+        return Promise.resolve({ totalDocs: 5 })
+      }
+      if (collection === 'tasks') {
+        return Promise.resolve({ totalDocs: 2 })
+      }
+      return Promise.resolve({ totalDocs: 0 })
+    })
     const mockPayload = {
       find: mockFind,
+      count: mockCount,
       db: {
         pool: {
           query: vi.fn().mockResolvedValue({ rows: [{ total: 1000, count: 5 }] }),
@@ -68,12 +81,21 @@ describe('Torre de Control Comercial — getWorkspaceOverviewData', () => {
       expect(queryParams.user).toEqual(mockUser)
       expect(queryParams.where).toBeDefined()
     }
+    // Las llamadas a count también deben respetar RLS
+    for (const call of mockCount.mock.calls) {
+      const queryParams = call[0]
+      expect(queryParams.overrideAccess).toBe(false)
+      expect(queryParams.user).toEqual(mockUser)
+      expect(queryParams.where).toBeDefined()
+    }
   })
 
   it('calcula conversiones y tasas reales sin divisiones por cero cuando no hay registros', async () => {
     const mockFind = vi.fn().mockResolvedValue({ docs: [], totalDocs: 0 })
+    const mockCount = vi.fn().mockResolvedValue({ totalDocs: 0 })
     const mockPayload = {
       find: mockFind,
+      count: mockCount,
       db: { pool: undefined },
     } as unknown as Payload
 
