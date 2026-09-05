@@ -84,6 +84,7 @@ export default async function BillingPage({
     <BillingWorkspace
       canEdit={canEdit}
       tenantName={context.tenant.name}
+      timezone={context.tenant.timezone || 'America/Caracas'}
       clients={clients}
       offers={offers}
       quotes={quotes}
