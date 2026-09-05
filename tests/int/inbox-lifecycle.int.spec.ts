@@ -501,4 +501,73 @@ describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }
       }
     })
   })
+
+  describe('normalizeDeliveryStatus (OpenBSP & Local Statuses)', () => {
+    it('clasifica correctamente estados pending', async () => {
+      const { normalizeDeliveryStatus } = await import('@/components/workspace/inbox/inbox-status')
+      expect(normalizeDeliveryStatus({ dispatchStatus: 'pending' }, null)).toBe('pending')
+      expect(normalizeDeliveryStatus({}, 'pending:abc-123')).toBe('pending')
+      expect(normalizeDeliveryStatus({ status: 'pending' }, 'pending:abc-123')).toBe('pending')
+    })
+
+    it('clasifica correctamente estados sent y accepted', async () => {
+      const { normalizeDeliveryStatus } = await import('@/components/workspace/inbox/inbox-status')
+      expect(normalizeDeliveryStatus({ status: 'sent' }, 'msg-1')).toBe('sent')
+      expect(normalizeDeliveryStatus({ status: 'accepted' }, 'msg-2')).toBe('sent')
+      expect(normalizeDeliveryStatus({ dispatchStatus: 'dispatched' }, 'msg-3')).toBe('sent')
+      expect(normalizeDeliveryStatus({ sent: true }, 'msg-4')).toBe('sent')
+      expect(normalizeDeliveryStatus({ sent_at: '2026-09-05T12:00:00Z' }, 'msg-5')).toBe('sent')
+    })
+
+    it('clasifica correctamente estados delivered', async () => {
+      const { normalizeDeliveryStatus } = await import('@/components/workspace/inbox/inbox-status')
+      expect(normalizeDeliveryStatus({ status: 'delivered' }, 'msg-1')).toBe('delivered')
+      expect(normalizeDeliveryStatus({ delivered: true }, 'msg-2')).toBe('delivered')
+      expect(normalizeDeliveryStatus({ delivered_at: '2026-09-05T12:01:00Z' }, 'msg-3')).toBe('delivered')
+    })
+
+    it('clasifica correctamente estados read y da prioridad sobre delivered', async () => {
+      const { normalizeDeliveryStatus } = await import('@/components/workspace/inbox/inbox-status')
+      expect(normalizeDeliveryStatus({ status: 'read' }, 'msg-1')).toBe('read')
+      expect(normalizeDeliveryStatus({ read: true }, 'msg-2')).toBe('read')
+      expect(normalizeDeliveryStatus({ read_at: '2026-09-05T12:02:00Z' }, 'msg-3')).toBe('read')
+      expect(
+        normalizeDeliveryStatus(
+          { delivered_at: '2026-09-05T12:01:00Z', read_at: '2026-09-05T12:02:00Z' },
+          'msg-4',
+        ),
+      ).toBe('read')
+    })
+
+    it('clasifica correctamente estados failed y extrae mensajes de error', async () => {
+      const { normalizeDeliveryStatus, getErrorMessage } = await import(
+        '@/components/workspace/inbox/inbox-status'
+      )
+      // Local failed
+      expect(normalizeDeliveryStatus({ dispatchStatus: 'failed', error: 'Fallo de red' }, 'pending:1')).toBe('failed')
+      expect(getErrorMessage({ dispatchStatus: 'failed', error: 'Fallo de red' })).toBe('Fallo de red')
+
+      // Webhook status: 'failed'
+      expect(normalizeDeliveryStatus({ status: 'failed', error: 'Destinatario no alcanzable' }, 'msg-1')).toBe('failed')
+      expect(getErrorMessage({ status: 'failed', error: 'Destinatario no alcanzable' })).toBe('Destinatario no alcanzable')
+
+      // Webhook errors array
+      expect(
+        normalizeDeliveryStatus(
+          { status: 'failed', errors: [{ code: 131026, message: 'Mensaje no entregable' }] },
+          'msg-2',
+        ),
+      ).toBe('failed')
+      expect(
+        getErrorMessage({
+          status: 'failed',
+          errors: [{ code: 131026, message: 'Mensaje no entregable' }],
+        }),
+      ).toBe('Mensaje no entregable')
+
+      // Webhook failed boolean
+      expect(normalizeDeliveryStatus({ failed: true, error: 'Rechazado por política' }, 'msg-3')).toBe('failed')
+      expect(getErrorMessage({ failed: true, error: 'Rechazado por política' })).toBe('Rechazado por política')
+    })
+  })
 })

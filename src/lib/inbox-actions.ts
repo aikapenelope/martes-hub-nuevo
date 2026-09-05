@@ -242,13 +242,29 @@ export async function replyConversationAction(
         },
       })
     } catch (postDispatchUpdateErr) {
-      // La entrega externa ya se produjo: registrar pero NO reportar fallo al cliente
-      context.payload.logger.error({
-        msg: 'inbox: failed to update message row after successful OpenBSP dispatch',
-        err: postDispatchUpdateErr,
-        messageId: pendingRecord.id,
-        openbspId: row.id,
-      })
+      // La entrega externa ya se produjo: intentar reconciliación mínima para persistir openbspId y evitar reenvíos duplicados
+      try {
+        await context.payload.update({
+          collection: 'messages',
+          id: pendingRecord.id,
+          overrideAccess: true,
+          data: {
+            openbspId: row.id,
+            statusJson: {
+              idempotencyKey: stableKey,
+              dispatchStatus: 'dispatched',
+            },
+          },
+        })
+      } catch (retryErr) {
+        context.payload.logger.error({
+          msg: 'inbox: failed to update message row after successful OpenBSP dispatch',
+          err: retryErr,
+          originalErr: postDispatchUpdateErr,
+          messageId: pendingRecord.id,
+          openbspId: row.id,
+        })
+      }
     }
 
     try {

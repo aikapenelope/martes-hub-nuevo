@@ -16,8 +16,19 @@ import {
 } from 'lucide-react'
 
 import { DEFAULT_QUICK_SNIPPETS, type QuickSnippet } from './inbox-snippets'
+import {
+  normalizeDeliveryStatus,
+  getErrorMessage,
+  type MessageDeliveryStatus,
+} from './inbox-status'
 import type { ConvListItem } from './InboxConversationList'
 import { computeWindowState } from '@/lib/crm-pipeline-window'
+
+export {
+  normalizeDeliveryStatus,
+  getErrorMessage,
+  type MessageDeliveryStatus,
+}
 
 export interface ChatMessage {
   id: number
@@ -25,6 +36,7 @@ export interface ChatMessage {
   text: string | null
   type: string
   sentAt: string | null
+  openbspId?: string | null
   statusJson?: Record<string, unknown> | null
 }
 
@@ -264,13 +276,12 @@ export function InboxChatPanel({
               {/* Burbujas del Grupo */}
               {group.messages.map((m) => {
                 const isInbound = m.direction === 'inbound'
-                const isFailed =
-                  m.statusJson?.dispatchStatus === 'failed' ||
-                  Boolean(m.statusJson?.error) ||
-                  Boolean(m.statusJson?.errors)
-                const isPending = m.statusJson?.dispatchStatus === 'pending'
-                const isDelivered = Boolean(m.statusJson?.delivered_at || m.statusJson?.read_at)
-                const isRead = Boolean(m.statusJson?.read_at)
+                const deliveryStatus = normalizeDeliveryStatus(m.statusJson, m.openbspId)
+                const isFailed = deliveryStatus === 'failed'
+                const isPending = deliveryStatus === 'pending'
+                const isDelivered = deliveryStatus === 'delivered'
+                const isRead = deliveryStatus === 'read'
+                const errorMessage = isFailed ? getErrorMessage(m.statusJson) : null
 
                 return (
                   <div
@@ -312,7 +323,7 @@ export function InboxChatPanel({
                           {isFailed ? (
                             <span
                               className="inline-flex items-center gap-1 text-red-400 font-mono"
-                              title={String(m.statusJson?.error || 'Error en el envío')}
+                              title={errorMessage || 'Error en el envío'}
                             >
                               <AlertCircle size={11} className="text-red-400" />
                               <span>Error de envío</span>
