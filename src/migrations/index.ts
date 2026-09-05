@@ -21,6 +21,7 @@ import * as migration_20260901_130000_email_messages_mirror from './20260901_130
 import * as migration_20260901_140000_appointments_gcal_mirror from './20260901_140000_appointments_gcal_mirror';
 import * as migration_20260902_180000_fix_locked_documents_rels from './20260902_180000_fix_locked_documents_rels';
 import * as migration_20260903_190000_notifications_occurred_at from './20260903_190000_notifications_occurred_at';
+import * as migration_20260904_120000_form_submissions_event_id from './20260904_120000_form_submissions_event_id';
 
 export const migrations = [
   {
@@ -137,5 +138,10 @@ export const migrations = [
     up: migration_20260903_190000_notifications_occurred_at.up,
     down: migration_20260903_190000_notifications_occurred_at.down,
     name: '20260903_190000_notifications_occurred_at',
+  },
+  {
+    up: migration_20260904_120000_form_submissions_event_id.up,
+    down: migration_20260904_120000_form_submissions_event_id.down,
+    name: '20260904_120000_form_submissions_event_id',
   },
 ];

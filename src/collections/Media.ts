@@ -20,15 +20,25 @@ export const Media: CollectionConfig = {
   // Allowlist explícita (docs: /docs/upload/overview — "Restrict mimeTypes in
   // the file picker"). Los ejecutables/HTML ya vienen bloqueados por defecto,
   // pero SVG no: un SVG con <script> servido desde el mismo origen es XSS
-  // almacenado. No se usa `image/*` genérico para no dejarlo pasar.
-  // PDF: los sube payload-invoicepdf · video: adjuntos de publicaciones sociales.
+  // almacenado, así que queda prohibido aquí Y en media-actions.ts (mismo
+  // allowlist, sin SVG). No se usa `image/*` genérico para no dejarlo pasar.
+  // Documentos: los mismos que acepta uploadMediaAction en el workspace
+  // (PDF/txt/csv/Word/Excel — se descargan como attachment, nunca inline).
+  // Video: adjuntos de publicaciones sociales.
   upload: {
     mimeTypes: [
       'image/png',
       'image/jpeg',
       'image/webp',
       'image/gif',
+      'image/avif',
       'application/pdf',
+      'text/plain',
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'video/mp4',
       'video/webm',
     ],

@@ -40,7 +40,10 @@ export const FormSubmissions: CollectionConfig = {
     {
       name: 'eventId',
       type: 'text',
-      index: true,
+      // UNIQUE (no index simple): es la reserva de idempotencia del webhook de
+      // Tally. Sin el constraint, dos entregas concurrentes del mismo evento
+      // pasan ambas el check de dedupe y crean submission/lead duplicados.
+      unique: true,
       label: 'ID de evento (idempotencia)',
       admin: {
         position: 'sidebar',
