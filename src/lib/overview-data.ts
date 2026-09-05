@@ -16,9 +16,11 @@ import {
   monthlyPendingSeries,
   monthlyRevenueSeries,
   paymentsAggregate,
+  quotesAggregate,
   startOfMonthIso,
   type MonthlyRevenuePoint,
   type PaymentAggregate,
+  type QuoteAggregate,
 } from './db-aggregates'
 import { getIntegrationsHealth } from './integrations-health'
 import type { Tenant } from '@/payload-types'
@@ -253,7 +255,8 @@ export async function getWorkspaceOverviewData({
     revenuePending,
     overdueTasks,
     overduePaymentsRes,
-    activeQuotesRes,
+    activeQuotesCountRes,
+    activeQuotesAggRes,
     allLeadsRes,
     yearActivities,
     yearMessages,
@@ -328,14 +331,13 @@ export async function getWorkspaceOverviewData({
       collection: 'payments',
       where: tenantWhere(tenantId, { status: { equals: 'vencido' } }),
     }),
-    q({
+    c({
       collection: 'quotes',
-      limit: 50,
-      depth: 0,
       where: tenantWhere(tenantId, {
         status: { in: ['draft', 'sent'] },
       }),
     }),
+    quotesAggregate(payload, tenantId, ['draft', 'sent']),
     q({
       collection: 'leads',
       limit: 500,
@@ -409,9 +411,21 @@ export async function getWorkspaceOverviewData({
   const revenueTrendPct = pctChange(revenuePeriod.total, revenuePreviousPeriod.total)
 
   // Cotizaciones activas y Ticket promedio
-  const activeQuotes = activeQuotesRes.docs as { total?: number | null }[]
-  const quotesActiveCount = activeQuotes.length
-  const quotesActiveTotal = activeQuotes.reduce((acc, q) => acc + (q.total || 0), 0)
+  const quotesActiveCount = activeQuotesCountRes.totalDocs
+  let quotesActiveTotal = activeQuotesAggRes.total
+  if (quotesActiveTotal === 0 && quotesActiveCount > 0) {
+    // Fallback completo para drivers sin pool SQL directo
+    const fallbackQuotes = await q({
+      collection: 'quotes',
+      depth: 0,
+      pagination: false,
+      where: tenantWhere(tenantId, { status: { in: ['draft', 'sent'] } }),
+    })
+    quotesActiveTotal = (fallbackQuotes.docs as { total?: number | null }[]).reduce(
+      (acc, q) => acc + (q.total || 0),
+      0,
+    )
+  }
   const averageTicket = revenuePeriod.count > 0 ? Math.round(revenuePeriod.total / revenuePeriod.count) : 0
 
   // Salud 24h WhatsApp

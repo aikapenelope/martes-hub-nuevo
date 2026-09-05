@@ -13,6 +13,7 @@ import {
   MessageSquare,
   PackageCheck,
   Plus,
+  Search,
   Send,
   Share2,
   Tag,
@@ -28,6 +29,8 @@ import { toggleOfferActiveAction } from '@/lib/offer-actions'
 import {
   convertQuoteToInvoiceAction,
   createQuoteAction,
+  searchRecipientsAction,
+  type RecipientSearchResult,
   updateQuoteStatusAction,
 } from '@/lib/billing-actions'
 
@@ -119,6 +122,10 @@ export function OffersWorkspace({
     })
   }, [offers, searchQuery])
 
+  // Paginación de Cotizaciones
+  const [quotePage, setQuotePage] = useState(1)
+  const QUOTES_PER_PAGE = 20
+
   const filteredQuotes = useMemo(() => {
     const q = searchQuery.toLowerCase().trim()
     if (!q) return quotes
@@ -128,6 +135,88 @@ export function OffersWorkspace({
       return cName.toLowerCase().includes(q) || num.toLowerCase().includes(q)
     })
   }, [quotes, searchQuery])
+
+  const totalQuotePages = Math.max(1, Math.ceil(filteredQuotes.length / QUOTES_PER_PAGE))
+  const paginatedQuotes = useMemo(() => {
+    const start = (quotePage - 1) * QUOTES_PER_PAGE
+    return filteredQuotes.slice(start, start + QUOTES_PER_PAGE)
+  }, [filteredQuotes, quotePage])
+
+  // Búsqueda interactiva de Destinatarios (Clientes y Prospectos) sin límite de carga
+  const [recipientQuery, setRecipientQuery] = useState('')
+  const [remoteRecipients, setRemoteRecipients] = useState<RecipientSearchResult[]>([])
+  const [isSearchingRecipients, setIsSearchingRecipients] = useState(false)
+
+  const handleSearchRecipients = async (query: string) => {
+    setRecipientQuery(query)
+    const q = query.trim()
+    if (q.length < 2) {
+      setRemoteRecipients([])
+      return
+    }
+    setIsSearchingRecipients(true)
+    try {
+      const results = await searchRecipientsAction(q)
+      setRemoteRecipients(results)
+    } catch {
+      // Manejo silencioso
+    } finally {
+      setIsSearchingRecipients(false)
+    }
+  }
+
+  const displayedClients = useMemo(() => {
+    const q = recipientQuery.toLowerCase().trim()
+    const fromProps = q
+      ? clients.filter(
+          (c) =>
+            c.name.toLowerCase().includes(q) ||
+            (c.companyName || '').toLowerCase().includes(q) ||
+            (c.email || '').toLowerCase().includes(q),
+        )
+      : clients
+
+    const remoteClients = remoteRecipients
+      .filter((r) => r.type === 'client' && r.customerId)
+      .map((r) => ({
+        id: r.customerId!,
+        name: r.name,
+        companyName: r.companyName || null,
+        email: r.email || null,
+      })) as Client[]
+
+    const map = new Map<number, Client>()
+    for (const c of fromProps) map.set(c.id, c)
+    for (const c of remoteClients) map.set(c.id, c)
+    return Array.from(map.values())
+  }, [clients, recipientQuery, remoteRecipients])
+
+  const displayedLeads = useMemo(() => {
+    const q = recipientQuery.toLowerCase().trim()
+    const fromProps = q
+      ? leads.filter(
+          (l) =>
+            l.fullName.toLowerCase().includes(q) ||
+            (l.companyName || '').toLowerCase().includes(q) ||
+            (l.email || '').toLowerCase().includes(q),
+        )
+      : leads
+
+    const remoteLeads = remoteRecipients
+      .filter((r) => r.type === 'lead')
+      .map((r) => ({
+        id: Number(r.id.replace('lead_', '')) || 0,
+        fullName: r.name,
+        companyName: r.companyName || null,
+        email: r.email || null,
+        status: 'prospecto',
+      })) as unknown as Lead[]
+
+    const map = new Map<string, Lead>()
+    for (const l of fromProps) map.set(l.fullName, l)
+    for (const l of remoteLeads) map.set(l.fullName, l)
+    return Array.from(map.values())
+  }, [leads, recipientQuery, remoteRecipients])
 
   function getPdfUrl(doc: Quote): string | null {
     const first = doc.generatedPdfs?.[0]
@@ -453,7 +542,7 @@ export function OffersWorkspace({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-900">
-                  {filteredQuotes.map((q) => {
+                  {paginatedQuotes.map((q) => {
                     const url = getPdfUrl(q)
                     const isAccepted = q.status === 'accepted'
                     return (
@@ -558,8 +647,33 @@ export function OffersWorkspace({
               </table>
             </div>
           )}
-          <footer className="border-t border-zinc-900 px-4 py-3 text-xs font-mono text-zinc-500">
-            <span>{filteredQuotes.length} cotizaciones registradas</span>
+          <footer className="border-t border-zinc-900 px-4 py-3 text-xs font-mono text-zinc-500 flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Mostrando {paginatedQuotes.length} de {filteredQuotes.length} cotizaciones
+            </span>
+            {totalQuotePages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={quotePage <= 1}
+                  onClick={() => setQuotePage((p) => Math.max(1, p - 1))}
+                  className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 disabled:opacity-40 hover:text-white transition text-[11px]"
+                >
+                  Anterior
+                </button>
+                <span className="text-zinc-400 text-[11px]">
+                  Página {quotePage} de {totalQuotePages}
+                </span>
+                <button
+                  type="button"
+                  disabled={quotePage >= totalQuotePages}
+                  onClick={() => setQuotePage((p) => Math.min(totalQuotePages, p + 1))}
+                  className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 disabled:opacity-40 hover:text-white transition text-[11px]"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
           </footer>
         </OledCard>
       )}
@@ -620,6 +734,22 @@ export function OffersWorkspace({
                   </div>
                 </div>
 
+                {quoteCustomerType !== 'custom' && (
+                  <div className="relative">
+                    <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                    <input
+                      type="text"
+                      value={recipientQuery}
+                      onChange={(e) => void handleSearchRecipients(e.target.value)}
+                      placeholder="Escribe para buscar destinatario en todo el CRM..."
+                      className="w-full bg-black border border-zinc-800 pl-8 pr-8 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-sky-500"
+                    />
+                    {isSearchingRecipients && (
+                      <Loader2 size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-sky-400" />
+                    )}
+                  </div>
+                )}
+
                 {quoteCustomerType === 'client' && (
                   <select
                     name="customer"
@@ -628,10 +758,12 @@ export function OffersWorkspace({
                     className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
                     required
                   >
-                    <option value="">Selecciona un cliente del CRM...</option>
-                    {clients.map((c) => (
+                    <option value="">
+                      Selecciona un cliente del CRM ({displayedClients.length} disponibles)...
+                    </option>
+                    {displayedClients.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} {c.companyName ? `(${c.companyName})` : ''}
+                        {c.name} {c.companyName ? `(${c.companyName})` : ''} {c.email ? `· ${c.email}` : ''}
                       </option>
                     ))}
                   </select>
@@ -641,16 +773,18 @@ export function OffersWorkspace({
                   <select
                     name="clientName"
                     onChange={(e) => {
-                      const leadObj = leads.find((l) => l.fullName === e.target.value)
+                      const leadObj = displayedLeads.find((l) => l.fullName === e.target.value)
                       if (leadObj?.email) setCustomClientEmail(leadObj.email)
                     }}
                     className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
                     required
                   >
-                    <option value="">Selecciona un prospecto del CRM...</option>
-                    {leads.map((l) => (
+                    <option value="">
+                      Selecciona un prospecto del CRM ({displayedLeads.length} disponibles)...
+                    </option>
+                    {displayedLeads.map((l) => (
                       <option key={l.id} value={l.fullName}>
-                        {l.fullName} {l.companyName ? `(${l.companyName})` : ''} · {l.status}
+                        {l.fullName} {l.companyName ? `(${l.companyName})` : ''} {l.email ? `· ${l.email}` : ''}
                       </option>
                     ))}
                   </select>

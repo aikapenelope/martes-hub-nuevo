@@ -4,10 +4,20 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import type { Client, Lead } from '@/payload-types'
 
 const MAX_CONCEPT = 240
 const MAX_NOTES = 2000
 const MAX_ITEM_ROWS = 6
+
+function safeInternalRedirectUrl(raw: string | undefined, fallback: string): string {
+  if (!raw) return fallback
+  // Evitar Open Redirect: debe ser ruta interna relativa absoluta iniciada por '/', sin '//' ni protocolos '://'
+  if (raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('://')) {
+    return raw
+  }
+  return fallback
+}
 
 function assertEditor(canEdit: boolean): void {
   if (!canEdit) throw new Error('No tienes permiso para modificar cobros')
@@ -179,7 +189,8 @@ export async function createQuoteAction(formData: FormData): Promise<void> {
   revalidatePath('/workspace/billing')
   revalidatePath('/workspace/offers')
   revalidatePath('/workspace')
-  const redirectTo = optionalText(formData, 'redirectTo', 200) || `/workspace/billing?created=quote-${quote.id}`
+  const rawRedirect = optionalText(formData, 'redirectTo', 200)
+  const redirectTo = safeInternalRedirectUrl(rawRedirect, `/workspace/billing?created=quote-${quote.id}`)
   redirect(redirectTo)
 }
 
@@ -487,3 +498,91 @@ export async function updateInvoiceStatusAction(params: {
   }
 }
 
+export interface RecipientSearchResult {
+  id: string
+  name: string
+  companyName?: string
+  email?: string
+  type: 'client' | 'lead'
+  customerId?: number
+}
+
+/**
+ * Búsqueda reactiva de destinatarios (Clientes y Leads) que sobrepasa el límite inicial de 200,
+ * permitiendo al cotizador buscar cualquier registro histórico del CRM del tenant.
+ */
+export async function searchRecipientsAction(query: string): Promise<RecipientSearchResult[]> {
+  try {
+    const context = await getWorkspaceContext()
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+
+    const [clientsRes, leadsRes] = await Promise.all([
+      context.payload.find({
+        collection: 'clients',
+        where: {
+          and: [
+            { tenant: { equals: context.tenantId } },
+            {
+              or: [
+                { name: { contains: q } },
+                { companyName: { contains: q } },
+                { email: { contains: q } },
+              ],
+            },
+          ],
+        },
+        limit: 25,
+        depth: 0,
+        overrideAccess: false,
+        user: context.user,
+      }),
+      context.payload.find({
+        collection: 'leads',
+        where: {
+          and: [
+            { tenant: { equals: context.tenantId } },
+            { status: { not_in: ['descartado'] } },
+            {
+              or: [
+                { fullName: { contains: q } },
+                { companyName: { contains: q } },
+                { email: { contains: q } },
+              ],
+            },
+          ],
+        },
+        limit: 25,
+        depth: 0,
+        overrideAccess: false,
+        user: context.user,
+      }),
+    ])
+
+    const results: RecipientSearchResult[] = []
+    for (const c of clientsRes.docs as Client[]) {
+      results.push({
+        id: `client_${c.id}`,
+        customerId: c.id,
+        name: c.name,
+        companyName: c.companyName || undefined,
+        email: c.email || undefined,
+        type: 'client',
+      })
+    }
+    for (const l of leadsRes.docs as Lead[]) {
+      results.push({
+        id: `lead_${l.id}`,
+        name: l.fullName,
+        companyName: l.companyName || undefined,
+        email: l.email || undefined,
+        type: 'lead',
+      })
+    }
+
+    return results
+  } catch (err) {
+    console.error('[searchRecipientsAction] Error buscando destinatarios:', err)
+    return []
+  }
+}

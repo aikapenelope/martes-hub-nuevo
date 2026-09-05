@@ -95,7 +95,7 @@ export function InboxChatPanel({
   nowTs: number
   onToggleContextPanel: () => void
   onLoadMore: () => void
-  onSendMessage: (text: string) => Promise<{ ok: boolean; error?: string; needsTemplate?: boolean }>
+  onSendMessage: (text: string, idempotencyKey?: string) => Promise<{ ok: boolean; error?: string; needsTemplate?: boolean }>
   onStatusChange: (status: 'open' | 'pending' | 'resolved') => void
   onBack?: () => void
 }) {
@@ -319,7 +319,10 @@ export function InboxChatPanel({
                               {canEdit && m.text && (
                                 <button
                                   type="button"
-                                  onClick={() => void onSendMessage(m.text || '')}
+                                  onClick={() => {
+                                    const origKey = typeof m.statusJson?.idempotencyKey === 'string' ? m.statusJson.idempotencyKey : undefined
+                                    void onSendMessage(m.text || '', origKey)
+                                  }}
                                   className="ml-1 text-[9px] text-red-300 underline hover:text-white"
                                 >
                                   Reintentar

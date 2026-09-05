@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState, useTransition } from 'react'
+import React, { useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -31,6 +31,7 @@ import {
   updatePaymentStatusAction,
   updateQuoteStatusAction,
 } from '@/lib/billing-actions'
+import { getLiveExchangeRatesAction, type LiveExchangeRates } from '@/lib/exchange-rates'
 import { Drawer } from '@/components/workspace/overlays'
 import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
 import { PaymentCreateDialog } from '@/components/workspace/PaymentCreateDialog'
@@ -38,6 +39,33 @@ import { QuoteInvoiceCreateDialog } from '@/components/workspace/QuoteInvoiceCre
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 const dateFmt = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric' })
+
+/**
+ * Compara dueDate y hoy como fechas calendario estrictas (YYYY-MM-DD) en la zona horaria
+ * del tenant para evitar desplazamientos por horas/mediodía o desfases de UTC.
+ */
+function getCalendarDayDiff(
+  dueDateStr: string | null | undefined,
+  timezone = 'America/Caracas',
+): number | null {
+  if (!dueDateStr) return null
+  const due = new Date(dueDateStr)
+  if (Number.isNaN(due.getTime())) return null
+
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const dueParts = fmt.format(due).split('-').map(Number)
+  const todayParts = fmt.format(new Date()).split('-').map(Number)
+
+  const dueUtc = Date.UTC(dueParts[0], dueParts[1] - 1, dueParts[2])
+  const todayUtc = Date.UTC(todayParts[0], todayParts[1] - 1, todayParts[2])
+
+  return Math.round((dueUtc - todayUtc) / (24 * 60 * 60 * 1000))
+}
 
 type BillingTab = 'todos_cobros' | 'pendientes' | 'pagados' | 'cotizaciones' | 'facturas'
 
@@ -91,8 +119,43 @@ export function BillingWorkspace({
     'pago_movil' | 'transferencia' | 'zelle' | 'binance' | 'efectivo' | 'otro'
   >('transferencia')
   const [payNotes, setPayNotes] = useState('')
-  const [bcvRate, setBcvRate] = useState<string>('65.00')
   const [payReference, setPayReference] = useState<string>('')
+
+  // Motor de Tasas de Cambio Referencial (Precios en USD base siempre)
+  const [rateSource, setRateSource] = useState<'bcv' | 'binance' | 'manual'>('bcv')
+  const [exchangeRate, setExchangeRate] = useState<string>('807.38')
+  const [liveRates, setLiveRates] = useState<LiveExchangeRates | null>(null)
+  const [isFetchingRates, setIsFetchingRates] = useState<boolean>(false)
+
+  const fetchRates = async (force = false) => {
+    setIsFetchingRates(true)
+    try {
+      const rates = await getLiveExchangeRatesAction(force)
+      setLiveRates(rates)
+      if (rateSource === 'bcv') {
+        setExchangeRate(String(rates.bcv.rate))
+      } else if (rateSource === 'binance') {
+        setExchangeRate(String(rates.binance.rate))
+      }
+    } catch (e) {
+      console.warn('Error obteniendo tasas en vivo:', e)
+    } finally {
+      setIsFetchingRates(false)
+    }
+  }
+
+  useEffect(() => {
+    void fetchRates()
+  }, [])
+
+  const handleSelectRateSource = (src: 'bcv' | 'binance' | 'manual') => {
+    setRateSource(src)
+    if (src === 'bcv' && liveRates) {
+      setExchangeRate(String(liveRates.bcv.rate))
+    } else if (src === 'binance' && liveRates) {
+      setExchangeRate(String(liveRates.binance.rate))
+    }
+  }
 
   // Estado para recordatorio de cobro por WhatsApp
   const [reminderPayment, setReminderPayment] = useState<Payment | null>(null)
@@ -101,19 +164,24 @@ export function BillingWorkspace({
   function generatePaymentReminderText(payment: Payment): string {
     const cName = getClientName(payment.client)
     const dueDateStr = payment.dueDate ? dateFmt.format(new Date(payment.dueDate)) : 'Pronto'
-    const nowMs = Date.now()
-    const dueMs = payment.dueDate ? new Date(payment.dueDate).getTime() : null
-    const diffDays = dueMs ? Math.round((dueMs - nowMs) / 86400000) : 0
-    const isOverdue = diffDays < 0
+    const diffDays = getCalendarDayDiff(payment.dueDate)
+    const isOverdue = diffDays !== null && diffDays < 0
+
+    const rateNum = Number(exchangeRate)
+    const bsEquivalent =
+      rateNum > 0 ? (payment.amount * rateNum).toLocaleString('es-VE', { minimumFractionDigits: 2 }) : null
 
     return (
       `*Recordatorio de Cobro · ${tenantName}*\n\n` +
       `Hola ${cName}, esperamos que estés muy bien.\n\n` +
       `Te recordamos la gestión de pago pendiente por el siguiente concepto:\n` +
       `• *Concepto:* ${payment.concept || 'Servicios profesionales'}\n` +
-      `• *Monto a pagar:* ${usd.format(payment.amount)} USD\n` +
+      `• *Monto a pagar:* ${usd.format(payment.amount)} USD (Base)\n` +
+      (bsEquivalent
+        ? `• *Referencia en Bolívares (Pago Móvil / Transferencia):* Bs. ${bsEquivalent} (Tasa: Bs. ${exchangeRate} / USD · ${rateSource.toUpperCase()})\n`
+        : '') +
       `• *Fecha de vencimiento:* ${dueDateStr}\n` +
-      (isOverdue ? `⚠️ _Registra ${Math.abs(diffDays)} día(s) de mora._\n` : '') +
+      (isOverdue ? `⚠️ _Registra ${Math.abs(diffDays!)} día(s) de mora._\n` : '') +
       `\nSi ya realizaste la transferencia o Pago Móvil, por favor compártenos el comprobante o número de referencia por este medio para conciliarlo en el sistema.\n\n` +
       `¡Muchas gracias por tu confianza!`
     )
@@ -197,11 +265,12 @@ export function BillingWorkspace({
     setActionError(null)
     setActionSuccess(null)
     startTransition(async () => {
-      const rateNum = Number(bcvRate)
+      const usesExchangeRate = payMethod === 'pago_movil' || payMethod === 'transferencia'
+      const rateNum = usesExchangeRate ? Number(exchangeRate) : 0
       const bsEquivalent = rateNum > 0 ? (payingPayment.amount * rateNum).toFixed(2) : null
       const noteDetails = [
         payReference ? `Ref: ${payReference}` : null,
-        bsEquivalent ? `Tasa BCV: ${bcvRate} (Bs. ${bsEquivalent})` : null,
+        bsEquivalent ? `Tasa ${rateSource.toUpperCase()}: ${exchangeRate} (Bs. ${bsEquivalent})` : null,
         payNotes ? payNotes.trim() : null,
       ]
         .filter(Boolean)
@@ -453,6 +522,84 @@ export function BillingWorkspace({
         </div>
       </div>
 
+      {/* Barra de Tasa Cambiaria Referencial (Base siempre USD) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-zinc-950 border border-zinc-800/80 font-mono text-xs">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+            <span>Base USD ($)</span>
+          </span>
+          <span className="text-zinc-400 text-[11px]">
+            Precios pactados en dólares. Tasa referencial para cobros en Bolívares:
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Selector de fuente */}
+          <div className="inline-flex items-center border border-zinc-800 bg-black p-0.5 text-[10px]">
+            <button
+              type="button"
+              onClick={() => handleSelectRateSource('bcv')}
+              className={`px-2 py-1 uppercase transition ${
+                rateSource === 'bcv'
+                  ? 'bg-emerald-500 text-black font-black'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              BCV {liveRates ? `(${liveRates.bcv.rate})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectRateSource('binance')}
+              className={`px-2 py-1 uppercase transition ${
+                rateSource === 'binance'
+                  ? 'bg-amber-400 text-black font-black'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Binance P2P {liveRates ? `(${liveRates.binance.rate})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRateSource('manual')}
+              className={`px-2 py-1 uppercase transition ${
+                rateSource === 'manual'
+                  ? 'bg-zinc-700 text-white font-black'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Manual
+            </button>
+          </div>
+
+          {/* Input de tasa editable en todo momento */}
+          <div className="flex items-center gap-1 bg-black border border-zinc-800 px-2 py-1">
+            <span className="text-zinc-500 text-[10px]">Bs./USD</span>
+            <input
+              type="number"
+              step="0.01"
+              min="1"
+              value={exchangeRate}
+              onChange={(e) => {
+                setExchangeRate(e.target.value)
+                setRateSource('manual')
+              }}
+              className="w-20 bg-transparent text-emerald-400 font-bold text-xs text-right focus:outline-none"
+            />
+          </div>
+
+          {/* Botón de refresco */}
+          <button
+            type="button"
+            onClick={() => void fetchRates(true)}
+            disabled={isFetchingRates}
+            className="p-1.5 border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white transition disabled:opacity-50"
+            title="Actualizar tasas en vivo desde API"
+          >
+            <RotateCcw size={12} className={isFetchingRates ? 'animate-spin text-sky-400' : ''} />
+          </button>
+        </div>
+      </div>
+
       {/* 5. Vistas de Contenido */}
 
       {/* 5.A. Tablas de Cobros (Todos / Pendientes / Pagados) */}
@@ -486,9 +633,7 @@ export function BillingWorkspace({
                     const isPaid = p.status === 'pagado'
                     const isCancelled = p.status === 'anulado'
 
-                    const nowMs = Date.now()
-                    const dueMs = p.dueDate ? new Date(p.dueDate).getTime() : null
-                    const diffDays = dueMs ? Math.round((dueMs - nowMs) / 86400000) : null
+                    const diffDays = getCalendarDayDiff(p.dueDate)
 
                     return (
                       <tr
@@ -891,23 +1036,55 @@ export function BillingWorkspace({
                 </select>
               </label>
 
-              {/* Tasa BCV y cálculo en Bolívares */}
+              {/* Tasa y cálculo referencial en Bolívares */}
               {(payMethod === 'pago_movil' || payMethod === 'transferencia') && (
-                <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 space-y-1.5">
+                <div className="p-3 bg-zinc-900/60 border border-zinc-800 space-y-2">
                   <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                    <span>Tasa BCV Referencial (Bs./USD)</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="1"
-                      value={bcvRate}
-                      onChange={(e) => setBcvRate(e.target.value)}
-                      className="bg-black border border-zinc-700 px-2 py-0.5 text-xs text-emerald-400 font-mono w-24 text-right"
-                    />
+                    <span className="font-bold text-zinc-300">Tasa Referencial (Bs./USD)</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectRateSource('bcv')}
+                        className={`px-1.5 py-0.5 text-[9px] uppercase border transition ${
+                          rateSource === 'bcv'
+                            ? 'bg-emerald-500 text-black font-bold border-emerald-500'
+                            : 'border-zinc-800 text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        BCV
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectRateSource('binance')}
+                        className={`px-1.5 py-0.5 text-[9px] uppercase border transition ${
+                          rateSource === 'binance'
+                            ? 'bg-amber-400 text-black font-bold border-amber-400'
+                            : 'border-zinc-800 text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        Binance
+                      </button>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="1"
+                        value={exchangeRate}
+                        onChange={(e) => {
+                          setExchangeRate(e.target.value)
+                          setRateSource('manual')
+                        }}
+                        className="bg-black border border-zinc-700 px-2 py-0.5 text-xs text-emerald-400 font-mono w-24 text-right"
+                      />
+                    </div>
                   </div>
-                  {Number(bcvRate) > 0 && (
-                    <div className="text-right text-xs font-mono text-emerald-300 font-bold">
-                      ≈ Bs. {(payingPayment.amount * Number(bcvRate)).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                  {Number(exchangeRate) > 0 && (
+                    <div className="flex items-center justify-between pt-1 border-t border-zinc-800/60">
+                      <span className="text-[10px] text-zinc-500">
+                        Base USD: {usd.format(payingPayment.amount)}
+                      </span>
+                      <div className="text-right text-xs font-mono text-emerald-300 font-bold">
+                        ≈ Bs. {(payingPayment.amount * Number(exchangeRate)).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      </div>
                     </div>
                   )}
                 </div>

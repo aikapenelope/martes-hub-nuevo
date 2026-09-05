@@ -197,13 +197,14 @@ export function InboxWorkspace({
 
   const handleSendMessage = async (
     text: string,
+    idempotencyKey?: string,
   ): Promise<{ ok: boolean; error?: string; needsTemplate?: boolean }> => {
     if (!selectedId || sending) {
       return { ok: false, error: 'No hay conversación activa' }
     }
     setSending(true)
     try {
-      const res = await replyConversationAction(selectedId, text)
+      const res = await replyConversationAction(selectedId, text, idempotencyKey)
       setSending(false)
       if (res.ok) {
         await loadThread(selectedId)

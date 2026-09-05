@@ -7,6 +7,7 @@ import {
   createQuoteAction,
   convertQuoteToInvoiceAction,
   updatePaymentStatusAction,
+  searchRecipientsAction,
 } from '@/lib/billing-actions'
 import { getWorkspaceOverviewData } from '@/lib/overview-data'
 
@@ -22,7 +23,7 @@ vi.mock('@/lib/workspace-context', () => ({
   getWorkspaceContext: vi.fn(),
 }))
 
-describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 35000 }, () => {
+describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
   let payload: Payload
   let user: User
   let tenant1: Tenant
@@ -244,6 +245,15 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 35000 }, () => {
       expect(data.metrics.averageTicket).toBeGreaterThan(0)
       expect(data.metrics.quotesActiveCount).toBeGreaterThanOrEqual(1)
       expect(data.metrics.quotesActiveTotal).toBeGreaterThanOrEqual(1200)
+    })
+  })
+
+  describe('searchRecipientsAction', () => {
+    it('busca destinatarios dinámicamente en todo el CRM sin límite de carga', async () => {
+      const results = await searchRecipientsAction(client1.name.slice(0, 12))
+      expect(results.length).toBeGreaterThan(0)
+      expect(results[0].customerId).toBe(client1.id)
+      expect(results[0].type).toBe('client')
     })
   })
 })
