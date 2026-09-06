@@ -5,6 +5,7 @@ import type { Payload, Where } from 'payload'
 import type { User } from '@/payload-types'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { extractPlainTextFromLexical } from './notes-utils'
 
 type ActionResult<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string }
 
@@ -172,6 +173,98 @@ export async function createNoteAction(params: {
     return { ok: true, noteId: note.id }
   } catch (err) {
     return toUserError(err, 'Error al crear la nota')
+  }
+}
+
+/**
+ * Actualiza una nota existente directamente desde el Slide-Over Drawer del workspace.
+ */
+export async function updateNoteAction(params: {
+  noteId: number
+  title?: string
+  bodyText?: string
+  category?: string
+  pinned?: boolean
+  clientId?: number | null
+  leadId?: number | null
+}): Promise<ActionResult<{ noteId: number }>> {
+  try {
+    const context = await getWorkspaceContext()
+    assertEditor(context.canEdit)
+
+    const existing = await context.payload.findByID({
+      collection: 'notes',
+      id: params.noteId,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+    const existingTenant =
+      typeof existing?.tenant === 'object' && existing.tenant ? existing.tenant.id : existing?.tenant
+    if (!existing || existingTenant !== context.tenantId) {
+      throw new DomainError('La nota indicada no pertenece a este workspace')
+    }
+
+    if (params.clientId) {
+      await assertRelatedInTenant(context.payload, context.user, context.tenantId, 'clients', params.clientId)
+    }
+    if (params.leadId) {
+      await assertRelatedInTenant(context.payload, context.user, context.tenantId, 'leads', params.leadId)
+    }
+
+    const updateData: Record<string, unknown> = {}
+    if (params.title !== undefined) {
+      const trimmedTitle = params.title.trim()
+      if (!trimmedTitle) {
+        return { ok: false, error: 'El título es obligatorio' }
+      }
+      updateData.title = trimmedTitle.slice(0, 120)
+    }
+
+    if (params.bodyText !== undefined) {
+      const trimmedBody = params.bodyText.trim()
+      if (!trimmedBody) {
+        return { ok: false, error: 'El contenido es obligatorio' }
+      }
+      // Preservar el árbol Lexical enriquecido (enlaces, listas anidadas, encabezados)
+      // si el texto del cuerpo no cambió respecto al existente.
+      const currentPlainText = extractPlainTextFromLexical(existing.body)
+      if (trimmedBody !== currentPlainText) {
+        updateData.body = (await buildLexicalFromPlainText(trimmedBody)) as never
+      }
+    }
+
+    if (params.category !== undefined) {
+      updateData.category = params.category
+    }
+
+    if (params.pinned !== undefined) {
+      updateData.pinned = params.pinned
+    }
+
+    if (params.clientId !== undefined) {
+      updateData.client = params.clientId
+    }
+
+    if (params.leadId !== undefined) {
+      updateData.lead = params.leadId
+    }
+
+    const updated = await context.payload.update({
+      collection: 'notes',
+      id: params.noteId,
+      overrideAccess: false,
+      user: context.user,
+      context: { tenantId: context.tenantId },
+      data: updateData as never,
+    })
+
+    revalidatePath('/workspace/notes')
+    if (params.clientId) revalidatePath(`/workspace/crm/clients/${params.clientId}`)
+    if (params.leadId) revalidatePath(`/workspace/crm/leads/${params.leadId}`)
+    return { ok: true, noteId: updated.id }
+  } catch (err) {
+    return toUserError(err, 'Error al actualizar la nota')
   }
 }
 

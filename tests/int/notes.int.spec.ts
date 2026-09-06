@@ -1,7 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
-import { buildLexicalFromPlainText, createNoteAction, deleteNoteAction, searchNoteRelatedAction, toggleNotePinAction } from '@/lib/notes-actions'
+import {
+  buildLexicalFromPlainText,
+  createNoteAction,
+  deleteNoteAction,
+  searchNoteRelatedAction,
+  toggleNotePinAction,
+  updateNoteAction,
+} from '@/lib/notes-actions'
+import { extractPlainTextFromLexical, hasComplexLexicalNodes } from '@/lib/notes-utils'
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
@@ -197,5 +205,123 @@ describe('searchNoteRelatedAction — permisos y scoping', () => {
     const res = await searchNoteRelatedAction({ q: 'Test', type: 'client' })
     expect(res.ok).toBe(false)
     expect((res as { error?: string }).error).toContain('No tienes permiso')
+  })
+})
+
+describe('extractPlainTextFromLexical & updateNoteAction', () => {
+  it('extrae texto plano correctamente de un árbol Lexical', async () => {
+    const lexical = await buildLexicalFromPlainText('Línea 1\nLínea 2\n\nPárrafo 2')
+    const plain = extractPlainTextFromLexical(lexical)
+    expect(plain).toContain('Línea 1')
+    expect(plain).toContain('Párrafo 2')
+  })
+
+  it('actualiza una nota existente correctamente', async () => {
+    const { payload, updated } = mockPayloadFactory({
+      notes: [{ id: 42, tenant: 1, title: 'Nota vieja', body: {} }],
+    })
+    mockedContext.mockResolvedValue(makeContext({ payload }) as never)
+
+    const res = await updateNoteAction({
+      noteId: 42,
+      title: 'Nota actualizada',
+      bodyText: '- [ ] Nueva tarea',
+      category: 'idea',
+      pinned: true,
+    })
+
+    expect(res.ok).toBe(true)
+    expect(updated).toHaveLength(1)
+    expect(updated[0].id).toBe(42)
+    expect(updated[0].data.title).toBe('Nota actualizada')
+    expect(updated[0].data.category).toBe('idea')
+    expect(updated[0].data.pinned).toBe(true)
+  })
+
+  it('preserva el árbol Lexical enriquecido si el cuerpo de texto no se modificó', async () => {
+    const complexBody = {
+      root: {
+        type: 'root',
+        children: [
+          {
+            type: 'heading',
+            tag: 'h2',
+            children: [{ type: 'text', text: 'Encabezado Importante' }],
+          },
+          {
+            type: 'paragraph',
+            children: [
+              { type: 'text', text: 'Enlace a ' },
+              {
+                type: 'link',
+                fields: { url: 'https://example.com' },
+                children: [{ type: 'text', text: 'Sitio Web' }],
+              },
+            ],
+          },
+          {
+            type: 'horizontalrule',
+          },
+        ],
+      },
+    }
+
+    const { payload, updated } = mockPayloadFactory({
+      notes: [{ id: 99, tenant: 1, title: 'Nota Rica', body: complexBody }],
+    })
+    mockedContext.mockResolvedValue(makeContext({ payload }) as never)
+
+    // Solo cambiamos metadata (título y categoría), pasando el mismo plain text extraído
+    const plainText = extractPlainTextFromLexical(complexBody)
+    const res = await updateNoteAction({
+      noteId: 99,
+      title: 'Nota Rica Renombrada',
+      bodyText: plainText,
+      category: 'cliente',
+    })
+
+    expect(res.ok).toBe(true)
+    expect(updated).toHaveLength(1)
+    expect(updated[0].data.title).toBe('Nota Rica Renombrada')
+    expect(updated[0].data.category).toBe('cliente')
+    // Crucial: body NO debe haberse sobreescrito con texto plano aplanado
+    expect(updated[0].data.body).toBeUndefined()
+  })
+
+  it('detecta correctamente si un documento Lexical contiene nodos enriquecidos', () => {
+    const simpleDoc = {
+      root: {
+        children: [
+          { type: 'paragraph', children: [{ type: 'text', text: 'Simple texto' }] },
+        ],
+      },
+    }
+    expect(hasComplexLexicalNodes(simpleDoc)).toBe(false)
+
+    const docWithHeading = {
+      root: {
+        children: [{ type: 'heading', children: [{ type: 'text', text: 'Título H2' }] }],
+      },
+    }
+    expect(hasComplexLexicalNodes(docWithHeading)).toBe(true)
+
+    const docWithLink = {
+      root: {
+        children: [
+          {
+            type: 'paragraph',
+            children: [{ type: 'link', children: [{ type: 'text', text: 'Link' }] }],
+          },
+        ],
+      },
+    }
+    expect(hasComplexLexicalNodes(docWithLink)).toBe(true)
+
+    const docWithRule = {
+      root: {
+        children: [{ type: 'horizontalrule' }],
+      },
+    }
+    expect(hasComplexLexicalNodes(docWithRule)).toBe(true)
   })
 })
