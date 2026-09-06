@@ -17,13 +17,20 @@ export function OledCard({
   children,
   className = '',
   bracketAccent = false,
+  onClick,
 }: {
   children: ReactNode
   className?: string
   bracketAccent?: boolean
+  onClick?: () => void
 }) {
   return (
-    <div className={`oled-card p-4 ${bracketAccent ? 'bracket-accent' : ''} ${className}`}>{children}</div>
+    <div
+      onClick={onClick}
+      className={`oled-card p-4 ${bracketAccent ? 'bracket-accent' : ''} ${className}`}
+    >
+      {children}
+    </div>
   )
 }
 

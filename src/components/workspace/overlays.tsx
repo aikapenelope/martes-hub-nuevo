@@ -103,22 +103,36 @@ export function Dialog({
   )
 }
 
-/** Panel lateral deslizante (usado por el drawer 360° del lead). Foco atrapado dentro mientras está abierto. */
+const DRAWER_SIZE_CLASSES: Record<string, string> = {
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-xl',
+  '2xl': 'max-w-2xl',
+}
+
+/** Panel lateral deslizante (usado por el drawer 360° del lead y notas). Foco atrapado dentro mientras está abierto. */
 export function Drawer({
   open,
   onClose,
   title,
   children,
+  size = 'md',
+  className = '',
 }: {
   open: boolean
   onClose: () => void
-  title: string
+  title?: string
   children: ReactNode
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
+  className?: string
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(open, panelRef, onClose)
 
   if (!open) return null
+
+  const sizeCls = DRAWER_SIZE_CLASSES[size] ?? 'max-w-md'
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -126,27 +140,29 @@ export function Drawer({
         type="button"
         aria-label="Cerrar panel"
         onClick={onClose}
-        className="absolute inset-0 bg-black/70"
+        className="absolute inset-0 bg-black/70 backdrop-blur-xs transition-opacity"
       />
       <aside
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={title || 'Panel lateral'}
         tabIndex={-1}
-        className="relative flex h-full w-full max-w-md flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl outline-none"
+        className={`relative flex h-full w-full ${sizeCls} flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl outline-none transition-transform duration-200 ease-out ${className}`}
       >
-        <header className="flex items-center justify-between gap-4 border-b border-zinc-800 px-4 py-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-white">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="text-zinc-400 transition hover:text-white"
-          >
-            <X size={16} />
-          </button>
-        </header>
+        {title ? (
+          <header className="flex items-center justify-between gap-4 border-b border-zinc-800 px-4 py-3">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-white truncate">{title}</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="text-zinc-400 transition hover:text-white"
+            >
+              <X size={16} />
+            </button>
+          </header>
+        ) : null}
         <div className="flex flex-1 flex-col overflow-y-auto p-4">{children}</div>
       </aside>
     </div>

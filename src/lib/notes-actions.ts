@@ -175,6 +175,114 @@ export async function createNoteAction(params: {
   }
 }
 
+/**
+ * Extrae texto legible a partir de la estructura jerárquica de Lexical
+ * para precargar el editor / textarea in-situ sin perder saltos de línea.
+ */
+export function extractPlainTextFromLexical(node: unknown): string {
+  if (!node || typeof node !== 'object') return ''
+  const n = node as Record<string, unknown>
+  if (typeof n.text === 'string') return n.text
+  if (Array.isArray(n.children)) {
+    const pieces = n.children.map(extractPlainTextFromLexical)
+    if (n.type === 'paragraph' || n.type === 'heading' || n.type === 'listitem') {
+      return pieces.join('') + '\n'
+    }
+    return pieces.join('')
+  }
+  if (n.root && typeof n.root === 'object') {
+    return extractPlainTextFromLexical(n.root).trim()
+  }
+  return ''
+}
+
+/**
+ * Actualiza una nota existente directamente desde el Slide-Over Drawer del workspace.
+ */
+export async function updateNoteAction(params: {
+  noteId: number
+  title?: string
+  bodyText?: string
+  category?: string
+  pinned?: boolean
+  clientId?: number | null
+  leadId?: number | null
+}): Promise<ActionResult<{ noteId: number }>> {
+  try {
+    const context = await getWorkspaceContext()
+    assertEditor(context.canEdit)
+
+    const existing = await context.payload.findByID({
+      collection: 'notes',
+      id: params.noteId,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+    const existingTenant =
+      typeof existing?.tenant === 'object' && existing.tenant ? existing.tenant.id : existing?.tenant
+    if (!existing || existingTenant !== context.tenantId) {
+      throw new DomainError('La nota indicada no pertenece a este workspace')
+    }
+
+    if (params.clientId) {
+      await assertRelatedInTenant(context.payload, context.user, context.tenantId, 'clients', params.clientId)
+    }
+    if (params.leadId) {
+      await assertRelatedInTenant(context.payload, context.user, context.tenantId, 'leads', params.leadId)
+    }
+
+    const updateData: Record<string, unknown> = {}
+    if (params.title !== undefined) {
+      const trimmedTitle = params.title.trim()
+      if (!trimmedTitle) {
+        return { ok: false, error: 'El título es obligatorio' }
+      }
+      updateData.title = trimmedTitle.slice(0, 120)
+    }
+
+    if (params.bodyText !== undefined) {
+      const trimmedBody = params.bodyText.trim()
+      if (!trimmedBody) {
+        return { ok: false, error: 'El contenido es obligatorio' }
+      }
+      updateData.body = (await buildLexicalFromPlainText(trimmedBody)) as never
+    }
+
+    if (params.category !== undefined) {
+      updateData.category = params.category
+    }
+
+    if (params.pinned !== undefined) {
+      updateData.pinned = params.pinned
+    }
+
+    if (params.clientId !== undefined) {
+      updateData.client = params.clientId
+    }
+
+    if (params.leadId !== undefined) {
+      updateData.lead = params.leadId
+    }
+
+    const updated = await context.payload.update({
+      collection: 'notes',
+      id: params.noteId,
+      overrideAccess: false,
+      user: context.user,
+      context: { tenantId: context.tenantId },
+      data: updateData as never,
+    })
+
+    revalidatePath('/workspace/notes')
+    if (params.clientId) revalidatePath(`/workspace/crm/clients/${params.clientId}`)
+    if (params.leadId) revalidatePath(`/workspace/crm/leads/${params.leadId}`)
+    return { ok: true, noteId: updated.id }
+  } catch (err) {
+    return toUserError(err, 'Error al actualizar la nota')
+  }
+}
+
 export async function toggleNotePinAction(params: {
   noteId: number
 }): Promise<ActionResult<{ pinned: boolean }>> {
