@@ -50,6 +50,70 @@ function backupKey(tenantId: string, boardId: number): string {
   return `martes-wb-bak-${tenantId}-${boardId}`
 }
 
+function toMs(value: string | null | undefined): number | null {
+  if (!value) return null
+  const ms = new Date(value).getTime()
+  return Number.isFinite(ms) ? ms : null
+}
+
+function readBackup(
+  tenantId: string,
+  boardId: number,
+): { baseRevision: string | null; scene: WhiteboardScene } | null {
+  try {
+    const raw = localStorage.getItem(backupKey(tenantId, boardId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { baseRevision?: string | null; scene?: WhiteboardScene }
+    if (!parsed?.scene || !Array.isArray(parsed.scene.elements)) return null
+    // Formato nuevo: baseRevision = revisión del server sobre la que se editaba.
+    // (Respaldos del formato viejo con timestamp quedan como base null.)
+    return {
+      baseRevision: typeof parsed.baseRevision === 'string' ? parsed.baseRevision : null,
+      scene: parsed.scene,
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeBackup(tenantId: string, boardId: number, baseRevision: string | null, scene: WhiteboardScene): void {
+  try {
+    localStorage.setItem(backupKey(tenantId, boardId), JSON.stringify({ baseRevision, scene }))
+  } catch {
+    // storage lleno o bloqueado: el guardado normal sigue igual
+  }
+}
+
+function removeBackup(tenantId: string, boardId: number): void {
+  try {
+    localStorage.removeItem(backupKey(tenantId, boardId))
+  } catch {
+    // nada crítico: el servidor ya tiene (o tendrá) la escena
+  }
+}
+
+function downloadScene(
+  scene: { elements: readonly unknown[]; files?: Record<string, unknown> },
+  title: string,
+  viewBackgroundColor?: string,
+): void {
+  const data = {
+    type: 'excalidraw',
+    version: 2,
+    source: 'martes-hub',
+    elements: scene.elements,
+    ...(viewBackgroundColor ? { appState: { viewBackgroundColor } } : {}),
+    files: scene.files ?? {},
+  }
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${title.replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '')}.excalidraw`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, initialBoards }: WhiteboardWorkspaceProps) {
   const [boards, setBoards] = useState<WhiteboardSummary[]>(initialBoards)
   const [activeId, setActiveId] = useState<number | null>(null)
@@ -60,10 +124,12 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // Conflicto recuperable: otro agente guardó sobre la revisión base actual
+  const [conflict, setConflict] = useState<{ boardId: number } | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
-  const pendingSceneRef = useRef<{ id: number; scene: WhiteboardScene } | null>(null)
+  const pendingSceneRef = useRef<{ id: number; scene: WhiteboardScene; baseRevision: string | null } | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryCountRef = useRef(0)
@@ -71,6 +137,8 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
   const activeIdRef = useRef<number | null>(null)
   const sceneBoardIdRef = useRef<number | null>(null)
   const boardsRef = useRef<WhiteboardSummary[]>(initialBoards)
+  // Revisión del server sobre la que se apoya el estado local de la pizarra activa
+  const baseRevisionRef = useRef<string | null>(null)
   useEffect(() => {
     activeIdRef.current = activeId
     sceneBoardIdRef.current = sceneBoardId
@@ -128,27 +196,30 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
     setSaveError(null)
     try {
       // Respaldo local ANTES de intentar persistir: si el server falla o el
-      // usuario cierra a mitad, el trabajo vive en el navegador.
-      try {
-        localStorage.setItem(backupKey(tenantId, pending.id), JSON.stringify({ ts: Date.now(), scene: pending.scene }))
-      } catch {
-        // storage lleno o bloqueado: el guardado normal sigue igual
-      }
+      // usuario cierra a mitad, el trabajo vive en el navegador con la
+      // revisión base anotada (sin relojes sincronizados).
+      writeBackup(tenantId, pending.id, pending.baseRevision, pending.scene)
       // La miniatura solo se regenera si la pizarra sigue en pantalla; si el
       // usuario ya cambió de pizarra, el canvas actual sería de otra escena.
       const thumbnail = pending.id === activeIdRef.current ? await generateThumbnail() : null
-      const result = await saveWhiteboardAction(pending.id, pending.scene, thumbnail === null ? undefined : thumbnail)
+      const result = await saveWhiteboardAction(pending.id, pending.scene, thumbnail === null ? undefined : thumbnail, pending.baseRevision)
       if (result.ok) {
         retryCountRef.current = 0
-        try {
-          localStorage.removeItem(backupKey(tenantId, pending.id))
-        } catch {
-          // nada: el servidor ya tiene la escena
-        }
+        // Contenido confirmado en el servidor: recién ahora se limpia el respaldo
+        removeBackup(tenantId, pending.id)
         // Limpiar solo si el usuario no generó datos más nuevos mientras tanto
         if (pendingSceneRef.current === pending) pendingSceneRef.current = null
+        if (pending.id === activeIdRef.current && result.updatedAt) baseRevisionRef.current = result.updatedAt
         setSavedAt(formatTime(new Date()))
-        setBoards((prev) => prev.map((b) => (b.id === pending.id ? { ...b, updatedAt: new Date().toISOString() } : b)))
+        // La lista usa el updatedAt DEL SERVIDOR, no el reloj del navegador
+        setBoards((prev) => prev.map((b) => (b.id === pending.id ? { ...b, updatedAt: result.updatedAt ?? b.updatedAt } : b)))
+        setConflict((prev) => (prev?.boardId === pending.id ? null : prev))
+      } else if (result.conflict) {
+        // Conflicto recuperable: otro agente guardó sobre nuestra revisión base.
+        // Pendiente y respaldo se conservan; SIN reintentos automáticos —
+        // el usuario decide entre su copia y la del servidor.
+        retryCountRef.current = MAX_SAVE_RETRIES
+        setConflict({ boardId: pending.id })
       } else {
         setSaveError(result.error)
         scheduleSaveRetry()
@@ -169,12 +240,16 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
 
   /** Abre una pizarra: guarda lo pendiente de la actual y carga su escena. */
   const openBoard = useCallback(
-    (id: number) => {
-      if (activeIdRef.current === id && sceneBoardIdRef.current === id) return
+    (id: number, opts?: { force?: boolean }) => {
+      if (!opts?.force && activeIdRef.current === id && sceneBoardIdRef.current === id) return
 
-      // Flush inmediato de la pizarra actual (con su propio id) antes de salir —
-      // cambiar dentro de la ventana de debounce no puede perder sus ediciones.
-      if (pendingSceneRef.current && pendingSceneRef.current.id !== id) {
+      if (opts?.force) {
+        // Recarga forzada = descarte explícito del trabajo local (conflict resolution)
+        pendingSceneRef.current = null
+        removeBackup(tenantId, id)
+      } else if (pendingSceneRef.current && pendingSceneRef.current.id !== id) {
+        // Flush inmediato de la pizarra actual (con su propio id) antes de salir —
+        // cambiar dentro de la ventana de debounce no puede perder sus ediciones.
         if (debounceRef.current) {
           clearTimeout(debounceRef.current)
           debounceRef.current = null
@@ -187,6 +262,7 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
       setSceneBoardId(null)
       setSavedAt(null)
       setSaveError(null)
+      setConflict(null)
       startTransition(async () => {
         try {
           const result = await loadWhiteboardSceneAction(id)
@@ -198,41 +274,33 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
             return
           }
 
-          // Respaldo local más nuevo que el servidor (cierre durante un
-          // autosave): restaurar y re-guardar en cuanto suba.
-          try {
-            const raw = localStorage.getItem(backupKey(tenantId, id))
-            if (raw) {
-              const backup = JSON.parse(raw) as { ts: number; scene: WhiteboardScene }
-              const serverTs = (() => {
-                const updatedAt = boardsRef.current.find((b) => b.id === id)?.updatedAt
-                return updatedAt ? Date.parse(updatedAt) : 0
-              })()
-              const restore =
-                backup &&
-                Array.isArray(backup.scene?.elements) &&
-                typeof backup.ts === 'number' &&
-                backup.ts > serverTs
-              localStorage.removeItem(backupKey(tenantId, id))
-              if (restore) {
-                setScene({
-                  elements: backup.scene.elements,
-                  files: backup.scene.files ?? {},
-                  appState: backup.scene.appState ?? {},
-                })
-                setSceneBoardId(id)
-                pendingSceneRef.current = { id, scene: backup.scene }
-                debounceRef.current = setTimeout(() => {
-                  void flushSaveRef.current?.()
-                }, 500)
-                setNotice('Se restauraron cambios locales sin guardar')
-                return
-              }
+          const backup = readBackup(tenantId, id)
+          if (backup) {
+            // El respaldo existe ⇒ su contenido nunca se confirmó en el
+            // servidor ni fue descartado: se restaura siempre. La revisión
+            // base decide el resultado del autosave, no el reloj local:
+            setScene({ elements: backup.scene.elements ?? [], files: backup.scene.files ?? {}, appState: backup.scene.appState ?? {} })
+            setSceneBoardId(id)
+            baseRevisionRef.current = backup.baseRevision
+            pendingSceneRef.current = {
+              id,
+              scene: { elements: backup.scene.elements ?? [], files: backup.scene.files ?? {}, appState: backup.scene.appState ?? {} },
+              baseRevision: backup.baseRevision,
             }
-          } catch {
-            // respaldo corrupto: se ignora y se usa la escena del servidor
+            debounceRef.current = setTimeout(() => {
+              void flushSaveRef.current?.()
+            }, 500)
+            if (backup.baseRevision && toMs(backup.baseRevision) === toMs(result.updatedAt)) {
+              setNotice('Se restauraron cambios locales sin guardar')
+            } else {
+              // Revisión anterior: el autosave producirá un conflicto
+              // recuperable en vez de pisar al otro agente
+              setNotice('Se restauró un respaldo local basado en una versión anterior')
+            }
+            return
           }
 
+          baseRevisionRef.current = result.updatedAt ?? null
           setScene({ elements: result.scene.elements, appState: result.scene.appState, files: result.scene.files })
           setSceneBoardId(id)
         } catch (err) {
@@ -249,21 +317,12 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
   // ediciones pendientes (el debounce de 2s no termina de forma fiable en un
   // unload real). Navegación SPA: flush best-effort al desmontar.
   useEffect(() => {
-    function persistPendingBackup(): boolean {
-      const pending = pendingSceneRef.current
-      if (!pending) return false
-      try {
-        localStorage.setItem(backupKey(tenantId, pending.id), JSON.stringify({ ts: Date.now(), scene: pending.scene }))
-      } catch {
-        // storage lleno o bloqueado: queda solo el aviso
-      }
-      return true
-    }
     function handleBeforeUnload(event: BeforeUnloadEvent) {
-      if (persistPendingBackup()) {
-        event.preventDefault()
-        event.returnValue = ''
-      }
+      const pending = pendingSceneRef.current
+      if (!pending) return
+      writeBackup(tenantId, pending.id, pending.baseRevision, pending.scene)
+      event.preventDefault()
+      event.returnValue = ''
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => {
@@ -304,7 +363,7 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
           localStorage.setItem(migratedKey, '1')
           const created = await createWhiteboardAction('Whiteboard (migrado de este navegador)')
           if (created.ok && !cancelled) {
-            const saved = await saveWhiteboardAction(created.id, sceneToMigrate)
+            const saved = await saveWhiteboardAction(created.id, sceneToMigrate, undefined, created.updatedAt)
             if (saved.ok) {
               try {
                 localStorage.removeItem(storageKey)
@@ -314,11 +373,12 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
               setBoards((prev) =>
                 prev.some((b) => b.id === created.id)
                   ? prev
-                  : [{ id: created.id, title: created.title, thumbnail: null, source: 'import', updatedAt: new Date().toISOString() }, ...prev],
+                  : [{ id: created.id, title: created.title, thumbnail: null, source: 'import', updatedAt: saved.updatedAt }, ...prev],
               )
               setNotice('Tu whiteboard local se migró como pizarra compartida')
               // Solo se abre automáticamente si el tenant no tenía pizarras
               if (initialBoards.length === 0 && activeIdRef.current == null) {
+                baseRevisionRef.current = saved.updatedAt ?? created.updatedAt ?? null
                 setActiveId(created.id)
                 setSceneBoardId(created.id)
                 setScene({ elements: sceneToMigrate.elements, files: sceneToMigrate.files ?? {}, appState: {} })
@@ -345,7 +405,8 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
         try {
           const created = await createWhiteboardAction('Pizarra principal')
           if (created.ok && !cancelled) {
-            setBoards([{ id: created.id, title: created.title, thumbnail: null, source: 'local', updatedAt: new Date().toISOString() }])
+            baseRevisionRef.current = created.updatedAt ?? null
+            setBoards([{ id: created.id, title: created.title, thumbnail: null, source: 'local', updatedAt: created.updatedAt }])
             setActiveId(created.id)
             setSceneBoardId(created.id)
             setScene({ elements: [], files: {}, appState: {} })
@@ -371,6 +432,7 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
       retryCountRef.current = 0
       pendingSceneRef.current = {
         id: currentId,
+        baseRevision: baseRevisionRef.current,
         scene: {
           elements: elements as unknown[],
           files,
@@ -397,7 +459,10 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
       try {
         const result = await createWhiteboardAction(title || 'Sin título')
         if (result.ok) {
-          setBoards((prev) => [{ id: result.id, title: result.title, thumbnail: null, source: 'local', updatedAt: new Date().toISOString() }, ...prev])
+          setBoards((prev) => [
+            { id: result.id, title: result.title, thumbnail: null, source: 'local', updatedAt: result.updatedAt },
+            ...prev,
+          ])
           openBoard(result.id)
         } else {
           setNotice(result.error)
@@ -412,15 +477,22 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
     const id = activeId
     if (id == null) return
     if (!confirm('¿Borrar esta pizarra? Esta acción no se puede deshacer.')) return
-    // Nada pendiente ni respaldo de una pizarra que se va a borrar
-    if (pendingSceneRef.current?.id === id) pendingSceneRef.current = null
-    try {
-      localStorage.removeItem(backupKey(tenantId, id))
-    } catch {}
     startTransition(async () => {
       try {
         const result = await deleteWhiteboardAction(id)
         if (result.ok) {
+          // Éxito recién AHORA: cancelar timers y recién entonces limpiar la
+          // escena pendiente y el respaldo local de esta pizarra.
+          if (debounceRef.current) {
+            clearTimeout(debounceRef.current)
+            debounceRef.current = null
+          }
+          if (retryTimerRef.current) {
+            clearTimeout(retryTimerRef.current)
+            retryTimerRef.current = null
+          }
+          if (pendingSceneRef.current?.id === id) pendingSceneRef.current = null
+          removeBackup(tenantId, id)
           const remaining = boards.filter((b) => b.id !== id)
           setBoards(remaining)
           if (activeId === id) {
@@ -432,6 +504,8 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
             }
           }
         } else {
+          // Fallo: pendiente y respaldo intactos — autosave y beforeunload
+          // siguen protegiendo el trabajo de esta pizarra.
           setNotice(result.error)
         }
       } catch (err) {
@@ -450,7 +524,10 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
         const raw = await file.text()
         const result = await importWhiteboardAction(title, raw)
         if (result.ok) {
-          setBoards((prev) => [{ id: result.id, title: result.title, thumbnail: null, source: 'import', updatedAt: new Date().toISOString() }, ...prev])
+          setBoards((prev) => [
+            { id: result.id, title: result.title, thumbnail: null, source: 'import', updatedAt: result.updatedAt },
+            ...prev,
+          ])
           openBoard(result.id)
         } else {
           setNotice(result.error)
@@ -465,21 +542,18 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
     const api = apiRef.current
     if (!api || activeId == null) return
     const title = boards.find((b) => b.id === activeId)?.title ?? 'whiteboard'
-    const data = {
-      type: 'excalidraw',
-      version: 2,
-      source: 'martes-hub',
-      elements: api.getSceneElements(),
-      appState: { viewBackgroundColor: api.getAppState().viewBackgroundColor ?? '#ffffff' },
-      files: api.getFiles(),
-    }
-    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${title.replace(/[^\w\-áéíóúñÁÉÍÓÚÑ ]+/g, '')}.excalidraw`
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadScene(
+      { elements: api.getSceneElements(), files: api.getFiles() },
+      title,
+      api.getAppState().viewBackgroundColor ?? '#ffffff',
+    )
+  }
+
+  /** Conflicto: salvar el trabajo local como archivo antes de decidir. */
+  function handleExportPending() {
+    const pending = pendingSceneRef.current
+    if (!pending) return
+    downloadScene({ elements: pending.scene.elements ?? [], files: pending.scene.files }, `mis-cambios-${pending.id}`)
   }
 
   const activeBoard = boards.find((b) => b.id === activeId) ?? null
@@ -561,6 +635,32 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
           )}
         </div>
       </div>
+
+      {/* Conflicto recuperable: el usuario decide entre su copia y la del servidor */}
+      {conflict && conflict.boardId === activeId && (
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-amber-900/60 bg-amber-950/40 px-4 py-2">
+          <span className="flex items-center gap-2 text-[11px] font-mono text-amber-300">
+            <TriangleAlert size={12} className="shrink-0" />
+            Otro agente guardó cambios en esta pizarra mientras editabas. Tu trabajo sigue aquí y en el respaldo local.
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportPending}
+              className="border border-amber-800 bg-amber-950/60 px-2.5 py-1 text-[10px] font-mono text-amber-300 transition hover:text-white"
+            >
+              Exportar mis cambios
+            </button>
+            <button
+              type="button"
+              onClick={() => openBoard(conflict.boardId, { force: true })}
+              className="border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-[10px] font-mono text-zinc-300 transition hover:text-white"
+            >
+              Usar versión del servidor (descarta lo local)
+            </button>
+          </div>
+        </div>
+      )}
 
       {notice && (
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-900/60 bg-amber-950/40 px-4 py-1.5">

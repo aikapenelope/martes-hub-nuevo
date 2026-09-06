@@ -31,6 +31,9 @@ function makeContext({
   return { payload, user, tenantId, tenant: { id: tenantId }, canEdit, isAdmin, roles: isAdmin ? ['admin'] : ['agente'] }
 }
 
+const DOC_UPDATED_AT = '2026-01-01T00:00:00.000Z'
+const NEW_UPDATED_AT = '2026-02-02T00:00:00.000Z'
+
 function mockPayloadFactory({
   existing = [],
   totalBoards = 0,
@@ -59,16 +62,19 @@ function mockPayloadFactory({
           d.id === idCond?.id.equals &&
           (d.tenant === tenantCond?.tenant.equals || d.tenant === (tenantCond?.tenant.equals as unknown)),
       )
-      return Promise.resolve({ docs: doc ? [doc] : [], totalDocs: doc ? 1 : 0 })
+      return Promise.resolve({
+        docs: doc ? [{ updatedAt: DOC_UPDATED_AT, ...doc }] : [],
+        totalDocs: doc ? 1 : 0,
+      })
     }),
     create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
-      const doc = { id: nextId++, ...data }
+      const doc = { id: nextId++, updatedAt: NEW_UPDATED_AT, ...data }
       created.push(doc)
       return Promise.resolve(doc)
     }),
     update: vi.fn(({ id, data }: { id: number; data: Record<string, unknown> }) => {
       updated.push({ id, data })
-      return Promise.resolve({ id })
+      return Promise.resolve({ id, updatedAt: NEW_UPDATED_AT })
     }),
     delete: vi.fn(({ id }: { id: number }) => {
       deleted.push(id)
@@ -94,6 +100,7 @@ describe('Whiteboard — acciones del workspace', () => {
       const res = await createWhiteboardAction('Reto Q4')
 
       expect(res.ok).toBe(true)
+      if (res.ok) expect(res.updatedAt).toBe(NEW_UPDATED_AT)
       expect(created).toHaveLength(1)
       expect(created[0].tenant).toBe(1)
       expect(created[0].title).toBe('Reto Q4')
@@ -125,13 +132,37 @@ describe('Whiteboard — acciones del workspace', () => {
       const { payload, updated } = mockPayloadFactory({ existing: [{ id: 3, tenant: 1, title: 'Reto' }] })
       mockedContext.mockResolvedValue(makeContext({ payload }) as never)
 
-      const res = await saveWhiteboardAction(3, VALID_SCENE, 'data:image/jpeg;base64,abc')
+      const res = await saveWhiteboardAction(3, VALID_SCENE, 'data:image/jpeg;base64,abc', DOC_UPDATED_AT)
 
       expect(res.ok).toBe(true)
+      if (res.ok) expect(res.updatedAt).toBe(NEW_UPDATED_AT)
       expect(updated).toHaveLength(1)
       expect(updated[0].id).toBe(3)
       expect((updated[0].data.scene as { elements: unknown[] }).elements).toHaveLength(1)
       expect(updated[0].data.thumbnail).toBe('data:image/jpeg;base64,abc')
+    })
+
+    it('rechaza con conflicto si la revisión base ya no es la vigente', async () => {
+      const { payload, updated } = mockPayloadFactory({ existing: [{ id: 3, tenant: 1, title: 'Compartida' }] })
+      mockedContext.mockResolvedValue(makeContext({ payload }) as never)
+
+      const res = await saveWhiteboardAction(3, VALID_SCENE, null, '2026-06-01T00:00:00.000Z')
+
+      expect(res.ok).toBe(false)
+      if (!res.ok) {
+        expect(res.conflict).toBe(true)
+        expect(res.serverUpdatedAt).toBe(DOC_UPDATED_AT)
+      }
+      expect(updated).toHaveLength(0)
+    })
+
+    it('guarda sin expectativa cuando no se pasa revisión base (compat)', async () => {
+      const { payload, updated } = mockPayloadFactory({ existing: [{ id: 3, tenant: 1 }] })
+      mockedContext.mockResolvedValue(makeContext({ payload }) as never)
+
+      const res = await saveWhiteboardAction(3, VALID_SCENE)
+      expect(res.ok).toBe(true)
+      expect(updated).toHaveLength(1)
     })
 
     it('no guarda pizarras de otro tenant', async () => {
@@ -173,6 +204,7 @@ describe('Whiteboard — acciones del workspace', () => {
       if (res.ok) {
         expect(res.scene.elements).toHaveLength(1)
         expect(res.scene.files).toEqual({})
+        expect(res.updatedAt).toBe(DOC_UPDATED_AT)
       }
     })
   })
@@ -202,6 +234,7 @@ describe('Whiteboard — acciones del workspace', () => {
       const res = await importWhiteboardAction('Mapa mental', file)
 
       expect(res.ok).toBe(true)
+      if (res.ok) expect(res.updatedAt).toBe(NEW_UPDATED_AT)
       expect(created).toHaveLength(1)
       expect(created[0].tenant).toBe(1)
       expect(created[0].source).toBe('import')

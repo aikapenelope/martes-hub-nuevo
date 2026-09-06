@@ -5,7 +5,21 @@ import { revalidatePath } from 'next/cache'
 import { MAX_BOARDS_PER_TENANT, MAX_SCENE_BYTES, MAX_THUMBNAIL_BYTES, MAX_TITLE } from '@/collections/Whiteboards'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
-type ActionResult<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string }
+type ActionResult<T extends object = object> =
+  | ({ ok: true } & T)
+  | { ok: false; error: string; conflict?: boolean; serverUpdatedAt?: string }
+
+/**
+ * Token de revisión: usamos updatedAt del servidor normalizado a ms. El
+ * cliente lo lleva de la carga al guardado y el server rechaza writes
+ * basados en una revisión que ya no es la vigente (concurrency control
+ * optimista sin campo nuevo ni migración).
+ */
+function toRevision(value: unknown): number | null {
+  if (typeof value !== 'string' && !(value instanceof Date)) return null
+  const ms = new Date(value as string).getTime()
+  return Number.isFinite(ms) ? ms : null
+}
 
 /** Contrato de escena Excalidraw que persistimos (appState solo viewport). */
 // type (no interface) para tener firma de índice implícita y ser asignable
@@ -144,7 +158,9 @@ function revalidateWhiteboard(): void {
  * Crea una pizarra vacía en el tenant activo. Compartida: todos los agentes
  * del tenant la ven y pueden editarla (decisión de producto Fase 2).
  */
-export async function createWhiteboardAction(title: string): Promise<ActionResult<{ id: number; title: string }>> {
+export async function createWhiteboardAction(
+  title: string,
+): Promise<ActionResult<{ id: number; title: string; updatedAt: string | null }>> {
   const context = await getWorkspaceContext()
   assertEditor(context.canEdit)
 
@@ -173,7 +189,7 @@ export async function createWhiteboardAction(title: string): Promise<ActionResul
   })
 
   revalidateWhiteboard()
-  return { ok: true, id: board.id, title: board.title }
+  return { ok: true, id: board.id, title: board.title, updatedAt: board.updatedAt ?? null }
 }
 
 /**
@@ -184,14 +200,27 @@ export async function saveWhiteboardAction(
   id: number,
   scene: WhiteboardScene,
   thumbnail?: string | null,
-): Promise<ActionResult> {
+  baseUpdatedAt?: string | null,
+): Promise<ActionResult<{ updatedAt: string | null }>> {
   const context = await getWorkspaceContext()
   assertEditor(context.canEdit)
 
   const safe = validateScene(scene)
-  await scopedWhiteboard(context, id)
+  const doc = await scopedWhiteboard(context, id)
 
-  await context.payload.update({
+  // Concurrency control optimista: si la revisión vigente no es la que el
+  // cliente cargó, otro agente guardó mientras tanto — rechazamos en vez de
+  // pisar su trabajo. baseUpdatedAt null = sin expectativa (compat).
+  if (baseUpdatedAt && toRevision(doc.updatedAt) !== toRevision(baseUpdatedAt)) {
+    return {
+      ok: false,
+      conflict: true,
+      error: 'Otro agente guardó cambios en esta pizarra mientras editabas',
+      serverUpdatedAt: doc.updatedAt ?? undefined,
+    }
+  }
+
+  const updated = await context.payload.update({
     collection: 'whiteboards',
     id,
     overrideAccess: false,
@@ -203,15 +232,21 @@ export async function saveWhiteboardAction(
   })
 
   revalidateWhiteboard()
-  return { ok: true }
+  return { ok: true, updatedAt: (updated as { updatedAt?: string }).updatedAt ?? null }
 }
 
 /** Carga la escena de una pizarra on demand (la lista nunca arrastra escenas completas). */
-export async function loadWhiteboardSceneAction(id: number): Promise<ActionResult<{ scene: WhiteboardScene }>> {
+export async function loadWhiteboardSceneAction(
+  id: number,
+): Promise<ActionResult<{ scene: WhiteboardScene; updatedAt: string | null }>> {
   const context = await getWorkspaceContext()
   const doc = await scopedWhiteboard(context, id)
   const scene = doc.scene as unknown as WhiteboardScene
-  return { ok: true, scene: { elements: scene?.elements ?? [], files: scene?.files ?? {}, appState: scene?.appState ?? {} } }
+  return {
+    ok: true,
+    updatedAt: doc.updatedAt ?? null,
+    scene: { elements: scene?.elements ?? [], files: scene?.files ?? {}, appState: scene?.appState ?? {} },
+  }
 }
 
 /** Elimina una pizarra. Solo admin, igual que el resto de colecciones del workspace. */
@@ -258,7 +293,7 @@ export async function renameWhiteboardAction(id: number, title: string): Promise
 export async function importWhiteboardAction(
   title: string,
   rawJson: string,
-): Promise<ActionResult<{ id: number; title: string }>> {
+): Promise<ActionResult<{ id: number; title: string; updatedAt: string | null }>> {
   const context = await getWorkspaceContext()
   assertEditor(context.canEdit)
 
@@ -315,5 +350,5 @@ export async function importWhiteboardAction(
   })
 
   revalidateWhiteboard()
-  return { ok: true, id: board.id, title: board.title }
+  return { ok: true, id: board.id, title: board.title, updatedAt: board.updatedAt ?? null }
 }

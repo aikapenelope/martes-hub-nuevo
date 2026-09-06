@@ -24,6 +24,7 @@ import { Memberships } from './collections/Memberships'
 import { Conversations } from './collections/Conversations'
 import { Messages } from './collections/Messages'
 import { MessageTemplates } from './collections/MessageTemplates'
+import { migrations } from './migrations'
 import { importCsvHandler } from './endpoints/importCsv'
 import { exportCsvHandler } from './endpoints/exportCsv'
 import { workspaceSearchHandler } from './endpoints/workspaceSearch'
@@ -459,6 +460,9 @@ export default buildConfig({
     },
     push: false,
     migrationDir: './src/migrations',
+    // Vercel: sin esto las migraciones pendientes nunca corren en deploy y la
+    // app arranca contra un esquema viejo (docs: /docs/database/migrations).
+    prodMigrations: migrations,
   }),
   sharp,
   // Límite de tamaño de subida: options de Busboy que se pasan al parser
