@@ -1,14 +1,12 @@
 import type { ReactNode } from 'react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
-import { WorkspaceHeader } from '@/components/workspace/WorkspaceHeader'
+import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
+import { WorkspaceTopbar } from '@/components/workspace/WorkspaceTopbar'
 import { CommandPalette } from '@/components/workspace/CommandPalette'
+import { MobileNavDrawer } from '@/components/workspace/MobileNavDrawer'
 import '@/styles/workspace.css'
 
-// Arquitectura de múltiples root layouts: no existe app/layout.tsx compartido.
-// Cada route group ((frontend), (payload), (workspace)) es su propio root layout
-// independiente con su propio <html> y <body>. `/admin` (payload) permanece
-// nativo y sin modificar; el workspace es una superficie de producto separada.
 export const metadata = {
   title: 'Martes Hub — Workspace',
   description: 'CRM, tareas, cobros, inbox y analítica de Martes Hub.',
@@ -23,22 +21,45 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     : user.email.split('@')[0]
   const userInitials = userHandle
     .split(' ')
-    .map((n) => n[0])
+    .map((n: string) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2)
 
+  // Badge de fecha para el topbar
+  const todayLabel = new Intl.DateTimeFormat('es-VE', {
+    timeZone: 'America/Caracas',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date())
+
   return (
     <html lang="es">
       <body className="min-h-screen bg-black font-sans antialiased text-zinc-100 selection:bg-white selection:text-black">
-        <WorkspaceHeader
-          tenantName={tenant.name}
-          userHandle={userHandle}
-          userInitials={userInitials}
-          isAdmin={isAdmin}
-        />
-        <main className="w-full space-y-5 px-4 py-5 sm:px-6 xl:px-8 2xl:px-10">{children}</main>
+        {/* Layout: Sidebar fijo a la izquierda + contenido derecho */}
+        <div className="flex h-screen overflow-hidden">
+          {/* Sidebar — oculto en mobile, siempre visible en lg+ */}
+          <div className="hidden lg:flex lg:flex-col lg:shrink-0">
+            <WorkspaceSidebar isAdmin={isAdmin} />
+          </div>
+
+          {/* Columna derecha: Topbar + Contenido */}
+          <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
+            <WorkspaceTopbar
+              tenantName={tenant.name}
+              userHandle={userHandle}
+              userInitials={userInitials}
+              isAdmin={isAdmin}
+              todayLabel={todayLabel}
+            />
+            <main className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 xl:px-8">
+              {children}
+            </main>
+          </div>
+        </div>
         <CommandPalette />
+        <MobileNavDrawer isAdmin={isAdmin} />
       </body>
     </html>
   )

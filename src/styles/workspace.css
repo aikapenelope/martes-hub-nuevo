@@ -132,3 +132,15 @@
 
 
 
+
+/* Scrollbar del sidebar — ultra delgado OLED */
+aside::-webkit-scrollbar {
+  width: 2px;
+}
+aside::-webkit-scrollbar-track {
+  background: transparent;
+}
+aside::-webkit-scrollbar-thumb {
+  background: #272727;
+  border-radius: 0;
+}
