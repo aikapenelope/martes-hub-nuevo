@@ -283,8 +283,12 @@ export function BillingWorkspace({
 
   // Manejador para marcar pago como pagado
   const handleConfirmPayment = () => {
-    if (!selectedDoc || selectedDoc.kind !== 'payment') return
-    const payment = selectedDoc.data
+    if (!activeDoc || activeDoc.kind !== 'payment') return
+    const payment = activeDoc.data
+    if (payment.status === 'anulado') {
+      setActionError('Un cobro anulado no puede conciliarse directamente; reactívalo primero')
+      return
+    }
     setActionError(null)
     setActionSuccess(null)
     startTransition(async () => {
@@ -344,6 +348,11 @@ export function BillingWorkspace({
         setActionError(res.error || 'No se pudo anular el cobro')
       } else {
         setActionSuccess('Cobro anulado')
+        setSelectedDoc((prev) =>
+          prev && prev.kind === 'payment' && prev.data.id === paymentId
+            ? { ...prev, data: { ...prev.data, status: 'anulado' } }
+            : prev,
+        )
         router.refresh()
       }
     })
@@ -362,6 +371,11 @@ export function BillingWorkspace({
         setActionError(res.error || 'No se pudo reactivar el cobro')
       } else {
         setActionSuccess('Cobro reactivado como pendiente')
+        setSelectedDoc((prev) =>
+          prev && prev.kind === 'payment' && prev.data.id === paymentId
+            ? { ...prev, data: { ...prev.data, status: 'pendiente' } }
+            : prev,
+        )
         router.refresh()
       }
     })
@@ -378,6 +392,11 @@ export function BillingWorkspace({
         setActionError(res.error || 'Error al convertir cotización')
       } else {
         setActionSuccess('Cotización convertida en Factura exitosamente')
+        setSelectedDoc((prev) =>
+          prev && prev.kind === 'quote' && prev.data.id === quoteId
+            ? { ...prev, data: { ...prev.data, status: 'accepted' } }
+            : prev,
+        )
         router.refresh()
       }
     })
@@ -391,6 +410,11 @@ export function BillingWorkspace({
       if (!res.ok) {
         setActionError(res.error || 'Error al actualizar cotización')
       } else {
+        setSelectedDoc((prev) =>
+          prev && prev.kind === 'quote' && prev.data.id === quoteId
+            ? { ...prev, data: { ...prev.data, status } }
+            : prev,
+        )
         router.refresh()
       }
     })
@@ -404,10 +428,33 @@ export function BillingWorkspace({
       if (!res.ok) {
         setActionError(res.error || 'Error al actualizar factura')
       } else {
+        setSelectedDoc((prev) =>
+          prev && prev.kind === 'invoice' && prev.data.id === invoiceId
+            ? { ...prev, data: { ...prev.data, status } }
+            : prev,
+        )
         router.refresh()
       }
     })
   }
+
+  // Documento activo derivado por ID para mantenerse siempre sincronizado con los props de la ruta
+  const activeDoc: SelectedDoc | null = (() => {
+    if (!selectedDoc) return null
+    if (selectedDoc.kind === 'payment') {
+      const fresh = payments.find((p) => p.id === selectedDoc.data.id)
+      return fresh ? { kind: 'payment', data: fresh } : selectedDoc
+    }
+    if (selectedDoc.kind === 'quote') {
+      const fresh = quotes.find((q) => q.id === selectedDoc.data.id)
+      return fresh ? { kind: 'quote', data: fresh } : selectedDoc
+    }
+    if (selectedDoc.kind === 'invoice') {
+      const fresh = invoices.find((inv) => inv.id === selectedDoc.data.id)
+      return fresh ? { kind: 'invoice', data: fresh } : selectedDoc
+    }
+    return selectedDoc
+  })()
 
   return (
     <div className="space-y-5">
@@ -421,7 +468,14 @@ export function BillingWorkspace({
             <div className="flex flex-wrap items-center gap-2">
               <QuoteInvoiceCreateDialog kind="quote" clients={clients} offers={offers} />
               <QuoteInvoiceCreateDialog kind="invoice" clients={clients} offers={offers} />
-              <PaymentCreateDialog clients={clients} variant="primary" defaultRate={exchangeRate} rateSource={rateSource} />
+              <PaymentCreateDialog
+                clients={clients}
+                variant="primary"
+                defaultRate={exchangeRate}
+                rateSource={rateSource}
+                bcvRate={liveRates ? String(liveRates.bcv.rate) : exchangeRate}
+                binanceRate={liveRates ? String(liveRates.binance.rate) : undefined}
+              />
             </div>
           ) : undefined
         }
@@ -1040,25 +1094,25 @@ export function BillingWorkspace({
 
       {/* 6. Slide-Over Drawer: Terminal Fintech 360° */}
       <Drawer
-        open={selectedDoc !== null}
+        open={activeDoc !== null}
         onClose={() => {
           setSelectedDoc(null)
           setPaymentDrawerTab('detalle')
         }}
         size="xl"
         title={
-          selectedDoc?.kind === 'payment'
+          activeDoc?.kind === 'payment'
             ? 'Terminal Fintech · Cobro'
-            : selectedDoc?.kind === 'quote'
+            : activeDoc?.kind === 'quote'
               ? 'Terminal Comercial · Cotización'
               : 'Terminal Fiscal · Factura'
         }
       >
-        {selectedDoc && (
+        {activeDoc && (
           <div className="space-y-4 font-mono text-xs">
             {/* === CASO 1: COBRO (PAYMENT) === */}
-            {selectedDoc.kind === 'payment' && (() => {
-              const payment = selectedDoc.data
+            {activeDoc.kind === 'payment' && (() => {
+              const payment = activeDoc.data
               const clientName = getClientName(payment.client)
               const custId = getCustomerId(payment.client)
               const diffDays = getCalendarDayDiff(payment.dueDate, timezone)
@@ -1301,9 +1355,29 @@ export function BillingWorkspace({
                             <span>Cobro Ya Pagado</span>
                           </div>
                           <p className="text-[11px] text-zinc-300">
-                            Este cobro ya figura como cancelado en el sistema con método:{' '}
+                            Este cobro ya figura como registrado en el sistema con método:{' '}
                             <strong className="text-white capitalize">{payment.method || '—'}</strong>.
                           </p>
+                        </div>
+                      ) : isCancelled ? (
+                        <div className="p-4 bg-zinc-900 border border-zinc-800 space-y-3">
+                          <div className="flex items-center gap-2 font-bold text-rose-400">
+                            <Ban size={16} />
+                            <span>Cobro Anulado</span>
+                          </div>
+                          <p className="text-[11px] text-zinc-400 leading-relaxed">
+                            Este cobro se encuentra anulado. No es posible conciliar ingresos ni adjuntar comprobantes a un cobro inactivo.
+                          </p>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => handleReactivatePayment(payment.id)}
+                              className="w-full py-2.5 bg-zinc-850 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-bold uppercase transition flex items-center justify-center gap-1.5"
+                            >
+                              <RotateCcw size={13} />
+                              <span>Reactivar Cobro a Pendiente</span>
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <div className="space-y-3.5">
@@ -1482,8 +1556,8 @@ export function BillingWorkspace({
             })()}
 
             {/* === CASO 2: COTIZACIÓN (QUOTE) === */}
-            {selectedDoc.kind === 'quote' && (() => {
-              const q = selectedDoc.data
+            {activeDoc.kind === 'quote' && (() => {
+              const q = activeDoc.data
               const url = pdfUrl(q)
               const canConvert = q.status === 'draft' || q.status === 'sent'
 
@@ -1632,8 +1706,8 @@ export function BillingWorkspace({
             })()}
 
             {/* === CASO 3: FACTURA (INVOICE) === */}
-            {selectedDoc.kind === 'invoice' && (() => {
-              const inv = selectedDoc.data
+            {activeDoc.kind === 'invoice' && (() => {
+              const inv = activeDoc.data
               const url = pdfUrl(inv)
 
               return (

@@ -13,6 +13,7 @@ import {
   Smartphone,
   Wallet,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 
 import { createPaymentAction } from '@/lib/billing-actions'
@@ -28,6 +29,8 @@ interface PaymentCreateDialogProps {
   variant?: 'primary' | 'secondary'
   defaultRate?: string
   rateSource?: 'bcv' | 'binance' | 'manual'
+  bcvRate?: string
+  binanceRate?: string
 }
 
 type PaymentMethodType =
@@ -41,7 +44,7 @@ type PaymentMethodType =
 const PAYMENT_METHODS: Array<{
   id: PaymentMethodType
   label: string
-  icon: typeof Smartphone
+  icon: LucideIcon
   hint: string
 }> = [
   { id: 'pago_movil', label: 'Pago Móvil', icon: Smartphone, hint: 'Bs. inmediato' },
@@ -61,14 +64,35 @@ export function PaymentCreateDialog({
   variant = 'secondary',
   defaultRate,
   rateSource = 'bcv',
+  bcvRate,
+  binanceRate,
 }: PaymentCreateDialogProps) {
   const [open, setOpen] = useState(false)
   const [amountVal, setAmountVal] = useState<string>('')
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethodType | ''>('')
-  const [rateSrc, setRateSrc] = useState<'bcv' | 'binance' | 'manual'>(rateSource)
-  const [customRate, setCustomRate] = useState<string>(defaultRate || '')
+  const [userRateSrc, setUserRateSrc] = useState<'bcv' | 'binance' | 'manual' | null>(null)
+  const [userCustomRate, setUserCustomRate] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  // Derivación reactiva: si el usuario no ha forzado una tasa manual/fuente,
+  // se alimenta automáticamente de las tasas en vivo del padre sin congelarse.
+  const rateSrc = userRateSrc ?? rateSource
+  const defaultRateForSrc =
+    rateSrc === 'binance' && binanceRate
+      ? binanceRate
+      : rateSrc === 'bcv' && bcvRate
+        ? bcvRate
+        : defaultRate || ''
+  const customRate = userCustomRate ?? defaultRateForSrc
+
+  const resetForm = () => {
+    setAmountVal('')
+    setSelectedMethod('')
+    setUserRateSrc(null)
+    setUserCustomRate(null)
+    setFormError(null)
+  }
 
   const effectiveRate = Number(customRate || defaultRate)
   const numAmount = Number(amountVal)
@@ -89,9 +113,8 @@ export function PaymentCreateDialog({
     startTransition(async () => {
       try {
         await createPaymentAction(formData)
+        resetForm()
         setOpen(false)
-        setAmountVal('')
-        setSelectedMethod('')
       } catch (err: unknown) {
         setFormError(err instanceof Error ? err.message : 'Error al crear el cobro')
       }
@@ -100,13 +123,23 @@ export function PaymentCreateDialog({
 
   return (
     <>
-      <button type="button" className={btnCls} onClick={() => setOpen(true)}>
+      <button 
+        type="button" 
+        className={btnCls} 
+        onClick={() => {
+          resetForm()
+          setOpen(true)
+        }}
+      >
         <Receipt className="w-4 h-4" /> + Cobro
       </button>
 
       <Drawer
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setOpen(false)
+          resetForm()
+        }}
         size="xl"
         title="Nuevo Cobro · Terminal Fintech"
       >
@@ -203,8 +236,8 @@ export function PaymentCreateDialog({
                     <button
                       type="button"
                       onClick={() => {
-                        setRateSrc('bcv')
-                        if (defaultRate) setCustomRate(defaultRate)
+                        setUserRateSrc('bcv')
+                        setUserCustomRate(bcvRate || defaultRate || '')
                       }}
                       className={`px-2 py-0.5 text-[9px] uppercase border transition ${
                         rateSrc === 'bcv'
@@ -216,7 +249,10 @@ export function PaymentCreateDialog({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setRateSrc('binance')}
+                      onClick={() => {
+                        setUserRateSrc('binance')
+                        setUserCustomRate(binanceRate || defaultRate || '')
+                      }}
                       className={`px-2 py-0.5 text-[9px] uppercase border transition ${
                         rateSrc === 'binance'
                           ? 'bg-amber-400 text-black font-bold border-amber-400'
@@ -231,8 +267,8 @@ export function PaymentCreateDialog({
                       min="1"
                       value={customRate}
                       onChange={(e) => {
-                        setCustomRate(e.target.value)
-                        setRateSrc('manual')
+                        setUserCustomRate(e.target.value)
+                        setUserRateSrc('manual')
                       }}
                       placeholder="Tasa"
                       className="bg-black border border-zinc-700 px-2 py-0.5 text-xs text-emerald-400 font-mono w-24 text-right focus:outline-none"
