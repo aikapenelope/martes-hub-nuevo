@@ -4,15 +4,13 @@ import { revalidatePath } from 'next/cache'
 import { generateObject } from 'ai'
 import { z } from 'zod'
 
-import type { Conversation, Message, Tenant } from '@/payload-types'
+import type { Conversation, Message } from '@/payload-types'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { getTenantAiModel } from '@/lib/ai-provider'
 import { dispatchConversationReply } from '@/lib/message-dispatch'
 import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
 import { getAssignableUsers } from '@/lib/tasks-data'
 import type { TeamMember } from '@/components/workspace/inbox/InboxCrmContextPanel'
-
-const WINDOW_MS = 24 * 60 * 60 * 1000
 
 type ActionResult<T extends object = object> =
   | ({ ok: true } & T)
@@ -357,3 +355,188 @@ export async function summarizeConversationWithAiAction(
     return { ok: false, error: err instanceof Error ? err.message : 'Error generando resumen de IA' }
   }
 }
+
+/**
+ * Crea o localiza una conversación en el tenant activo.
+ * Si ya existe una conversación con el mismo número/contacto, la retorna y actualiza
+ * los vínculos de cliente/lead si hiciera falta.
+ */
+export async function createConversationAction(params: {
+  contactAddress: string
+  channel?: 'whatsapp' | 'instagram_dm' | 'whatsapp_web'
+  clientId?: number | null
+  leadId?: number | null
+  priority?: 'baja' | 'media' | 'alta'
+  initialMessage?: string
+}): Promise<ActionResult<{ conversationId: number; isNew: boolean }>> {
+  try {
+    const context = await getWorkspaceContext()
+    if (!context.canEdit) throw new Error('No tienes permiso para crear conversaciones')
+
+    const cleanAddress = params.contactAddress.trim().replace(/^\+/, '')
+    if (!cleanAddress) throw new Error('El número o identificador del contacto es obligatorio')
+
+    const channel = params.channel || 'whatsapp'
+
+    // Buscar si ya existe una conversación con esta dirección en el tenant
+    const existing = await context.payload.find({
+      collection: 'conversations',
+      where: {
+        and: [
+          { tenant: { equals: context.tenantId } },
+          { contactAddress: { equals: cleanAddress } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+
+    let conversationId: number
+    let isNew = false
+
+    if (existing.docs.length > 0) {
+      conversationId = existing.docs[0].id
+      const patchData: Record<string, unknown> = {}
+      if (params.clientId && !existing.docs[0].client) patchData.client = params.clientId
+      if (params.leadId && !existing.docs[0].lead) patchData.lead = params.leadId
+      if (Object.keys(patchData).length > 0) {
+        await context.payload.update({
+          collection: 'conversations',
+          id: conversationId,
+          data: patchData,
+          overrideAccess: false,
+          user: context.user,
+        })
+      }
+    } else {
+      isNew = true
+      const created = await context.payload.create({
+        collection: 'conversations',
+        overrideAccess: false,
+        user: context.user,
+        data: {
+          tenant: context.tenantId,
+          contactAddress: cleanAddress,
+          channel,
+          status: 'open',
+          priority: params.priority || 'media',
+          client: params.clientId ?? undefined,
+          lead: params.leadId ?? undefined,
+          assignee: context.user.id,
+          lastMessageAt: new Date().toISOString(),
+        },
+      })
+      conversationId = created.id
+    }
+
+    if (params.initialMessage?.trim()) {
+      const idempotencyKey = `init_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      await replyConversationAction(conversationId, params.initialMessage.trim(), idempotencyKey)
+    }
+
+    revalidatePath('/workspace/inbox')
+    return { ok: true, conversationId, isNew }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al crear conversación' }
+  }
+}
+
+/**
+ * Vincula una conversación activa a un Cliente o Prospecto del CRM.
+ */
+export async function linkConversationToCrmAction(params: {
+  conversationId: number
+  clientId?: number | null
+  leadId?: number | null
+}): Promise<ActionResult> {
+  try {
+    const context = await getWorkspaceContext()
+    if (!context.canEdit) throw new Error('No tienes permiso para vincular contactos')
+
+    const conv = await context.payload.findByID({
+      collection: 'conversations',
+      id: params.conversationId,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+    if (!conv) throw new Error('Conversación no encontrada')
+
+    const convTenant = relId(conv.tenant)
+    if (convTenant !== context.tenantId) throw new Error('La conversación no pertenece al tenant activo')
+
+    await context.payload.update({
+      collection: 'conversations',
+      id: params.conversationId,
+      overrideAccess: false,
+      user: context.user,
+      data: {
+        ...(params.clientId !== undefined ? { client: params.clientId } : {}),
+        ...(params.leadId !== undefined ? { lead: params.leadId } : {}),
+      },
+    })
+
+    revalidatePath('/workspace/inbox')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al vincular con el CRM' }
+  }
+}
+
+/**
+ * Carga el balance financiero y cobros pendientes de un cliente para la ficha CRM 360°.
+ */
+export async function getClientBillingSummaryAction(clientId: number): Promise<{
+  pendingPaymentsCount: number
+  pendingTotalUsd: number
+  invoicesCount: number
+}> {
+  try {
+    const context = await getWorkspaceContext()
+    const paymentsRes = await context.payload.find({
+      collection: 'payments',
+      where: {
+        and: [
+          { tenant: { equals: context.tenantId } },
+          { client: { equals: clientId } },
+          { status: { in: ['pendiente', 'vencido'] } },
+        ],
+      },
+      limit: 50,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+
+    const pendingTotal = paymentsRes.docs.reduce((acc, p) => acc + (p.amount || 0), 0)
+
+    const invoicesRes = await context.payload.find({
+      collection: 'invoices',
+      where: {
+        and: [
+          { tenant: { equals: context.tenantId } },
+          { client: { equals: clientId } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+
+    return {
+      pendingPaymentsCount: paymentsRes.totalDocs,
+      pendingTotalUsd: pendingTotal,
+      invoicesCount: invoicesRes.totalDocs,
+    }
+  } catch {
+    return {
+      pendingPaymentsCount: 0,
+      pendingTotalUsd: 0,
+      invoicesCount: 0,
+    }
+  }
+}
+

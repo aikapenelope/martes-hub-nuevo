@@ -1,16 +1,19 @@
 'use client'
 
 /**
- * InboxWorkspace — Inbox Omnicanal Unificado 360° estilo Chatwoot:
+ * InboxWorkspace — Consola Omnicanal 3 Columnas & Ficha CRM In-Situ:
  *  1. Panel Izquierdo: Lista de conversaciones reactiva con filtros por canal
  *     (WhatsApp / Instagram / Web), estado, búsqueda en vivo y semáforo 24h.
  *  2. Panel Central: Hilo de mensajes cronológico, respuestas rápidas con
- *     snippets locales (/saludo, /pago, /horario) y envío directo vía OpenBSP.
- *  3. Panel Derecho: Ficha CRM 360° en vivo (Lead con conversión in-situ, Cliente,
- *     Copiloto IA con generación de resúmenes, asignación y notas privadas).
+ *     categorías de snippets, atajos rápidos con barra oblicua (/), y envío directo.
+ *  3. Panel Derecho: Ficha CRM 360° en vivo (Lead con conversión in-situ, Cliente con
+ *     resumen financiero de facturación/cobros, vinculación de contactos in-situ,
+ *     Copiloto IA con generación de resúmenes e inserción directa al chat, y notas privadas).
+ *  4. Lateral Drawer: Apertura de nuevas conversaciones omnicanal sin modales centrados.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Plus } from 'lucide-react'
 
 import {
   InboxConversationList,
@@ -26,6 +29,11 @@ import {
   type TeamMember,
 } from './inbox/InboxCrmContextPanel'
 import {
+  NewConversationDrawer,
+  type ContactItem,
+} from './inbox/NewConversationDrawer'
+import { HeroAction, PageHero } from '@/components/workspace/oled'
+import {
   getInboxAssigneesAction,
   replyConversationAction,
   updateConversationMetaAction,
@@ -34,13 +42,17 @@ import {
 export function InboxWorkspace({
   canEdit,
   tenantId: _tenantId,
+  tenantName,
   initialConversationId,
   initialTeam,
+  initialContacts = [],
 }: {
   canEdit: boolean
   tenantId: number
+  tenantName?: string
   initialConversationId?: number | null
   initialTeam?: TeamMember[]
+  initialContacts?: ContactItem[]
 }) {
   const [conversations, setConversations] = useState<ConvListItem[] | null>(null)
   const [statusFilter, setStatusFilter] = useState<'open' | 'pending' | 'resolved' | 'all'>('open')
@@ -49,12 +61,15 @@ export function InboxWorkspace({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [notes, setNotes] = useState<ConversationNote[]>([])
   const [team, setTeam] = useState<TeamMember[]>(initialTeam || [])
+  const [contacts] = useState<ContactItem[]>(initialContacts)
   const [hasMore, setHasMore] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [sending, setSending] = useState(false)
   const [isContextPanelOpen, setIsContextPanelOpen] = useState(true)
   const [nowTs, setNowTs] = useState(0)
   const [mobileView, setMobileView] = useState<'list' | 'chat' | 'crm'>('list')
+  const [isNewConvOpen, setIsNewConvOpen] = useState(false)
+  const [chatDraft, setChatDraft] = useState('')
 
   const latestConvRef = useRef<number | null>(null)
 
@@ -166,6 +181,7 @@ export function InboxWorkspace({
       setMessages([])
       setHasMore(false)
       setNotes([])
+      setChatDraft('')
       void loadThread(conv.id)
       void loadNotes(conv.id)
     },
@@ -247,19 +263,40 @@ export function InboxWorkspace({
     setMobileView((prev) => (prev === 'crm' ? 'chat' : 'crm'))
   }
 
-  return (
-    <div className="flex h-[calc(100vh-6.5rem)] flex-col gap-2">
-      {/* Título y resumen superior */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-        <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
-            Módulo 3 · Mensajería Integrada
-          </p>
-          <h1 className="text-base font-bold text-white">Inbox Omnicanal Unificado</h1>
-        </div>
-      </div>
+  const handleConversationCreated = async (conversationId: number) => {
+    await loadConversations()
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}?depth=1`, { credentials: 'include' })
+      if (res.ok) {
+        const doc = (await res.json()) as ConvListItem
+        handleSelect(doc)
+      }
+    } catch {
+      // Manejo silencioso
+    }
+  }
 
-      {/* Split-View Operativo de 3 Paneles con modo responsivo real */}
+  return (
+    <div className="flex h-[calc(100vh-6.5rem)] flex-col gap-3">
+      {/* 1. PageHero del Módulo Omnicanal */}
+      <PageHero
+        eyebrow="Consola Omnicanal · Módulo 3"
+        title="Inbox Omnicanal 360°"
+        description={`Gestión unificada de WhatsApp, Instagram y Web chat para ${tenantName || 'tu empresa'}.`}
+        actions={
+          canEdit ? (
+            <HeroAction
+              variant="primary"
+              icon={Plus}
+              onClick={() => setIsNewConvOpen(true)}
+            >
+              + Nueva Conversación
+            </HeroAction>
+          ) : undefined
+        }
+      />
+
+      {/* 2. Split-View Operativo de 3 Paneles */}
       <div className="flex flex-1 gap-2 min-h-0 overflow-hidden">
         {/* Panel 1: Lista de Conversaciones */}
         <div
@@ -274,6 +311,7 @@ export function InboxWorkspace({
             nowTs={nowTs}
             onStatusFilterChange={setStatusFilter}
             onSelect={handleSelect}
+            onNewConversation={canEdit ? () => setIsNewConvOpen(true) : undefined}
           />
         </div>
 
@@ -294,6 +332,8 @@ export function InboxWorkspace({
               canEdit={canEdit}
               isContextPanelOpen={isContextPanelOpen}
               nowTs={nowTs}
+              draft={chatDraft}
+              onDraftChange={setChatDraft}
               onToggleContextPanel={handleToggleContext}
               onLoadMore={() => void loadMoreMessages()}
               onSendMessage={handleSendMessage}
@@ -301,16 +341,27 @@ export function InboxWorkspace({
               onBack={() => setMobileView('list')}
             />
           ) : (
-            <div className="flex h-full flex-col items-center justify-center border border-zinc-800 bg-zinc-950 p-6 text-center">
-              <p className="text-sm font-mono text-zinc-400">Selecciona una conversación del panel izquierdo</p>
-              <p className="text-xs font-mono text-zinc-600 mt-1">
-                Respuestas rápidas, historial y contexto comercial 360° en vivo.
+            <div className="flex h-full flex-col items-center justify-center border border-zinc-850 bg-zinc-950 p-6 text-center font-mono space-y-2">
+              <div className="w-10 h-10 border border-zinc-800 bg-zinc-900 flex items-center justify-center text-zinc-400">
+                💬
+              </div>
+              <p className="text-sm font-bold text-white">Consola Omnicanal Lista para Despachar</p>
+              <p className="text-xs text-zinc-500 max-w-sm">
+                Selecciona una conversación del panel izquierdo o haz clic en{' '}
+                <button
+                  type="button"
+                  onClick={() => setIsNewConvOpen(true)}
+                  className="text-white underline hover:text-emerald-400 font-bold"
+                >
+                  + Nueva Conversación
+                </button>{' '}
+                para abrir un hilo con un cliente o prospecto.
               </p>
             </div>
           )}
         </div>
 
-        {/* Panel 3: Ficha CRM 360° y Notas Privadas (Keyed por conversation.id) */}
+        {/* Panel 3: Ficha CRM 360° y Finanzas (Keyed por conversation.id) */}
         {selectedConv && (
           <div
             className={`${
@@ -323,13 +374,26 @@ export function InboxWorkspace({
               notes={notes}
               team={team}
               canEdit={canEdit}
+              contacts={contacts}
               onNoteAdded={() => void loadNotes(selectedConv.id)}
               onMetaUpdated={() => void handleReloadSelected()}
+              onInsertInChat={(text) => {
+                setChatDraft((prev) => (prev ? `${prev}\n${text}` : text))
+                setMobileView('chat')
+              }}
               onBack={() => setMobileView('chat')}
             />
           </div>
         )}
       </div>
+
+      {/* Drawer Lateral para Iniciar Conversación */}
+      <NewConversationDrawer
+        open={isNewConvOpen}
+        onClose={() => setIsNewConvOpen(false)}
+        contacts={contacts}
+        onConversationCreated={(id) => void handleConversationCreated(id)}
+      />
     </div>
   )
 }
