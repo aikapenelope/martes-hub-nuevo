@@ -49,5 +49,13 @@ describe('task presentation helpers', () => {
     expect(formattedShort).toContain('2026')
     expect(formatTaskDueDate(null)).toBe('Sin fecha')
   })
+
+  it('preserves early years 0000-0099 without nineteen-century jump', () => {
+    const early = parseTaskCalendarDate('0042-05-15')
+    expect(early).not.toBeNull()
+    expect(early?.getFullYear()).toBe(42)
+    expect(early?.getMonth()).toBe(4) // May
+    expect(early?.getDate()).toBe(15)
+  })
 })
 

@@ -76,11 +76,17 @@ export function parseTaskCalendarDate(dueDate: string | null | undefined): Date 
     const year = Number(dateOnlyMatch[1])
     const month = Number(dateOnlyMatch[2]) - 1
     const day = Number(dateOnlyMatch[3])
-    return new Date(year, month, day)
+    const date = new Date(0)
+    date.setHours(0, 0, 0, 0)
+    date.setFullYear(year, month, day)
+    return date
   }
   const due = new Date(dueDate)
   if (Number.isNaN(due.getTime())) return null
-  return new Date(due.getFullYear(), due.getMonth(), due.getDate())
+  const date = new Date(0)
+  date.setHours(0, 0, 0, 0)
+  date.setFullYear(due.getFullYear(), due.getMonth(), due.getDate())
+  return date
 }
 
 /**
