@@ -612,19 +612,14 @@ export function OffersWorkspace({
                           {q.validUntil ? dateFmt.format(new Date(q.validUntil)) : '—'}
                         </td>
                         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                          {url ? (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-sky-400 hover:text-sky-300 font-mono text-[11px] flex items-center gap-1"
-                            >
-                              <span>PDF</span>
-                              <ExternalLink size={12} />
-                            </a>
-                          ) : (
-                            <span className="text-zinc-600 font-mono text-[10px]">Sin PDF</span>
-                          )}
+                          <a
+                            href={`/api/pdf/quote/${q.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-mono border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition"
+                          >
+                            <FileText size={10} /> PDF
+                          </a>
                         </td>
                         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">

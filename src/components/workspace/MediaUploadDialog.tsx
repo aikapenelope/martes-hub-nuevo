@@ -4,9 +4,10 @@ import { useRef, useState, useTransition, type DragEvent, type ChangeEvent } fro
 import { useRouter } from 'next/navigation'
 import { Upload, X, Image as ImageIcon, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { uploadMediaAction } from '@/lib/media-actions'
+import { Drawer } from '@/components/workspace/overlays'
 
 export function MediaUploadDialog() {
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  const [open, setOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -25,7 +26,7 @@ export function MediaUploadDialog() {
     if (fileInputRef.current) fileInputRef.current.value = ''
     setPreviewUrl(null)
     setAltText('')
-    dialogRef.current?.showModal()
+    setOpen(true)
   }
 
   function closeDialog() {
@@ -34,7 +35,7 @@ export function MediaUploadDialog() {
     if (fileInputRef.current) fileInputRef.current.value = ''
     setPreviewUrl(null)
     setAltText('')
-    dialogRef.current?.close()
+    setOpen(false)
   }
 
   function handleFileSelection(selectedFile: File) {
@@ -109,27 +110,8 @@ export function MediaUploadDialog() {
         <Upload className="h-4 w-4" /> Subir archivo
       </button>
 
-      <dialog
-        ref={dialogRef}
-        className="workspace-dialog m-auto w-[min(34rem,calc(100vw-2rem))] border border-zinc-800 bg-zinc-950 p-0 text-white backdrop:bg-black/80 backdrop:backdrop-blur-sm"
-      >
-        <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
-          <div className="flex items-center gap-2">
-            <ImageIcon className="h-4 w-4 text-sky-400" />
-            <span className="text-xs font-bold uppercase tracking-wider font-mono text-white">
-              Subir a la Biblioteca
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={closeDialog}
-            className="text-zinc-500 hover:text-white transition"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="p-5 space-y-4">
+      <Drawer open={open} onClose={closeDialog} title="Subir a la Biblioteca de Media" size="lg">
+        <div className="space-y-4">
           {error && (
             <div className="flex items-center gap-2 border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-red-300 font-mono">
               <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
@@ -247,7 +229,7 @@ export function MediaUploadDialog() {
             </>
           )}
         </div>
-      </dialog>
+      </Drawer>
     </>
   )
 }

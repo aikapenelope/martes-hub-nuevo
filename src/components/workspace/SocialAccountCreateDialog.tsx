@@ -1,9 +1,10 @@
 'use client'
 
-import { useRef } from 'react'
+import { useState } from 'react'
 import { Plus, Radio, X } from 'lucide-react'
 
 import { createSocialAccountAction } from '@/lib/social-actions'
+import { Drawer } from '@/components/workspace/overlays'
 
 const inputCls =
   'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
@@ -15,7 +16,7 @@ const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider
  * caller decide si mostrar el botón según `context.isAdmin`.
  */
 export function SocialAccountCreateDialog({ variant = 'button' }: { variant?: 'button' | 'cta' }) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  const [open, setOpen] = useState(false)
 
   return (
     <>
@@ -24,7 +25,7 @@ export function SocialAccountCreateDialog({ variant = 'button' }: { variant?: 'b
           type="button"
           aria-label="Conectar cuenta"
           className="px-2 py-1 bg-zinc-900 border border-zinc-700 text-white"
-          onClick={() => dialogRef.current?.showModal()}
+          onClick={() => setOpen(true)}
         >
           <Plus size={14} />
         </button>
@@ -32,27 +33,15 @@ export function SocialAccountCreateDialog({ variant = 'button' }: { variant?: 'b
         <button
           type="button"
           className="mt-2 px-3 py-1.5 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono"
-          onClick={() => dialogRef.current?.showModal()}
+          onClick={() => setOpen(true)}
         >
           Conectar cuenta
         </button>
       )}
 
-      <dialog
-        ref={dialogRef}
-        className="workspace-dialog m-auto w-[min(26rem,calc(100vw-2rem))] border border-zinc-800 bg-zinc-950 p-0 text-white"
-        onCancel={() => dialogRef.current?.close()}
-      >
-        <header className="flex items-center justify-between gap-4 border-b border-zinc-800 px-4 py-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-white inline-flex items-center gap-2">
-            <Radio size={16} /> Conectar cuenta social
-          </h2>
-          <button type="button" aria-label="Cerrar" onClick={() => dialogRef.current?.close()} className="text-zinc-400 hover:text-white">
-            <X size={16} />
-          </button>
-        </header>
+      <Drawer open={open} onClose={() => setOpen(false)} title="Conectar Cuenta Social" size="md">
 
-        <form action={createSocialAccountAction} className="flex flex-col gap-3 p-4">
+        <form action={createSocialAccountAction} className="flex flex-col gap-3">
           <p className="text-[11px] text-zinc-500">
             Referencia de la cuenta (nombre e ID) — sin credenciales. La conexión real de publicación
             se gestiona en Metricool o Composio, conectados por MCP a este sistema.
@@ -75,7 +64,7 @@ export function SocialAccountCreateDialog({ variant = 'button' }: { variant?: 'b
           <div className="flex justify-end gap-2 pt-1">
             <button
               type="button"
-              onClick={() => dialogRef.current?.close()}
+              onClick={() => setOpen(false)}
               className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono"
             >
               Cancelar
@@ -85,7 +74,7 @@ export function SocialAccountCreateDialog({ variant = 'button' }: { variant?: 'b
             </button>
           </div>
         </form>
-      </dialog>
+      </Drawer>
     </>
   )
 }

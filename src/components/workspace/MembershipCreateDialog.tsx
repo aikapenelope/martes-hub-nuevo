@@ -1,9 +1,10 @@
 'use client'
 
-import { useRef } from 'react'
+import { useState } from 'react'
 import { Plus, RefreshCw, X } from 'lucide-react'
 
 import { createMembershipAction } from '@/lib/membership-actions'
+import { Drawer } from '@/components/workspace/overlays'
 import type { Client } from '@/payload-types'
 
 const inputCls =
@@ -12,34 +13,24 @@ const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider
 
 /** Reemplaza el link a `/admin/collections/memberships/create` (que ni siquiera existía en el workspace). */
 export function MembershipCreateDialog({ clients }: { clients: Client[] }) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  const [open, setOpen] = useState(false)
 
   return (
     <>
       <button
         type="button"
         className="px-4 py-2 bg-sky-400 hover:bg-sky-300 text-black font-black flex items-center gap-2 uppercase transition shadow-[0_0_16px_rgba(56,189,248,0.35)] text-xs font-mono"
-        onClick={() => dialogRef.current?.showModal()}
+        onClick={() => setOpen(true)}
       >
         <RefreshCw className="w-4 h-4" /> + Membresía
       </button>
 
-      <dialog
-        ref={dialogRef}
-        className="workspace-dialog m-auto w-[min(28rem,calc(100vw-2rem))] border border-zinc-800 bg-zinc-950 p-0 text-white"
-        onCancel={() => dialogRef.current?.close()}
-      >
-        <header className="flex items-center justify-between gap-4 border-b border-zinc-800 px-4 py-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-white">Nueva membresía</h2>
-          <button type="button" aria-label="Cerrar" onClick={() => dialogRef.current?.close()} className="text-zinc-400 hover:text-white">
-            <X size={16} />
-          </button>
-        </header>
+      <Drawer open={open} onClose={() => setOpen(false)} title="Nueva Membresía" size="md">
 
         {clients.length === 0 ? (
           <p className="p-4 text-xs text-zinc-400">No hay clientes en este tenant todavía. Crea uno primero desde el CRM.</p>
         ) : (
-          <form action={createMembershipAction} className="flex flex-col gap-3 p-4">
+          <form action={createMembershipAction} className="flex flex-col gap-3">
             <label className={labelCls}>
               Cliente
               <select name="client" required defaultValue="" className={inputCls}>
@@ -70,7 +61,7 @@ export function MembershipCreateDialog({ clients }: { clients: Client[] }) {
             <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => dialogRef.current?.close()}
+                onClick={() => setOpen(false)}
                 className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono"
               >
                 Cancelar
@@ -81,7 +72,7 @@ export function MembershipCreateDialog({ clients }: { clients: Client[] }) {
             </div>
           </form>
         )}
-      </dialog>
+      </Drawer>
     </>
   )
 }

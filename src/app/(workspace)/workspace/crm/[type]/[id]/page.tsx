@@ -33,6 +33,7 @@ import {
 import { getCrmRecord, type CrmView } from '@/lib/crm-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
+import { ActivityDrawer } from '@/components/workspace/ActivityDrawer'
 import { getAssignableUsers } from '@/lib/tasks-data'
 import { changeTaskStatusAction } from '@/lib/tasks-actions'
 import type { Client, Company, Lead, Segment, User } from '@/payload-types'
@@ -313,6 +314,7 @@ export default async function CrmRecordPage({
             </a>
           )}
           {!isCompany && context.canEdit && (
+            <>
             <TaskCreateDialog
               assignees={assignees}
               clients={clientOptions}
@@ -322,6 +324,13 @@ export default async function CrmRecordPage({
               defaultLeadId={isLead ? id : undefined}
               redirectTo={`/workspace/crm/${type}/${id}?taskCreated=1`}
             />
+            <ActivityDrawer
+              clientId={isClient ? id : undefined}
+              leadId={isLead ? id : undefined}
+              redirectTo={`/workspace/crm/${type}/${id}`}
+              variant="ghost"
+            />
+            </>
           )}
           {convertedId && (
             <Link

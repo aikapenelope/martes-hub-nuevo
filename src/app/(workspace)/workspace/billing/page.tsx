@@ -2,7 +2,7 @@ import { getWorkspaceContext } from '@/lib/workspace-context'
 import { paymentsAggregate, startOfMonthIso } from '@/lib/overview-data'
 import { BillingWorkspace } from '@/components/workspace/billing/BillingWorkspace'
 import type { Client, Invoice, Offer, Payment, Quote } from '@/payload-types'
-import { Ban, CircleDollarSign, Clock3, ShieldAlert } from 'lucide-react'
+import { Download, Ban, CircleDollarSign, Clock3, ShieldAlert } from 'lucide-react'
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 
