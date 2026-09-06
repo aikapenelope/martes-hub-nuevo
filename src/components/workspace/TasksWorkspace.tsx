@@ -150,6 +150,26 @@ export function TasksWorkspace({
         </section>
       )}
 
+      {data.metrics.overdue > 0 && (
+        <section className="border border-red-500/50 bg-red-950/20 p-4 shadow-xl mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-500/10 rounded-full border border-red-500/20">
+              <CircleAlert className="text-red-400" size={24} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-red-400 font-mono uppercase tracking-wider">¡Atención! Tareas Vencidas</h3>
+              <p className="text-xs text-zinc-400">Tienes {data.metrics.overdue} tarea{data.metrics.overdue !== 1 ? 's' : ''} con fecha de entrega expirada.</p>
+            </div>
+          </div>
+          <Link 
+            href="/workspace/tasks?vencimiento=vencidas" 
+            className="px-4 py-2 bg-red-950 border border-red-500/30 text-red-300 text-xs font-bold uppercase tracking-wider font-mono hover:bg-red-900/50 transition"
+          >
+            Ver Tareas
+          </Link>
+        </section>
+      )}
+
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-4" aria-label="Resumen de tareas">
         {metricCards.map(([value, label, note]) => (
           <article key={label} className="oled-card p-4">

@@ -9,6 +9,7 @@ import { getWorkspaceContext } from '@/lib/workspace-context'
 import { getSocialMetricsSummary } from '@/lib/social-metrics-data'
 import { SocialAccountCreateDialog } from '@/components/workspace/SocialAccountCreateDialog'
 import { SocialPostCreateDialog } from '@/components/workspace/SocialPostCreateDialog'
+import { SocialWeekCalendar } from '@/components/workspace/social/SocialWeekCalendar'
 import { EmptyState, KpiCard, OledCard, PageHero, SectionHeader, StatusBadge } from '@/components/workspace/oled'
 import type { SocialAccount, SocialPost } from '@/payload-types'
 
@@ -113,21 +114,7 @@ export default async function SocialPage({
         <div className="flex flex-col gap-4">
           <OledCard>
             <SectionHeader eyebrow="Calendario semanal" title="Distribución de publicaciones" action={<Calendar size={18} className="text-zinc-500" />} />
-            <div className="grid grid-cols-7 gap-2 text-center">
-              {weekDays.map((day) => (
-                <div key={day.name} className={day.isToday ? 'border border-white bg-zinc-900 p-3' : 'oled-subcard p-3'}>
-                  <div className="text-[10px] text-zinc-500 font-mono">{day.name}</div>
-                  <div className="mt-1 text-lg font-bold text-white">{day.dayNum}</div>
-                  {day.postsCount > 0 ? (
-                    <span className="mt-1 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-zinc-800 text-zinc-200 border border-zinc-700">
-                      {day.postsCount} post{day.postsCount > 1 ? 's' : ''}
-                    </span>
-                  ) : (
-                    <span className="mt-1 block text-[9px] text-zinc-600">—</span>
-                  )}
-                </div>
-              ))}
-            </div>
+            <SocialWeekCalendar posts={posts} weekStart={monday.toISOString()} />
           </OledCard>
 
           <OledCard>
