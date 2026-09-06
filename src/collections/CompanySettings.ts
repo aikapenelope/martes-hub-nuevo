@@ -96,6 +96,66 @@ export const CompanySettings: CollectionConfig = {
         description: 'Analizar automáticamente las conversaciones de WhatsApp cuando se detecte inactividad tras una ráfaga de mensajes',
       },
     },
+    {
+      name: 'paymentMethods',
+      type: 'group',
+      label: 'Cuentas y Métodos de Pago',
+      admin: {
+        description: 'Se insertan automáticamente en cotizaciones, facturas y mensajes de cobranza por WhatsApp.',
+      },
+      fields: [
+        {
+          name: 'pagoMovil',
+          type: 'group',
+          label: 'Pago Móvil (Venezuela)',
+          fields: [
+            { name: 'banco', type: 'text', label: 'Banco (Ej: Banco de Venezuela)', maxLength: 100 },
+            { name: 'cedula', type: 'text', label: 'Cédula / RIF (Ej: V-12345678)', maxLength: 20 },
+            { name: 'telefono', type: 'text', label: 'Teléfono Titular (Ej: 0412-1234567)', maxLength: 20 },
+          ],
+        },
+        {
+          name: 'transferenciaVes',
+          type: 'group',
+          label: 'Transferencia Bancaria (Bs)',
+          fields: [
+            { name: 'banco', type: 'text', label: 'Banco', maxLength: 100 },
+            { name: 'numeroCuenta', type: 'text', label: 'Número de cuenta (20 dígitos)', maxLength: 25 },
+            { name: 'titular', type: 'text', label: 'Titular de la cuenta', maxLength: 200 },
+            { name: 'rif', type: 'text', label: 'RIF del titular', maxLength: 20 },
+          ],
+        },
+        {
+          name: 'zelle',
+          type: 'group',
+          label: 'Zelle (USD)',
+          fields: [
+            { name: 'email', type: 'email', label: 'Correo electrónico de Zelle' },
+            { name: 'titular', type: 'text', label: 'Nombre del titular registrado en Zelle', maxLength: 200 },
+          ],
+        },
+        {
+          name: 'binance',
+          type: 'group',
+          label: 'Binance Pay / Cripto (USDT)',
+          fields: [
+            { name: 'binanceId', type: 'text', label: 'Binance ID o Email', maxLength: 200 },
+            { name: 'walletUsdt', type: 'text', label: 'Dirección USDT TRC20 (opcional)', maxLength: 100 },
+          ],
+        },
+        {
+          name: 'swift',
+          type: 'group',
+          label: 'Transferencia Internacional (SWIFT/USD)',
+          fields: [
+            { name: 'banco', type: 'text', label: 'Banco receptor', maxLength: 200 },
+            { name: 'swift', type: 'text', label: 'Código SWIFT/BIC', maxLength: 20 },
+            { name: 'accountNumber', type: 'text', label: 'Número de cuenta / IBAN', maxLength: 100 },
+            { name: 'titular', type: 'text', label: 'Nombre del titular', maxLength: 200 },
+          ],
+        },
+      ],
+    },
   ],
 }
 

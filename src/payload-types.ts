@@ -1211,6 +1211,36 @@ export interface CompanySetting {
    * Analizar automáticamente las conversaciones de WhatsApp cuando se detecte inactividad tras una ráfaga de mensajes
    */
   aiAutoSummarize?: boolean | null;
+  /**
+   * Se insertan automáticamente en cotizaciones, facturas y mensajes de cobranza por WhatsApp.
+   */
+  paymentMethods?: {
+    pagoMovil?: {
+      banco?: string | null;
+      cedula?: string | null;
+      telefono?: string | null;
+    };
+    transferenciaVes?: {
+      banco?: string | null;
+      numeroCuenta?: string | null;
+      titular?: string | null;
+      rif?: string | null;
+    };
+    zelle?: {
+      email?: string | null;
+      titular?: string | null;
+    };
+    binance?: {
+      binanceId?: string | null;
+      walletUsdt?: string | null;
+    };
+    swift?: {
+      banco?: string | null;
+      swift?: string | null;
+      accountNumber?: string | null;
+      titular?: string | null;
+    };
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -2500,6 +2530,45 @@ export interface CompanySettingsSelect<T extends boolean = true> {
   aiApiKey?: T;
   aiModel?: T;
   aiAutoSummarize?: T;
+  paymentMethods?:
+    | T
+    | {
+        pagoMovil?:
+          | T
+          | {
+              banco?: T;
+              cedula?: T;
+              telefono?: T;
+            };
+        transferenciaVes?:
+          | T
+          | {
+              banco?: T;
+              numeroCuenta?: T;
+              titular?: T;
+              rif?: T;
+            };
+        zelle?:
+          | T
+          | {
+              email?: T;
+              titular?: T;
+            };
+        binance?:
+          | T
+          | {
+              binanceId?: T;
+              walletUsdt?: T;
+            };
+        swift?:
+          | T
+          | {
+              banco?: T;
+              swift?: T;
+              accountNumber?: T;
+              titular?: T;
+            };
+      };
   updatedAt?: T;
   createdAt?: T;
 }
