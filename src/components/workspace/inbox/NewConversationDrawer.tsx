@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import {
   Camera,
   Globe,
@@ -11,17 +11,14 @@ import {
   X,
 } from 'lucide-react'
 import { Drawer } from '@/components/workspace/overlays'
-import { createConversationAction } from '@/lib/inbox-actions'
+import {
+  createConversationAction,
+  searchInboxCrmContactsAction,
+  type ContactItem,
+} from '@/lib/inbox-actions'
 import { DEFAULT_QUICK_SNIPPETS } from './inbox-snippets'
 
-export interface ContactItem {
-  id: number
-  kind: 'client' | 'lead'
-  name: string
-  company?: string | null
-  phone?: string | null
-  email?: string | null
-}
+export type { ContactItem }
 
 interface NewConversationDrawerProps {
   open: boolean
@@ -46,9 +43,43 @@ export function NewConversationDrawer({
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  // Filtro reactivo de contactos del CRM
-  const filteredContacts = useMemo(() => {
+  // Búsqueda en servidor con debouncing para no limitar a los primeros 100 registros (revisión Devin PR #80)
+  const [serverContacts, setServerContacts] = useState<ContactItem[] | null>(null)
+  const [isSearchingServer, setIsSearchingServer] = useState(false)
+
+  useEffect(() => {
+    const q = searchTerm.trim()
+    if (!q) {
+      return
+    }
+
+    let cancelled = false
+    const timer = setTimeout(() => {
+      setIsSearchingServer(true)
+      searchInboxCrmContactsAction({ q })
+        .then((res) => {
+          if (!cancelled) {
+            setIsSearchingServer(false)
+            if (res.ok) {
+              setServerContacts(res.results)
+            }
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setIsSearchingServer(false)
+        })
+    }, 250)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [searchTerm])
+
+  // Filtro combinado de contactos del CRM
+  const displayedContacts = useMemo(() => {
     if (!searchTerm.trim()) return contacts.slice(0, 15)
+    if (serverContacts !== null) return serverContacts
     const q = searchTerm.toLowerCase()
     return contacts
       .filter(
@@ -59,7 +90,7 @@ export function NewConversationDrawer({
           (c.email && c.email.toLowerCase().includes(q)),
       )
       .slice(0, 20)
-  }, [contacts, searchTerm])
+  }, [contacts, searchTerm, serverContacts])
 
   const handleSelectContact = (c: ContactItem) => {
     setSelectedContact(c)
@@ -200,17 +231,20 @@ export function NewConversationDrawer({
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Nombre, empresa, teléfono..."
-                    className="w-full bg-black border border-zinc-800 pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-black border border-zinc-800 pl-8 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-600"
                   />
+                  {isSearchingServer && (
+                    <Loader2 size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 animate-spin" />
+                  )}
                 </div>
 
                 <div className="max-h-48 overflow-y-auto border border-zinc-850 divide-y divide-zinc-900 bg-zinc-950">
-                  {filteredContacts.length === 0 ? (
+                  {displayedContacts.length === 0 ? (
                     <p className="p-3 text-[11px] text-zinc-500 text-center">
                       No se encontraron contactos en el CRM.
                     </p>
                   ) : (
-                    filteredContacts.map((c) => (
+                    displayedContacts.map((c) => (
                       <button
                         key={`${c.kind}-${c.id}`}
                         type="button"

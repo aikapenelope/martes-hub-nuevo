@@ -1,7 +1,7 @@
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { InboxWorkspace } from '@/components/workspace/InboxWorkspace'
 import { getAssignableUsers } from '@/lib/tasks-data'
-import type { ContactItem } from '@/components/workspace/inbox/NewConversationDrawer'
+import type { ContactItem } from '@/lib/inbox-actions'
 
 /**
  * InboxPage — `/workspace/inbox`. Conversaciones estilo Chatwoot:
@@ -23,7 +23,7 @@ export default async function InboxPage({
   const conversationId = Number(c)
   const initialConversationId = Number.isInteger(conversationId) && conversationId > 0 ? conversationId : null
 
-  // Cargar usuarios asignables y contactos del CRM en paralelo
+  // Cargar usuarios asignables y contactos recientes del CRM en paralelo
   const [assignees, clientsRes, leadsRes] = await Promise.all([
     getAssignableUsers({
       payload,
@@ -32,7 +32,8 @@ export default async function InboxPage({
     }),
     payload.find({
       collection: 'clients',
-      limit: 100,
+      limit: 20,
+      sort: '-createdAt',
       overrideAccess: false,
       user,
       where: { tenant: { equals: tenantId } },
@@ -45,7 +46,8 @@ export default async function InboxPage({
     }),
     payload.find({
       collection: 'leads',
-      limit: 100,
+      limit: 20,
+      sort: '-createdAt',
       overrideAccess: false,
       user,
       where: { tenant: { equals: tenantId } },

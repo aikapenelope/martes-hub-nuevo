@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
+  AlertCircle,
   ArrowLeft,
   Building2,
   Check,
@@ -24,11 +25,13 @@ import {
   addConversationNoteAction,
   getClientBillingSummaryAction,
   linkConversationToCrmAction,
+  searchInboxCrmContactsAction,
   summarizeConversationWithAiAction,
   updateConversationMetaAction,
+  type ClientBillingSummary,
+  type ContactItem,
 } from '@/lib/inbox-actions'
 import type { ConvListItem } from './InboxConversationList'
-import type { ContactItem } from './NewConversationDrawer'
 
 const LABELS = ['seguimiento', 'facturacion', 'soporte', 'renovacion', 'urgente', 'oportunidad'] as const
 
@@ -90,14 +93,10 @@ export function InboxCrmContextPanel({
   const [linkSearch, setLinkSearch] = useState('')
   const [linkingPending, setLinkingPending] = useState(false)
 
-  // Resumen de Facturación del Cliente
+  // Resumen de Facturación del Cliente con manejo de error explícito (revisión Devin PR #80)
   const [billingRecord, setBillingRecord] = useState<{
     clientId: number
-    summary: {
-      pendingPaymentsCount: number
-      pendingTotalUsd: number
-      invoicesCount: number
-    } | null
+    result: { ok: true; summary: ClientBillingSummary } | { ok: false; error: string }
   } | null>(null)
 
   const lead = typeof conversation.lead === 'object' ? conversation.lead : null
@@ -112,9 +111,9 @@ export function InboxCrmContextPanel({
     (typeof lead?.convertedClient === 'number' ? lead.convertedClient : null)
   const hasConvertedClient = Boolean(effectiveClient || effectiveClientId)
 
-  const billingSummary =
+  const billingResult =
     billingRecord && billingRecord.clientId === effectiveClientId
-      ? billingRecord.summary
+      ? billingRecord.result
       : null
   const loadingBilling = Boolean(
     effectiveClientId && (!billingRecord || billingRecord.clientId !== effectiveClientId),
@@ -128,12 +127,18 @@ export function InboxCrmContextPanel({
     getClientBillingSummaryAction(effectiveClientId)
       .then((res) => {
         if (!cancelled) {
-          setBillingRecord({ clientId: effectiveClientId, summary: res })
+          setBillingRecord({ clientId: effectiveClientId, result: res })
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
-          setBillingRecord({ clientId: effectiveClientId, summary: null })
+          setBillingRecord({
+            clientId: effectiveClientId,
+            result: {
+              ok: false,
+              error: err instanceof Error ? err.message : 'Error al consultar finanzas',
+            },
+          })
         }
       })
     return () => {
@@ -141,9 +146,41 @@ export function InboxCrmContextPanel({
     }
   }, [effectiveClientId])
 
+  // Búsqueda en servidor de contactos para vinculación in-situ (revisión Devin PR #80)
+  const [serverLinkContacts, setServerLinkContacts] = useState<ContactItem[] | null>(null)
+  const [isSearchingLinkServer, setIsSearchingLinkServer] = useState(false)
+
+  useEffect(() => {
+    const q = linkSearch.trim()
+    if (!q || !isLinkingCrm) {
+      return
+    }
+
+    let cancelled = false
+    const timer = setTimeout(() => {
+      setIsSearchingLinkServer(true)
+      searchInboxCrmContactsAction({ q })
+        .then((res) => {
+          if (!cancelled) {
+            setIsSearchingLinkServer(false)
+            if (res.ok) setServerLinkContacts(res.results)
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setIsSearchingLinkServer(false)
+        })
+    }, 250)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [linkSearch, isLinkingCrm])
+
   // Filtrado de contactos para vinculación in-situ
   const filteredLinkContacts = useMemo(() => {
     if (!linkSearch.trim()) return contacts.slice(0, 10)
+    if (serverLinkContacts !== null) return serverLinkContacts
     const q = linkSearch.toLowerCase()
     return contacts
       .filter(
@@ -153,7 +190,7 @@ export function InboxCrmContextPanel({
           (c.phone && c.phone.includes(q)),
       )
       .slice(0, 15)
-  }, [contacts, linkSearch])
+  }, [contacts, linkSearch, serverLinkContacts])
 
   async function handleConvertLead(): Promise<void> {
     if (!lead || !canEdit || convertingLead) return
@@ -412,23 +449,35 @@ export function InboxCrmContextPanel({
                       <Loader2 size={10} className="animate-spin" />
                       <span>Verificando saldo pendiente...</span>
                     </div>
-                  ) : billingSummary ? (
-                    billingSummary.pendingPaymentsCount > 0 ? (
-                      <div className="p-2 bg-amber-950/60 border border-amber-800 text-amber-200 text-[11px] space-y-1">
-                        <div className="flex items-center justify-between font-bold">
-                          <span>{billingSummary.pendingPaymentsCount} cobro(s) pendiente(s)</span>
-                          <span className="text-amber-300 font-mono">
-                            ${billingSummary.pendingTotalUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
+                  ) : billingResult ? (
+                    billingResult.ok ? (
+                      billingResult.summary.pendingPaymentsCount > 0 ? (
+                        <div className="p-2 bg-amber-950/60 border border-amber-800 text-amber-200 text-[11px] space-y-1">
+                          <div className="flex items-center justify-between font-bold">
+                            <span>{billingResult.summary.pendingPaymentsCount} cobro(s) pendiente(s)</span>
+                            <span className="text-amber-300 font-mono">
+                              ${billingResult.summary.pendingTotalUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
+                            </span>
+                          </div>
+                          <span className="text-[9px] text-zinc-400 block">
+                            El cliente tiene cuentas abiertas en facturación.
                           </span>
                         </div>
-                        <span className="text-[9px] text-zinc-400 block">
-                          El cliente tiene cuentas abiertas en facturación.
-                        </span>
-                      </div>
+                      ) : (
+                        <div className="p-2 bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-[10px] flex items-center gap-1.5 font-bold">
+                          <CheckCircle2 size={12} className="text-emerald-400" />
+                          <span>Al día · Sin cobros pendientes registrados</span>
+                        </div>
+                      )
                     ) : (
-                      <div className="p-2 bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-[10px] flex items-center gap-1.5 font-bold">
-                        <CheckCircle2 size={12} className="text-emerald-400" />
-                        <span>Al día · Sin cobros pendientes registrados</span>
+                      <div className="p-2 bg-zinc-900/80 border border-zinc-750 text-zinc-400 text-[10px] flex items-center justify-between">
+                        <span className="flex items-center gap-1 text-zinc-300 font-medium">
+                          <AlertCircle size={11} className="text-amber-400" />
+                          <span>Estado financiero no disponible</span>
+                        </span>
+                        <span className="text-[9px] text-zinc-500 truncate max-w-[120px]" title={billingResult.error}>
+                          {billingResult.error}
+                        </span>
                       </div>
                     )
                   ) : null}
@@ -478,8 +527,11 @@ export function InboxCrmContextPanel({
                             value={linkSearch}
                             onChange={(e) => setLinkSearch(e.target.value)}
                             placeholder="Buscar en clientes y leads..."
-                            className="w-full bg-zinc-900 border border-zinc-800 pl-7 pr-2 py-1 text-xs text-white focus:outline-none"
+                            className="w-full bg-zinc-900 border border-zinc-800 pl-7 pr-7 py-1 text-xs text-white focus:outline-none"
                           />
+                          {isSearchingLinkServer && (
+                            <Loader2 size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 animate-spin" />
+                          )}
                         </div>
                         <div className="max-h-36 overflow-y-auto divide-y divide-zinc-850 border border-zinc-850">
                           {filteredLinkContacts.map((c) => (
