@@ -8,6 +8,7 @@ import { ArrowLeft, CalendarDays, Check, CircleUserRound, Link2, Trash2 } from '
 import { notFound } from 'next/navigation'
 import type { Client, Lead, User } from '@/payload-types'
 import { getAssignableUsers, getTaskDetail, TASK_PRIORITIES, TASK_STATUSES } from '@/lib/tasks-data'
+import { formatTaskDueDate } from '@/lib/tasks-filters'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { deleteTaskAction, toggleChecklistAction, updateTaskAction } from '@/lib/tasks-actions'
 
@@ -180,7 +181,7 @@ export default async function TaskDetailPage({ params, searchParams }: { params:
           <section className="border border-zinc-800 bg-zinc-950 p-5">
             <h2 className="text-base font-bold text-white">Contexto</h2>
             <dl className="mt-3 flex flex-col gap-3 text-xs">
-              <div><dt className="flex items-center gap-1.5 text-zinc-500 font-mono uppercase"><CalendarDays size={14} />Vencimiento</dt><dd className="mt-1 text-white">{task.dueDate ? new Intl.DateTimeFormat('es', { dateStyle: 'long' }).format(new Date(task.dueDate)) : 'Sin fecha'}</dd></div>
+              <div><dt className="flex items-center gap-1.5 text-zinc-500 font-mono uppercase"><CalendarDays size={14} />Vencimiento</dt><dd className="mt-1 text-white">{formatTaskDueDate(task.dueDate, { dateStyle: 'long' })}</dd></div>
               <div><dt className="flex items-center gap-1.5 text-zinc-500 font-mono uppercase"><CircleUserRound size={14} />Responsable</dt><dd className="mt-1 text-white">{person(task.assignedTo)}</dd></div>
               <div>
                 <dt className="flex items-center gap-1.5 text-zinc-500 font-mono uppercase"><Link2 size={14} />Relación CRM</dt>
