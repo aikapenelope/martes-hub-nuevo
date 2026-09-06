@@ -11,7 +11,7 @@ import { Activity, Mail, MessageSquare, PhoneCall, StickyNote, Users } from 'luc
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { EmptyState, KpiCard, OledCard, PageHero } from '@/components/workspace/oled'
 import { ActivityDrawer } from '@/components/workspace/ActivityDrawer'
-import type { Activity as ActivityDoc } from '@/payload-types'
+import type { Activity as ActivityDoc, Client, Lead } from '@/payload-types'
 
 const TYPE_META: Record<ActivityDoc['type'], { label: string; icon: typeof Activity; cls: string }> = {
   llamada: { label: 'Llamada', icon: PhoneCall, cls: 'text-sky-400 border-sky-800 bg-sky-950/60' },
@@ -40,7 +40,7 @@ export default async function ActivitiesPage({
     ? { and: [{ tenant: { equals: tenantId } }, { type: { equals: validType } }] }
     : { tenant: { equals: tenantId } }
 
-  const [activitiesRes, monthCounts] = await Promise.all([
+  const [activitiesRes, monthCounts, leadsRes, clientsRes] = await Promise.all([
     payload.find({
       collection: 'activities',
       where,
@@ -56,8 +56,30 @@ export default async function ActivitiesPage({
       overrideAccess: false,
       user,
     }),
+    // Opciones del selector de contacto del ActivityDrawer (la colección
+    // Activities exige vincular la actividad a un lead o a un cliente).
+    payload.find({
+      collection: 'leads',
+      where: { tenant: { equals: tenantId } },
+      limit: 100,
+      sort: '-updatedAt',
+      select: { fullName: true, email: true },
+      overrideAccess: false,
+      user,
+    }),
+    payload.find({
+      collection: 'clients',
+      where: { tenant: { equals: tenantId } },
+      limit: 100,
+      sort: '-updatedAt',
+      select: { name: true, email: true },
+      overrideAccess: false,
+      user,
+    }),
   ])
   const activities = activitiesRes.docs as ActivityDoc[]
+  const leadOptions = (leadsRes.docs as Lead[]).map((l) => ({ id: l.id, label: l.email ? `${l.fullName} (${l.email})` : l.fullName }))
+  const clientOptions = (clientsRes.docs as Client[]).map((c) => ({ id: c.id, label: c.email ? `${c.name} (${c.email})` : c.name }))
 
   const byType = new Map<string, number>()
   for (const a of activities) byType.set(a.type, (byType.get(a.type) ?? 0) + 1)
@@ -68,7 +90,9 @@ export default async function ActivitiesPage({
         eyebrow={`Historial · ${context.tenant.name}`}
         title="Actividades Comerciales"
         description="Timeline unificado de contactos con leads y clientes."
-        actions={<ActivityDrawer redirectTo="/workspace/activities" variant="primary" />}
+        actions={
+          <ActivityDrawer redirectTo="/workspace/activities" variant="primary" leads={leadOptions} clients={clientOptions} />
+        }
       />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -224,6 +224,14 @@ export default async function SettingsPage({
                   <label className={labelCls}>Binance Pay ID / Email <input name="paymentMethods.binance.binanceId" defaultValue={settings?.paymentMethods?.binance?.binanceId || ''} className={inputCls} /></label>
                   <label className={labelCls}>Billetera USDT (TRC20) <input name="paymentMethods.binance.walletUsdt" defaultValue={settings?.paymentMethods?.binance?.walletUsdt || ''} className={inputCls} /></label>
                 </div>
+
+                <div className="border border-zinc-800 p-3 bg-zinc-900/30">
+                  <h4 className="text-[11px] font-bold text-violet-400 mb-2 font-mono uppercase">Transferencia Internacional (SWIFT)</h4>
+                  <label className={labelCls}>Banco Receptor <input name="paymentMethods.swift.banco" defaultValue={settings?.paymentMethods?.swift?.banco || ''} className={inputCls} /></label>
+                  <label className={labelCls}>Código SWIFT/BIC <input name="paymentMethods.swift.swift" defaultValue={settings?.paymentMethods?.swift?.swift || ''} className={inputCls} /></label>
+                  <label className={labelCls}>Número de Cuenta / IBAN <input name="paymentMethods.swift.accountNumber" defaultValue={settings?.paymentMethods?.swift?.accountNumber || ''} className={inputCls} /></label>
+                  <label className={labelCls}>Titular <input name="paymentMethods.swift.titular" defaultValue={settings?.paymentMethods?.swift?.titular || ''} className={inputCls} /></label>
+                </div>
               </div>
             </div>
 

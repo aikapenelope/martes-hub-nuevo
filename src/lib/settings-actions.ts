@@ -85,26 +85,65 @@ export async function updateCompanySettingsAction(formData: FormData): Promise<v
 
   const aiAutoSummarize = formData.get('aiAutoSummarize') === 'on' || formData.get('aiAutoSummarize') === 'true'
 
+  // 7. Validar cuentas y métodos de pago (mismos límites que CompanySettings.ts).
+  // Un ID de campo ajeno al formulario nunca se persiste: solo se leen las
+  // claves conocidas, con longitud y formato acotados.
+  const PAYMENT_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const PHONE_REGEX = /^[0-9+\-\s()]{7,20}$/
+  const ACCOUNT_REGEX = /^[0-9\-]{10,25}$/
+  const ID_REGEX = /^[A-Za-z0-9\-]{3,20}$/
+  const SWIFT_REGEX = /^[A-Za-z]{6}[A-Za-z0-9]{2}([A-Za-z0-9]{3})?$/
+
+  function paymentText(name: string, max: number, label: string): string | null {
+    const value = String(formData.get(name) ?? '').trim()
+    if (!value) return null
+    if (value.length > max) throw new Error(`${label} no puede superar los ${max} caracteres.`)
+    return value
+  }
+
+  function paymentPattern(name: string, regex: RegExp, label: string, hint: string): string | null {
+    const value = paymentText(name, 200, label)
+    if (!value) return null
+    if (!regex.test(value)) throw new Error(`${label} no tiene un formato válido. ${hint}`)
+    return value
+  }
+
   const paymentMethods = {
     pagoMovil: {
-      banco: String(formData.get('paymentMethods.pagoMovil.banco') || '').trim() || null,
-      cedula: String(formData.get('paymentMethods.pagoMovil.cedula') || '').trim() || null,
-      telefono: String(formData.get('paymentMethods.pagoMovil.telefono') || '').trim() || null,
+      banco: paymentText('paymentMethods.pagoMovil.banco', 100, 'El banco de Pago Móvil'),
+      cedula: paymentPattern('paymentMethods.pagoMovil.cedula', ID_REGEX, 'La cédula/RIF de Pago Móvil', 'Ej: V-12345678'),
+      telefono: paymentPattern('paymentMethods.pagoMovil.telefono', PHONE_REGEX, 'El teléfono de Pago Móvil', 'Ej: 0412-1234567'),
     },
     transferenciaVes: {
-      banco: String(formData.get('paymentMethods.transferenciaVes.banco') || '').trim() || null,
-      numeroCuenta: String(formData.get('paymentMethods.transferenciaVes.numeroCuenta') || '').trim() || null,
-      titular: String(formData.get('paymentMethods.transferenciaVes.titular') || '').trim() || null,
-      rif: String(formData.get('paymentMethods.transferenciaVes.rif') || '').trim() || null,
+      banco: paymentText('paymentMethods.transferenciaVes.banco', 100, 'El banco de la transferencia'),
+      numeroCuenta: paymentPattern(
+        'paymentMethods.transferenciaVes.numeroCuenta',
+        ACCOUNT_REGEX,
+        'El número de cuenta',
+        'Debe tener entre 10 y 25 dígitos.',
+      ),
+      titular: paymentText('paymentMethods.transferenciaVes.titular', 200, 'El titular de la cuenta'),
+      rif: paymentPattern('paymentMethods.transferenciaVes.rif', ID_REGEX, 'El RIF del titular', 'Ej: J-12345678-9'),
     },
     zelle: {
-      email: String(formData.get('paymentMethods.zelle.email') || '').trim() || null,
-      titular: String(formData.get('paymentMethods.zelle.titular') || '').trim() || null,
+      email: paymentPattern('paymentMethods.zelle.email', PAYMENT_EMAIL_REGEX, 'El correo de Zelle', 'Debe ser un email válido.'),
+      titular: paymentText('paymentMethods.zelle.titular', 200, 'El titular de Zelle'),
     },
     binance: {
-      binanceId: String(formData.get('paymentMethods.binance.binanceId') || '').trim() || null,
-      walletUsdt: String(formData.get('paymentMethods.binance.walletUsdt') || '').trim() || null,
-    }
+      binanceId: paymentText('paymentMethods.binance.binanceId', 200, 'El Binance Pay ID'),
+      walletUsdt: paymentText('paymentMethods.binance.walletUsdt', 100, 'La billetera USDT'),
+    },
+    swift: {
+      banco: paymentText('paymentMethods.swift.banco', 200, 'El banco receptor SWIFT'),
+      swift: paymentPattern(
+        'paymentMethods.swift.swift',
+        SWIFT_REGEX,
+        'El código SWIFT/BIC',
+        'Debe tener 8 u 11 caracteres, ej: DEUTDEFF.',
+      ),
+      accountNumber: paymentText('paymentMethods.swift.accountNumber', 100, 'La cuenta internacional'),
+      titular: paymentText('paymentMethods.swift.titular', 200, 'El titular internacional'),
+    },
   }
 
 

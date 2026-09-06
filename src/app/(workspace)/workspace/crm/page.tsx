@@ -24,10 +24,12 @@ import { redirect } from 'next/navigation'
 
 export default async function CrmPage({ searchParams }: CrmPageProps) {
   const params = await searchParams
-  if (!params.agente) {
-    const q = new URLSearchParams(params as Record<string, string>)
-    q.set('agente', 'me')
-    redirect(`/workspace/crm?${q.toString()}`)
+  // Solo la visita "limpia" (sin ningún parámetro) aterriza en "mis" registros.
+  // Una petición sin `agente` pero con otros filtros (búsqueda, limpiar, deep
+  // link) respeta el default 'todos' de parseCrmFilters en vez de reescribir
+  // la selección del usuario a 'me'.
+  if (Object.keys(params).length === 0) {
+    redirect('/workspace/crm?agente=me')
   }
   const filters = parseCrmFilters(params)
   const context = await getWorkspaceContext()
@@ -62,7 +64,13 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
   const agents = agentsResult.docs as User[]
   const segmentsList = segmentsResult.docs as Segment[]
   const pipelineColumns = showPipeline
-    ? await getCrmPipelineData({ payload: context.payload, user: context.user, tenantId: context.tenantId })
+    ? await getCrmPipelineData({
+        payload: context.payload,
+        user: context.user,
+        tenantId: context.tenantId,
+        agent: filters.agent,
+        currentUserId: context.user.id,
+      })
     : []
 
   return (

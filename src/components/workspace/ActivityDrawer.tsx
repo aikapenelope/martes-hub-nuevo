@@ -19,11 +19,24 @@ const ACTIVITY_TYPES = [
 
 type ActivityType = typeof ACTIVITY_TYPES[number]['value']
 
+interface ContactOption {
+  id: number
+  label: string
+}
+
 interface ActivityDrawerProps {
   clientId?: number
   leadId?: number
   redirectTo?: string
   variant?: 'primary' | 'ghost'
+  /**
+   * Contactos del tenant para elegir destino cuando el drawer no está
+   * anclado a un registro (p. ej. timeline global de /workspace/activities).
+   * Activities exige un lead o un cliente — sin destino fijo ni selector,
+   * todo envío falla.
+   */
+  leads?: ContactOption[]
+  clients?: ContactOption[]
 }
 
 export function ActivityDrawer({
@@ -31,7 +44,10 @@ export function ActivityDrawer({
   leadId,
   redirectTo = '/workspace/activities',
   variant = 'ghost',
+  leads = [],
+  clients = [],
 }: ActivityDrawerProps) {
+  const needsContactPicker = !clientId && !leadId
   const [open, setOpen] = useState(false)
   const [type, setType] = useState<ActivityType>('llamada')
   const [isPending, startTransition] = useTransition()
@@ -41,6 +57,15 @@ export function ActivityDrawer({
     : 'inline-flex items-center gap-1.5 text-[10px] font-mono text-zinc-400 hover:text-white px-2 py-1.5 border border-zinc-800 hover:border-zinc-600 bg-zinc-900 transition'
 
   async function handleAction(formData: FormData) {
+    // El selector único de contacto se traduce a la relación `lead` o `client`
+    // que espera createActivityAction (que valida que pertenezca al tenant).
+    if (needsContactPicker) {
+      const target = String(formData.get('target') ?? '')
+      formData.delete('target')
+      const [kind, id] = target.split('_')
+      if (kind === 'lead' && id) formData.set('lead', id)
+      else if (kind === 'client' && id) formData.set('client', id)
+    }
     startTransition(async () => {
       try {
         await createActivityAction(formData)
@@ -75,6 +100,43 @@ export function ActivityDrawer({
             {clientId && <input type="hidden" name="client" value={clientId} />}
             {leadId && <input type="hidden" name="lead" value={leadId} />}
             <input type="hidden" name="type" value={type} />
+
+            {/* Selector de contacto cuando el drawer no está anclado a un registro */}
+            {needsContactPicker && (
+              <div className="border border-zinc-850 bg-zinc-950 p-3.5">
+                <label className={labelCls}>
+                  Vincular a contacto *
+                  <select name="target" required defaultValue="" className={inputCls}>
+                    <option value="" disabled>
+                      Selecciona un lead o cliente...
+                    </option>
+                    {leads.length > 0 && (
+                      <optgroup label="Leads">
+                        {leads.map((l) => (
+                          <option key={`lead_${l.id}`} value={`lead_${l.id}`}>
+                            {l.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {clients.length > 0 && (
+                      <optgroup label="Clientes">
+                        {clients.map((c) => (
+                          <option key={`client_${c.id}`} value={`client_${c.id}`}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </label>
+                {leads.length === 0 && clients.length === 0 && (
+                  <p className="mt-2 text-[11px] font-mono text-amber-400">
+                    No hay leads ni clientes en este tenant — crea uno en el CRM antes de registrar actividades.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Tipo de Actividad */}
             <div className="flex flex-col gap-2">
