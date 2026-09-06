@@ -11,6 +11,8 @@ import { Inbox, Mail, Send, Users } from 'lucide-react'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { sendEmailCampaignAction } from '@/lib/email-campaign-actions'
 import { EmailCampaignCreateDialog } from '@/components/workspace/EmailCampaignCreateDialog'
+import { DirectEmailDrawer } from '@/components/workspace/email/DirectEmailDrawer'
+import type { Lead, Client } from '@/payload-types'
 import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
 import type { EmailCampaign, EmailMessage, Segment } from '@/payload-types'
 
@@ -28,7 +30,7 @@ export default async function EmailCampaignsPage() {
   const context = await getWorkspaceContext()
   const { payload, user, tenantId, canEdit } = context
 
-  const [campaignsRes, segmentsRes, messagesRes] = await Promise.all([
+  const [campaignsRes, segmentsRes, messagesRes, leadsRes, clientsRes] = await Promise.all([
     payload.find({
       collection: 'email-campaigns',
       where: { tenant: { equals: tenantId } },
@@ -59,11 +61,29 @@ export default async function EmailCampaignsPage() {
       overrideAccess: false,
       user,
     }),
+    payload.find({
+      collection: 'leads',
+      where: { tenant: { equals: tenantId } },
+      limit: 500,
+      depth: 0,
+      overrideAccess: false,
+      user,
+    }),
+    payload.find({
+      collection: 'clients',
+      where: { tenant: { equals: tenantId } },
+      limit: 500,
+      depth: 0,
+      overrideAccess: false,
+      user,
+    }),
   ])
 
   const campaigns = campaignsRes.docs as EmailCampaign[]
   const segments = segmentsRes.docs as Segment[]
   const inbox = messagesRes.docs as EmailMessage[]
+  const leads = leadsRes.docs as Lead[]
+  const clients = clientsRes.docs as Client[]
 
   const inboundCount = inbox.filter((m) => m.direction === 'inbound').length
   const linkedCount = inbox.filter((m) => m.client || m.lead).length
@@ -78,7 +98,12 @@ export default async function EmailCampaignsPage() {
         eyebrow={`Email · ${context.tenant.name}`}
         title="Email"
         description="Bandeja espejo del buzón (solo lectura) y campañas masivas vía Resend."
-        actions={canEdit ? <EmailCampaignCreateDialog segments={segments} /> : undefined}
+        actions={canEdit ? (
+          <div className="flex items-center gap-2">
+            <DirectEmailDrawer leads={leads} clients={clients} />
+            <EmailCampaignCreateDialog segments={segments} />
+          </div>
+        ) : undefined}
       />
 
       <section>

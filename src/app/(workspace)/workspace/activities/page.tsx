@@ -10,6 +10,7 @@ import { Activity, Mail, MessageSquare, PhoneCall, StickyNote, Users } from 'luc
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { EmptyState, KpiCard, OledCard, PageHero } from '@/components/workspace/oled'
+import { ActivityDrawer } from '@/components/workspace/ActivityDrawer'
 import type { Activity as ActivityDoc } from '@/payload-types'
 
 const TYPE_META: Record<ActivityDoc['type'], { label: string; icon: typeof Activity; cls: string }> = {
@@ -67,6 +68,7 @@ export default async function ActivitiesPage({
         eyebrow={`Historial · ${context.tenant.name}`}
         title="Actividades Comerciales"
         description="Timeline unificado de contactos con leads y clientes."
+        actions={<ActivityDrawer redirectTo="/workspace/activities" variant="primary" />}
       />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

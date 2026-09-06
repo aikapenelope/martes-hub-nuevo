@@ -16,8 +16,13 @@ const PAGE_SIZE = 20
 export type { ClientStage, CrmFilters, CrmMode, CrmSearchParams, CrmView, LeadStatus } from '@/lib/crm-filters'
 export { CLIENT_STAGES, CRM_MODES, CRM_VIEWS, LEAD_STATUSES, parseCrmFilters } from '@/lib/crm-filters'
 
-function tenantWhere(tenantId: number, extra: Where[]): Where {
-  return { and: [{ tenant: { equals: tenantId } }, ...extra] }
+function tenantWhere(tenantId: number, extra: Where[], agent?: string, currentUserId?: number): Where {
+  const conds: Where[] = [{ tenant: { equals: tenantId } }, ...extra]
+  if (agent && agent !== 'todos') {
+    const agentId = agent === 'me' ? currentUserId : Number(agent)
+    if (agentId) conds.push({ assignedTo: { equals: agentId } })
+  }
+  return { and: conds }
 }
 
 function leadSearchWhere(query: string): Where[] {
@@ -103,7 +108,7 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
         limit: PAGE_SIZE,
         page: filters.page,
         sort: '-updatedAt',
-        where: tenantWhere(tenantId, companySearchWhere(filters.query)),
+        where: tenantWhere(tenantId, companySearchWhere(filters.query), filters.agent, user.id),
         select: {
           name: true,
           taxId: true,

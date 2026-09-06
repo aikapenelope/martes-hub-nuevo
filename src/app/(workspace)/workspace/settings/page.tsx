@@ -190,6 +190,43 @@ export default async function SettingsPage({
               </label>
             </div>
 
+            
+            {/* Payment Methods */}
+            <div className="pt-5 border-t border-zinc-900 space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-white flex items-center gap-2">
+                <span>Métodos de Pago (Cuentas de Cobro)</span>
+              </h3>
+              
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="border border-zinc-800 p-3 bg-zinc-900/30">
+                  <h4 className="text-[11px] font-bold text-sky-400 mb-2 font-mono uppercase">Pago Móvil</h4>
+                  <label className={labelCls}>Banco <input name="paymentMethods.pagoMovil.banco" defaultValue={settings?.paymentMethods?.pagoMovil?.banco || ''} className={inputCls} /></label>
+                  <label className={labelCls}>Cédula / RIF <input name="paymentMethods.pagoMovil.cedula" defaultValue={settings?.paymentMethods?.pagoMovil?.cedula || ''} className={inputCls} /></label>
+                  <label className={labelCls}>Teléfono <input name="paymentMethods.pagoMovil.telefono" defaultValue={settings?.paymentMethods?.pagoMovil?.telefono || ''} className={inputCls} /></label>
+                </div>
+                
+                <div className="border border-zinc-800 p-3 bg-zinc-900/30">
+                  <h4 className="text-[11px] font-bold text-emerald-400 mb-2 font-mono uppercase">Zelle</h4>
+                  <label className={labelCls}>Email <input name="paymentMethods.zelle.email" defaultValue={settings?.paymentMethods?.zelle?.email || ''} className={inputCls} /></label>
+                  <label className={labelCls}>Titular <input name="paymentMethods.zelle.titular" defaultValue={settings?.paymentMethods?.zelle?.titular || ''} className={inputCls} /></label>
+                </div>
+
+                <div className="border border-zinc-800 p-3 bg-zinc-900/30">
+                  <h4 className="text-[11px] font-bold text-amber-400 mb-2 font-mono uppercase">Transferencia Bs</h4>
+                  <label className={labelCls}>Banco <input name="paymentMethods.transferenciaVes.banco" defaultValue={settings?.paymentMethods?.transferenciaVes?.banco || ''} className={inputCls} /></label>
+                  <label className={labelCls}>Número de Cuenta <input name="paymentMethods.transferenciaVes.numeroCuenta" defaultValue={settings?.paymentMethods?.transferenciaVes?.numeroCuenta || ''} className={inputCls} /></label>
+                  <label className={labelCls}>Titular <input name="paymentMethods.transferenciaVes.titular" defaultValue={settings?.paymentMethods?.transferenciaVes?.titular || ''} className={inputCls} /></label>
+                  <label className={labelCls}>RIF/Cédula <input name="paymentMethods.transferenciaVes.rif" defaultValue={settings?.paymentMethods?.transferenciaVes?.rif || ''} className={inputCls} /></label>
+                </div>
+
+                <div className="border border-zinc-800 p-3 bg-zinc-900/30">
+                  <h4 className="text-[11px] font-bold text-yellow-500 mb-2 font-mono uppercase">Binance</h4>
+                  <label className={labelCls}>Binance Pay ID / Email <input name="paymentMethods.binance.binanceId" defaultValue={settings?.paymentMethods?.binance?.binanceId || ''} className={inputCls} /></label>
+                  <label className={labelCls}>Billetera USDT (TRC20) <input name="paymentMethods.binance.walletUsdt" defaultValue={settings?.paymentMethods?.binance?.walletUsdt || ''} className={inputCls} /></label>
+                </div>
+              </div>
+            </div>
+
             {/* Configuración de IA (Worker Ligero: Groq / OpenRouter) */}
             <div className="pt-5 border-t border-zinc-900 space-y-4">
               <div className="flex items-center gap-2">

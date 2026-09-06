@@ -61,6 +61,7 @@ const SECONDARY_NAV = [
   { label: 'Feedback & Soporte', href: '/workspace/feedback', icon: MessageSquare, description: 'Respuestas de formularios Tally' },
   { label: 'Analíticas', href: '/workspace/analytics', icon: BarChart3, description: 'Métricas de conversión y ventas' },
   { label: 'Configuración', href: '/workspace/settings', icon: Settings, description: 'Preferencias del negocio y notificaciones' },
+  { label: 'Automatizaciones', href: '/workspace/settings/automatizaciones', icon: Settings, description: 'Reglas de negocio y flujos automatizados' },
 ] as const
 
 interface WorkspaceHeaderProps {
