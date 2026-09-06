@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { Phone, Users, MessageSquare, Mail, StickyNote, Activity, Plus } from 'lucide-react'
 import { Drawer } from '@/components/workspace/overlays'
 import { createActivityAction } from '@/lib/crm-actions'
+import { searchActivityContactsAction } from '@/lib/activity-contact-search'
 
 const inputCls = 'w-full border border-zinc-800 bg-black px-3 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-500 transition font-mono'
 const labelCls = 'flex flex-col gap-1.5 text-[11px] font-mono uppercase tracking-wider text-zinc-400'
@@ -51,6 +52,37 @@ export function ActivityDrawer({
   const [open, setOpen] = useState(false)
   const [type, setType] = useState<ActivityType>('llamada')
   const [isPending, startTransition] = useTransition()
+
+  // Búsqueda server-side de contactos: las opciones iniciales traen solo los
+  // 100 más recientes del tenant; con esto el picker alcanza a todos.
+  const [contactSearch, setContactSearch] = useState('')
+  const [lastSearch, setLastSearch] = useState<{ query: string; leads: ContactOption[]; clients: ContactOption[] } | null>(null)
+  const [isSearching, startSearching] = useTransition()
+
+  useEffect(() => {
+    if (!needsContactPicker) return
+    const trimmed = contactSearch.trim()
+    if (trimmed.length < 2) return
+    const timer = setTimeout(() => {
+      startSearching(async () => {
+        try {
+          const results = await searchActivityContactsAction(trimmed)
+          setLastSearch({ query: trimmed, ...results })
+        } catch {
+          setLastSearch({ query: trimmed, leads: [], clients: [] })
+        }
+      })
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [contactSearch, needsContactPicker])
+
+  const query = contactSearch.trim()
+  const isSearchActive = query.length >= 2
+  // Los resultados solo cuentan si corresponden a la query actual — así el
+  // reset al borrar/vaciar la búsqueda es derivado, sin setState en el effect.
+  const searchResults = lastSearch && lastSearch.query === query ? lastSearch : null
+  const availableLeads = searchResults ? searchResults.leads : leads
+  const availableClients = searchResults ? searchResults.clients : clients
 
   const btnCls = variant === 'primary'
     ? 'px-4 py-2 bg-white hover:bg-zinc-200 text-black font-black flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider transition'
@@ -105,23 +137,33 @@ export function ActivityDrawer({
             {needsContactPicker && (
               <div className="border border-zinc-850 bg-zinc-950 p-3.5">
                 <label className={labelCls}>
+                  Buscar contacto (nombre, email o teléfono)
+                  <input
+                    type="search"
+                    value={contactSearch}
+                    onChange={(e) => setContactSearch(e.target.value)}
+                    placeholder="Escribe 2+ caracteres para buscar en todo el CRM…"
+                    className={inputCls}
+                  />
+                </label>
+                <label className={`${labelCls} mt-3`}>
                   Vincular a contacto *
-                  <select name="target" required defaultValue="" className={inputCls}>
+                  <select name="target" required defaultValue="" className={inputCls} key={isSearchActive ? 'search' : 'initial'}>
                     <option value="" disabled>
-                      Selecciona un lead o cliente...
+                      {isSearching ? 'Buscando…' : 'Selecciona un lead o cliente…'}
                     </option>
-                    {leads.length > 0 && (
+                    {availableLeads.length > 0 && (
                       <optgroup label="Leads">
-                        {leads.map((l) => (
+                        {availableLeads.map((l) => (
                           <option key={`lead_${l.id}`} value={`lead_${l.id}`}>
                             {l.label}
                           </option>
                         ))}
                       </optgroup>
                     )}
-                    {clients.length > 0 && (
+                    {availableClients.length > 0 && (
                       <optgroup label="Clientes">
-                        {clients.map((c) => (
+                        {availableClients.map((c) => (
                           <option key={`client_${c.id}`} value={`client_${c.id}`}>
                             {c.label}
                           </option>
@@ -130,9 +172,11 @@ export function ActivityDrawer({
                     )}
                   </select>
                 </label>
-                {leads.length === 0 && clients.length === 0 && (
+                {availableLeads.length === 0 && availableClients.length === 0 && (
                   <p className="mt-2 text-[11px] font-mono text-amber-400">
-                    No hay leads ni clientes en este tenant — crea uno en el CRM antes de registrar actividades.
+                    {isSearchActive
+                      ? `Sin resultados para «${query}» — prueba con otro nombre, email o teléfono.`
+                      : 'No hay leads ni clientes en este tenant — crea uno en el CRM antes de registrar actividades.'}
                   </p>
                 )}
               </div>

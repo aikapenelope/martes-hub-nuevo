@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { renderEmailHtml } from '@/email/layout'
+import { renderMarkdownToSafeHtml } from '@/email/markdown'
 import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
 import { getScopedClient, getScopedLead } from '@/lib/crm-scoped-entities'
 import { getWorkspaceContext } from '@/lib/workspace-context'
@@ -83,9 +84,9 @@ async function logEmail(
 export async function sendDirectEmailAction(formData: FormData) {
   const recipientRaw = String(formData.get('recipientId') ?? '')
   const subjectRaw = String(formData.get('subject') ?? '').trim()
-  const bodyHtml = String(formData.get('body') ?? '').trim()
+  const body = String(formData.get('body') ?? '').trim()
 
-  if (!recipientRaw || !subjectRaw || !bodyHtml) throw new Error('Faltan campos requeridos')
+  if (!recipientRaw || !subjectRaw || !body) throw new Error('Faltan campos requeridos')
 
   const { context, to, leadId, clientId } = await resolveRecipient(recipientRaw)
   if (!context.canEdit) throw new Error('No tienes permiso para enviar correos')
@@ -95,33 +96,52 @@ export async function sendDirectEmailAction(formData: FormData) {
   if (!process.env.RESEND_API_KEY) throw new Error('Email no configurado (falta RESEND_API_KEY)')
 
   const subject = subjectRaw.slice(0, 200)
+  // El cuerpo se trata SIEMPRE como texto/Markdown, nunca como HTML: se
+  // escapa entero antes de entrar al layout, así que ningún editor puede
+  // inyectar markup engañoso ni tracking bajo la identidad del remitente.
+  const safeBodyHtml = renderMarkdownToSafeHtml(body)
 
   let providerMessageId: string | undefined
   try {
-    const html = renderEmailHtml({ title: subject, bodyHtml })
+    const html = renderEmailHtml({ title: subject, bodyHtml: safeBodyHtml })
     const result = (await context.payload.sendEmail({ to, subject, html })) as { id?: string } | null | undefined
     providerMessageId = result?.id
   } catch (err) {
+    // El proveedor falló: el email NO salió — se registra el intento y se
+    // propaga para que el usuario pueda reintentar sin riesgo de duplicado.
     const message = err instanceof Error ? err.message : 'Error enviando el correo'
     await logEmail(context, { to, subject, status: 'failed', error: message, leadId, clientId }).catch(() => undefined)
     throw new Error(message)
   }
 
-  await logEmail(context, { to, subject, status: 'sent', providerMessageId, leadId, clientId })
+  // El email YA SALIÓ del proveedor: un fallo de contabilidad (email-log o
+  // activities) no debe presentarse como envío fallido — el usuario
+  // reintentaría y el cliente recibiría el correo dos veces. Se registra en
+  // logs con el providerMessageId para conciliar por fuera.
+  try {
+    await logEmail(context, { to, subject, status: 'sent', providerMessageId, leadId, clientId })
 
-  await context.payload.create({
-    collection: 'activities',
-    overrideAccess: false,
-    user: context.user,
-    data: {
-      tenant: context.tenantId,
-      type: 'email',
-      occurredAt: new Date().toISOString(),
-      summary: `Email enviado: "${subject}"`,
-      ...(leadId ? { lead: leadId } : {}),
-      ...(clientId ? { client: clientId } : {}),
-    },
-  })
+    await context.payload.create({
+      collection: 'activities',
+      overrideAccess: false,
+      user: context.user,
+      data: {
+        tenant: context.tenantId,
+        type: 'email',
+        occurredAt: new Date().toISOString(),
+        summary: `Email enviado: "${subject}"`,
+        ...(leadId ? { lead: leadId } : {}),
+        ...(clientId ? { client: clientId } : {}),
+      },
+    })
+  } catch (err) {
+    console.error('[EMAIL 1:1] Enviado pero sin registro completo (email-log/activities):', {
+      to,
+      subject,
+      providerMessageId,
+      error: err instanceof Error ? err.message : err,
+    })
+  }
 
   revalidatePath('/workspace/email')
   revalidatePath('/workspace/crm')
