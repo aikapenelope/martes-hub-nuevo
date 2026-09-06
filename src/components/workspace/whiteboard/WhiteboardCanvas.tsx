@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useState, useCallback, useRef } from 'react'
-import { Download, Trash2, Save } from 'lucide-react'
+import { Download, Trash2, Save, TriangleAlert } from 'lucide-react'
 // Internal Excalidraw types are currently broken in this version due to missing @excalidraw/math dependency.
 type ExcalidrawElement = any;
 type AppState = any;
@@ -36,22 +36,48 @@ interface WhiteboardCanvasProps {
 
 const STORAGE_KEY = (tenantId: string) => `martes-wb-${tenantId}`
 
-function loadFromStorage(tenantId: string): { elements: ExcalidrawElement[]; appState: Partial<AppState> } | null {
+interface StoredWhiteboard {
+  elements: readonly ExcalidrawElement[]
+  appState: Partial<AppState>
+  files: BinaryFiles
+}
+
+type SaveResult = { ok: true } | { ok: false; reason: 'quota' | 'unavailable' }
+
+const SAVE_ERROR_COPY: Record<Exclude<SaveResult, { ok: true }>['reason'], string> = {
+  quota: 'El whiteboard supera el espacio de guardado del navegador (≈5 MB) — quita imágenes o exporta y empieza uno nuevo. Los cambios recientes NO quedaron guardados.',
+  unavailable: 'El almacenamiento del navegador no está disponible — los cambios no se guardarán.',
+}
+
+function loadFromStorage(tenantId: string): StoredWhiteboard | null {
   if (typeof window === 'undefined') return null
   try {
     const raw = localStorage.getItem(STORAGE_KEY(tenantId))
     if (!raw) return null
-    return JSON.parse(raw) as { elements: ExcalidrawElement[]; appState: Partial<AppState> }
+    const parsed = JSON.parse(raw) as Partial<StoredWhiteboard>
+    if (!Array.isArray(parsed.elements)) return null
+    return {
+      elements: parsed.elements,
+      appState: parsed.appState ?? {},
+      // Las imágenes viven como dataURL dentro de files; sin esto desaparecen al recargar
+      files: parsed.files ?? {},
+    }
   } catch {
     return null
   }
 }
 
-function saveToStorage(tenantId: string, elements: readonly ExcalidrawElement[], appState: AppState) {
-  if (typeof window === 'undefined') return
+function saveToStorage(
+  tenantId: string,
+  elements: readonly ExcalidrawElement[],
+  appState: AppState,
+  files: BinaryFiles,
+): SaveResult {
+  if (typeof window === 'undefined') return { ok: false, reason: 'unavailable' }
   try {
-    const data = {
+    const data: StoredWhiteboard = {
       elements,
+      files,
       appState: {
         // Solo guardar el viewport, no todo el appState para evitar datos sensibles
         scrollX: appState.scrollX,
@@ -60,26 +86,41 @@ function saveToStorage(tenantId: string, elements: readonly ExcalidrawElement[],
       },
     }
     localStorage.setItem(STORAGE_KEY(tenantId), JSON.stringify(data))
-  } catch {}
+    return { ok: true }
+  } catch (err) {
+    const quota =
+      err instanceof DOMException &&
+      (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED' || err.code === 22)
+    return { ok: false, reason: quota ? 'quota' : 'unavailable' }
+  }
 }
 
 export function WhiteboardCanvas({ tenantId, tenantName }: WhiteboardCanvasProps) {
-  const savedData = loadFromStorage(tenantId)
+  // Cargar la escena una sola vez, no en cada render
+  const [initialScene] = useState(() => loadFromStorage(tenantId))
   const [savedAt, setSavedAt] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   // Ref para acceder a la API de Excalidraw
   const excalidrawAPIRef = useRef<ExcalidrawImperativeAPI | null>(null)
 
   const handleChange = useCallback(
-    (elements: readonly ExcalidrawElement[], appState: AppState, _files: BinaryFiles) => {
-      saveToStorage(tenantId, elements, appState)
-      setSavedAt(
-        new Intl.DateTimeFormat('es-VE', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          timeZone: 'America/Caracas',
-        }).format(new Date()),
-      )
+    (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
+      const result = saveToStorage(tenantId, elements, appState, files)
+      if (result.ok) {
+        setSaveError(null)
+        setSavedAt(
+          new Intl.DateTimeFormat('es-VE', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            timeZone: 'America/Caracas',
+          }).format(new Date()),
+        )
+      } else {
+        // Guardado fallido: no avanzar savedAt — el usuario debe saber que
+        // hay trabajo sin durar antes de cerrar la pestaña.
+        setSaveError(SAVE_ERROR_COPY[result.reason])
+      }
     },
     [tenantId],
   )
@@ -120,11 +161,21 @@ export function WhiteboardCanvas({ tenantId, tenantName }: WhiteboardCanvasProps
           </span>
         </div>
         <div className="flex items-center gap-2">
-          {savedAt && (
-            <span className="hidden text-[10px] font-mono text-zinc-600 sm:block">
-              <Save size={10} className="inline mr-1" />
-              Guardado {savedAt}
+          {saveError ? (
+            <span
+              className="flex max-w-md items-center gap-1.5 border border-red-900 bg-red-950/60 px-2.5 py-1 text-[10px] font-mono text-red-300"
+              role="alert"
+            >
+              <TriangleAlert size={11} className="shrink-0" />
+              {saveError}
             </span>
+          ) : (
+            savedAt && (
+              <span className="hidden text-[10px] font-mono text-zinc-600 sm:block">
+                <Save size={10} className="inline mr-1" />
+                Guardado {savedAt}
+              </span>
+            )
           )}
           <button
             type="button"
@@ -147,7 +198,7 @@ export function WhiteboardCanvas({ tenantId, tenantName }: WhiteboardCanvasProps
       <div className="flex-1" style={{ backgroundColor: '#000000' }}>
         <Excalidraw
           excalidrawAPI={api => { excalidrawAPIRef.current = api }}
-          initialData={savedData ?? undefined}
+          initialData={initialScene ? { elements: initialScene.elements, appState: initialScene.appState, files: initialScene.files } : undefined}
           onChange={handleChange}
           theme="dark"
           UIOptions={{

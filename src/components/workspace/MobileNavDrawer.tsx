@@ -23,7 +23,9 @@ export function MobileNavDrawer({ isAdmin }: { isAdmin: boolean }) {
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
       />
       <div className="absolute left-0 top-0 h-full">
-        <WorkspaceSidebar isAdmin={isAdmin} />
+        {/* onNavigate cierra el drawer al elegir un destino: el layout del
+            workspace persiste entre rutas y sin esto taparía la página. */}
+        <WorkspaceSidebar isAdmin={isAdmin} onNavigate={() => setOpen(false)} />
       </div>
     </div>
   )

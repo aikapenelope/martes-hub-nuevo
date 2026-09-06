@@ -80,9 +80,11 @@ interface WorkspaceSidebarProps {
   isAdmin: boolean
   // Estado inicial de colapso viene del cookie/localStorage a través del server
   defaultCollapsed?: boolean
+  /** Se invoca al elegir un destino — el drawer móvil lo usa para cerrarse. */
+  onNavigate?: () => void
 }
 
-export function WorkspaceSidebar({ isAdmin, defaultCollapsed = false }: WorkspaceSidebarProps) {
+export function WorkspaceSidebar({ isAdmin, defaultCollapsed = false, onNavigate }: WorkspaceSidebarProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const pathname = usePathname()
 
@@ -139,6 +141,7 @@ export function WorkspaceSidebar({ isAdmin, defaultCollapsed = false }: Workspac
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={onNavigate}
                   title={collapsed ? item.label : undefined}
                   aria-current={active ? 'page' : undefined}
                   className={`flex items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${

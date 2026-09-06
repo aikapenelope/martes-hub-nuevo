@@ -14,8 +14,10 @@ export default async function WhiteboardPage() {
     : context.tenantId
 
   return (
-    // h-full para que ocupe el espacio disponible dentro del <main> que ya tiene overflow-y-auto
-    <div className="-m-5 sm:-m-6 xl:-m-8 h-[calc(100vh-3.5rem)]">
+    // Margenes negativos solo donde hay padding que compensar: el vertical de
+    // <main> es py-5 en todos los breakpoints (sm/xl solo afectan el
+    // horizontal), y h-[calc(100vh-3.5rem)] coincide con la altura del topbar.
+    <div className="-mx-5 -my-5 sm:-mx-6 xl:-mx-8 h-[calc(100vh-3.5rem)]">
       <WhiteboardCanvas tenantId={tenantId} tenantName={context.tenant.name} />
     </div>
   )
