@@ -35,6 +35,10 @@ export const Tenants: CollectionConfig = {
       label: 'Nombre de la empresa',
     },
     {
+      // Texto a propósito: el campo nativo `type: 'slug'` es experimental,
+      // añade una columna oculta de checkbox y REGENERA el slug en cada update
+      // desde `name` — rompería la invariante de estabilidad de esta columna
+      // (lookups por WORKSPACE_DEFAULT_TENANT y mapeos externos).
       name: 'slug',
       type: 'text',
       required: true,

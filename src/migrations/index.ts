@@ -25,6 +25,7 @@ import * as migration_20260904_120000_form_submissions_event_id from './20260904
 import * as migration_20260904_144000_add_ai_worker_settings from './20260904_144000_add_ai_worker_settings';
 import * as migration_20260906_025046_add_notes_collection from './20260906_025046_add_notes_collection';
 import * as migration_20260906_035000_messages_idempotency_key from './20260906_035000_messages_idempotency_key';
+import * as migration_20260906_223000_add_whiteboards_and_versions from './20260906_223000_add_whiteboards_and_versions';
 
 export const migrations = [
   {
@@ -155,11 +156,16 @@ export const migrations = [
   {
     up: migration_20260906_025046_add_notes_collection.up,
     down: migration_20260906_025046_add_notes_collection.down,
-    name: '20260906_025046_add_notes_collection'
+    name: '20260906_025046_add_notes_collection',
   },
   {
     up: migration_20260906_035000_messages_idempotency_key.up,
     down: migration_20260906_035000_messages_idempotency_key.down,
-    name: '20260906_035000_messages_idempotency_key'
+    name: '20260906_035000_messages_idempotency_key',
+  },
+  {
+    up: migration_20260906_223000_add_whiteboards_and_versions.up,
+    down: migration_20260906_223000_add_whiteboards_and_versions.down,
+    name: '20260906_223000_add_whiteboards_and_versions'
   },
 ];

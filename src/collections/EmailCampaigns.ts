@@ -5,6 +5,11 @@ import { sendCampaignHandler } from '../endpoints/sendCampaign'
 
 export const EmailCampaigns: CollectionConfig = {
   slug: 'email-campaigns',
+  // Historial puro (skill Payload: 'audit log only'): snapshots sin flujo
+  // draft/published para no introducir _status en la UI custom del workspace.
+  versions: {
+    maxPerDoc: 50,
+  },
   admin: {
     useAsTitle: 'name',
     defaultColumns: ['name', 'status', 'segment', 'sentCount', 'sentAt'],

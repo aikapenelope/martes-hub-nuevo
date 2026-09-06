@@ -37,6 +37,7 @@ import { EmailMessages } from './collections/EmailMessages'
 import { EmailCampaigns } from './collections/EmailCampaigns'
 import { Offers } from './collections/Offers'
 import { Notes } from './collections/Notes'
+import { Whiteboards } from './collections/Whiteboards'
 import { FormSubmissions } from './collections/FormSubmissions'
 import { Tasks } from './collections/Tasks'
 import { ConversationSummaries } from './collections/ConversationSummaries'
@@ -103,6 +104,7 @@ export default buildConfig({
     EmailCampaigns,
     Offers,
     Notes,
+    Whiteboards,
     FormSubmissions,
     Tasks,
     ConversationSummaries,
@@ -187,6 +189,7 @@ export default buildConfig({
         'email-campaigns': {},
         offers: {},
         notes: {},
+        whiteboards: {},
         invoices: {},
         quotes: {},
         'form-submissions': {},

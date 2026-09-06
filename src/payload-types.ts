@@ -89,6 +89,7 @@ export interface Config {
     'email-campaigns': EmailCampaign;
     offers: Offer;
     notes: Note;
+    whiteboards: Whiteboard;
     'form-submissions': FormSubmission;
     tasks: Task;
     'conversation-summaries': ConversationSummary;
@@ -153,6 +154,7 @@ export interface Config {
     'email-campaigns': EmailCampaignsSelect<false> | EmailCampaignsSelect<true>;
     offers: OffersSelect<false> | OffersSelect<true>;
     notes: NotesSelect<false> | NotesSelect<true>;
+    whiteboards: WhiteboardsSelect<false> | WhiteboardsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
     tasks: TasksSelect<false> | TasksSelect<true>;
     'conversation-summaries': ConversationSummariesSelect<false> | ConversationSummariesSelect<true>;
@@ -1061,6 +1063,36 @@ export interface Note {
   createdAt: string;
 }
 /**
+ * Pizarras colaborativas del tenant (Excalidraw). Compartidas por todos los agentes del workspace.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "whiteboards".
+ */
+export interface Whiteboard {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  title: string;
+  /**
+   * Escena Excalidraw: { elements: [...], files: {...} }. Guardada por el editor, no editar a mano.
+   */
+  scene:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Vista previa PNG (dataURL) generada en el cliente. Informativa, no se valida como imagen.
+   */
+  thumbnail?: string | null;
+  source?: ('local' | 'import') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "conversation-summaries".
  */
@@ -1854,6 +1886,10 @@ export interface PayloadLockedDocument {
         value: number | Note;
       } | null)
     | ({
+        relationTo: 'whiteboards';
+        value: number | Whiteboard;
+      } | null)
+    | ({
         relationTo: 'form-submissions';
         value: number | FormSubmission;
       } | null)
@@ -2375,6 +2411,19 @@ export interface NotesSelect<T extends boolean = true> {
   client?: T;
   lead?: T;
   author?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "whiteboards_select".
+ */
+export interface WhiteboardsSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  scene?: T;
+  thumbnail?: T;
+  source?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3161,6 +3210,7 @@ export interface TaskCreateCollectionExport {
       | 'email-campaigns'
       | 'offers'
       | 'notes'
+      | 'whiteboards'
       | 'form-submissions'
       | 'tasks'
       | 'conversation-summaries'
