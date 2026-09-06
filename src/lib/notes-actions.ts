@@ -5,6 +5,7 @@ import type { Payload, Where } from 'payload'
 import type { User } from '@/payload-types'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { extractPlainTextFromLexical } from './notes-utils'
 
 type ActionResult<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string }
 
@@ -176,27 +177,6 @@ export async function createNoteAction(params: {
 }
 
 /**
- * Extrae texto legible a partir de la estructura jerárquica de Lexical
- * para precargar el editor / textarea in-situ sin perder saltos de línea.
- */
-export function extractPlainTextFromLexical(node: unknown): string {
-  if (!node || typeof node !== 'object') return ''
-  const n = node as Record<string, unknown>
-  if (typeof n.text === 'string') return n.text
-  if (Array.isArray(n.children)) {
-    const pieces = n.children.map(extractPlainTextFromLexical)
-    if (n.type === 'paragraph' || n.type === 'heading' || n.type === 'listitem') {
-      return pieces.join('') + '\n'
-    }
-    return pieces.join('')
-  }
-  if (n.root && typeof n.root === 'object') {
-    return extractPlainTextFromLexical(n.root).trim()
-  }
-  return ''
-}
-
-/**
  * Actualiza una nota existente directamente desde el Slide-Over Drawer del workspace.
  */
 export async function updateNoteAction(params: {
@@ -246,7 +226,12 @@ export async function updateNoteAction(params: {
       if (!trimmedBody) {
         return { ok: false, error: 'El contenido es obligatorio' }
       }
-      updateData.body = (await buildLexicalFromPlainText(trimmedBody)) as never
+      // Preservar el árbol Lexical enriquecido (enlaces, listas anidadas, encabezados)
+      // si el texto del cuerpo no cambió respecto al existente.
+      const currentPlainText = extractPlainTextFromLexical(existing.body)
+      if (trimmedBody !== currentPlainText) {
+        updateData.body = (await buildLexicalFromPlainText(trimmedBody)) as never
+      }
     }
 
     if (params.category !== undefined) {

@@ -275,6 +275,8 @@ export function NotesWorkspace({
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         note={selectedNote}
+        canEdit={canEdit}
+        isAdmin={isAdmin}
         onSaved={() => router.refresh()}
       />
     </div>
@@ -356,8 +358,14 @@ function NoteWorkspaceCard({
             </button>
           )}
           <span className="border border-zinc-800 bg-zinc-900/80 px-2 py-1 font-mono text-[10px] uppercase text-zinc-400 group-hover:border-zinc-600 group-hover:text-white flex items-center gap-1">
-            <Edit3 className="h-3 w-3" />
-            <span>Editar</span>
+            {canEdit ? (
+              <>
+                <Edit3 className="h-3 w-3" />
+                <span>Editar</span>
+              </>
+            ) : (
+              <span>Ver</span>
+            )}
           </span>
         </div>
       </header>

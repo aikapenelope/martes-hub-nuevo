@@ -6,23 +6,34 @@ import {
   Calendar,
   CheckSquare,
   ExternalLink,
+  Info,
   List,
   Pin,
   StickyNote,
   Trash2,
   X,
 } from 'lucide-react'
+import { RichText, defaultJSXConverters } from '@payloadcms/richtext-lexical/react'
 
-import type { Client, Lead, Note } from '@/payload-types'
+import type { Client, Lead, Note, User as UserType } from '@/payload-types'
 import { NOTE_CATEGORIES, NOTE_CATEGORY_LABEL, type NoteCategory } from '@/collections/Notes'
 import { Drawer } from '@/components/workspace/overlays'
+import { StatusBadge } from '@/components/workspace/oled'
+import { extractPlainTextFromLexical, hasComplexLexicalNodes } from '@/lib/notes-utils'
 import {
   createNoteAction,
   deleteNoteAction,
-  extractPlainTextFromLexical,
   searchNoteRelatedAction,
   updateNoteAction,
 } from '@/lib/notes-actions'
+
+const dateFmt = new Intl.DateTimeFormat('es-VE', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
 
 interface NoteSlideOverDrawerProps {
   open: boolean
@@ -30,6 +41,8 @@ interface NoteSlideOverDrawerProps {
   note?: Note | null
   defaultClientId?: number
   defaultLeadId?: number
+  canEdit?: boolean
+  isAdmin?: boolean
   onSaved?: () => void
 }
 
@@ -39,13 +52,15 @@ export function NoteSlideOverDrawer({
   note,
   defaultClientId,
   defaultLeadId,
+  canEdit = true,
+  isAdmin = false,
   onSaved,
 }: NoteSlideOverDrawerProps) {
   if (!open) return null
 
   // Usamos una key única para que React monte el formulario con su estado inicial
   // limpio sin necesidad de setState dentro de useEffect (regla oficial React 19).
-  const formKey = note ? `edit-${note.id}` : `create-${defaultClientId ?? 0}-${defaultLeadId ?? 0}`
+  const formKey = note ? `view-${note.id}-${canEdit ? 'edit' : 'read'}` : `create-${defaultClientId ?? 0}-${defaultLeadId ?? 0}`
 
   return (
     <Drawer open={open} onClose={onClose} size="xl">
@@ -55,6 +70,8 @@ export function NoteSlideOverDrawer({
         onClose={onClose}
         defaultClientId={defaultClientId}
         defaultLeadId={defaultLeadId}
+        canEdit={canEdit}
+        isAdmin={isAdmin}
         onSaved={onSaved}
       />
     </Drawer>
@@ -66,12 +83,16 @@ function NoteDrawerContent({
   onClose,
   defaultClientId,
   defaultLeadId,
+  canEdit,
+  isAdmin,
   onSaved,
 }: {
   note?: Note | null
   onClose: () => void
   defaultClientId?: number
   defaultLeadId?: number
+  canEdit: boolean
+  isAdmin: boolean
   onSaved?: () => void
 }) {
   const router = useRouter()
@@ -110,6 +131,8 @@ function NoteDrawerContent({
   const [error, setError] = useState<string | null>(null)
   const [pendingDelete, startDeleteTransition] = useTransition()
 
+  const isComplex = Boolean(note && hasComplexLexicalNodes(note.body))
+
   // Helper para insertar texto rápido en la posición del cursor
   function insertSnippet(prefix: string, suffix: string = '') {
     const textarea = textareaRef.current
@@ -131,6 +154,8 @@ function NoteDrawerContent({
   }
 
   async function handleSave() {
+    if (!canEdit) return
+
     const trimmedTitle = title.trim()
     const trimmedBody = body.trim()
 
@@ -183,7 +208,7 @@ function NoteDrawerContent({
   }
 
   function handleDelete() {
-    if (!note) return
+    if (!note || !isAdmin) return
     if (!window.confirm('¿Eliminar esta nota permanentemente?')) return
 
     startDeleteTransition(async () => {
@@ -196,6 +221,77 @@ function NoteDrawerContent({
       onSaved?.()
       router.refresh()
     })
+  }
+
+  // Si el usuario es de solo lectura (Viewer)
+  if (!canEdit && note) {
+    const author =
+      note.author && typeof note.author === 'object'
+        ? (note.author as UserType).email
+        : 'Equipo'
+
+    return (
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center border border-zinc-700 bg-zinc-900 text-zinc-300">
+              <StickyNote className="h-4 w-4" />
+            </span>
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-white font-mono">
+                Detalle del Apunte
+              </h2>
+              <p className="text-[10px] font-mono text-zinc-500">Modo lectura (solo visualización)</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="border border-zinc-800 p-1.5 text-zinc-400 hover:border-zinc-600 hover:text-white"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
+          <h1 className="text-xl font-bold text-white font-mono">{note.title}</h1>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge tone="neutral">
+              {NOTE_CATEGORY_LABEL[(note.category ?? 'general') as NoteCategory] ?? 'General'}
+            </StatusBadge>
+            {clientSel && (
+              <span className="border border-sky-900/60 bg-sky-950/30 px-1.5 py-0.5 font-mono text-[10px] text-sky-300">
+                Cliente: {clientSel.label}
+              </span>
+            )}
+            {leadSel && (
+              <span className="border border-emerald-900/60 bg-emerald-950/30 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
+                Lead: {leadSel.label}
+              </span>
+            )}
+            <span className="font-mono text-[10px] text-zinc-500 ml-auto">
+              {dateFmt.format(new Date(note.createdAt))} · {author}
+            </span>
+          </div>
+
+          <article className="border-t border-zinc-800/80 pt-4 text-sm leading-relaxed text-zinc-200">
+            <RichText data={note.body} converters={defaultJSXConverters} />
+          </article>
+        </div>
+
+        <div className="flex items-center justify-end border-t border-zinc-800 pt-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="border border-zinc-800 px-4 py-1.5 text-xs font-mono uppercase text-zinc-300 hover:bg-zinc-900"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -239,6 +335,24 @@ function NoteDrawerContent({
           </button>
         </div>
       </div>
+
+      {/* Alerta si la nota contiene formato enriquecido avanzado de Lexical */}
+      {isComplex && (
+        <div className="flex items-start gap-2 border border-amber-900/60 bg-amber-950/30 p-2.5 text-xs text-amber-200">
+          <Info className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+          <div className="flex-1 text-[11px] font-mono leading-relaxed">
+            Esta nota contiene formato enriquecido (encabezados, enlaces o bloques avanzados). Puedes actualizar el título/categoría sin perder el diseño, o editar con formato complejo en el CMS.
+          </div>
+          <a
+            href={`/admin/collections/notes/${note?.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 border border-amber-800 bg-amber-900/40 px-2 py-1 text-[10px] font-mono uppercase text-amber-200 hover:bg-amber-900"
+          >
+            Abrir en CMS
+          </a>
+        </div>
+      )}
 
       {/* Formulario Principal: Título & Contenido Amplio */}
       <div className="flex flex-1 flex-col gap-3">
@@ -371,12 +485,13 @@ function NoteDrawerContent({
       {/* Footer de Acciones */}
       <div className="flex items-center justify-between border-t border-zinc-800 pt-3">
         <div className="flex items-center gap-2">
-          {isEditing && note && (
+          {/* El botón de eliminar SOLO se renderiza para administradores */}
+          {isEditing && note && isAdmin && (
             <button
               type="button"
               onClick={handleDelete}
               disabled={pendingDelete}
-              title="Eliminar apunte"
+              title="Eliminar apunte (solo administradores)"
               className="border border-zinc-900 p-2 text-zinc-500 transition hover:border-rose-900/60 hover:bg-rose-950/20 hover:text-rose-400 disabled:opacity-40"
             >
               <Trash2 className="h-4 w-4" />
