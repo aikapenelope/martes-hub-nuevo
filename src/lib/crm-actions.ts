@@ -134,6 +134,9 @@ export async function createLeadAction(formData: FormData): Promise<void> {
       source: 'manual',
       email: optionalText(formData, 'email'),
       phone: optionalText(formData, 'phone'),
+      companyName: optionalText(formData, 'companyName'),
+      estimatedValue: wholeUsd(formData.get('estimatedValue')),
+      city: optionalText(formData, 'city', 100),
       notes: optionalText(formData, 'notes', MAX_NOTES),
     },
   })
@@ -152,7 +155,11 @@ export async function createLeadAction(formData: FormData): Promise<void> {
     },
   })
 
+  const redirectTo = optionalText(formData, 'redirectTo')
   revalidatePath('/workspace/crm')
+  if (redirectTo) {
+    redirect(redirectTo)
+  }
   redirect(`/workspace/crm/leads/${lead.id}?created=1`)
 }
 
@@ -249,7 +256,11 @@ export async function createClientAction(formData: FormData): Promise<void> {
     },
   })
 
+  const redirectTo = optionalText(formData, 'redirectTo')
   revalidatePath('/workspace/crm')
+  if (redirectTo) {
+    redirect(redirectTo)
+  }
   redirect(`/workspace/crm/clientes/${client.id}?created=1`)
 }
 
@@ -333,7 +344,11 @@ export async function createCompanyAction(formData: FormData): Promise<void> {
     },
   })
 
+  const redirectTo = optionalText(formData, 'redirectTo')
   revalidatePath('/workspace/crm')
+  if (redirectTo) {
+    redirect(redirectTo)
+  }
   redirect(`/workspace/crm/empresas/${company.id}?created=1`)
 }
 

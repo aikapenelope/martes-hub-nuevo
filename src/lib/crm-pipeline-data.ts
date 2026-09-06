@@ -3,7 +3,12 @@ import 'server-only'
 import type { Payload } from 'payload'
 import type { Conversation, ConversationSummary, Lead, Message, User } from '@/payload-types'
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
-import { computeWindowState, relativeLabel } from '@/lib/crm-pipeline-window'
+import {
+  computeDealVelocity,
+  computeWindowState,
+  relativeLabel,
+  type DealVelocity,
+} from '@/lib/crm-pipeline-window'
 
 const MAX_CARDS = LEAD_STATUSES.length * 60
 
@@ -33,6 +38,7 @@ export interface PipelineCard {
   lastMessage: { direction: Message['direction']; text: string; relative: string } | null
   aiSummary: { sentiment: ConversationSummary['sentiment']; summary: string } | null
   convertedClientId: number | null
+  velocity: DealVelocity
 }
 
 export interface PipelineColumn {
@@ -167,6 +173,8 @@ export async function getCrmPipelineData({
     )
 
     const summary = summaryByLead.get(lead.id)
+    const lastActiveAt = lastMessageAt || lead.createdAt
+    const velocity = computeDealVelocity(lastActiveAt, now)
 
     return {
       id: lead.id,
@@ -198,6 +206,7 @@ export async function getCrmPipelineData({
         : null,
       aiSummary: summary ? { sentiment: summary.sentiment, summary: summary.summary } : null,
       convertedClientId: relationId(lead.convertedClient) ?? null,
+      velocity,
     }
   })
 

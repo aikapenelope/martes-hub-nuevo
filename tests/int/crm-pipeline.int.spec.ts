@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseCrmFilters } from '@/lib/crm-filters'
-import { computeWindowState, relativeLabel } from '@/lib/crm-pipeline-window'
+import { computeDealVelocity, computeWindowState, relativeLabel } from '@/lib/crm-pipeline-window'
 
 describe('Pipeline de Ventas Conversacional 360°', () => {
   describe('parseCrmFilters — modo pipeline/tabla', () => {
@@ -76,6 +76,73 @@ describe('Pipeline de Ventas Conversacional 360°', () => {
 
     it('días: "hace N d"', () => {
       expect(relativeLabel(new Date(NOW - 2 * 24 * 60 * 60_000).toISOString(), NOW)).toBe('hace 2 d')
+    })
+  })
+
+  describe('computeDealVelocity', () => {
+    const NOW = new Date('2026-08-30T12:00:00.000Z').getTime()
+
+    it('sin actividad (null o undefined) devuelve cold con etiqueta adecuada', () => {
+      expect(computeDealVelocity(null, NOW)).toEqual({
+        temperature: 'cold',
+        hoursSinceLastActivity: 999,
+        label: 'Sin actividad',
+      })
+      expect(computeDealVelocity(undefined, NOW)).toEqual({
+        temperature: 'cold',
+        hoursSinceLastActivity: 999,
+        label: 'Sin actividad',
+      })
+    })
+
+    it('actividad hace menos de 1 hora devuelve hot con "Activo ahora"', () => {
+      const iso = new Date(NOW - 30 * 60 * 1000).toISOString()
+      expect(computeDealVelocity(iso, NOW)).toEqual({
+        temperature: 'hot',
+        hoursSinceLastActivity: 0,
+        label: 'Activo ahora',
+      })
+    })
+
+    it('actividad hace 5 horas devuelve hot con "Activo hace 5h"', () => {
+      const iso = new Date(NOW - 5 * 60 * 60 * 1000).toISOString()
+      expect(computeDealVelocity(iso, NOW)).toEqual({
+        temperature: 'hot',
+        hoursSinceLastActivity: 5,
+        label: 'Activo hace 5h',
+      })
+    })
+
+    it('actividad hace 23 horas devuelve hot', () => {
+      const iso = new Date(NOW - 23 * 60 * 60 * 1000).toISOString()
+      const res = computeDealVelocity(iso, NOW)
+      expect(res.temperature).toBe('hot')
+      expect(res.hoursSinceLastActivity).toBe(23)
+    })
+
+    it('actividad hace 36 horas (1.5 días) devuelve warm con "Inactivo hace 1d"', () => {
+      const iso = new Date(NOW - 36 * 60 * 60 * 1000).toISOString()
+      expect(computeDealVelocity(iso, NOW)).toEqual({
+        temperature: 'warm',
+        hoursSinceLastActivity: 36,
+        label: 'Inactivo hace 1d',
+      })
+    })
+
+    it('actividad hace 72 horas devuelve warm', () => {
+      const iso = new Date(NOW - 72 * 60 * 60 * 1000).toISOString()
+      const res = computeDealVelocity(iso, NOW)
+      expect(res.temperature).toBe('warm')
+      expect(res.hoursSinceLastActivity).toBe(72)
+    })
+
+    it('actividad hace 96 horas (>72h / 4 días) devuelve cold con "En riesgo (4d sin tocar)"', () => {
+      const iso = new Date(NOW - 96 * 60 * 60 * 1000).toISOString()
+      expect(computeDealVelocity(iso, NOW)).toEqual({
+        temperature: 'cold',
+        hoursSinceLastActivity: 96,
+        label: 'En riesgo (4d sin tocar)',
+      })
     })
   })
 })

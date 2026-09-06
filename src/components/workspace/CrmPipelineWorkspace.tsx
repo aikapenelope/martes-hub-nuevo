@@ -21,12 +21,15 @@ import {
   CircleAlert,
   DollarSign,
   Filter,
+  Flame,
   GripVertical,
   Loader2,
   Mail,
   MapPin,
   MessageCircle,
   Search,
+  Snowflake,
+  Timer,
   UserCheck,
   UserRound,
   X,
@@ -35,9 +38,11 @@ import {
 import { EmptyState } from '@/components/workspace/ui'
 import { Drawer } from '@/components/workspace/overlays'
 import { CrmLeadDrawer } from '@/components/workspace/CrmLeadDrawer'
+import { CrmSlideOverDrawer } from '@/components/workspace/crm/CrmSlideOverDrawer'
 import { changeLeadStageAction, convertLeadInSituAction } from '@/lib/crm-pipeline-actions'
 import type { PipelineCard, PipelineColumn } from '@/lib/crm-pipeline-data'
 import type { LeadStatus } from '@/lib/crm-filters'
+import type { DealTemperature } from '@/lib/crm-pipeline-window'
 import type { Segment, User } from '@/payload-types'
 
 const COLUMN_LABEL: Record<LeadStatus, string> = {
@@ -68,6 +73,18 @@ const WINDOW_TONE_LABEL: Record<WindowTone, string> = {
   verde: 'Ventana activa',
   ambar: 'Ventana por vencer',
   rojo: 'Ventana expirada',
+}
+
+const VELOCITY_BORDER: Record<DealTemperature, string> = {
+  hot: 'border-l-2 border-l-emerald-500',
+  warm: 'border-l-2 border-l-amber-500',
+  cold: 'border-l-2 border-l-rose-500/80',
+}
+
+const VELOCITY_CLASS: Record<DealTemperature, string> = {
+  hot: 'border-emerald-800/80 bg-emerald-950/60 text-emerald-300',
+  warm: 'border-amber-800/80 bg-amber-950/60 text-amber-300',
+  cold: 'border-rose-950/60 bg-rose-950/30 text-rose-300/80',
 }
 
 function initialsOf(name: string): string {
@@ -126,6 +143,8 @@ function PipelineCardView({
       } ${
         selected ? 'border-white' : 'border-zinc-800'
       } ${
+        card.velocity ? VELOCITY_BORDER[card.velocity.temperature] : ''
+      } ${
         isBeingDragged
           ? 'opacity-30 scale-[0.97] border-sky-400/80 shadow-[0_0_15px_rgba(56,189,248,0.3)]'
           : ''
@@ -173,6 +192,17 @@ function PipelineCardView({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {card.velocity && (
+          <span
+            className={`inline-flex items-center gap-1 border px-1.5 py-0.5 text-[9px] font-mono font-medium ${VELOCITY_CLASS[card.velocity.temperature]}`}
+            title={`Velocidad comercial: ${card.velocity.label}`}
+          >
+            {card.velocity.temperature === 'hot' && <Flame size={9} className="text-emerald-400" />}
+            {card.velocity.temperature === 'warm' && <Timer size={9} className="text-amber-400" />}
+            {card.velocity.temperature === 'cold' && <Snowflake size={9} className="text-rose-400" />}
+            <span>{card.velocity.label}</span>
+          </span>
+        )}
         {card.city && (
           <span className="inline-flex items-center gap-1 border border-zinc-800 bg-zinc-900/60 px-1.5 py-0.5 text-[9px] font-mono text-zinc-400">
             <MapPin size={9} />
@@ -540,10 +570,21 @@ export function CrmPipelineWorkspace({
               <header className="flex flex-col gap-1 border-b border-zinc-800 p-3 bg-zinc-950/60">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-xs font-bold uppercase tracking-wider text-white">{COLUMN_LABEL[column.status]}</h2>
-                  <span className="border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-mono text-zinc-300">
-                    {column.cards.length}
-                    {column.cards.length !== column.total && ` / ${column.total}`}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {canEdit && column.status === 'nuevo' && (
+                      <CrmSlideOverDrawer
+                        kind="lead"
+                        variant="ghost"
+                        label="+ Lead"
+                        initialStatus="nuevo"
+                        redirectTo="/workspace/crm?vista=pipeline"
+                      />
+                    )}
+                    <span className="border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-mono text-zinc-300">
+                      {column.cards.length}
+                      {column.cards.length !== column.total && ` / ${column.total}`}
+                    </span>
+                  </div>
                 </div>
                 {columnValue > 0 && (
                   <span className="flex items-center gap-0.5 text-[10px] font-mono font-medium text-emerald-400/90">
