@@ -4,6 +4,11 @@ import { adminOnly, authenticated, editorsOnly } from '../access'
 
 export const SocialPosts: CollectionConfig = {
   slug: 'social-posts',
+  // Historial puro (skill Payload: 'audit log only'): snapshots sin flujo
+  // draft/published para no introducir _status en la UI custom del workspace.
+  versions: {
+    maxPerDoc: 50,
+  },
   labels: {
     singular: 'Publicación Social',
     plural: 'Publicaciones Sociales',

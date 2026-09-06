@@ -24,6 +24,7 @@ import { Memberships } from './collections/Memberships'
 import { Conversations } from './collections/Conversations'
 import { Messages } from './collections/Messages'
 import { MessageTemplates } from './collections/MessageTemplates'
+import { migrations } from './migrations'
 import { importCsvHandler } from './endpoints/importCsv'
 import { exportCsvHandler } from './endpoints/exportCsv'
 import { workspaceSearchHandler } from './endpoints/workspaceSearch'
@@ -37,6 +38,7 @@ import { EmailMessages } from './collections/EmailMessages'
 import { EmailCampaigns } from './collections/EmailCampaigns'
 import { Offers } from './collections/Offers'
 import { Notes } from './collections/Notes'
+import { Whiteboards } from './collections/Whiteboards'
 import { FormSubmissions } from './collections/FormSubmissions'
 import { Tasks } from './collections/Tasks'
 import { ConversationSummaries } from './collections/ConversationSummaries'
@@ -103,6 +105,7 @@ export default buildConfig({
     EmailCampaigns,
     Offers,
     Notes,
+    Whiteboards,
     FormSubmissions,
     Tasks,
     ConversationSummaries,
@@ -187,6 +190,7 @@ export default buildConfig({
         'email-campaigns': {},
         offers: {},
         notes: {},
+        whiteboards: {},
         invoices: {},
         quotes: {},
         'form-submissions': {},
@@ -456,6 +460,9 @@ export default buildConfig({
     },
     push: false,
     migrationDir: './src/migrations',
+    // Vercel: sin esto las migraciones pendientes nunca corren en deploy y la
+    // app arranca contra un esquema viejo (docs: /docs/database/migrations).
+    prodMigrations: migrations,
   }),
   sharp,
   // Límite de tamaño de subida: options de Busboy que se pasan al parser

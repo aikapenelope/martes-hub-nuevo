@@ -45,6 +45,11 @@ export const NOTE_CATEGORY_LABEL: Record<NoteCategory, string> = {
  */
 export const Notes: CollectionConfig = {
   slug: 'notes',
+  // Historial puro (skill Payload: 'audit log only'): snapshots sin flujo
+  // draft/published para no introducir _status en la UI custom del workspace.
+  versions: {
+    maxPerDoc: 50,
+  },
   admin: {
     useAsTitle: 'title',
     defaultColumns: ['title', 'category', 'pinned', 'client', 'createdAt'],
