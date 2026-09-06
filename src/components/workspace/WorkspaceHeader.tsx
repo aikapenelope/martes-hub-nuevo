@@ -27,6 +27,7 @@ import {
   Share2,
   Shield,
   Siren,
+  StickyNote,
   Tags,
   Users,
 } from 'lucide-react'
@@ -39,10 +40,12 @@ const PRIMARY_NAV = [
   { label: 'Tareas', href: '/workspace/tasks' },
   { label: 'Hoy', href: '/workspace/hoy' },
   { label: 'Inbox', href: '/workspace/inbox' },
+  { label: 'Notas', href: '/workspace/notes' },
   { label: 'Facturación', href: '/workspace/billing' },
 ] as const
 
 const SECONDARY_NAV = [
+  { label: 'Notas', href: '/workspace/notes', icon: StickyNote, description: 'Notas enriquecidas del equipo' },
   { label: 'Calendario', href: '/workspace/calendar', icon: CalendarDays, description: 'Citas de Google Calendar y agenda mensual' },
   { label: 'Social Hub', href: '/workspace/social', icon: Share2, description: 'Publicaciones y métricas en Meta / IG' },
   { label: 'Membresías', href: '/workspace/memberships', icon: CreditCard, description: 'Planes recurrentes y renovaciones' },

@@ -88,6 +88,7 @@ export interface Config {
     'email-messages': EmailMessage;
     'email-campaigns': EmailCampaign;
     offers: Offer;
+    notes: Note;
     'form-submissions': FormSubmission;
     tasks: Task;
     'conversation-summaries': ConversationSummary;
@@ -151,6 +152,7 @@ export interface Config {
     'email-messages': EmailMessagesSelect<false> | EmailMessagesSelect<true>;
     'email-campaigns': EmailCampaignsSelect<false> | EmailCampaignsSelect<true>;
     offers: OffersSelect<false> | OffersSelect<true>;
+    notes: NotesSelect<false> | NotesSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
     tasks: TasksSelect<false> | TasksSelect<true>;
     'conversation-summaries': ConversationSummariesSelect<false> | ConversationSummariesSelect<true>;
@@ -1010,6 +1012,51 @@ export interface Offer {
   createdAt: string;
 }
 /**
+ * Notas enriquecidas del equipo (editor de texto rico, independientes o por cliente/lead).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notes".
+ */
+export interface Note {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  title: string;
+  body: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  category?: ('general' | 'cliente' | 'reunion' | 'seguimiento' | 'idea' | 'recordatorio') | null;
+  /**
+   * Las notas fijadas aparecen primero en /workspace/notes
+   */
+  pinned?: boolean | null;
+  /**
+   * Opcional: vincula la nota a un cliente del CRM
+   */
+  client?: (number | null) | Client;
+  /**
+   * Opcional: vincula la nota a un lead del pipeline
+   */
+  lead?: (number | null) | Lead;
+  /**
+   * Se rellena automáticamente con el usuario autenticado
+   */
+  author?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "conversation-summaries".
  */
@@ -1769,6 +1816,10 @@ export interface PayloadLockedDocument {
         value: number | Offer;
       } | null)
     | ({
+        relationTo: 'notes';
+        value: number | Note;
+      } | null)
+    | ({
         relationTo: 'form-submissions';
         value: number | FormSubmission;
       } | null)
@@ -2273,6 +2324,22 @@ export interface OffersSelect<T extends boolean = true> {
   description?: T;
   segment?: T;
   active?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notes_select".
+ */
+export interface NotesSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  body?: T;
+  category?: T;
+  pinned?: T;
+  client?: T;
+  lead?: T;
+  author?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3019,6 +3086,7 @@ export interface TaskCreateCollectionExport {
       | 'email-messages'
       | 'email-campaigns'
       | 'offers'
+      | 'notes'
       | 'form-submissions'
       | 'tasks'
       | 'conversation-summaries'
