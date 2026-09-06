@@ -6,8 +6,11 @@ import { dispatchConversationReply, resolveReplyService } from '@/lib/message-di
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 const sendTextMock = vi.fn()
+const findMessageByIdMock = vi.fn()
 vi.mock('@/integrations/openbsp/client', () => ({
   sendText: (...args: unknown[]) => sendTextMock(...args),
+  findMessageById: (...args: unknown[]) => findMessageByIdMock(...args),
+  toDeterministicUuid: (seed: string) => 'uuid-' + seed.slice(-8),
 }))
 
 const rateLimitMock = vi.fn()
@@ -26,9 +29,24 @@ function makePayloadFactory({ messages = [] as Array<Record<string, unknown>> } 
   const deleted: number[] = []
   const payload = {
     logger: { error: vi.fn(), warn: vi.fn() },
-    find: vi.fn(({ collection }: { collection: string }) => {
+    find: vi.fn(({ collection, where }: { collection: string; where?: { and?: Array<Record<string, Record<string, unknown>>> } }) => {
       if (collection === 'tenants') return Promise.resolve({ docs: [{ id: 1 }], totalDocs: 1 })
-      if (collection === 'messages') return Promise.resolve({ docs: messages, totalDocs: messages.length })
+      if (collection === 'messages') {
+        if (where?.and) {
+          const convFilter = where.and.find((c) => 'conversation' in c)?.conversation?.equals
+          const ikFilter = where.and.find((c) => 'idempotencyKey' in c)?.idempotencyKey?.equals
+          if (convFilter !== undefined || ikFilter !== undefined) {
+            const matched = messages.filter((m) => {
+              if (convFilter !== undefined && m.conversation !== convFilter) return false
+              const ik = (m.statusJson as Record<string, unknown> | undefined)?.idempotencyKey ?? m.idempotencyKey
+              if (ikFilter !== undefined && ik !== ikFilter) return false
+              return true
+            })
+            return Promise.resolve({ docs: matched, totalDocs: matched.length })
+          }
+        }
+        return Promise.resolve({ docs: messages, totalDocs: messages.length })
+      }
       if (collection === 'conversations') return Promise.resolve({ docs: [conversation], totalDocs: 1 })
       return Promise.resolve({ docs: [], totalDocs: 0 })
     }),
@@ -71,6 +89,7 @@ const ctx = { payload: undefined as unknown as Payload, user: makeUser(), tenant
 beforeEach(() => {
   vi.clearAllMocks()
   sendTextMock.mockResolvedValue({ id: 'wamid.X', external_id: 'wamid.X', status: {} })
+  findMessageByIdMock.mockResolvedValue(null)
   rateLimitMock.mockResolvedValue(true)
 })
 
@@ -189,6 +208,38 @@ describe('replyConversationHandler — cobertura de canales en la ruta del endpo
     expect(res.status).toBe(422)
     expect(sendTextMock).not.toHaveBeenCalled()
   })
+
+  it('caller REST sin idempotencyKey genera clave en servidor y responde 200', async () => {
+    conversation = makeConversation('whatsapp')
+    const { payload } = makePayloadFactory()
+    ctx.payload = payload
+    const { replyConversationHandler } = await import('@/endpoints/replyConversation')
+    const req = {
+      user: makeUser(),
+      json: async () => ({ conversationId: 1, text: 'hola' }),
+      headers: { get: () => 'Bearer x' },
+      payload,
+    }
+    const res = await replyConversationHandler(req as never)
+    expect(res.status).toBe(200)
+    expect(sendTextMock).toHaveBeenCalled()
+  })
+
+  it('idempotencyKey mayor a 200 caracteres devuelve 400', async () => {
+    conversation = makeConversation('whatsapp')
+    const { payload } = makePayloadFactory()
+    ctx.payload = payload
+    const { replyConversationHandler } = await import('@/endpoints/replyConversation')
+    const req = {
+      user: makeUser(),
+      json: async () => ({ conversationId: 1, text: 'hola', idempotencyKey: 'x'.repeat(201) }),
+      headers: { get: () => 'Bearer x' },
+      payload,
+    }
+    const res = await replyConversationHandler(req as never)
+    expect(res.status).toBe(400)
+    expect(sendTextMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('quickReplyLeadChatAction — cobertura de canales en la ruta del pipeline', () => {
@@ -272,7 +323,52 @@ describe('dispatchConversationReply — seguridad y claims concurrentes', () => 
     expect(sendTextMock).not.toHaveBeenCalled()
   })
 
-  it('claim obsoleto (>2 min) se recupera y despacha', async () => {
+  it('rechaza idempotencyKey vacía o que excede 200 caracteres', async () => {
+    const { payload } = makePayloadFactory()
+    ctx.payload = payload
+    const resEmpty = await dispatchConversationReply(ctx, {
+      conversation: makeConversation('whatsapp'),
+      text: 'hola',
+      idempotencyKey: '   ',
+    })
+    expect(resEmpty.ok).toBe(false)
+    expect((resEmpty as { error?: string }).error).toContain('idempotencyKey')
+
+    const resTooLong = await dispatchConversationReply(ctx, {
+      conversation: makeConversation('whatsapp'),
+      text: 'hola',
+      idempotencyKey: 'x'.repeat(201),
+    })
+    expect(resTooLong.ok).toBe(false)
+    expect((resTooLong as { error?: string }).error).toContain('200')
+    expect(sendTextMock).not.toHaveBeenCalled()
+  })
+
+  it('claves idénticas en conversaciones distintas no interfieren entre sí (scoped lookup)', async () => {
+    const seeded = [
+      {
+        id: 99,
+        tenant: 1,
+        conversation: 2, // Otra conversación
+        openbspId: 'wamid.OTHER',
+        statusJson: { idempotencyKey: 'shared-key', dispatchStatus: 'dispatched' },
+      },
+    ]
+    const { payload } = makePayloadFactory({ messages: seeded })
+    ctx.payload = payload
+    // Enviamos a la conversación 1 usando la misma clave 'shared-key'
+    const res = await dispatchConversationReply(ctx, {
+      conversation: makeConversation('whatsapp', { id: 1 }),
+      text: 'hola conv 1',
+      idempotencyKey: 'shared-key',
+    })
+    expect(res.ok).toBe(true)
+    // No debe reutilizar el messageId 99 de la conversación 2
+    expect((res as { messageId: number }).messageId).not.toBe(99)
+    expect(sendTextMock).toHaveBeenCalled()
+  })
+
+  it('claim obsoleto (>2 min) se recupera y despacha si OpenBSP confirma ausencia del mensaje', async () => {
     conversation = makeConversation('whatsapp')
     const seeded = [
       {
@@ -283,12 +379,110 @@ describe('dispatchConversationReply — seguridad y claims concurrentes', () => 
         statusJson: { idempotencyKey: 'K3', dispatchStatus: 'sending', sentAt: new Date(Date.now() - 5 * 60_000).toISOString() },
       },
     ]
-    const { payload, updates, created } = makePayloadFactory({ messages: seeded })
+    findMessageByIdMock.mockResolvedValueOnce(null)
+    const { payload } = makePayloadFactory({ messages: seeded })
     ctx.payload = payload
     const res = await dispatchConversationReply(ctx, { conversation: makeConversation('whatsapp'), text: 'hola', idempotencyKey: 'K3' })
     expect(res.ok).toBe(true)
-    expect(created).toHaveLength(1)
     expect(sendTextMock).toHaveBeenCalled()
+  })
+
+  it('claim obsoleto (>2 min) que ya existe en OpenBSP se reconcilia sin reenviar', async () => {
+    conversation = makeConversation('whatsapp')
+    const seeded = [
+      {
+        id: 52,
+        tenant: 1,
+        conversation: 1,
+        openbspId: 'pending:K-stale',
+        statusJson: { idempotencyKey: 'K-stale', dispatchStatus: 'sending', sentAt: new Date(Date.now() - 5 * 60_000).toISOString() },
+      },
+    ]
+    findMessageByIdMock.mockResolvedValueOnce({ id: 'openbsp-recovered-1', external_id: 'wamid.rec', status: {} })
+    const { payload } = makePayloadFactory({ messages: seeded })
+    ctx.payload = payload
+    const res = await dispatchConversationReply(ctx, { conversation: makeConversation('whatsapp'), text: 'hola', idempotencyKey: 'K-stale' })
+    expect(res.ok).toBe(true)
+    expect((res as { messageId: number }).messageId).toBe(52)
+    // No debe haber llamado a sendText porque OpenBSP ya tenía el mensaje
+    expect(sendTextMock).not.toHaveBeenCalled()
+  })
+
+  it('error de transporte ambiguo donde OpenBSP sí aceptó el mensaje se reconcilia a dispatched sin fallar', async () => {
+    conversation = makeConversation('whatsapp')
+    sendTextMock.mockRejectedValueOnce(new TypeError('fetch failed: connection reset'))
+    findMessageByIdMock.mockResolvedValueOnce({ id: 'openbsp-msg-accepted', external_id: 'wamid.acc', status: {} })
+    const { payload } = makePayloadFactory()
+    ctx.payload = payload
+    const res = await dispatchConversationReply(ctx, {
+      conversation: makeConversation('whatsapp'),
+      text: 'hola',
+      idempotencyKey: 'ik-ambiguous-ok',
+    })
+    expect(res.ok).toBe(true)
+  })
+
+  it('error de transporte donde OpenBSP no lo recibió marca failed', async () => {
+    conversation = makeConversation('whatsapp')
+    sendTextMock.mockRejectedValueOnce(new TypeError('fetch failed: timeout'))
+    findMessageByIdMock.mockResolvedValueOnce(null)
+    const { payload, updates } = makePayloadFactory()
+    ctx.payload = payload
+    const res = await dispatchConversationReply(ctx, {
+      conversation: makeConversation('whatsapp'),
+      text: 'hola',
+      idempotencyKey: 'ik-ambiguous-fail',
+    })
+    expect(res.ok).toBe(false)
+    const failedUpdate = updates.find(
+      (u) => (u.data.statusJson as Record<string, unknown> | undefined)?.dispatchStatus === 'failed',
+    )
+    expect(failedUpdate).toBeDefined()
+  })
+
+  it('error de transporte donde OpenBSP no responde mantiene sending y devuelve error transitorio', async () => {
+    conversation = makeConversation('whatsapp')
+    sendTextMock.mockRejectedValueOnce(new TypeError('fetch failed: ETIMEDOUT'))
+    findMessageByIdMock.mockRejectedValueOnce(new Error('OpenBSP 503 Service Unavailable'))
+    const { payload, updates } = makePayloadFactory()
+    ctx.payload = payload
+    const res = await dispatchConversationReply(ctx, {
+      conversation: makeConversation('whatsapp'),
+      text: 'hola',
+      idempotencyKey: 'ik-provider-down',
+    })
+    expect(res.ok).toBe(false)
+    expect((res as { error?: string }).error).toContain('verificando el estado del envío')
+    const sendingUpdate = updates.find(
+      (u) => (u.data.statusJson as Record<string, unknown> | undefined)?.dispatchStatus === 'sending',
+    )
+    expect(sendingUpdate).toBeDefined()
+  })
+
+  it('fallo en la transición atómica a sending aborta el despacho sin llamar a sendText', async () => {
+    conversation = makeConversation('whatsapp')
+    const seeded = [
+      {
+        id: 53,
+        tenant: 1,
+        conversation: 1,
+        openbspId: 'pending:K-fail-transition',
+        statusJson: { idempotencyKey: 'K-fail-transition', dispatchStatus: 'failed' },
+      },
+    ]
+    const { payload } = makePayloadFactory({ messages: seeded })
+    findMessageByIdMock.mockResolvedValueOnce(null)
+    // El update para transicionar a sending falla
+    ;(payload.update as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('DB Lock timeout'))
+    ctx.payload = payload
+    const res = await dispatchConversationReply(ctx, {
+      conversation: makeConversation('whatsapp'),
+      text: 'hola',
+      idempotencyKey: 'K-fail-transition',
+    })
+    expect(res.ok).toBe(false)
+    expect((res as { error?: string }).error).toContain('No se pudo actualizar el estado de envío')
+    expect(sendTextMock).not.toHaveBeenCalled()
   })
 
   it('duplicado de claim (create lanza unique) resuelve por el ganador despachado sin reenviar', async () => {

@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import type { PayloadRequest } from 'payload'
 import type { Conversation, User } from '@/payload-types'
 import { dispatchConversationReply } from '../lib/message-dispatch'
@@ -27,12 +28,24 @@ export async function replyConversationHandler(req: PayloadRequest): Promise<Res
 
   const conversationId = body.conversationId
   const text = body.text?.trim()
-  const idempotencyKey = body.idempotencyKey?.trim()
-  if (!conversationId || !text || !idempotencyKey || idempotencyKey.length > 200) {
+  if (!conversationId || !text) {
     return Response.json(
-      { error: 'conversationId, text e idempotencyKey son obligatorios' },
+      { error: 'conversationId y text son obligatorios' },
       { status: 400 },
     )
+  }
+
+  let idempotencyKey = body.idempotencyKey?.trim()
+  if (idempotencyKey !== undefined && idempotencyKey !== '') {
+    if (idempotencyKey.length > 200) {
+      return Response.json(
+        { error: 'idempotencyKey no puede exceder 200 caracteres' },
+        { status: 400 },
+      )
+    }
+  } else {
+    // Compatibilidad con clientes REST desplegados que solo envían conversationId y text
+    idempotencyKey = crypto.randomUUID()
   }
 
   // findByID respeta el aislamiento por tenant vía access del plugin multiTenant

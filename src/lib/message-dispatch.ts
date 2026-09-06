@@ -13,9 +13,20 @@
 import { revalidatePath } from 'next/cache'
 import type { Payload } from 'payload'
 import type { Conversation, Message, Tenant, User } from '@/payload-types'
-import { sendText, type OpenBSPMessageRow, type OpenBSPService } from '@/integrations/openbsp/client'
+import {
+  sendText,
+  findMessageById,
+  toDeterministicUuid,
+  type OpenBSPMessageRow,
+  type OpenBSPService,
+} from '@/integrations/openbsp/client'
 
 const WINDOW_MS = 24 * 60 * 60 * 1000
+
+function relId(v: number | { id: number } | null | undefined): number | null {
+  if (v == null) return null
+  return typeof v === 'object' ? v.id : v
+}
 
 /** Canales con transporte de salida real por OpenBSP. Cualquier otro se rechaza. */
 const SUPPORTED_CHANNELS: Record<string, OpenBSPService> = {
@@ -74,10 +85,19 @@ export async function dispatchConversationReply(
 
   if (!trimmed) return { ok: false, error: 'El mensaje no puede estar vacío' }
 
+  // Validación rigurosa y consistente de idempotencyKey (Issue 6 de Devin Review)
+  const stableKey = typeof input.idempotencyKey === 'string' ? input.idempotencyKey.trim() : ''
+  if (!stableKey || stableKey.length > 200) {
+    return {
+      ok: false,
+      error: 'Clave de idempotencia (idempotencyKey) es obligatoria y no puede exceder 200 caracteres',
+    }
+  }
+
   // El despacho escribe con overrideAccess: validar aquí que la conversación
   // pertenece al tenant del llamador — un admin no puede cruzar límites
   // enviando por la conversación de otro workspace (revisión Devin PR #75).
-  const convTenant = typeof conversation.tenant === 'object' && conversation.tenant ? conversation.tenant.id : conversation.tenant
+  const convTenant = relId(conversation.tenant)
   if (convTenant !== tenantId) {
     return { ok: false, error: 'La conversación no pertenece al tenant activo' }
   }
@@ -110,21 +130,35 @@ export async function dispatchConversationReply(
   })
   const tenant = tenants.docs[0] as Tenant | undefined
 
-  const stableKey = input.idempotencyKey
+  // Correlación determinista en proveedor para idempotencia y conciliación exacta (Issue 1 y 2 de Devin Review)
+  const clientMessageId = toDeterministicUuid(`openbsp:${tenantId}:${conversation.id}:${stableKey}`)
 
-  // Idempotencia por consulta directa a la clave (indexada): sin ventana de
-  // "últimos 30 mensajes" — cualquier reintento, por antiguo que sea, se
-  // resuelve por clave (revisión Devin PR #75).
+  // Idempotencia acotada a la conversación y tenant (Issue 5 de Devin Review):
+  // La restricción única en BD es (conversation_id, idempotency_key). Consultar
+  // siempre por conversación y tenant juntos para no suprimir respuestas no relacionadas.
   const byKey = await payload.find({
     collection: 'messages',
-    where: { idempotencyKey: { equals: stableKey } },
+    where: {
+      and: [
+        { conversation: { equals: conversation.id } },
+        { tenant: { equals: tenantId } },
+        { idempotencyKey: { equals: stableKey } },
+      ],
+    },
     limit: 1,
     depth: 0,
     overrideAccess: true,
   })
   const existing = byKey.docs[0] as Message | undefined
 
+  let pendingRecord: Message | null = null
+
   if (existing) {
+    // Validar aislamiento estricto de ámbito
+    if (relId(existing.conversation) !== conversation.id || relId(existing.tenant) !== tenantId) {
+      return { ok: false, error: 'Conflicto de ámbito en clave de idempotencia' }
+    }
+
     const statusJson = existing.statusJson as Record<string, unknown> | undefined
     if (
       statusJson?.dispatchStatus === 'dispatched' ||
@@ -143,92 +177,150 @@ export async function dispatchConversationReply(
       return { ok: true, messageId: existing.id }
     }
 
-    // 'sending': otra petición posee el claim (en vuelo o post-envío sin
-    // persistir). NO reenviar — reconciliar externamente si procede.
-    // Excepción: claim obsoleto (>2 min) = crash pre-envío → recuperar.
-    if (statusJson?.dispatchStatus === 'sending') {
-      const sentAt = typeof statusJson.sentAt === 'string' ? Date.parse(statusJson.sentAt) : 0
-      const stale = sentAt > 0 && Date.now() - sentAt > 2 * 60_000
-      if (!stale) {
-        return {
-          ok: false,
-          error: 'El mensaje está en proceso de envío; espera un momento antes de reintentar',
-        }
+    const sentAt = typeof statusJson?.sentAt === 'string' ? Date.parse(statusJson.sentAt) : 0
+    const isFreshSending =
+      statusJson?.dispatchStatus === 'sending' && sentAt > 0 && Date.now() - sentAt < 2 * 60_000
+
+    if (isFreshSending) {
+      return {
+        ok: false,
+        error: 'El mensaje está en proceso de envío; espera un momento antes de reintentar',
       }
     }
-    // 'failed' o claim obsoleto: reciclar el registro — el DELETE + re-CREATE
-    // contra la restricción única (conversation_id, idempotency_key) hace que
-    // solo UNA petición gane el nuevo claim; la perdedora resuelve por el
-    // estado del ganador sin reenviar.
-    await payload
-      .delete({ collection: 'messages', id: existing.id, overrideAccess: true })
-      .catch(() => {})
-  }
 
-  // Claim atómico: la restricción única (conversation_id, idempotency_key)
-  // garantiza que solo UNA petición crea el registro para esta clave. Si
-  // perdemos la carrera, resolvemos por el estado del ganador.
-  let pendingRecord: Message
-  try {
-    pendingRecord = (await payload.create({
-      collection: 'messages',
-      overrideAccess: true,
-      data: {
-        conversation: conversation.id,
-        direction: 'outbound',
-        openbspId: `pending:${stableKey}`,
-        type: 'text',
-        text: trimmed,
-        content: {},
-        idempotencyKey: stableKey,
-        statusJson: { idempotencyKey: stableKey, dispatchStatus: 'pending' },
-        sentAt: new Date().toISOString(),
-        performedBy: user.id,
-        tenant: tenantId,
-      },
-    })) as Message
-  } catch (claimErr) {
-    const msg = claimErr instanceof Error ? claimErr.message : String(claimErr)
-    if (!/duplicate key|unique/i.test(msg)) throw claimErr
-    const winner = await payload.find({
-      collection: 'messages',
-      where: { idempotencyKey: { equals: stableKey } },
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    })
-    const win = winner.docs[0] as Message | undefined
-    if (!win) return { ok: false, error: 'Conflicto de idempotencia; reintenta en un momento' }
-    const winStatus = win.statusJson as Record<string, unknown> | undefined
-    if (
-      winStatus?.dispatchStatus === 'dispatched' ||
-      (win.openbspId && !win.openbspId.startsWith('pending:'))
-    ) {
-      return { ok: true, messageId: win.id }
+    // Para claims obsoletos (>2 min) o reclamos con dispatchStatus 'failed' / ambiguo (Issue 1 & 2):
+    // NUNCA borrar ni re-despachar a ciegas sin antes verificar si OpenBSP lo aceptó previamente.
+    let openbspRow: OpenBSPMessageRow | null = null
+    try {
+      openbspRow = await findMessageById(clientMessageId, tenant ?? undefined)
+    } catch {
+      return {
+        ok: false,
+        error:
+          'No se pudo verificar el estado del mensaje con el proveedor; espera un momento antes de reintentar',
+      }
     }
-    return {
-      ok: false,
-      error: 'El mensaje está en proceso de envío; espera un momento antes de reintentar',
-    }
-  }
 
-  // Claim obtenido: marcar 'sending' ANTES del despacho — un reintento durante
-  // el envío ve 'sending' y no re-dispacha; si la persistencia post-envío
-  // fallara, el registro queda en 'sending' (conciliación, no reenvío).
-  await payload
-    .update({
-      collection: 'messages',
-      id: pendingRecord.id,
-      overrideAccess: true,
-      data: {
-        statusJson: {
-          idempotencyKey: stableKey,
-          dispatchStatus: 'sending',
+    if (openbspRow) {
+      // OpenBSP ya lo aceptó previamente: conciliar como dispatched sin re-despachar
+      await payload
+        .update({
+          collection: 'messages',
+          id: existing.id,
+          overrideAccess: true,
+          data: {
+            openbspId: openbspRow.id,
+            externalId: openbspRow.external_id ?? undefined,
+            statusJson: {
+              ...(typeof openbspRow.status === 'object' && openbspRow.status ? openbspRow.status : {}),
+              idempotencyKey: stableKey,
+              clientMessageId,
+              dispatchStatus: 'dispatched',
+            },
+          },
+        })
+        .catch(() => {})
+
+      try {
+        await payload.update({
+          collection: 'conversations',
+          id: conversation.id,
+          overrideAccess: true,
+          data: { lastMessageAt: new Date().toISOString() },
+        })
+      } catch {}
+
+      return { ok: true, messageId: existing.id }
+    }
+
+    // OpenBSP confirmó fehacientemente que NO existe mensaje con este ID.
+    // Transicionar atómicamente el registro existente a 'sending' (Issue 3).
+    // Si la actualización falla, abortar inmediatamente el despacho.
+    try {
+      pendingRecord = (await payload.update({
+        collection: 'messages',
+        id: existing.id,
+        overrideAccess: true,
+        data: {
+          text: trimmed,
+          openbspId: `pending:${stableKey}`,
+          statusJson: {
+            idempotencyKey: stableKey,
+            dispatchStatus: 'sending',
+            clientMessageId,
+            sentAt: new Date().toISOString(),
+          },
           sentAt: new Date().toISOString(),
+          performedBy: user.id,
         },
-      },
-    })
-    .catch(() => {})
+      })) as Message
+    } catch {
+      return {
+        ok: false,
+        error: 'No se pudo actualizar el estado de envío; reintenta en un momento',
+      }
+    }
+  }
+
+  // Claim atómico si no existía: la restricción única (conversation_id, idempotency_key)
+  // garantiza que solo UNA petición crea el registro para esta clave. Si perdemos la carrera,
+  // resolvemos por el estado del ganador.
+  if (!pendingRecord) {
+    try {
+      pendingRecord = (await payload.create({
+        collection: 'messages',
+        overrideAccess: true,
+        data: {
+          conversation: conversation.id,
+          direction: 'outbound',
+          openbspId: `pending:${stableKey}`,
+          type: 'text',
+          text: trimmed,
+          content: {},
+          idempotencyKey: stableKey,
+          statusJson: {
+            idempotencyKey: stableKey,
+            dispatchStatus: 'sending',
+            clientMessageId,
+            sentAt: new Date().toISOString(),
+          },
+          sentAt: new Date().toISOString(),
+          performedBy: user.id,
+          tenant: tenantId,
+        },
+      })) as Message
+    } catch (claimErr) {
+      const msg = claimErr instanceof Error ? claimErr.message : String(claimErr)
+      if (!/duplicate key|unique/i.test(msg)) throw claimErr
+      // Resolver por el ganador buscando dentro de la misma conversación y tenant (Issue 5)
+      const winner = await payload.find({
+        collection: 'messages',
+        where: {
+          and: [
+            { conversation: { equals: conversation.id } },
+            { tenant: { equals: tenantId } },
+            { idempotencyKey: { equals: stableKey } },
+          ],
+        },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+      const win = winner.docs[0] as Message | undefined
+      if (!win) return { ok: false, error: 'Conflicto de idempotencia; reintenta en un momento' }
+      const winStatus = win.statusJson as Record<string, unknown> | undefined
+      if (
+        winStatus?.dispatchStatus === 'dispatched' ||
+        (win.openbspId && !win.openbspId.startsWith('pending:'))
+      ) {
+        return { ok: true, messageId: win.id }
+      }
+      return {
+        ok: false,
+        error: 'El mensaje está en proceso de envío; espera un momento antes de reintentar',
+      }
+    }
+  }
 
   // Despacho externo consciente del canal y de la cuenta por la que llegó
   let reconcilePending = false
@@ -243,29 +335,93 @@ export async function dispatchConversationReply(
       // (organization_address del webhook). Con varios números de la misma
       // organización, cada conversación responde desde su propio número.
       senderAddress: conversation.organizationAddress || undefined,
+      clientMessageId,
+      idempotencyKey: stableKey,
     })
   } catch (dispatchErr) {
-    // Registrar fallo para permitir reintento seguro sin duplicar
-    await payload
-      .update({
-        collection: 'messages',
-        id: pendingRecord.id,
-        overrideAccess: true,
-        data: {
-          statusJson: {
-            idempotencyKey: stableKey,
-            dispatchStatus: 'failed',
-            error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+    const errMsg = dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr)
+    const notConfigured = errMsg.startsWith('OpenBSP no configurado')
+    const isDefinitivePreDispatch =
+      notConfigured ||
+      errMsg.includes('Falta phone_number_id') ||
+      errMsg.includes('falta organization_address')
+
+    if (isDefinitivePreDispatch) {
+      // Fallo definitivo antes del despacho externo: marcar failed seguro
+      await payload
+        .update({
+          collection: 'messages',
+          id: pendingRecord.id,
+          overrideAccess: true,
+          data: {
+            statusJson: {
+              idempotencyKey: stableKey,
+              dispatchStatus: 'failed',
+              error: errMsg,
+            },
           },
-        },
-      })
-      .catch(() => {})
-    const message = dispatchErr instanceof Error ? dispatchErr.message : 'Error enviando mensaje'
-    const notConfigured = message.startsWith('OpenBSP no configurado')
-    return {
-      ok: false,
-      error: notConfigured ? 'Mensajería no configurada (falta OpenBSP)' : message,
-      notConfigured,
+        })
+        .catch(() => {})
+
+      return {
+        ok: false,
+        error: notConfigured ? 'Mensajería no configurada (falta OpenBSP)' : errMsg,
+        notConfigured,
+      }
+    }
+
+    // Error de transporte (fetch failed / timeout / 5xx) — resultado ambiguo (Issue 1 de Devin Review):
+    // OpenBSP pudo haber aceptado el insert antes de perder la respuesta.
+    // Intentar reconciliación inmediata contra OpenBSP.
+    try {
+      const existingInOpenBSP = await findMessageById(clientMessageId, tenant ?? undefined)
+      if (existingInOpenBSP) {
+        // OpenBSP sí aceptó el mensaje: proceder a la persistencia exitosa
+        row = existingInOpenBSP
+      } else {
+        // OpenBSP confirmó que no lo tiene: marcar failed con seguridad
+        await payload
+          .update({
+            collection: 'messages',
+            id: pendingRecord.id,
+            overrideAccess: true,
+            data: {
+              statusJson: {
+                idempotencyKey: stableKey,
+                dispatchStatus: 'failed',
+                clientMessageId,
+                error: errMsg,
+              },
+            },
+          })
+          .catch(() => {})
+
+        return { ok: false, error: errMsg }
+      }
+    } catch {
+      // Reconciliación fallida por caída de red: preservar como 'sending' con error ambiguo registrado
+      await payload
+        .update({
+          collection: 'messages',
+          id: pendingRecord.id,
+          overrideAccess: true,
+          data: {
+            statusJson: {
+              idempotencyKey: stableKey,
+              dispatchStatus: 'sending',
+              clientMessageId,
+              ambiguousTransportError: errMsg,
+              sentAt: new Date().toISOString(),
+            },
+          },
+        })
+        .catch(() => {})
+
+      return {
+        ok: false,
+        error:
+          'Error de comunicación con el proveedor; se está verificando el estado del envío. Espera un momento antes de reintentar.',
+      }
     }
   }
 
@@ -282,6 +438,7 @@ export async function dispatchConversationReply(
         statusJson: {
           ...(typeof row.status === 'object' && row.status ? row.status : {}),
           idempotencyKey: stableKey,
+          clientMessageId,
           dispatchStatus: 'dispatched',
         },
       },
@@ -301,6 +458,7 @@ export async function dispatchConversationReply(
             statusJson: {
               ...(typeof row.status === 'object' && row.status ? row.status : {}),
               idempotencyKey: stableKey,
+              clientMessageId,
               dispatchStatus: 'dispatched',
             },
           },

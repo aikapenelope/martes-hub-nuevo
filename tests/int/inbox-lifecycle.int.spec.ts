@@ -42,6 +42,8 @@ vi.mock('@/integrations/openbsp/client', () => ({
     external_id: 'mock-ext-123',
     status: { sent_at: new Date().toISOString() },
   }),
+  findMessageById: vi.fn().mockResolvedValue(null),
+  toDeterministicUuid: (seed: string) => 'mock-uuid-' + seed.slice(0, 8),
 }))
 
 // Claves de idempotencia ÚNICAS por corrida: la BD de pruebas es persistente y el
