@@ -116,8 +116,9 @@ export function BillingWorkspace({
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
 
-  // Diálogo para registrar pago
-  const [payingPayment, setPayingPayment] = useState<Payment | null>(null)
+  // Drawer y acciones Fintech in-situ
+  type DrawerPaymentTab = 'detalle' | 'conciliar' | 'whatsapp'
+  const [paymentDrawerTab, setPaymentDrawerTab] = useState<DrawerPaymentTab>('detalle')
   const [payMethod, setPayMethod] = useState<
     'pago_movil' | 'transferencia' | 'zelle' | 'binance' | 'efectivo' | 'otro'
   >('transferencia')
@@ -180,7 +181,6 @@ export function BillingWorkspace({
   }
 
   // Estado para recordatorio de cobro por WhatsApp
-  const [reminderPayment, setReminderPayment] = useState<Payment | null>(null)
   const [copiedReminder, setCopiedReminder] = useState(false)
 
   function generatePaymentReminderText(payment: Payment): string {
@@ -283,13 +283,14 @@ export function BillingWorkspace({
 
   // Manejador para marcar pago como pagado
   const handleConfirmPayment = () => {
-    if (!payingPayment) return
+    if (!selectedDoc || selectedDoc.kind !== 'payment') return
+    const payment = selectedDoc.data
     setActionError(null)
     setActionSuccess(null)
     startTransition(async () => {
       const usesExchangeRate = payMethod === 'pago_movil' || payMethod === 'transferencia'
       const rateNum = usesExchangeRate ? Number(exchangeRate) : 0
-      const bsEquivalent = rateNum > 0 ? (payingPayment.amount * rateNum).toFixed(2) : null
+      const bsEquivalent = rateNum > 0 ? (payment.amount * rateNum).toFixed(2) : null
       const noteDetails = [
         payReference ? `Ref: ${payReference}` : null,
         bsEquivalent ? `Tasa ${rateSource.toUpperCase()}: ${exchangeRate} (Bs. ${bsEquivalent})` : null,
@@ -298,12 +299,12 @@ export function BillingWorkspace({
         .filter(Boolean)
         .join(' | ')
 
-      const finalNotes = payingPayment.notes
-        ? `${payingPayment.notes}\n[Conciliación]: ${noteDetails}`
+      const finalNotes = payment.notes
+        ? `${payment.notes}\n[Conciliación]: ${noteDetails}`
         : noteDetails || undefined
 
       const res = await updatePaymentStatusAction({
-        paymentId: payingPayment.id,
+        paymentId: payment.id,
         status: 'pagado',
         method: payMethod,
         notes: finalNotes,
@@ -312,7 +313,16 @@ export function BillingWorkspace({
         setActionError(res.error || 'No se pudo registrar el pago')
       } else {
         setActionSuccess('Pago registrado y conciliado exitosamente')
-        setPayingPayment(null)
+        setSelectedDoc({
+          kind: 'payment',
+          data: {
+            ...payment,
+            status: 'pagado',
+            method: payMethod,
+            notes: finalNotes,
+          },
+        })
+        setPaymentDrawerTab('detalle')
         setPayNotes('')
         setPayReference('')
         router.refresh()
@@ -663,7 +673,10 @@ export function BillingWorkspace({
                     return (
                       <tr
                         key={p.id}
-                        onClick={() => setSelectedDoc({ kind: 'payment', data: p })}
+                        onClick={() => {
+                          setSelectedDoc({ kind: 'payment', data: p })
+                          setPaymentDrawerTab('detalle')
+                        }}
                         className="hover:bg-zinc-900/50 cursor-pointer transition group"
                       >
                         <td className="px-4 py-3 text-white font-medium group-hover:text-sky-300 transition">
@@ -716,7 +729,10 @@ export function BillingWorkspace({
                               {(isPendingState || isOverdue) && (
                                 <button
                                   type="button"
-                                  onClick={() => setReminderPayment(p)}
+                                  onClick={() => {
+                                    setSelectedDoc({ kind: 'payment', data: p })
+                                    setPaymentDrawerTab('whatsapp')
+                                  }}
                                   className="px-2 py-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border border-emerald-800/80 text-[10px] font-mono transition flex items-center gap-1"
                                   title="Enviar recordatorio por WhatsApp"
                                 >
@@ -728,7 +744,13 @@ export function BillingWorkspace({
                               {(isPendingState || isOverdue) && (
                                 <button
                                   type="button"
-                                  onClick={() => setPayingPayment(p)}
+                                  onClick={() => {
+                                    setSelectedDoc({ kind: 'payment', data: p })
+                                    setPaymentDrawerTab('conciliar')
+                                    setPayMethod((p.method as typeof payMethod) || 'transferencia')
+                                    setPayReference('')
+                                    setPayNotes('')
+                                  }}
                                   className="px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-black border border-emerald-500/30 text-[10px] font-mono font-bold uppercase transition flex items-center gap-1"
                                   title="Registrar confirmación de pago"
                                 >
@@ -1016,335 +1038,735 @@ export function BillingWorkspace({
         </OledCard>
       )}
 
-      {/* 6. Modal In-Situ: Registrar Pago */}
-      {payingPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fadeIn font-mono text-xs">
-          <div className="w-full max-w-md border border-zinc-800 bg-zinc-950 p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div>
-                <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Confirmación de Cobranza</span>
-                <h3 className="text-sm font-bold text-white mt-0.5">
-                  Registrar Pago de {usd.format(payingPayment.amount)}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPayingPayment(null)}
-                className="text-zinc-400 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="text-xs text-zinc-400 bg-zinc-900/60 p-3 border border-zinc-800">
-                <span className="text-zinc-500 block text-[10px]">CLIENTE:</span>
-                <strong className="text-white text-sm block">{getClientName(payingPayment.client)}</strong>
-                {payingPayment.concept && (
-                  <span className="text-zinc-400 block mt-1">Concepto: {payingPayment.concept}</span>
-                )}
-              </div>
-
-              <label className="flex flex-col gap-1 text-[11px] text-zinc-400 uppercase">
-                Método de Pago
-                <select
-                  value={payMethod}
-                  onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
-                  className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
-                >
-                  <option value="pago_movil">Pago Móvil</option>
-                  <option value="transferencia">Transferencia Bancaria</option>
-                  <option value="zelle">Zelle</option>
-                  <option value="binance">Binance / Cripto</option>
-                  <option value="efectivo">Efectivo</option>
-                  <option value="otro">Otro</option>
-                </select>
-              </label>
-
-              {/* Tasa y cálculo referencial en Bolívares */}
-              {(payMethod === 'pago_movil' || payMethod === 'transferencia') && (
-                <div className="p-3 bg-zinc-900/60 border border-zinc-800 space-y-2">
-                  <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                    <span className="font-bold text-zinc-300">Tasa Referencial (Bs./USD)</span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleSelectRateSource('bcv')}
-                        className={`px-1.5 py-0.5 text-[9px] uppercase border transition ${
-                          rateSource === 'bcv'
-                            ? 'bg-emerald-500 text-black font-bold border-emerald-500'
-                            : 'border-zinc-800 text-zinc-400 hover:text-white'
-                        }`}
-                      >
-                        BCV
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSelectRateSource('binance')}
-                        className={`px-1.5 py-0.5 text-[9px] uppercase border transition ${
-                          rateSource === 'binance'
-                            ? 'bg-amber-400 text-black font-bold border-amber-400'
-                            : 'border-zinc-800 text-zinc-400 hover:text-white'
-                        }`}
-                      >
-                        Binance
-                      </button>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="1"
-                        value={exchangeRate}
-                        onChange={(e) => {
-                          setExchangeRate(e.target.value)
-                          setRateSource('manual')
-                        }}
-                        className="bg-black border border-zinc-700 px-2 py-0.5 text-xs text-emerald-400 font-mono w-24 text-right"
-                      />
-                    </div>
-                  </div>
-                  {Number(exchangeRate) > 0 && (
-                    <div className="flex items-center justify-between pt-1 border-t border-zinc-800/60">
-                      <span className="text-[10px] text-zinc-500">
-                        Base USD: {usd.format(payingPayment.amount)}
-                      </span>
-                      <div className="text-right text-xs font-mono text-emerald-300 font-bold">
-                        ≈ Bs. {(payingPayment.amount * Number(exchangeRate)).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <label className="flex flex-col gap-1 text-[11px] text-zinc-400 uppercase">
-                Número de Referencia Bancaria / Comprobante
-                <input
-                  type="text"
-                  value={payReference}
-                  onChange={(e) => setPayReference(e.target.value)}
-                  placeholder="Ej: Ref #948291 Banesco"
-                  className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-[11px] text-zinc-400 uppercase">
-                Notas adicionales (opcional)
-                <input
-                  type="text"
-                  value={payNotes}
-                  onChange={(e) => setPayNotes(e.target.value)}
-                  placeholder="Comentarios o detalles de auditoría"
-                  className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
-                />
-              </label>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-900">
-              <button
-                type="button"
-                onClick={() => setPayingPayment(null)}
-                className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold uppercase transition"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={handleConfirmPayment}
-                className="px-4 py-2 bg-emerald-400 hover:bg-emerald-300 text-black text-xs font-black uppercase transition flex items-center gap-1.5 shadow-lg shadow-emerald-950 disabled:opacity-50"
-              >
-                {isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={14} />}
-                <span>Confirmar Cobro</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Recordatorio de Cobro por WhatsApp */}
-      {reminderPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fadeIn font-mono text-xs">
-          <div className="w-full max-w-lg border border-emerald-800/80 bg-zinc-950 p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex items-center gap-2 text-emerald-400">
-                <MessageSquare size={16} />
-                <h3 className="text-sm font-bold uppercase tracking-wider">
-                  Recordatorio de Cobro por WhatsApp
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setReminderPayment(null)}
-                className="text-zinc-500 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-[11px] text-zinc-400">
-                Mensaje pre-formateado para enviar al cliente {getClientName(reminderPayment.client)}:
-              </p>
-              <textarea
-                readOnly
-                rows={9}
-                value={generatePaymentReminderText(reminderPayment)}
-                className="w-full bg-black border border-zinc-800 p-3 text-xs text-emerald-300 font-mono focus:outline-none select-all"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-zinc-900">
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(generatePaymentReminderText(reminderPayment))
-                  setCopiedReminder(true)
-                  setTimeout(() => setCopiedReminder(false), 2500)
-                }}
-                className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold transition flex items-center gap-1.5"
-              >
-                {copiedReminder ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                <span>{copiedReminder ? '¡Copiado!' : 'Copiar Mensaje'}</span>
-              </button>
-
-              <a
-                href={`https://wa.me/?text=${encodeURIComponent(generatePaymentReminderText(reminderPayment))}`}
-                target="_blank"
-                rel="noreferrer"
-                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-lg shadow-emerald-950"
-              >
-                <Share2 size={13} />
-                <span>Abrir WhatsApp</span>
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 7. Drawer de Detalle Financiero 360° */}
+      {/* 6. Slide-Over Drawer: Terminal Fintech 360° */}
       <Drawer
         open={selectedDoc !== null}
-        onClose={() => setSelectedDoc(null)}
+        onClose={() => {
+          setSelectedDoc(null)
+          setPaymentDrawerTab('detalle')
+        }}
+        size="xl"
         title={
           selectedDoc?.kind === 'payment'
-            ? 'Detalle de Cobro'
+            ? 'Terminal Fintech · Cobro'
             : selectedDoc?.kind === 'quote'
-              ? 'Detalle de Cotización'
-              : 'Detalle de Factura'
+              ? 'Terminal Comercial · Cotización'
+              : 'Terminal Fiscal · Factura'
         }
       >
         {selectedDoc && (
           <div className="space-y-4 font-mono text-xs">
-            {/* Cabecera del Documento */}
-            <div className="p-4 oled-subcard space-y-2 border-l-2 border-sky-400">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-widest">
-                  {selectedDoc.kind.toUpperCase()}
-                </span>
-                <StatusBadge
-                  tone={
-                    selectedDoc.data.status === 'pagado' ||
-                    selectedDoc.data.status === 'paid' ||
-                    selectedDoc.data.status === 'accepted'
-                      ? 'success'
-                      : selectedDoc.data.status === 'vencido' ||
-                         selectedDoc.data.status === 'rejected' ||
-                         selectedDoc.data.status === 'expired' ||
-                         selectedDoc.data.status === 'cancelled'
-                        ? 'danger'
-                        : 'neutral'
-                  }
-                >
-                  {selectedDoc.data.status}
-                </StatusBadge>
-              </div>
+            {/* === CASO 1: COBRO (PAYMENT) === */}
+            {selectedDoc.kind === 'payment' && (() => {
+              const payment = selectedDoc.data
+              const clientName = getClientName(payment.client)
+              const custId = getCustomerId(payment.client)
+              const diffDays = getCalendarDayDiff(payment.dueDate, timezone)
+              const isOverdue = payment.status === 'vencido'
+              const isPendingState = payment.status === 'pendiente'
+              const isPaid = payment.status === 'pagado'
+              const isCancelled = payment.status === 'anulado'
 
-              <h3 className="text-lg font-bold text-white">
-                {selectedDoc.kind === 'payment'
-                  ? selectedDoc.data.concept || 'Cobro'
-                  : selectedDoc.kind === 'quote'
-                    ? selectedDoc.data.quoteNumber || `Cotización #${selectedDoc.data.id}`
-                    : selectedDoc.data.invoiceNumber || `Factura #${selectedDoc.data.id}`}
-              </h3>
+              const rateNum = Number(exchangeRate)
+              const bsEquivalent =
+                rateNum > 0
+                  ? (payment.amount * rateNum).toLocaleString('es-VE', { minimumFractionDigits: 2 })
+                  : null
 
-              <div className="text-2xl font-black text-white font-mono pt-1">
-                {usd.format(
-                  selectedDoc.kind === 'payment'
-                    ? selectedDoc.data.amount
-                    : selectedDoc.data.total ?? 0,
-                )}
-              </div>
-            </div>
+              return (
+                <div className="space-y-4">
+                  {/* Tarjeta de Resumen Financiero Principal */}
+                  <div className="p-4 oled-subcard space-y-2.5 border-l-2 border-emerald-400">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        Cobro #{payment.id}
+                      </span>
+                      <StatusBadge
+                        tone={
+                          isPaid
+                            ? 'success'
+                            : isOverdue
+                              ? 'danger'
+                              : isCancelled
+                                ? 'neutral'
+                                : 'warning'
+                        }
+                      >
+                        {payment.status}
+                      </StatusBadge>
+                    </div>
 
-            {/* Datos del Cliente y Enlace CRM */}
-            <div className="p-4 oled-card space-y-2">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">Cliente Vinculado</span>
-              <div className="flex items-center justify-between">
-                <strong className="text-sm text-white">{getClientName(selectedDoc.data.client)}</strong>
-                {(() => {
-                  const custId = getCustomerId(selectedDoc.data.client)
-                  if (!custId) return null
-                  return (
-                    <Link
-                      href={`/workspace/crm/clientes/${custId}`}
-                      className="text-[11px] text-sky-400 hover:text-sky-300 font-bold flex items-center gap-1"
+                    <h3 className="text-base font-bold text-white">
+                      {payment.concept || 'Cobro sin concepto'}
+                    </h3>
+
+                    <div className="flex flex-wrap items-baseline justify-between gap-2 pt-1 border-t border-zinc-900">
+                      <div>
+                        <span className="text-[10px] text-zinc-500 uppercase block">Base Principal</span>
+                        <div className="text-2xl font-black text-white font-mono">
+                          {usd.format(payment.amount)}
+                        </div>
+                      </div>
+                      {bsEquivalent && (
+                        <div className="text-right">
+                          <span className="text-[10px] text-zinc-500 uppercase block">
+                            Equivalente ({rateSource.toUpperCase()} {exchangeRate})
+                          </span>
+                          <div className="text-sm font-bold text-emerald-300 font-mono">
+                            ≈ Bs. {bsEquivalent}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Segmented Tab Selector para el Drawer de Cobros */}
+                  <div className="flex items-center gap-1 p-1 bg-zinc-900/80 border border-zinc-800 font-mono text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentDrawerTab('detalle')}
+                      className={`flex-1 py-1.5 uppercase font-bold text-center transition ${
+                        paymentDrawerTab === 'detalle'
+                          ? 'bg-white text-black shadow-xs'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
                     >
-                      <span>Ficha 360°</span>
-                      <ArrowRight size={12} />
-                    </Link>
-                  )
-                })()}
-              </div>
-            </div>
+                      Detalle 360°
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentDrawerTab('conciliar')
+                        setPayMethod((payment.method as typeof payMethod) || 'transferencia')
+                      }}
+                      className={`flex-1 py-1.5 uppercase font-bold text-center transition flex items-center justify-center gap-1.5 ${
+                        paymentDrawerTab === 'conciliar'
+                          ? 'bg-emerald-400 text-black shadow-xs'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <Check size={13} />
+                      <span>Conciliar</span>
+                      {(isPendingState || isOverdue) && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentDrawerTab('whatsapp')}
+                      className={`flex-1 py-1.5 uppercase font-bold text-center transition flex items-center justify-center gap-1.5 ${
+                        paymentDrawerTab === 'whatsapp'
+                          ? 'bg-emerald-500 text-black shadow-xs'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <MessageSquare size={13} />
+                      <span>WhatsApp</span>
+                    </button>
+                  </div>
 
-            {/* Desglose de ítems para Cotizaciones / Facturas */}
-            {(selectedDoc.kind === 'quote' || selectedDoc.kind === 'invoice') &&
-              selectedDoc.data.items &&
-              selectedDoc.data.items.length > 0 && (
-                <div className="p-4 oled-card space-y-2">
-                  <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">Líneas de Detalle</span>
-                  <div className="divide-y divide-zinc-900">
-                    {selectedDoc.data.items.map((it, idx) => (
-                      <div key={idx} className="py-2 flex items-center justify-between">
+                  {/* SUB-VISTA 1: DETALLE 360° */}
+                  {paymentDrawerTab === 'detalle' && (
+                    <div className="space-y-3">
+                      {/* Cliente vinculado */}
+                      <div className="p-3.5 oled-card space-y-1.5 border border-zinc-800">
+                        <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
+                          Cliente Registrado
+                        </span>
+                        <div className="flex items-center justify-between">
+                          <strong className="text-sm text-white">{clientName}</strong>
+                          {custId && (
+                            <Link
+                              href={`/workspace/crm/clientes/${custId}`}
+                              className="text-[11px] text-sky-400 hover:text-sky-300 font-bold flex items-center gap-1"
+                            >
+                              <span>Ficha CRM 360°</span>
+                              <ArrowRight size={12} />
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Parámetros Operativos */}
+                      <div className="grid grid-cols-2 gap-2 p-3 bg-zinc-950 border border-zinc-850">
                         <div>
-                          <p className="text-white font-medium">{it.description}</p>
-                          <span className="text-[10px] text-zinc-500">
-                            {it.quantity} x {usd.format(it.unitPrice)}
+                          <span className="text-[10px] text-zinc-500 uppercase block">Vencimiento</span>
+                          <span className="text-xs text-zinc-200 font-bold">
+                            {payment.dueDate ? dateFmt.format(new Date(payment.dueDate)) : '—'}
+                          </span>
+                          {diffDays !== null && (isPendingState || isOverdue) && (
+                            <div className="text-[10px] mt-0.5 font-bold">
+                              {diffDays < 0 ? (
+                                <span className="text-rose-400">Venció hace {Math.abs(diffDays)}d</span>
+                              ) : diffDays === 0 ? (
+                                <span className="text-amber-400">Vence hoy</span>
+                              ) : (
+                                <span className="text-amber-300">En {diffDays}d</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] text-zinc-500 uppercase block">Método Sugerido</span>
+                          <span className="text-xs text-zinc-200 font-bold capitalize">
+                            {payment.method ? payment.method.replace('_', ' ') : 'Sin especificar'}
                           </span>
                         </div>
-                        <span className="font-mono text-white font-bold">
-                          {usd.format(it.lineTotal || it.quantity * it.unitPrice)}
-                        </span>
                       </div>
-                    ))}
+
+                      {/* Notas y Auditoría */}
+                      {payment.notes && (
+                        <div className="p-3 bg-zinc-950 border border-zinc-850 space-y-1">
+                          <span className="text-[10px] text-zinc-500 uppercase block">
+                            Historial / Notas / Conciliación
+                          </span>
+                          <p className="text-zinc-300 whitespace-pre-wrap text-[11px] font-mono leading-relaxed">
+                            {payment.notes}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Acciones Rápidas In-Situ */}
+                      {canEdit && (
+                        <div className="pt-2 flex flex-col gap-2">
+                          {(isPendingState || isOverdue) && (
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPaymentDrawerTab('conciliar')
+                                  setPayMethod((payment.method as typeof payMethod) || 'transferencia')
+                                  setPayReference('')
+                                  setPayNotes('')
+                                }}
+                                className="flex-1 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-black font-black uppercase text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950"
+                              >
+                                <Check size={14} />
+                                <span>Conciliar Cobro Ahora</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPaymentDrawerTab('whatsapp')}
+                                className="px-3.5 py-2.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border border-emerald-800 text-xs font-bold transition flex items-center gap-1.5"
+                                title="Enviar recordatorio por WhatsApp"
+                              >
+                                <MessageSquare size={13} />
+                                <span>WhatsApp</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {(isPendingState || isOverdue) && (
+                            <button
+                              type="button"
+                              onClick={() => handleCancelPayment(payment.id)}
+                              className="w-full py-2 bg-zinc-900 hover:bg-zinc-850 text-rose-400 hover:text-rose-300 border border-zinc-800 text-xs font-bold uppercase transition flex items-center justify-center gap-1.5"
+                            >
+                              <Ban size={13} />
+                              <span>Anular Cobro</span>
+                            </button>
+                          )}
+
+                          {isCancelled && (
+                            <button
+                              type="button"
+                              onClick={() => handleReactivatePayment(payment.id)}
+                              className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-bold uppercase transition flex items-center justify-center gap-1.5"
+                            >
+                              <RotateCcw size={13} />
+                              <span>Reactivar Cobro Pendiente</span>
+                            </button>
+                          )}
+
+                          {isPaid && (
+                            <div className="p-3 bg-emerald-950/40 border border-emerald-800 text-center text-emerald-300 text-xs font-bold flex items-center justify-center gap-2">
+                              <CheckCircle2 size={16} className="text-emerald-400" />
+                              <span>Cobro conciliado y registrado como pagado</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SUB-VISTA 2: CONCILIAR PAGO */}
+                  {paymentDrawerTab === 'conciliar' && (
+                    <div className="space-y-4">
+                      {isPaid ? (
+                        <div className="p-4 bg-emerald-950/50 border border-emerald-800 text-emerald-300 space-y-2">
+                          <div className="flex items-center gap-2 font-bold">
+                            <CheckCircle2 size={16} />
+                            <span>Cobro Ya Pagado</span>
+                          </div>
+                          <p className="text-[11px] text-zinc-300">
+                            Este cobro ya figura como cancelado en el sistema con método:{' '}
+                            <strong className="text-white capitalize">{payment.method || '—'}</strong>.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3.5">
+                          <div className="p-3 bg-zinc-900/60 border border-zinc-800 flex items-center justify-between">
+                            <span className="text-zinc-400 text-xs font-bold uppercase">
+                              Conciliación de Ingreso
+                            </span>
+                            <span className="text-emerald-400 font-bold font-mono">
+                              {usd.format(payment.amount)}
+                            </span>
+                          </div>
+
+                          <label className="flex flex-col gap-1.5 text-xs text-zinc-400 uppercase">
+                            <span>Método de Pago Real</span>
+                            <select
+                              value={payMethod}
+                              onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
+                              className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600 font-mono"
+                            >
+                              <option value="pago_movil">Pago Móvil (Bs.)</option>
+                              <option value="transferencia">Transferencia Bancaria (Bs.)</option>
+                              <option value="zelle">Zelle (USD)</option>
+                              <option value="binance">Binance / Cripto (USDT)</option>
+                              <option value="efectivo">Efectivo (USD / Bs.)</option>
+                              <option value="otro">Otro medio de pago</option>
+                            </select>
+                          </label>
+
+                          {/* Tasa y cálculo referencial en Bolívares */}
+                          {(payMethod === 'pago_movil' || payMethod === 'transferencia') && (
+                            <div className="p-3 bg-zinc-900/60 border border-zinc-800 space-y-2">
+                              <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                                <span className="font-bold text-zinc-300">Tasa Referencial (Bs./USD)</span>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSelectRateSource('bcv')}
+                                    className={`px-1.5 py-0.5 text-[9px] uppercase border transition ${
+                                      rateSource === 'bcv'
+                                        ? 'bg-emerald-500 text-black font-bold border-emerald-500'
+                                        : 'border-zinc-800 text-zinc-400 hover:text-white'
+                                    }`}
+                                  >
+                                    BCV
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSelectRateSource('binance')}
+                                    className={`px-1.5 py-0.5 text-[9px] uppercase border transition ${
+                                      rateSource === 'binance'
+                                        ? 'bg-amber-400 text-black font-bold border-amber-400'
+                                        : 'border-zinc-800 text-zinc-400 hover:text-white'
+                                    }`}
+                                  >
+                                    Binance
+                                  </button>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="1"
+                                    value={exchangeRate}
+                                    onChange={(e) => {
+                                      setExchangeRate(e.target.value)
+                                      setRateSource('manual')
+                                    }}
+                                    className="bg-black border border-zinc-700 px-2 py-0.5 text-xs text-emerald-400 font-mono w-24 text-right focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                              {Number(exchangeRate) > 0 && (
+                                <div className="flex items-center justify-between pt-1 border-t border-zinc-800/60">
+                                  <span className="text-[10px] text-zinc-500">
+                                    Base USD: {usd.format(payment.amount)}
+                                  </span>
+                                  <div className="text-right text-xs font-mono text-emerald-300 font-bold">
+                                    ≈ Bs. {(payment.amount * Number(exchangeRate)).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <label className="flex flex-col gap-1.5 text-xs text-zinc-400 uppercase">
+                            <span>Número de Referencia / Comprobante Bancario</span>
+                            <input
+                              type="text"
+                              value={payReference}
+                              onChange={(e) => setPayReference(e.target.value)}
+                              placeholder="Ej: Ref #948291 Banesco / TXID Binance"
+                              className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600 font-mono"
+                            />
+                          </label>
+
+                          <label className="flex flex-col gap-1.5 text-xs text-zinc-400 uppercase">
+                            <span>Notas de Auditoría o Conciliación</span>
+                            <input
+                              type="text"
+                              value={payNotes}
+                              onChange={(e) => setPayNotes(e.target.value)}
+                              placeholder="Observaciones adicionales para el registro..."
+                              className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600 font-mono"
+                            />
+                          </label>
+
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-900">
+                            <button
+                              type="button"
+                              onClick={() => setPaymentDrawerTab('detalle')}
+                              className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold uppercase transition"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={handleConfirmPayment}
+                              className="px-5 py-2 bg-emerald-400 hover:bg-emerald-300 text-black text-xs font-black uppercase transition flex items-center gap-1.5 shadow-lg shadow-emerald-950 disabled:opacity-50"
+                            >
+                              {isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={14} />}
+                              <span>Confirmar y Conciliar</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SUB-VISTA 3: WHATSAPP */}
+                  {paymentDrawerTab === 'whatsapp' && (
+                    <div className="space-y-3.5">
+                      <div className="p-3 bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs flex items-center gap-2">
+                        <MessageSquare size={16} className="shrink-0" />
+                        <span>Recordatorio pre-formateado con conversión oficial</span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] text-zinc-400 block uppercase">
+                          Vista previa del mensaje para {clientName}:
+                        </span>
+                        <textarea
+                          readOnly
+                          rows={10}
+                          value={generatePaymentReminderText(payment)}
+                          className="w-full bg-black border border-zinc-800 p-3 text-xs text-emerald-300 font-mono focus:outline-none select-all leading-relaxed"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-zinc-900">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(generatePaymentReminderText(payment))
+                            setCopiedReminder(true)
+                            setTimeout(() => setCopiedReminder(false), 2500)
+                          }}
+                          className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold transition flex items-center gap-1.5 font-mono"
+                        >
+                          {copiedReminder ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                          <span>{copiedReminder ? '¡Copiado!' : 'Copiar Mensaje'}</span>
+                        </button>
+
+                        <a
+                          href={`https://wa.me/?text=${encodeURIComponent(generatePaymentReminderText(payment))}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-lg shadow-emerald-950 font-mono"
+                        >
+                          <Share2 size={13} />
+                          <span>Abrir WhatsApp</span>
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* === CASO 2: COTIZACIÓN (QUOTE) === */}
+            {selectedDoc.kind === 'quote' && (() => {
+              const q = selectedDoc.data
+              const url = pdfUrl(q)
+              const canConvert = q.status === 'draft' || q.status === 'sent'
+
+              return (
+                <div className="space-y-4">
+                  {/* Cabecera Cotización */}
+                  <div className="p-4 oled-subcard space-y-2 border-l-2 border-indigo-400">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
+                        Cotización Comercial
+                      </span>
+                      <StatusBadge
+                        tone={
+                          q.status === 'accepted'
+                            ? 'success'
+                            : q.status === 'rejected' || q.status === 'expired'
+                              ? 'danger'
+                              : 'neutral'
+                        }
+                      >
+                        {q.status || 'draft'}
+                      </StatusBadge>
+                    </div>
+
+                    <h3 className="text-lg font-bold text-white font-mono">
+                      {q.quoteNumber || `Cotización #${q.id}`}
+                    </h3>
+
+                    <div className="text-2xl font-black text-white font-mono pt-1">
+                      {usd.format(q.total ?? 0)}
+                    </div>
                   </div>
 
-                  <div className="pt-2 border-t border-zinc-900 flex justify-between font-bold text-white">
-                    <span>Total</span>
-                    <span>{usd.format(selectedDoc.data.total ?? 0)}</span>
+                  {/* Datos del Cliente y Enlace CRM */}
+                  <div className="p-4 oled-card space-y-2 border border-zinc-800">
+                    <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
+                      Cliente Vinculado
+                    </span>
+                    <div className="flex items-center justify-between">
+                      <strong className="text-sm text-white">{q.client?.name || 'Cliente sin nombre'}</strong>
+                      {(() => {
+                        const custId = getCustomerId(q.client)
+                        if (!custId) return null
+                        return (
+                          <Link
+                            href={`/workspace/crm/clientes/${custId}`}
+                            className="text-[11px] text-sky-400 hover:text-sky-300 font-bold flex items-center gap-1"
+                          >
+                            <span>Ficha CRM 360°</span>
+                            <ArrowRight size={12} />
+                          </Link>
+                        )
+                      })()}
+                    </div>
+                    {q.validUntil && (
+                      <p className="text-[10px] text-zinc-500 font-mono">
+                        Válida hasta: {dateFmt.format(new Date(q.validUntil))}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Desglose de ítems */}
+                  {q.items && q.items.length > 0 && (
+                    <div className="p-4 oled-card space-y-2 border border-zinc-800">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
+                        Líneas de Detalle ({q.items.length})
+                      </span>
+                      <div className="divide-y divide-zinc-900">
+                        {q.items.map((it, idx) => (
+                          <div key={idx} className="py-2 flex items-center justify-between">
+                            <div>
+                              <p className="text-white font-medium">{it.description}</p>
+                              <span className="text-[10px] text-zinc-500">
+                                {it.quantity} × {usd.format(it.unitPrice)}
+                              </span>
+                            </div>
+                            <span className="font-mono text-white font-bold">
+                              {usd.format(it.lineTotal || it.quantity * it.unitPrice)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-2 border-t border-zinc-900 flex justify-between font-bold text-white">
+                        <span>Total Cotizado</span>
+                        <span>{usd.format(q.total ?? 0)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Acciones Comerciales In-Situ */}
+                  {canEdit && (
+                    <div className="space-y-2 pt-1">
+                      {canConvert && (
+                        <button
+                          type="button"
+                          onClick={() => handleConvertQuote(q.id)}
+                          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-950 font-mono"
+                        >
+                          <FileCheck size={14} />
+                          <span>Facturar con 1 Clic</span>
+                        </button>
+                      )}
+
+                      {/* Selector de estados rápido */}
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="text-[10px] text-zinc-500 uppercase mr-1">Estado:</span>
+                        {(['draft', 'sent', 'accepted', 'rejected', 'expired'] as const).map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => handleChangeQuoteStatus(q.id, s)}
+                            className={`px-2 py-1 text-[10px] uppercase font-mono border transition ${
+                              q.status === s
+                                ? 'bg-zinc-200 text-black font-bold border-white'
+                                : 'border-zinc-800 text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Comprobante PDF */}
+                  <div className="pt-2">
+                    {url ? (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-indigo-400 hover:text-white border border-zinc-800 font-bold uppercase transition font-mono"
+                      >
+                        <ExternalLink size={14} />
+                        <span>Ver Cotización en PDF</span>
+                      </a>
+                    ) : (
+                      <div className="p-3 bg-zinc-900/40 border border-zinc-800 text-center text-zinc-500 text-[11px] font-mono">
+                        PDF aún no generado por el motor de cotización
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
+              )
+            })()}
 
-            {/* Comprobante PDF */}
-            {(selectedDoc.kind === 'quote' || selectedDoc.kind === 'invoice') && (
-              <div className="pt-2">
-                {pdfUrl(selectedDoc.data) ? (
-                  <a
-                    href={pdfUrl(selectedDoc.data)!}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-sky-400 hover:text-white border border-zinc-800 font-bold uppercase transition"
-                  >
-                    <ExternalLink size={14} />
-                    <span>Ver Comprobante PDF Oficial</span>
-                  </a>
-                ) : (
-                  <div className="p-3 bg-zinc-900/40 border border-zinc-800 text-center text-zinc-500 text-[11px]">
-                    PDF aún no generado por el motor de facturación
+            {/* === CASO 3: FACTURA (INVOICE) === */}
+            {selectedDoc.kind === 'invoice' && (() => {
+              const inv = selectedDoc.data
+              const url = pdfUrl(inv)
+
+              return (
+                <div className="space-y-4">
+                  {/* Cabecera Factura */}
+                  <div className="p-4 oled-subcard space-y-2 border-l-2 border-sky-400">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
+                        Factura Emitida
+                      </span>
+                      <StatusBadge
+                        tone={
+                          inv.status === 'paid'
+                            ? 'success'
+                            : inv.status === 'overdue' || inv.status === 'cancelled'
+                              ? 'danger'
+                              : 'neutral'
+                        }
+                      >
+                        {inv.status || 'draft'}
+                      </StatusBadge>
+                    </div>
+
+                    <h3 className="text-lg font-bold text-white font-mono">
+                      {inv.invoiceNumber || `Factura #${inv.id}`}
+                    </h3>
+
+                    <div className="text-2xl font-black text-white font-mono pt-1">
+                      {usd.format(inv.total ?? 0)}
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
+
+                  {/* Datos del Cliente y Enlace CRM */}
+                  <div className="p-4 oled-card space-y-2 border border-zinc-800">
+                    <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
+                      Cliente Vinculado
+                    </span>
+                    <div className="flex items-center justify-between">
+                      <strong className="text-sm text-white">{inv.client?.name || 'Cliente sin nombre'}</strong>
+                      {(() => {
+                        const custId = getCustomerId(inv.client)
+                        if (!custId) return null
+                        return (
+                          <Link
+                            href={`/workspace/crm/clientes/${custId}`}
+                            className="text-[11px] text-sky-400 hover:text-sky-300 font-bold flex items-center gap-1"
+                          >
+                            <span>Ficha CRM 360°</span>
+                            <ArrowRight size={12} />
+                          </Link>
+                        )
+                      })()}
+                    </div>
+                    {inv.dueDate && (
+                      <p className="text-[10px] text-zinc-500 font-mono">
+                        Vence: {dateFmt.format(new Date(inv.dueDate))}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Desglose de ítems */}
+                  {inv.items && inv.items.length > 0 && (
+                    <div className="p-4 oled-card space-y-2 border border-zinc-800">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
+                        Líneas de Detalle ({inv.items.length})
+                      </span>
+                      <div className="divide-y divide-zinc-900">
+                        {inv.items.map((it, idx) => (
+                          <div key={idx} className="py-2 flex items-center justify-between">
+                            <div>
+                              <p className="text-white font-medium">{it.description}</p>
+                              <span className="text-[10px] text-zinc-500">
+                                {it.quantity} × {usd.format(it.unitPrice)}
+                              </span>
+                            </div>
+                            <span className="font-mono text-white font-bold">
+                              {usd.format(it.lineTotal || it.quantity * it.unitPrice)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-2 border-t border-zinc-900 flex justify-between font-bold text-white">
+                        <span>Total Factura</span>
+                        <span>{usd.format(inv.total ?? 0)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Acciones Fiscales In-Situ */}
+                  {canEdit && (
+                    <div className="space-y-2 pt-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] text-zinc-500 uppercase mr-1">Estado Fiscal:</span>
+                        {(['draft', 'sent', 'paid', 'overdue', 'cancelled'] as const).map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => handleChangeInvoiceStatus(inv.id, s)}
+                            className={`px-2 py-1 text-[10px] uppercase font-mono border transition ${
+                              inv.status === s
+                                ? 'bg-zinc-200 text-black font-bold border-white'
+                                : 'border-zinc-800 text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Comprobante PDF */}
+                  <div className="pt-2">
+                    {url ? (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-sky-400 hover:text-white border border-zinc-800 font-bold uppercase transition font-mono"
+                      >
+                        <ExternalLink size={14} />
+                        <span>Ver Factura Oficial en PDF</span>
+                      </a>
+                    ) : (
+                      <div className="p-3 bg-zinc-900/40 border border-zinc-800 text-center text-zinc-500 text-[11px] font-mono">
+                        PDF aún no generado por el motor de facturación
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )}
       </Drawer>
