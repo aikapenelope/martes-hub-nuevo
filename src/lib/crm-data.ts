@@ -16,11 +16,31 @@ const PAGE_SIZE = 20
 export type { ClientStage, CrmFilters, CrmMode, CrmSearchParams, CrmView, LeadStatus } from '@/lib/crm-filters'
 export { CLIENT_STAGES, CRM_MODES, CRM_VIEWS, LEAD_STATUSES, parseCrmFilters } from '@/lib/crm-filters'
 
-function tenantWhere(tenantId: number, extra: Where[], agent?: string, currentUserId?: number): Where {
+/** Los leads filtran por `assignedTo`; clientes y empresas por `assignedAgent`. */
+type AgentField = 'assignedTo' | 'assignedAgent'
+
+/**
+ * Condición Where del filtro por agente según la colección. Un ID malformado
+ * mantiene el filtro pero no coincide con nada — nunca se ignora en silencio.
+ */
+export function crmAgentWhere(agent: string | undefined, field: AgentField, currentUserId?: number): Where | null {
+  if (!agent || agent === 'todos') return null
+  const agentId = agent === 'me' ? currentUserId : Number(agent)
+  if (!agentId || !Number.isInteger(agentId) || agentId <= 0) return { id: { equals: -1 } }
+  return { [field]: { equals: agentId } } as Where
+}
+
+interface AgentFilter {
+  agent?: string
+  field: AgentField
+  currentUserId?: number
+}
+
+function tenantWhere(tenantId: number, extra: Where[], agentFilter?: AgentFilter): Where {
   const conds: Where[] = [{ tenant: { equals: tenantId } }, ...extra]
-  if (agent && agent !== 'todos') {
-    const agentId = agent === 'me' ? currentUserId : Number(agent)
-    if (agentId) conds.push({ assignedTo: { equals: agentId } })
+  if (agentFilter) {
+    const agentCond = crmAgentWhere(agentFilter.agent, agentFilter.field, agentFilter.currentUserId)
+    if (agentCond) conds.push(agentCond)
   }
   return { and: conds }
 }
@@ -108,7 +128,11 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
         limit: PAGE_SIZE,
         page: filters.page,
         sort: '-updatedAt',
-        where: tenantWhere(tenantId, companySearchWhere(filters.query), filters.agent, user.id),
+        where: tenantWhere(tenantId, companySearchWhere(filters.query), {
+          agent: filters.agent,
+          field: 'assignedAgent',
+          currentUserId: user.id,
+        }),
         select: {
           name: true,
           taxId: true,
@@ -122,9 +146,29 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
           updatedAt: true,
         },
       }),
-      query({ collection: 'companies', limit: 0, where: tenantWhere(tenantId, []) }),
-      query({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, [{ status: { not_equals: 'descartado' } }]) }),
-      query({ collection: 'clients', limit: 0, where: tenantWhere(tenantId, [{ stage: { equals: 'activo' } }]) }),
+      query({
+        collection: 'companies',
+        limit: 0,
+        where: tenantWhere(tenantId, [], { agent: filters.agent, field: 'assignedAgent', currentUserId: user.id }),
+      }),
+      query({
+        collection: 'leads',
+        limit: 0,
+        where: tenantWhere(tenantId, [{ status: { not_equals: 'descartado' } }], {
+          agent: filters.agent,
+          field: 'assignedTo',
+          currentUserId: user.id,
+        }),
+      }),
+      query({
+        collection: 'clients',
+        limit: 0,
+        where: tenantWhere(tenantId, [{ stage: { equals: 'activo' } }], {
+          agent: filters.agent,
+          field: 'assignedAgent',
+          currentUserId: user.id,
+        }),
+      }),
     ])
 
     return {
@@ -160,7 +204,11 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
         limit: PAGE_SIZE,
         page: filters.page,
         sort: '-updatedAt',
-        where: tenantWhere(tenantId, [...stageFilter, ...clientSearchWhere(filters.query)]),
+        where: tenantWhere(tenantId, [...stageFilter, ...clientSearchWhere(filters.query)], {
+          agent: filters.agent,
+          field: 'assignedAgent',
+          currentUserId: user.id,
+        }),
         select: {
           name: true,
           stage: true,
@@ -172,10 +220,30 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
           updatedAt: true,
         },
       }),
-      query({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, [{ status: { not_equals: 'descartado' } }]) }),
-      query({ collection: 'companies', limit: 0, where: tenantWhere(tenantId, []) }),
+      query({
+        collection: 'leads',
+        limit: 0,
+        where: tenantWhere(tenantId, [{ status: { not_equals: 'descartado' } }], {
+          agent: filters.agent,
+          field: 'assignedTo',
+          currentUserId: user.id,
+        }),
+      }),
+      query({
+        collection: 'companies',
+        limit: 0,
+        where: tenantWhere(tenantId, [], { agent: filters.agent, field: 'assignedAgent', currentUserId: user.id }),
+      }),
       ...CLIENT_STAGES.map((stage) =>
-        query({ collection: 'clients', limit: 0, where: tenantWhere(tenantId, [{ stage: { equals: stage } }]) }),
+        query({
+          collection: 'clients',
+          limit: 0,
+          where: tenantWhere(tenantId, [{ stage: { equals: stage } }], {
+            agent: filters.agent,
+            field: 'assignedAgent',
+            currentUserId: user.id,
+          }),
+        }),
       ),
     ])
 
@@ -212,7 +280,11 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
       limit: PAGE_SIZE,
       page: filters.page,
       sort: '-createdAt',
-      where: tenantWhere(tenantId, [...statusFilter, ...sourceFilter, ...leadSearchWhere(filters.query)]),
+      where: tenantWhere(tenantId, [...statusFilter, ...sourceFilter, ...leadSearchWhere(filters.query)], {
+        agent: filters.agent,
+        field: 'assignedTo',
+        currentUserId: user.id,
+      }),
       select: {
         fullName: true,
         status: true,
@@ -224,10 +296,30 @@ export async function getCrmData({ payload, user, tenantId, filters }: CrmDataOp
         createdAt: true,
       },
     }),
-    query({ collection: 'clients', limit: 0, where: tenantWhere(tenantId, [{ stage: { equals: 'activo' } }]) }),
-    query({ collection: 'companies', limit: 0, where: tenantWhere(tenantId, []) }),
+    query({
+      collection: 'clients',
+      limit: 0,
+      where: tenantWhere(tenantId, [{ stage: { equals: 'activo' } }], {
+        agent: filters.agent,
+        field: 'assignedAgent',
+        currentUserId: user.id,
+      }),
+    }),
+    query({
+      collection: 'companies',
+      limit: 0,
+      where: tenantWhere(tenantId, [], { agent: filters.agent, field: 'assignedAgent', currentUserId: user.id }),
+    }),
     ...LEAD_STATUSES.map((status) =>
-      query({ collection: 'leads', limit: 0, where: tenantWhere(tenantId, [{ status: { equals: status } }]) }),
+      query({
+        collection: 'leads',
+        limit: 0,
+        where: tenantWhere(tenantId, [{ status: { equals: status } }], {
+          agent: filters.agent,
+          field: 'assignedTo',
+          currentUserId: user.id,
+        }),
+      }),
     ),
   ])
 

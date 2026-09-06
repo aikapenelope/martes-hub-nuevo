@@ -3,6 +3,7 @@ import 'server-only'
 import type { Payload } from 'payload'
 import type { Activity, Conversation, ConversationSummary, Lead, Message, User } from '@/payload-types'
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
+import { crmAgentWhere } from '@/lib/crm-data'
 import {
   computeDealVelocity,
   computeWindowState,
@@ -71,20 +72,26 @@ export async function getCrmPipelineData({
   payload,
   user,
   tenantId,
+  agent,
+  currentUserId,
 }: {
   payload: Payload
   user: User
   tenantId: number
+  /** Filtro por agente de la vista CRM ('me' | id de usuario). */
+  agent?: string
+  currentUserId?: number
 }): Promise<PipelineColumn[]> {
   const query = <T extends Parameters<typeof payload.find>[0]>(options: T) =>
     payload.find({ ...options, overrideAccess: false, user } as T)
 
+  const agentCond = crmAgentWhere(agent, 'assignedTo', currentUserId)
   const leadsResult = await query({
     collection: 'leads',
     depth: 1,
     limit: MAX_CARDS,
     sort: '-createdAt',
-    where: { tenant: { equals: tenantId } },
+    where: agentCond ? { and: [{ tenant: { equals: tenantId } }, agentCond] } : { tenant: { equals: tenantId } },
     select: {
       fullName: true,
       companyName: true,

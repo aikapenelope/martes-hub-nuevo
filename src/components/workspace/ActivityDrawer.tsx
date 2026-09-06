@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { Phone, Users, MessageSquare, Mail, StickyNote, Activity, Plus } from 'lucide-react'
 import { Drawer } from '@/components/workspace/overlays'
 import { createActivityAction } from '@/lib/crm-actions'
+import { searchActivityContactsAction } from '@/lib/activity-contact-search'
 
 const inputCls = 'w-full border border-zinc-800 bg-black px-3 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-500 transition font-mono'
 const labelCls = 'flex flex-col gap-1.5 text-[11px] font-mono uppercase tracking-wider text-zinc-400'
@@ -19,11 +20,24 @@ const ACTIVITY_TYPES = [
 
 type ActivityType = typeof ACTIVITY_TYPES[number]['value']
 
+interface ContactOption {
+  id: number
+  label: string
+}
+
 interface ActivityDrawerProps {
   clientId?: number
   leadId?: number
   redirectTo?: string
   variant?: 'primary' | 'ghost'
+  /**
+   * Contactos del tenant para elegir destino cuando el drawer no está
+   * anclado a un registro (p. ej. timeline global de /workspace/activities).
+   * Activities exige un lead o un cliente — sin destino fijo ni selector,
+   * todo envío falla.
+   */
+  leads?: ContactOption[]
+  clients?: ContactOption[]
 }
 
 export function ActivityDrawer({
@@ -31,16 +45,59 @@ export function ActivityDrawer({
   leadId,
   redirectTo = '/workspace/activities',
   variant = 'ghost',
+  leads = [],
+  clients = [],
 }: ActivityDrawerProps) {
+  const needsContactPicker = !clientId && !leadId
   const [open, setOpen] = useState(false)
   const [type, setType] = useState<ActivityType>('llamada')
   const [isPending, startTransition] = useTransition()
+
+  // Búsqueda server-side de contactos: las opciones iniciales traen solo los
+  // 100 más recientes del tenant; con esto el picker alcanza a todos.
+  const [contactSearch, setContactSearch] = useState('')
+  const [lastSearch, setLastSearch] = useState<{ query: string; leads: ContactOption[]; clients: ContactOption[] } | null>(null)
+  const [isSearching, startSearching] = useTransition()
+
+  useEffect(() => {
+    if (!needsContactPicker) return
+    const trimmed = contactSearch.trim()
+    if (trimmed.length < 2) return
+    const timer = setTimeout(() => {
+      startSearching(async () => {
+        try {
+          const results = await searchActivityContactsAction(trimmed)
+          setLastSearch({ query: trimmed, ...results })
+        } catch {
+          setLastSearch({ query: trimmed, leads: [], clients: [] })
+        }
+      })
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [contactSearch, needsContactPicker])
+
+  const query = contactSearch.trim()
+  const isSearchActive = query.length >= 2
+  // Los resultados solo cuentan si corresponden a la query actual — así el
+  // reset al borrar/vaciar la búsqueda es derivado, sin setState en el effect.
+  const searchResults = lastSearch && lastSearch.query === query ? lastSearch : null
+  const availableLeads = searchResults ? searchResults.leads : leads
+  const availableClients = searchResults ? searchResults.clients : clients
 
   const btnCls = variant === 'primary'
     ? 'px-4 py-2 bg-white hover:bg-zinc-200 text-black font-black flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider transition'
     : 'inline-flex items-center gap-1.5 text-[10px] font-mono text-zinc-400 hover:text-white px-2 py-1.5 border border-zinc-800 hover:border-zinc-600 bg-zinc-900 transition'
 
   async function handleAction(formData: FormData) {
+    // El selector único de contacto se traduce a la relación `lead` o `client`
+    // que espera createActivityAction (que valida que pertenezca al tenant).
+    if (needsContactPicker) {
+      const target = String(formData.get('target') ?? '')
+      formData.delete('target')
+      const [kind, id] = target.split('_')
+      if (kind === 'lead' && id) formData.set('lead', id)
+      else if (kind === 'client' && id) formData.set('client', id)
+    }
     startTransition(async () => {
       try {
         await createActivityAction(formData)
@@ -75,6 +132,55 @@ export function ActivityDrawer({
             {clientId && <input type="hidden" name="client" value={clientId} />}
             {leadId && <input type="hidden" name="lead" value={leadId} />}
             <input type="hidden" name="type" value={type} />
+
+            {/* Selector de contacto cuando el drawer no está anclado a un registro */}
+            {needsContactPicker && (
+              <div className="border border-zinc-850 bg-zinc-950 p-3.5">
+                <label className={labelCls}>
+                  Buscar contacto (nombre, email o teléfono)
+                  <input
+                    type="search"
+                    value={contactSearch}
+                    onChange={(e) => setContactSearch(e.target.value)}
+                    placeholder="Escribe 2+ caracteres para buscar en todo el CRM…"
+                    className={inputCls}
+                  />
+                </label>
+                <label className={`${labelCls} mt-3`}>
+                  Vincular a contacto *
+                  <select name="target" required defaultValue="" className={inputCls} key={isSearchActive ? 'search' : 'initial'}>
+                    <option value="" disabled>
+                      {isSearching ? 'Buscando…' : 'Selecciona un lead o cliente…'}
+                    </option>
+                    {availableLeads.length > 0 && (
+                      <optgroup label="Leads">
+                        {availableLeads.map((l) => (
+                          <option key={`lead_${l.id}`} value={`lead_${l.id}`}>
+                            {l.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {availableClients.length > 0 && (
+                      <optgroup label="Clientes">
+                        {availableClients.map((c) => (
+                          <option key={`client_${c.id}`} value={`client_${c.id}`}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </label>
+                {availableLeads.length === 0 && availableClients.length === 0 && (
+                  <p className="mt-2 text-[11px] font-mono text-amber-400">
+                    {isSearchActive
+                      ? `Sin resultados para «${query}» — prueba con otro nombre, email o teléfono.`
+                      : 'No hay leads ni clientes en este tenant — crea uno en el CRM antes de registrar actividades.'}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Tipo de Actividad */}
             <div className="flex flex-col gap-2">

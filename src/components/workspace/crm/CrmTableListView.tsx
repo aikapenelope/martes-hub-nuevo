@@ -74,6 +74,8 @@ export function CrmTableListView({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 p-4">
           <form className="flex flex-wrap items-center gap-2">
             <input name="vista" type="hidden" value={data.view} />
+            {/* Preservar el agente seleccionado: sin esto, cada búsqueda lo resetea. */}
+            <input name="agente" type="hidden" value={filters.agent ?? 'todos'} />
             <label className="flex items-center gap-2 border border-zinc-800 bg-black px-3 py-1.5">
               <Search className="w-4 h-4 text-zinc-500" aria-hidden="true" />
               <span className="sr-only">Buscar por nombre, correo o teléfono</span>
@@ -106,7 +108,10 @@ export function CrmTableListView({
             </button>
           </form>
           {(filters.query || (data.view !== 'empresas' && (data.view === 'leads' ? filters.status : filters.stage) !== 'todos')) && (
-            <Link href={`/workspace/crm?vista=${data.view}`} className="text-xs text-zinc-400 hover:text-white font-mono">
+            <Link
+              href={`/workspace/crm?vista=${data.view}&agente=${filters.agent ?? 'todos'}`}
+              className="text-xs text-zinc-400 hover:text-white font-mono"
+            >
               Limpiar filtros
             </Link>
           )}
