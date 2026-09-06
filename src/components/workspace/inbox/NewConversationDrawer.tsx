@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import {
   Camera,
   Globe,
@@ -43,37 +43,46 @@ export function NewConversationDrawer({
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  // Búsqueda en servidor con debouncing y paginación para no truncar resultados (revisión Devin PR #80)
-  const [serverContacts, setServerContacts] = useState<ContactItem[] | null>(null)
+  // Búsqueda en servidor acotada estrictamente al query activo para evitar carreras entre búsquedas (revisión Devin PR #80)
+  const activeQueryRef = useRef(searchTerm.trim())
+  const [searchState, setSearchState] = useState<{
+    query: string
+    contacts: ContactItem[]
+    page: number
+    hasMore: boolean
+    total: number | null
+  } | null>(null)
   const [isSearchingServer, setIsSearchingServer] = useState(false)
-  const [serverPage, setServerPage] = useState(1)
-  const [serverHasMore, setServerHasMore] = useState(false)
-  const [serverTotal, setServerTotal] = useState<number | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
 
   useEffect(() => {
     const q = searchTerm.trim()
-    if (!q) {
-      return
-    }
+    activeQueryRef.current = q
+
+    if (!q) return
 
     let cancelled = false
     const timer = setTimeout(() => {
       setIsSearchingServer(true)
-      setServerPage(1)
       searchInboxCrmContactsAction({ q, page: 1 })
         .then((res) => {
-          if (!cancelled) {
+          if (!cancelled && activeQueryRef.current === q) {
             setIsSearchingServer(false)
             if (res.ok) {
-              setServerContacts(res.results)
-              setServerHasMore(res.hasMore)
-              setServerTotal(res.total)
+              setSearchState({
+                query: q,
+                contacts: res.results,
+                page: 1,
+                hasMore: res.hasMore,
+                total: res.total,
+              })
             }
           }
         })
         .catch(() => {
-          if (!cancelled) setIsSearchingServer(false)
+          if (!cancelled && activeQueryRef.current === q) {
+            setIsSearchingServer(false)
+          }
         })
     }, 250)
 
@@ -84,39 +93,53 @@ export function NewConversationDrawer({
   }, [searchTerm])
 
   const handleLoadMore = () => {
-    const q = searchTerm.trim()
-    if (!q || !serverHasMore || loadingMore) return
-    const nextPage = serverPage + 1
+    const q = activeQueryRef.current
+    if (!q || !searchState || searchState.query !== q || !searchState.hasMore || loadingMore) return
+    const nextPage = searchState.page + 1
     setLoadingMore(true)
     searchInboxCrmContactsAction({ q, page: nextPage })
       .then((res) => {
+        if (activeQueryRef.current !== q) return
         setLoadingMore(false)
         if (res.ok) {
-          setServerContacts((prev) => [...(prev || []), ...res.results])
-          setServerPage(nextPage)
-          setServerHasMore(res.hasMore)
+          setSearchState((prev) => {
+            if (!prev || prev.query !== q) return prev
+            return {
+              query: q,
+              contacts: [...prev.contacts, ...res.results],
+              page: nextPage,
+              hasMore: res.hasMore,
+              total: res.total,
+            }
+          })
         }
       })
       .catch(() => {
-        setLoadingMore(false)
+        if (activeQueryRef.current === q) {
+          setLoadingMore(false)
+        }
       })
   }
 
-  // Filtro combinado de contactos del CRM
+  // Filtro combinado de contactos del CRM acotado al query actual
   const displayedContacts = useMemo(() => {
-    if (!searchTerm.trim()) return contacts.slice(0, 15)
-    if (serverContacts !== null) return serverContacts
-    const q = searchTerm.toLowerCase()
+    const q = searchTerm.trim()
+    if (!q) return contacts.slice(0, 15)
+    if (searchState && searchState.query === q) return searchState.contacts
+    const lowerQ = q.toLowerCase()
     return contacts
       .filter(
         (c) =>
-          c.name.toLowerCase().includes(q) ||
-          (c.company && c.company.toLowerCase().includes(q)) ||
-          (c.phone && c.phone.includes(q)) ||
-          (c.email && c.email.toLowerCase().includes(q)),
+          c.name.toLowerCase().includes(lowerQ) ||
+          (c.company && c.company.toLowerCase().includes(lowerQ)) ||
+          (c.phone && c.phone.includes(lowerQ)) ||
+          (c.email && c.email.toLowerCase().includes(lowerQ)),
       )
       .slice(0, 20)
-  }, [contacts, searchTerm, serverContacts])
+  }, [contacts, searchTerm, searchState])
+
+  const serverHasMore = Boolean(searchState && searchState.query === searchTerm.trim() && searchState.hasMore)
+  const serverTotal = searchState && searchState.query === searchTerm.trim() ? searchState.total : null
 
   const handleSelectContact = (c: ContactItem) => {
     setSelectedContact(c)
@@ -131,6 +154,8 @@ export function NewConversationDrawer({
     setCustomAddress('')
     setInitialMessage('')
     setError(null)
+    setSearchState(null)
+    activeQueryRef.current = ''
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -259,7 +284,7 @@ export function NewConversationDrawer({
                     placeholder="Nombre, empresa, teléfono..."
                     className="w-full bg-black border border-zinc-800 pl-8 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-600"
                   />
-                  {isSearchingServer && (
+                  {isSearchingServer && Boolean(searchTerm.trim()) && (
                     <Loader2 size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 animate-spin" />
                   )}
                 </div>

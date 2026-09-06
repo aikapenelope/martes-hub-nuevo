@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   AlertCircle,
@@ -146,37 +146,46 @@ export function InboxCrmContextPanel({
     }
   }, [effectiveClientId])
 
-  // Búsqueda en servidor de contactos para vinculación in-situ con paginación (revisión Devin PR #80)
-  const [serverLinkContacts, setServerLinkContacts] = useState<ContactItem[] | null>(null)
+  // Búsqueda en servidor de contactos para vinculación in-situ acotada estrictamente al query activo (revisión Devin PR #80)
+  const activeLinkQueryRef = useRef(linkSearch.trim())
+  const [linkSearchState, setLinkSearchState] = useState<{
+    query: string
+    contacts: ContactItem[]
+    page: number
+    hasMore: boolean
+    total: number | null
+  } | null>(null)
   const [isSearchingLinkServer, setIsSearchingLinkServer] = useState(false)
-  const [linkPage, setLinkPage] = useState(1)
-  const [linkHasMore, setLinkHasMore] = useState(false)
-  const [linkTotal, setLinkTotal] = useState<number | null>(null)
   const [loadingMoreLink, setLoadingMoreLink] = useState(false)
 
   useEffect(() => {
     const q = linkSearch.trim()
-    if (!q || !isLinkingCrm) {
-      return
-    }
+    activeLinkQueryRef.current = q
+
+    if (!q || !isLinkingCrm) return
 
     let cancelled = false
     const timer = setTimeout(() => {
       setIsSearchingLinkServer(true)
-      setLinkPage(1)
       searchInboxCrmContactsAction({ q, page: 1 })
         .then((res) => {
-          if (!cancelled) {
+          if (!cancelled && activeLinkQueryRef.current === q) {
             setIsSearchingLinkServer(false)
             if (res.ok) {
-              setServerLinkContacts(res.results)
-              setLinkHasMore(res.hasMore)
-              setLinkTotal(res.total)
+              setLinkSearchState({
+                query: q,
+                contacts: res.results,
+                page: 1,
+                hasMore: res.hasMore,
+                total: res.total,
+              })
             }
           }
         })
         .catch(() => {
-          if (!cancelled) setIsSearchingLinkServer(false)
+          if (!cancelled && activeLinkQueryRef.current === q) {
+            setIsSearchingLinkServer(false)
+          }
         })
     }, 250)
 
@@ -187,38 +196,52 @@ export function InboxCrmContextPanel({
   }, [linkSearch, isLinkingCrm])
 
   const handleLoadMoreLink = () => {
-    const q = linkSearch.trim()
-    if (!q || !linkHasMore || loadingMoreLink) return
-    const nextPage = linkPage + 1
+    const q = activeLinkQueryRef.current
+    if (!q || !linkSearchState || linkSearchState.query !== q || !linkSearchState.hasMore || loadingMoreLink) return
+    const nextPage = linkSearchState.page + 1
     setLoadingMoreLink(true)
     searchInboxCrmContactsAction({ q, page: nextPage })
       .then((res) => {
+        if (activeLinkQueryRef.current !== q) return
         setLoadingMoreLink(false)
         if (res.ok) {
-          setServerLinkContacts((prev) => [...(prev || []), ...res.results])
-          setLinkPage(nextPage)
-          setLinkHasMore(res.hasMore)
+          setLinkSearchState((prev) => {
+            if (!prev || prev.query !== q) return prev
+            return {
+              query: q,
+              contacts: [...prev.contacts, ...res.results],
+              page: nextPage,
+              hasMore: res.hasMore,
+              total: res.total,
+            }
+          })
         }
       })
       .catch(() => {
-        setLoadingMoreLink(false)
+        if (activeLinkQueryRef.current === q) {
+          setLoadingMoreLink(false)
+        }
       })
   }
 
-  // Filtrado de contactos para vinculación in-situ
+  // Filtrado de contactos para vinculación in-situ acotado al query actual
   const filteredLinkContacts = useMemo(() => {
-    if (!linkSearch.trim()) return contacts.slice(0, 10)
-    if (serverLinkContacts !== null) return serverLinkContacts
-    const q = linkSearch.toLowerCase()
+    const q = linkSearch.trim()
+    if (!q) return contacts.slice(0, 10)
+    if (linkSearchState && linkSearchState.query === q) return linkSearchState.contacts
+    const lowerQ = q.toLowerCase()
     return contacts
       .filter(
         (c) =>
-          c.name.toLowerCase().includes(q) ||
-          (c.company && c.company.toLowerCase().includes(q)) ||
-          (c.phone && c.phone.includes(q)),
+          c.name.toLowerCase().includes(lowerQ) ||
+          (c.company && c.company.toLowerCase().includes(lowerQ)) ||
+          (c.phone && c.phone.includes(lowerQ)),
       )
       .slice(0, 15)
-  }, [contacts, linkSearch, serverLinkContacts])
+  }, [contacts, linkSearch, linkSearchState])
+
+  const linkHasMore = Boolean(linkSearchState && linkSearchState.query === linkSearch.trim() && linkSearchState.hasMore)
+  const linkTotal = linkSearchState && linkSearchState.query === linkSearch.trim() ? linkSearchState.total : null
 
   async function handleConvertLead(): Promise<void> {
     if (!lead || !canEdit || convertingLead) return
@@ -254,6 +277,9 @@ export function InboxCrmContextPanel({
       setError(res.error)
     } else {
       setIsLinkingCrm(false)
+      setLinkSearch('')
+      setLinkSearchState(null)
+      activeLinkQueryRef.current = ''
       setFeedback(`¡Conversación vinculada exitosamente a ${target.name}!`)
       onMetaUpdated?.()
     }
@@ -542,7 +568,12 @@ export function InboxCrmContextPanel({
                           </span>
                           <button
                             type="button"
-                            onClick={() => setIsLinkingCrm(false)}
+                            onClick={() => {
+                              setIsLinkingCrm(false)
+                              setLinkSearch('')
+                              setLinkSearchState(null)
+                              activeLinkQueryRef.current = ''
+                            }}
                             className="text-zinc-500 hover:text-white"
                           >
                             <X size={12} />
@@ -557,7 +588,7 @@ export function InboxCrmContextPanel({
                             placeholder="Buscar en clientes y leads..."
                             className="w-full bg-zinc-900 border border-zinc-800 pl-7 pr-7 py-1 text-xs text-white focus:outline-none"
                           />
-                          {isSearchingLinkServer && (
+                          {isSearchingLinkServer && Boolean(linkSearch.trim()) && (
                             <Loader2 size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 animate-spin" />
                           )}
                         </div>
