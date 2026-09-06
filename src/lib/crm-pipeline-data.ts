@@ -127,9 +127,10 @@ export async function getCrmPipelineData({
       ? query({
           collection: 'activities',
           depth: 0,
-          limit: Math.min(leadIds.length * 5, 500),
+          limit: Math.max(leadIds.length * 10, 1000),
           sort: '-occurredAt',
           where: { and: [{ tenant: { equals: tenantId } }, { lead: { in: leadIds } }] },
+          select: { lead: true, occurredAt: true },
         })
       : Promise.resolve({ docs: [] as Activity[] }),
   ])
@@ -151,6 +152,31 @@ export async function getCrmPipelineData({
   for (const activity of activitiesResult.docs as Activity[]) {
     const leadId = relationId(activity.lead)
     if (leadId && !lastActivityByLead.has(leadId)) lastActivityByLead.set(leadId, activity)
+  }
+
+  // Garantizar que ningún lead con actividad quede omitido si leads hiper-activos
+  // llenaron el cupo inicial: consultamos individualmente (limit 1) los leads faltantes.
+  const missingLeadIds = leadIds.filter((id) => !lastActivityByLead.has(id))
+  if (missingLeadIds.length > 0 && missingLeadIds.length <= 60) {
+    const fallbackResults = await Promise.all(
+      missingLeadIds.map((id) =>
+        query({
+          collection: 'activities',
+          depth: 0,
+          limit: 1,
+          sort: '-occurredAt',
+          where: { and: [{ tenant: { equals: tenantId } }, { lead: { equals: id } }] },
+          select: { lead: true, occurredAt: true },
+        }),
+      ),
+    )
+    for (const res of fallbackResults) {
+      const doc = res.docs[0] as Activity | undefined
+      if (doc) {
+        const leadId = relationId(doc.lead)
+        if (leadId) lastActivityByLead.set(leadId, doc)
+      }
+    }
   }
 
   const conversationIds = Array.from(conversationByLead.values())
