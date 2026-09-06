@@ -73,11 +73,29 @@ export async function replyConversationHandler(req: PayloadRequest): Promise<Res
   })
   const tenant = tenants.docs[0] as Tenant | undefined
 
+  // Enrutamiento por canal y cuenta: responder por el MISMO canal y la MISMA
+  // cuenta (organization_address) por la que llegó la conversación — igual que
+  // replyConversationAction en src/lib/inbox-actions.ts. Un DM de Instagram
+  // nunca debe salir por WhatsApp, y cada número de WhatsApp responde desde sí.
+  let service: 'whatsapp' | 'instagram_dm'
+  if (conversation.channel === 'whatsapp' || conversation.channel === 'whatsapp_web') {
+    service = 'whatsapp'
+  } else if (conversation.channel === 'instagram_dm') {
+    service = 'instagram_dm'
+  } else {
+    return Response.json(
+      { error: `El canal "${conversation.channel}" no admite respuestas salientes automáticas por API` },
+      { status: 422 },
+    )
+  }
+
   try {
     const row = await sendText({
       to: conversation.contactAddress,
       text,
       tenant: tenant ?? undefined,
+      service,
+      senderAddress: conversation.organizationAddress || undefined,
     })
 
     const created = await req.payload.create({

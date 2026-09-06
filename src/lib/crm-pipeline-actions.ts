@@ -129,7 +129,28 @@ export async function quickReplyLeadChatAction(
     })
     const tenant = tenants.docs[0] as Tenant | undefined
 
-    const row = await sendText({ to: conversation.contactAddress, text: trimmed, tenant })
+    // Enrutamiento por canal y cuenta: responder por el MISMO canal y la MISMA
+    // cuenta (organization_address) por la que llegó la conversación — así un
+    // Instagram DM nunca sale por WhatsApp y cada número responde desde sí.
+    let service: 'whatsapp' | 'instagram_dm'
+    if (conversation.channel === 'whatsapp' || conversation.channel === 'whatsapp_web') {
+      service = 'whatsapp'
+    } else if (conversation.channel === 'instagram_dm') {
+      service = 'instagram_dm'
+    } else {
+      return {
+        ok: false,
+        error: `El canal "${conversation.channel}" no admite respuestas salientes automáticas por API`,
+      }
+    }
+
+    const row = await sendText({
+      to: conversation.contactAddress,
+      text: trimmed,
+      tenant,
+      service,
+      senderAddress: conversation.organizationAddress || undefined,
+    })
 
     const created = await context.payload.create({
       collection: 'messages',
