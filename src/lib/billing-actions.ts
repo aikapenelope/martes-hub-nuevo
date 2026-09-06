@@ -347,8 +347,13 @@ export async function updatePaymentStatusAction(params: {
       user: context.user,
     })
 
-    if (check.docs.length === 0) {
+    const currentPayment = check.docs[0]
+    if (!currentPayment) {
       return { ok: false, error: 'Cobro no encontrado o sin permisos en este tenant' }
+    }
+
+    if (currentPayment.status === 'anulado' && params.status === 'pagado') {
+      return { ok: false, error: 'Un cobro anulado no puede conciliarse directamente; reactívalo primero' }
     }
 
     const dataToUpdate: Record<string, unknown> = {
