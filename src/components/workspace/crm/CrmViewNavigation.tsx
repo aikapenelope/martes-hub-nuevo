@@ -12,6 +12,7 @@ export function buildCrmHref(
   if (filters.source) params.set('fuente', filters.source)
   const status = filters.view === 'leads' ? filters.status : filters.stage
   if (status !== 'todos') params.set('estado', status)
+  if (filters.agent && filters.agent !== 'todos') params.set('agente', filters.agent)
   if (filters.page > 1) params.set('page', String(filters.page))
   for (const [key, value] of Object.entries(changes)) {
     if (value === undefined || value === '' || value === 'todos') params.delete(key)
@@ -20,12 +21,18 @@ export function buildCrmHref(
   return `/workspace/crm?${params.toString()}`
 }
 
+import type { User } from '@/payload-types'
+
 export function CrmViewNavigation({
   filters,
   view,
+  agents,
+  currentUser
 }: {
   filters: ReturnType<typeof parseCrmFilters>
   view: 'leads' | 'clientes' | 'empresas'
+  agents?: User[]
+  currentUser?: User
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -61,6 +68,25 @@ export function CrmViewNavigation({
           Empresas
         </Link>
       </nav>
+
+      {agents && currentUser && (
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-mono uppercase tracking-wider text-zinc-500">Agente:</label>
+          <select 
+            className="border border-zinc-800 bg-black px-2 py-1 text-xs text-white focus:outline-none focus:border-zinc-600"
+            value={filters.agent || 'todos'}
+            onChange={(e) => {
+              window.location.href = buildCrmHref(filters, { agente: e.target.value })
+            }}
+          >
+            <option value="todos">Todos los Agentes</option>
+            <option value="me">Yo ({currentUser.firstName || currentUser.email})</option>
+            {agents.filter(a => a.id !== currentUser.id).map(a => (
+              <option key={a.id} value={a.id}>{a.firstName || a.email}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {filters.view === 'leads' && (
         <nav className="inline-flex border border-zinc-800 bg-zinc-950 p-0.5" aria-label="Modo de vista del pipeline">

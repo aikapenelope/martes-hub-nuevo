@@ -82,7 +82,31 @@ export async function updateCompanySettingsAction(formData: FormData): Promise<v
   const rawAiModel = String(formData.get('aiModel') ?? '').trim()
   const aiModel = rawAiModel ? rawAiModel.slice(0, 150) : 'llama-3.3-70b-versatile'
 
+
   const aiAutoSummarize = formData.get('aiAutoSummarize') === 'on' || formData.get('aiAutoSummarize') === 'true'
+
+  const paymentMethods = {
+    pagoMovil: {
+      banco: String(formData.get('paymentMethods.pagoMovil.banco') || '').trim() || null,
+      cedula: String(formData.get('paymentMethods.pagoMovil.cedula') || '').trim() || null,
+      telefono: String(formData.get('paymentMethods.pagoMovil.telefono') || '').trim() || null,
+    },
+    transferenciaVes: {
+      banco: String(formData.get('paymentMethods.transferenciaVes.banco') || '').trim() || null,
+      numeroCuenta: String(formData.get('paymentMethods.transferenciaVes.numeroCuenta') || '').trim() || null,
+      titular: String(formData.get('paymentMethods.transferenciaVes.titular') || '').trim() || null,
+      rif: String(formData.get('paymentMethods.transferenciaVes.rif') || '').trim() || null,
+    },
+    zelle: {
+      email: String(formData.get('paymentMethods.zelle.email') || '').trim() || null,
+      titular: String(formData.get('paymentMethods.zelle.titular') || '').trim() || null,
+    },
+    binance: {
+      binanceId: String(formData.get('paymentMethods.binance.binanceId') || '').trim() || null,
+      walletUsdt: String(formData.get('paymentMethods.binance.walletUsdt') || '').trim() || null,
+    }
+  }
+
 
   // Buscar settings existentes para el tenant activo
   const existingRes = await context.payload.find({
@@ -105,8 +129,11 @@ export async function updateCompanySettingsAction(formData: FormData): Promise<v
         internalNotificationsEmail, // null borra explícitamente el valor en la base de datos
         aiProvider,
         ...(aiApiKey !== null ? { aiApiKey } : rawAiApiKey === '' ? { aiApiKey: null } : {}),
+        
         aiModel,
         aiAutoSummarize,
+        paymentMethods,
+
       },
       overrideAccess: true,
     })
@@ -121,8 +148,11 @@ export async function updateCompanySettingsAction(formData: FormData): Promise<v
         internalNotificationsEmail,
         aiProvider,
         aiApiKey,
+        
         aiModel,
         aiAutoSummarize,
+        paymentMethods,
+
         tenant: context.tenantId,
       },
       overrideAccess: true,

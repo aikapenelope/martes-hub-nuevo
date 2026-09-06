@@ -31,6 +31,7 @@ export interface CrmSearchParams {
   estado?: string | string[]
   fuente?: string | string[]
   page?: string | string[]
+  agente?: string | string[]
 }
 
 export interface CrmFilters {
@@ -41,6 +42,7 @@ export interface CrmFilters {
   stage: ClientStage | 'todos'
   source?: LeadSource
   page: number
+  agent?: string | 'todos'
 }
 
 function firstValue(value?: string | string[]): string | undefined {
@@ -65,5 +67,6 @@ export function parseCrmFilters(params: CrmSearchParams): CrmFilters {
     rawSource && LEAD_SOURCES.includes(rawSource as LeadSource) ? (rawSource as LeadSource) : undefined
   const parsedPage = Number.parseInt(firstValue(params.page) ?? '1', 10)
   const page = Number.isFinite(parsedPage) ? Math.min(Math.max(parsedPage, 1), MAX_PAGE) : 1
-  return { view, mode, query, status, stage, source, page }
+  const agent = firstValue(params.agente) || 'todos'
+  return { view, mode, query, status, stage, source, page, agent }
 }

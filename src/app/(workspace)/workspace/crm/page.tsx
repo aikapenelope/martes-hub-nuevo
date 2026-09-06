@@ -20,8 +20,15 @@ interface CrmPageProps {
   searchParams: Promise<CrmSearchParams>
 }
 
+import { redirect } from 'next/navigation'
+
 export default async function CrmPage({ searchParams }: CrmPageProps) {
   const params = await searchParams
+  if (!params.agente) {
+    const q = new URLSearchParams(params as Record<string, string>)
+    q.set('agente', 'me')
+    redirect(`/workspace/crm?${q.toString()}`)
+  }
   const filters = parseCrmFilters(params)
   const context = await getWorkspaceContext()
   const data = await getCrmData({
@@ -33,8 +40,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
 
   const showPipeline = filters.view === 'leads' && filters.mode === 'pipeline'
 
-  const [agentsResult, segmentsResult] = showPipeline
-    ? await Promise.all([
+  const [agentsResult, segmentsResult] = await Promise.all([
         context.payload.find({
           collection: 'users',
           where: { and: [{ roles: { in: ['admin', 'agente'] } }, { active: { equals: true } }] },
@@ -52,7 +58,6 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
           user: context.user,
         }),
       ])
-    : [{ docs: [] as User[] }, { docs: [] as Segment[] }]
 
   const agents = agentsResult.docs as User[]
   const segmentsList = segmentsResult.docs as Segment[]
@@ -79,7 +84,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
         </div>
       </section>
 
-      <CrmViewNavigation filters={filters} view={data.view} />
+      <CrmViewNavigation filters={filters} view={data.view} agents={agents} currentUser={context.user} />
 
       {showPipeline ? (
         <CrmPipelineWorkspace columns={pipelineColumns} canEdit={context.canEdit} assignees={agents} segments={segmentsList} />

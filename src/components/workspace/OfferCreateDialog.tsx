@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef } from 'react'
+import { useState } from 'react'
+import { Drawer } from '@/components/workspace/overlays'
 import { Plus, X } from 'lucide-react'
 
 import { createOfferAction } from '@/lib/offer-actions'
@@ -11,29 +12,24 @@ const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider
 
 /** Alta de oferta en el catálogo comercial del tenant. */
 export function OfferCreateDialog({ segments }: { segments: Array<{ id: number; name: string }> }) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  const [open, setOpen] = useState(false)
 
   return (
     <>
       <button
         type="button"
         className="flex items-center gap-2 bg-sky-400 px-4 py-2 text-xs font-black uppercase shadow-[0_0_16px_rgba(56,189,248,0.35)] transition hover:bg-sky-300 font-mono text-black"
-        onClick={() => dialogRef.current?.showModal()}
+        onClick={() => setOpen(true)}
       >
         <Plus className="h-4 w-4" /> + Oferta
       </button>
 
-      <dialog
-        ref={dialogRef}
-        className="workspace-dialog m-auto w-[min(28rem,calc(100vw-2rem))] border border-zinc-800 bg-zinc-950 p-0 text-white"
-        onCancel={() => dialogRef.current?.close()}
+      <Drawer
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Nueva oferta"
+        size="md"
       >
-        <header className="flex items-center justify-between gap-4 border-b border-zinc-800 px-4 py-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-white">Nueva oferta</h2>
-          <button type="button" aria-label="Cerrar" onClick={() => dialogRef.current?.close()} className="text-zinc-400 hover:text-white">
-            <X size={16} />
-          </button>
-        </header>
 
         <form action={createOfferAction} className="flex flex-col gap-3 p-4">
           <label className={labelCls}>
@@ -64,7 +60,7 @@ export function OfferCreateDialog({ segments }: { segments: Array<{ id: number; 
             Crear oferta
           </button>
         </form>
-      </dialog>
+      </Drawer>
     </>
   )
 }
