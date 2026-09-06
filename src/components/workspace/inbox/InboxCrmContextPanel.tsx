@@ -146,9 +146,13 @@ export function InboxCrmContextPanel({
     }
   }, [effectiveClientId])
 
-  // Búsqueda en servidor de contactos para vinculación in-situ (revisión Devin PR #80)
+  // Búsqueda en servidor de contactos para vinculación in-situ con paginación (revisión Devin PR #80)
   const [serverLinkContacts, setServerLinkContacts] = useState<ContactItem[] | null>(null)
   const [isSearchingLinkServer, setIsSearchingLinkServer] = useState(false)
+  const [linkPage, setLinkPage] = useState(1)
+  const [linkHasMore, setLinkHasMore] = useState(false)
+  const [linkTotal, setLinkTotal] = useState<number | null>(null)
+  const [loadingMoreLink, setLoadingMoreLink] = useState(false)
 
   useEffect(() => {
     const q = linkSearch.trim()
@@ -159,11 +163,16 @@ export function InboxCrmContextPanel({
     let cancelled = false
     const timer = setTimeout(() => {
       setIsSearchingLinkServer(true)
-      searchInboxCrmContactsAction({ q })
+      setLinkPage(1)
+      searchInboxCrmContactsAction({ q, page: 1 })
         .then((res) => {
           if (!cancelled) {
             setIsSearchingLinkServer(false)
-            if (res.ok) setServerLinkContacts(res.results)
+            if (res.ok) {
+              setServerLinkContacts(res.results)
+              setLinkHasMore(res.hasMore)
+              setLinkTotal(res.total)
+            }
           }
         })
         .catch(() => {
@@ -176,6 +185,25 @@ export function InboxCrmContextPanel({
       clearTimeout(timer)
     }
   }, [linkSearch, isLinkingCrm])
+
+  const handleLoadMoreLink = () => {
+    const q = linkSearch.trim()
+    if (!q || !linkHasMore || loadingMoreLink) return
+    const nextPage = linkPage + 1
+    setLoadingMoreLink(true)
+    searchInboxCrmContactsAction({ q, page: nextPage })
+      .then((res) => {
+        setLoadingMoreLink(false)
+        if (res.ok) {
+          setServerLinkContacts((prev) => [...(prev || []), ...res.results])
+          setLinkPage(nextPage)
+          setLinkHasMore(res.hasMore)
+        }
+      })
+      .catch(() => {
+        setLoadingMoreLink(false)
+      })
+  }
 
   // Filtrado de contactos para vinculación in-situ
   const filteredLinkContacts = useMemo(() => {
@@ -546,6 +574,21 @@ export function InboxCrmContextPanel({
                               <span className="text-[9px] text-zinc-500 uppercase">{c.kind}</span>
                             </button>
                           ))}
+                          {linkHasMore && (
+                            <button
+                              type="button"
+                              disabled={loadingMoreLink}
+                              onClick={handleLoadMoreLink}
+                              className="w-full py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[9px] uppercase font-bold border-t border-zinc-800 flex items-center justify-center gap-1 transition"
+                            >
+                              {loadingMoreLink ? <Loader2 size={10} className="animate-spin" /> : null}
+                              <span>
+                                {loadingMoreLink
+                                  ? 'Cargando...'
+                                  : `Cargar más (${filteredLinkContacts.length} de ${linkTotal ?? 'más'})`}
+                              </span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     )}

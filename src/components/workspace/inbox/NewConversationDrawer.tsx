@@ -43,9 +43,13 @@ export function NewConversationDrawer({
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  // Búsqueda en servidor con debouncing para no limitar a los primeros 100 registros (revisión Devin PR #80)
+  // Búsqueda en servidor con debouncing y paginación para no truncar resultados (revisión Devin PR #80)
   const [serverContacts, setServerContacts] = useState<ContactItem[] | null>(null)
   const [isSearchingServer, setIsSearchingServer] = useState(false)
+  const [serverPage, setServerPage] = useState(1)
+  const [serverHasMore, setServerHasMore] = useState(false)
+  const [serverTotal, setServerTotal] = useState<number | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   useEffect(() => {
     const q = searchTerm.trim()
@@ -56,12 +60,15 @@ export function NewConversationDrawer({
     let cancelled = false
     const timer = setTimeout(() => {
       setIsSearchingServer(true)
-      searchInboxCrmContactsAction({ q })
+      setServerPage(1)
+      searchInboxCrmContactsAction({ q, page: 1 })
         .then((res) => {
           if (!cancelled) {
             setIsSearchingServer(false)
             if (res.ok) {
               setServerContacts(res.results)
+              setServerHasMore(res.hasMore)
+              setServerTotal(res.total)
             }
           }
         })
@@ -75,6 +82,25 @@ export function NewConversationDrawer({
       clearTimeout(timer)
     }
   }, [searchTerm])
+
+  const handleLoadMore = () => {
+    const q = searchTerm.trim()
+    if (!q || !serverHasMore || loadingMore) return
+    const nextPage = serverPage + 1
+    setLoadingMore(true)
+    searchInboxCrmContactsAction({ q, page: nextPage })
+      .then((res) => {
+        setLoadingMore(false)
+        if (res.ok) {
+          setServerContacts((prev) => [...(prev || []), ...res.results])
+          setServerPage(nextPage)
+          setServerHasMore(res.hasMore)
+        }
+      })
+      .catch(() => {
+        setLoadingMore(false)
+      })
+  }
 
   // Filtro combinado de contactos del CRM
   const displayedContacts = useMemo(() => {
@@ -275,6 +301,21 @@ export function NewConversationDrawer({
                         )}
                       </button>
                     ))
+                  )}
+                  {serverHasMore && (
+                    <button
+                      type="button"
+                      disabled={loadingMore}
+                      onClick={handleLoadMore}
+                      className="w-full py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[10px] uppercase font-bold border-t border-zinc-800 flex items-center justify-center gap-1.5 transition"
+                    >
+                      {loadingMore ? <Loader2 size={11} className="animate-spin" /> : null}
+                      <span>
+                        {loadingMore
+                          ? 'Cargando más contactos...'
+                          : `Cargar más (${displayedContacts.length} de ${serverTotal ?? 'más'})`}
+                      </span>
+                    </button>
                   )}
                 </div>
               </div>

@@ -415,18 +415,22 @@ async function assertCrmRelationInTenant(
 
 /**
  * Búsqueda paginada en servidor de clientes y prospectos del CRM acotada al tenant activo.
- * Evita el sesgo de limitar la búsqueda a una instantánea fija de 100 registros (revisión Devin PR #80).
+ * Implementa ordenamiento determinista y metadatos de paginación para soportar carga infinita sin truncar (revisión Devin PR #80).
  */
 export async function searchInboxCrmContactsAction(params: {
   q: string
   kind?: 'all' | 'client' | 'lead'
-}): Promise<ActionResult<{ results: ContactItem[] }>> {
+  page?: number
+  limit?: number
+}): Promise<ActionResult<{ results: ContactItem[]; hasMore: boolean; total: number }>> {
   try {
     const context = await getWorkspaceContext()
     if (!context.canEdit) throw new Error('No tienes permiso para buscar contactos')
 
     const q = params.q.trim()
     const kind = params.kind || 'all'
+    const page = Math.max(1, params.page || 1)
+    const limit = Math.min(50, Math.max(5, params.limit || 20))
 
     const clientConditions: Where[] = [{ tenant: { equals: context.tenantId } }]
     const leadConditions: Where[] = [{ tenant: { equals: context.tenantId } }]
@@ -455,7 +459,9 @@ export async function searchInboxCrmContactsAction(params: {
         ? context.payload.find({
             collection: 'clients',
             where: { and: clientConditions },
-            limit: 20,
+            limit,
+            page,
+            sort: 'name',
             depth: 0,
             overrideAccess: false,
             user: context.user,
@@ -466,12 +472,14 @@ export async function searchInboxCrmContactsAction(params: {
               email: true,
             },
           })
-        : Promise.resolve({ docs: [] }),
+        : Promise.resolve({ docs: [], hasNextPage: false, totalDocs: 0 }),
       kind !== 'client'
         ? context.payload.find({
             collection: 'leads',
             where: { and: leadConditions },
-            limit: 20,
+            limit,
+            page,
+            sort: 'fullName',
             depth: 0,
             overrideAccess: false,
             user: context.user,
@@ -482,7 +490,7 @@ export async function searchInboxCrmContactsAction(params: {
               email: true,
             },
           })
-        : Promise.resolve({ docs: [] }),
+        : Promise.resolve({ docs: [], hasNextPage: false, totalDocs: 0 }),
     ])
 
     const results: ContactItem[] = [
@@ -504,7 +512,10 @@ export async function searchInboxCrmContactsAction(params: {
       })),
     ]
 
-    return { ok: true, results }
+    const hasMore = Boolean(clientsRes.hasNextPage || leadsRes.hasNextPage)
+    const total = (clientsRes.totalDocs || 0) + (leadsRes.totalDocs || 0)
+
+    return { ok: true, results, hasMore, total }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Error al buscar contactos' }
   }
