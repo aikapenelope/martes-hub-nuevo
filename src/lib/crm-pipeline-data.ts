@@ -1,12 +1,13 @@
 import 'server-only'
 
 import type { Payload } from 'payload'
-import type { Conversation, ConversationSummary, Lead, Message, User } from '@/payload-types'
+import type { Activity, Conversation, ConversationSummary, Lead, Message, User } from '@/payload-types'
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
 import {
   computeDealVelocity,
   computeWindowState,
   relativeLabel,
+  resolveLastActiveTimestamp,
   type DealVelocity,
 } from '@/lib/crm-pipeline-window'
 
@@ -103,7 +104,7 @@ export async function getCrmPipelineData({
   const leads = leadsResult.docs as Lead[]
   const leadIds = leads.map((lead) => lead.id)
 
-  const [conversationsResult, summariesResult] = await Promise.all([
+  const [conversationsResult, summariesResult, activitiesResult] = await Promise.all([
     leadIds.length
       ? query({
           collection: 'conversations',
@@ -122,6 +123,15 @@ export async function getCrmPipelineData({
           where: { and: [{ tenant: { equals: tenantId } }, { lead: { in: leadIds } }] },
         })
       : Promise.resolve({ docs: [] as ConversationSummary[] }),
+    leadIds.length
+      ? query({
+          collection: 'activities',
+          depth: 0,
+          limit: Math.min(leadIds.length * 5, 500),
+          sort: '-occurredAt',
+          where: { and: [{ tenant: { equals: tenantId } }, { lead: { in: leadIds } }] },
+        })
+      : Promise.resolve({ docs: [] as Activity[] }),
   ])
 
   // Docs vienen ordenados por más reciente primero; nos quedamos con el primero por lead.
@@ -135,6 +145,12 @@ export async function getCrmPipelineData({
   for (const summary of summariesResult.docs as ConversationSummary[]) {
     const leadId = relationId(summary.lead)
     if (leadId && !summaryByLead.has(leadId)) summaryByLead.set(leadId, summary)
+  }
+
+  const lastActivityByLead = new Map<number, Activity>()
+  for (const activity of activitiesResult.docs as Activity[]) {
+    const leadId = relationId(activity.lead)
+    if (leadId && !lastActivityByLead.has(leadId)) lastActivityByLead.set(leadId, activity)
   }
 
   const conversationIds = Array.from(conversationByLead.values())
@@ -173,7 +189,12 @@ export async function getCrmPipelineData({
     )
 
     const summary = summaryByLead.get(lead.id)
-    const lastActiveAt = lastMessageAt || lead.createdAt
+    const lastActivity = lastActivityByLead.get(lead.id)
+    const lastActiveAt = resolveLastActiveTimestamp(
+      lastMessageAt,
+      lastActivity?.occurredAt,
+      lead.createdAt,
+    )
     const velocity = computeDealVelocity(lastActiveAt, now)
 
     return {

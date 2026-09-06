@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { parseCrmFilters } from '@/lib/crm-filters'
-import { computeDealVelocity, computeWindowState, relativeLabel } from '@/lib/crm-pipeline-window'
+import {
+  computeDealVelocity,
+  computeWindowState,
+  relativeLabel,
+  resolveLastActiveTimestamp,
+} from '@/lib/crm-pipeline-window'
 
 describe('Pipeline de Ventas Conversacional 360°', () => {
   describe('parseCrmFilters — modo pipeline/tabla', () => {
@@ -143,6 +148,48 @@ describe('Pipeline de Ventas Conversacional 360°', () => {
         hoursSinceLastActivity: 96,
         label: 'En riesgo (4d sin tocar)',
       })
+    })
+  })
+
+  describe('resolveLastActiveTimestamp & integración de actividades registradas', () => {
+    const NOW = new Date('2026-08-30T12:00:00.000Z').getTime()
+    const LEAD_CREATED_AT = new Date(NOW - 45 * 24 * 60 * 60 * 1000).toISOString() // 45 días atrás
+    const OLD_MESSAGE_AT = new Date(NOW - 15 * 24 * 60 * 60 * 1000).toISOString() // 15 días atrás
+    const RECENT_ACTIVITY_AT = new Date(NOW - 2 * 60 * 60 * 1000).toISOString() // 2 horas atrás
+    const WARM_ACTIVITY_AT = new Date(NOW - 36 * 60 * 60 * 1000).toISOString() // 36 horas atrás
+
+    it('devuelve null si todas las marcas son null o undefined', () => {
+      expect(resolveLastActiveTimestamp(null, undefined, null)).toBeNull()
+    })
+
+    it('prioriza la actividad registrada reciente sobre un lead y mensaje antiguos', () => {
+      const resolved = resolveLastActiveTimestamp(OLD_MESSAGE_AT, RECENT_ACTIVITY_AT, LEAD_CREATED_AT)
+      expect(resolved).toBe(RECENT_ACTIVITY_AT)
+
+      const velocity = computeDealVelocity(resolved, NOW)
+      expect(velocity.temperature).toBe('hot')
+      expect(velocity.hoursSinceLastActivity).toBe(2)
+      expect(velocity.label).toBe('Activo hace 2h')
+    })
+
+    it('lead antiguo con actividad registrada hace 36h calcula temperatura warm', () => {
+      const resolved = resolveLastActiveTimestamp(null, WARM_ACTIVITY_AT, LEAD_CREATED_AT)
+      expect(resolved).toBe(WARM_ACTIVITY_AT)
+
+      const velocity = computeDealVelocity(resolved, NOW)
+      expect(velocity.temperature).toBe('warm')
+      expect(velocity.hoursSinceLastActivity).toBe(36)
+      expect(velocity.label).toBe('Inactivo hace 1d')
+    })
+
+    it('lead antiguo sin mensajes ni actividades cae a su fecha de creación (cold)', () => {
+      const resolved = resolveLastActiveTimestamp(null, null, LEAD_CREATED_AT)
+      expect(resolved).toBe(LEAD_CREATED_AT)
+
+      const velocity = computeDealVelocity(resolved, NOW)
+      expect(velocity.temperature).toBe('cold')
+      expect(velocity.hoursSinceLastActivity).toBe(45 * 24)
+      expect(velocity.label).toBe('En riesgo (45d sin tocar)')
     })
   })
 })

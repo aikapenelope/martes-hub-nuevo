@@ -100,3 +100,21 @@ export function computeDealVelocity(
     label: `En riesgo (${days}d sin tocar)`,
   }
 }
+
+/**
+ * Resuelve la marca de tiempo más reciente entre varios eventos (mensajes, actividades, creación).
+ */
+export function resolveLastActiveTimestamp(...dates: (string | null | undefined)[]): string | null {
+  let mostRecent: string | null = null
+  let maxTime = -Infinity
+  for (const date of dates) {
+    if (!date) continue
+    const time = new Date(date).getTime()
+    if (!Number.isNaN(time) && time > maxTime) {
+      maxTime = time
+      mostRecent = date
+    }
+  }
+  return mostRecent
+}
+
