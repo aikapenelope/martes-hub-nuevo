@@ -186,3 +186,191 @@ export async function deleteTaskAction(form: FormData) {
   await context.payload.delete({ collection: 'tasks', id: taskId, overrideAccess: false, user: context.user })
   revalidatePath('/workspace/tasks'); revalidatePath('/workspace'); revalidatePath('/workspace/hoy'); revalidatePath('/workspace/crm'); redirect('/workspace/tasks?deleted=1')
 }
+
+/**
+ * Creación in-situ rápida (estilo Linear) sin recargar la página ni navegar.
+ * Ideal para el atajo al fondo de cada columna Kanban.
+ */
+export async function createTaskInSituAction(params: {
+  title: string
+  status: TaskStatus
+  priority?: TaskPriority
+  dueDate?: string | null
+  assignedTo?: number | null
+}): Promise<{ ok: true; task: Task } | { ok: false; error: string }> {
+  try {
+    const context = await getWorkspaceContext()
+    assertEditor(context.canEdit)
+
+    const title = params.title.trim().slice(0, 180)
+    if (!title) throw new Error('El título de la tarea es obligatorio')
+
+    const status: TaskStatus = TASK_STATUSES.includes(params.status) ? params.status : 'pendiente'
+    const priority: TaskPriority =
+      params.priority && TASK_PRIORITIES.includes(params.priority) ? params.priority : 'media'
+
+    if (params.assignedTo) {
+      await assertRelation('users', params.assignedTo, context.tenantId, context)
+    }
+
+    const task = (await context.payload.create({
+      collection: 'tasks',
+      overrideAccess: false,
+      user: context.user,
+      data: {
+        tenant: context.tenantId,
+        title,
+        status,
+        priority,
+        dueDate: params.dueDate ? new Date(params.dueDate).toISOString() : null,
+        assignedTo: params.assignedTo ?? null,
+        source: 'manual',
+        checklist: [],
+      },
+    })) as Task
+
+    revalidatePath('/workspace/tasks')
+    revalidatePath('/workspace')
+    revalidatePath('/workspace/hoy')
+    revalidatePath('/workspace/crm')
+
+    return { ok: true, task }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al crear la tarea' }
+  }
+}
+
+/**
+ * Actualización in-situ de campos de tarea sin redirecciones (usado por el Slide-Over Drawer).
+ */
+export async function updateTaskInSituAction(params: {
+  taskId: number
+  title?: string
+  description?: string | null
+  status?: TaskStatus
+  priority?: TaskPriority
+  dueDate?: string | null
+  assignedTo?: number | null
+}): Promise<{ ok: true; task: Task } | { ok: false; error: string }> {
+  try {
+    const { context } = await scopedTask(params.taskId)
+    assertEditor(context.canEdit)
+
+    const data: Record<string, unknown> = {}
+    if (params.title !== undefined) {
+      const trimmed = params.title.trim().slice(0, 180)
+      if (!trimmed) throw new Error('El título no puede estar vacío')
+      data.title = trimmed
+    }
+    if (params.description !== undefined) {
+      data.description = params.description ? params.description.trim().slice(0, 5000) : null
+    }
+    if (params.status && TASK_STATUSES.includes(params.status)) {
+      data.status = params.status
+    }
+    if (params.priority && TASK_PRIORITIES.includes(params.priority)) {
+      data.priority = params.priority
+    }
+    if (params.dueDate !== undefined) {
+      data.dueDate = params.dueDate ? new Date(params.dueDate).toISOString() : null
+    }
+    if (params.assignedTo !== undefined) {
+      if (params.assignedTo) {
+        await assertRelation('users', params.assignedTo, context.tenantId, context)
+      }
+      data.assignedTo = params.assignedTo
+    }
+
+    const updated = (await context.payload.update({
+      collection: 'tasks',
+      id: params.taskId,
+      overrideAccess: false,
+      user: context.user,
+      data,
+    })) as Task
+
+    revalidatePath('/workspace/tasks')
+    revalidatePath('/workspace')
+    revalidatePath('/workspace/hoy')
+    revalidatePath('/workspace/crm')
+    revalidatePath(`/workspace/tasks/${params.taskId}`)
+
+    return { ok: true, task: updated }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al actualizar la tarea' }
+  }
+}
+
+/**
+ * Toggle in-situ de una subtarea del checklist sin recarga.
+ */
+export async function toggleChecklistInSituAction(params: {
+  taskId: number
+  index: number
+}): Promise<{ ok: true; checklist: Task['checklist'] } | { ok: false; error: string }> {
+  try {
+    const { context, task } = await scopedTask(params.taskId)
+    assertEditor(context.canEdit)
+
+    if (!Number.isInteger(params.index) || params.index < 0) {
+      throw new Error('Índice de subtarea inválido')
+    }
+
+    const checklist = (task.checklist ?? []).map((item, position) =>
+      position === params.index ? { item: item.item, done: !item.done } : { item: item.item, done: Boolean(item.done) },
+    )
+
+    const updated = (await context.payload.update({
+      collection: 'tasks',
+      id: params.taskId,
+      overrideAccess: false,
+      user: context.user,
+      data: { checklist },
+    })) as Task
+
+    revalidatePath('/workspace/tasks')
+    revalidatePath('/workspace/hoy')
+    revalidatePath(`/workspace/tasks/${params.taskId}`)
+
+    return { ok: true, checklist: updated.checklist }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al actualizar subtarea' }
+  }
+}
+
+/**
+ * Añadir subtarea in-situ sin recarga de página.
+ */
+export async function addChecklistItemInSituAction(params: {
+  taskId: number
+  item: string
+}): Promise<{ ok: true; checklist: Task['checklist'] } | { ok: false; error: string }> {
+  try {
+    const { context, task } = await scopedTask(params.taskId)
+    assertEditor(context.canEdit)
+
+    const itemText = params.item.trim().slice(0, 180)
+    if (!itemText) throw new Error('El texto de la subtarea es obligatorio')
+
+    const currentChecklist = task.checklist ?? []
+    if (currentChecklist.length >= 30) throw new Error('Máximo 30 subtareas por tarea')
+
+    const checklist = [...currentChecklist, { item: itemText, done: false }]
+    const updated = (await context.payload.update({
+      collection: 'tasks',
+      id: params.taskId,
+      overrideAccess: false,
+      user: context.user,
+      data: { checklist },
+    })) as Task
+
+    revalidatePath('/workspace/tasks')
+    revalidatePath('/workspace/hoy')
+    revalidatePath(`/workspace/tasks/${params.taskId}`)
+
+    return { ok: true, checklist: updated.checklist }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al añadir subtarea' }
+  }
+}
+
