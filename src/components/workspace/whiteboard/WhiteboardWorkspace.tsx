@@ -45,6 +45,11 @@ function boardLabel(board: WhiteboardSummary): string {
   return board.source === 'import' ? `${board.title} (importada)` : board.title
 }
 
+/** Respaldo local por pizarra para sobrevivir cierres/recargas durante el debounce. */
+function backupKey(tenantId: string, boardId: number): string {
+  return `martes-wb-bak-${tenantId}-${boardId}`
+}
+
 export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, initialBoards }: WhiteboardWorkspaceProps) {
   const [boards, setBoards] = useState<WhiteboardSummary[]>(initialBoards)
   const [activeId, setActiveId] = useState<number | null>(null)
@@ -65,10 +70,14 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
   const savingRef = useRef(false)
   const activeIdRef = useRef<number | null>(null)
   const sceneBoardIdRef = useRef<number | null>(null)
+  const boardsRef = useRef<WhiteboardSummary[]>(initialBoards)
   useEffect(() => {
     activeIdRef.current = activeId
     sceneBoardIdRef.current = sceneBoardId
   }, [activeId, sceneBoardId])
+  useEffect(() => {
+    boardsRef.current = boards
+  }, [boards])
 
   const flushSaveRef = useRef<(() => Promise<void>) | null>(null)
 
@@ -118,12 +127,24 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
     savingRef.current = true
     setSaveError(null)
     try {
+      // Respaldo local ANTES de intentar persistir: si el server falla o el
+      // usuario cierra a mitad, el trabajo vive en el navegador.
+      try {
+        localStorage.setItem(backupKey(tenantId, pending.id), JSON.stringify({ ts: Date.now(), scene: pending.scene }))
+      } catch {
+        // storage lleno o bloqueado: el guardado normal sigue igual
+      }
       // La miniatura solo se regenera si la pizarra sigue en pantalla; si el
       // usuario ya cambió de pizarra, el canvas actual sería de otra escena.
       const thumbnail = pending.id === activeIdRef.current ? await generateThumbnail() : null
       const result = await saveWhiteboardAction(pending.id, pending.scene, thumbnail === null ? undefined : thumbnail)
       if (result.ok) {
         retryCountRef.current = 0
+        try {
+          localStorage.removeItem(backupKey(tenantId, pending.id))
+        } catch {
+          // nada: el servidor ya tiene la escena
+        }
         // Limpiar solo si el usuario no generó datos más nuevos mientras tanto
         if (pendingSceneRef.current === pending) pendingSceneRef.current = null
         setSavedAt(formatTime(new Date()))
@@ -140,103 +161,203 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
     } finally {
       savingRef.current = false
     }
-  }, [generateThumbnail, scheduleSaveRetry])
+  }, [generateThumbnail, scheduleSaveRetry, tenantId])
 
   useEffect(() => {
     flushSaveRef.current = flushSave
   }, [flushSave])
 
   /** Abre una pizarra: guarda lo pendiente de la actual y carga su escena. */
-  const openBoard = useCallback((id: number) => {
-    if (activeIdRef.current === id && sceneBoardIdRef.current === id) return
+  const openBoard = useCallback(
+    (id: number) => {
+      if (activeIdRef.current === id && sceneBoardIdRef.current === id) return
 
-    // Flush inmediato de la pizarra actual (con su propio id) antes de salir —
-    // cambiar dentro de la ventana de debounce no puede perder sus ediciones.
-    if (pendingSceneRef.current && pendingSceneRef.current.id !== id) {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
-        debounceRef.current = null
+      // Flush inmediato de la pizarra actual (con su propio id) antes de salir —
+      // cambiar dentro de la ventana de debounce no puede perder sus ediciones.
+      if (pendingSceneRef.current && pendingSceneRef.current.id !== id) {
+        if (debounceRef.current) {
+          clearTimeout(debounceRef.current)
+          debounceRef.current = null
+        }
+        void flushSaveRef.current?.()
       }
-      void flushSaveRef.current?.()
-    }
 
-    setActiveId(id)
-    setScene(null)
-    setSceneBoardId(null)
-    setSavedAt(null)
-    setSaveError(null)
-    startTransition(async () => {
-      try {
-        const result = await loadWhiteboardSceneAction(id)
-        // Carga vieja (selecciones rápidas): ignorar si ya no es la activa
-        if (activeIdRef.current !== id) return
-        if (result.ok) {
+      setActiveId(id)
+      setScene(null)
+      setSceneBoardId(null)
+      setSavedAt(null)
+      setSaveError(null)
+      startTransition(async () => {
+        try {
+          const result = await loadWhiteboardSceneAction(id)
+          // Carga vieja (selecciones rápidas): ignorar si ya no es la activa
+          if (activeIdRef.current !== id) return
+          if (!result.ok) {
+            // Sin escena el canvas no se monta — nunca un editable en blanco
+            setNotice(result.error)
+            return
+          }
+
+          // Respaldo local más nuevo que el servidor (cierre durante un
+          // autosave): restaurar y re-guardar en cuanto suba.
+          try {
+            const raw = localStorage.getItem(backupKey(tenantId, id))
+            if (raw) {
+              const backup = JSON.parse(raw) as { ts: number; scene: WhiteboardScene }
+              const serverTs = (() => {
+                const updatedAt = boardsRef.current.find((b) => b.id === id)?.updatedAt
+                return updatedAt ? Date.parse(updatedAt) : 0
+              })()
+              const restore =
+                backup &&
+                Array.isArray(backup.scene?.elements) &&
+                typeof backup.ts === 'number' &&
+                backup.ts > serverTs
+              localStorage.removeItem(backupKey(tenantId, id))
+              if (restore) {
+                setScene({
+                  elements: backup.scene.elements,
+                  files: backup.scene.files ?? {},
+                  appState: backup.scene.appState ?? {},
+                })
+                setSceneBoardId(id)
+                pendingSceneRef.current = { id, scene: backup.scene }
+                debounceRef.current = setTimeout(() => {
+                  void flushSaveRef.current?.()
+                }, 500)
+                setNotice('Se restauraron cambios locales sin guardar')
+                return
+              }
+            }
+          } catch {
+            // respaldo corrupto: se ignora y se usa la escena del servidor
+          }
+
           setScene({ elements: result.scene.elements, appState: result.scene.appState, files: result.scene.files })
           setSceneBoardId(id)
-        } else {
-          // Sin escena el canvas no se monta — nunca un editable en blanco
-          setNotice(result.error)
+        } catch (err) {
+          if (activeIdRef.current === id) {
+            setNotice(err instanceof Error ? err.message : 'Error cargando la pizarra')
+          }
         }
-      } catch (err) {
-        if (activeIdRef.current === id) {
-          setNotice(err instanceof Error ? err.message : 'Error cargando la pizarra')
-        }
-      }
-    })
-  }, [])
+      })
+    },
+    [tenantId],
+  )
 
-  // Arranque: con pizarras existentes se carga la más reciente antes de
-  // montar cualquier canvas; sin pizarras, bootstrap del tenant (con
-  // migración automática del whiteboard localStorage del PR #83).
+  // Protección al salir: respaldo local + aviso del navegador mientras haya
+  // ediciones pendientes (el debounce de 2s no termina de forma fiable en un
+  // unload real). Navegación SPA: flush best-effort al desmontar.
   useEffect(() => {
-    let cancelled = false
-    if (initialBoards.length > 0) {
-      openBoard(initialBoards[0].id)
-      return () => {
-        cancelled = true
+    function persistPendingBackup(): boolean {
+      const pending = pendingSceneRef.current
+      if (!pending) return false
+      try {
+        localStorage.setItem(backupKey(tenantId, pending.id), JSON.stringify({ ts: Date.now(), scene: pending.scene }))
+      } catch {
+        // storage lleno o bloqueado: queda solo el aviso
+      }
+      return true
+    }
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (persistPendingBackup()) {
+        event.preventDefault()
+        event.returnValue = ''
       }
     }
-    if (!canEdit) return
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      if (pendingSceneRef.current) void flushSaveRef.current?.()
+    }
+  }, [tenantId])
+
+  // Arranque. Con pizarras existentes se abre la más reciente (cualquier rol).
+  // Migración legacy INDEPENDIENTE: cada navegador tiene su propio whiteboard
+  // pre-Fase-2 y lo migra una sola vez (idempotente por marcador), aunque el
+  // tenant ya tenga pizarras compartidas — sin crear pizarra vacía de más.
+  useEffect(() => {
+    let cancelled = false
+    const storageKey = `martes-wb-${tenantId}`
+    const migratedKey = `martes-wb-mig-${tenantId}`
+
     startTransition(async () => {
+      if (initialBoards.length > 0) openBoard(initialBoards[0].id)
+
+      let sceneToMigrate: WhiteboardScene | null = null
       try {
-        let sceneToMigrate: WhiteboardScene | null = null
-        const storageKey = `martes-wb-${tenantId}`
-        try {
+        if (canEdit && !localStorage.getItem(migratedKey)) {
           const raw = localStorage.getItem(storageKey)
           if (raw) {
-            const parsed = JSON.parse(raw) as { elements?: unknown[] }
+            const parsed = JSON.parse(raw) as { elements?: unknown[]; files?: Record<string, unknown> }
             if (Array.isArray(parsed.elements) && parsed.elements.length > 0) {
-              sceneToMigrate = { elements: parsed.elements, files: (parsed as { files?: Record<string, unknown> }).files ?? {} }
-            }
-          }
-        } catch {
-          // localStorage corrupto o bloqueado: seguimos con pizarra vacía
-        }
-
-        const created = await createWhiteboardAction(
-          sceneToMigrate ? 'Whiteboard (migrado de este navegador)' : 'Pizarra principal',
-        )
-        if (!created.ok || cancelled) return
-
-        if (sceneToMigrate) {
-          const saved = await saveWhiteboardAction(created.id, sceneToMigrate)
-          if (saved.ok) {
-            try {
-              localStorage.removeItem(storageKey)
-            } catch {
-              // storage bloqueado: la pizarra ya vive en el server, el local se ignora
+              sceneToMigrate = { elements: parsed.elements, files: parsed.files ?? {} }
             }
           }
         }
+      } catch {
+        // localStorage corrupto o bloqueado: sin migración
+      }
 
-        setBoards([{ id: created.id, title: created.title, thumbnail: null, source: 'local', updatedAt: new Date().toISOString() }])
-        setActiveId(created.id)
-        setSceneBoardId(created.id)
-        setScene({ elements: sceneToMigrate?.elements ?? [], files: sceneToMigrate?.files ?? {}, appState: {} })
-      } catch (err) {
-        if (!cancelled) setNotice(err instanceof Error ? err.message : 'Error creando la primera pizarra')
+      if (sceneToMigrate) {
+        try {
+          localStorage.setItem(migratedKey, '1')
+          const created = await createWhiteboardAction('Whiteboard (migrado de este navegador)')
+          if (created.ok && !cancelled) {
+            const saved = await saveWhiteboardAction(created.id, sceneToMigrate)
+            if (saved.ok) {
+              try {
+                localStorage.removeItem(storageKey)
+              } catch {
+                // storage bloqueado: la pizarra ya vive en el server
+              }
+              setBoards((prev) =>
+                prev.some((b) => b.id === created.id)
+                  ? prev
+                  : [{ id: created.id, title: created.title, thumbnail: null, source: 'import', updatedAt: new Date().toISOString() }, ...prev],
+              )
+              setNotice('Tu whiteboard local se migró como pizarra compartida')
+              // Solo se abre automáticamente si el tenant no tenía pizarras
+              if (initialBoards.length === 0 && activeIdRef.current == null) {
+                setActiveId(created.id)
+                setSceneBoardId(created.id)
+                setScene({ elements: sceneToMigrate.elements, files: sceneToMigrate.files ?? {}, appState: {} })
+              }
+              return
+            }
+          }
+          // Fallo: permitir reintento en el próximo arranque
+          try {
+            localStorage.removeItem(migratedKey)
+          } catch {}
+          if (!cancelled) setNotice(created.ok ? 'Error guardando el whiteboard migrado' : created.error)
+        } catch (err) {
+          try {
+            localStorage.removeItem(migratedKey)
+          } catch {}
+          if (!cancelled) setNotice(err instanceof Error ? err.message : 'Error migrando el whiteboard local')
+        }
+        return // había contenido local: no crear pizarra vacía de más
+      }
+
+      // Tenant sin pizarras y sin contenido local: pizarra inicial
+      if (initialBoards.length === 0 && canEdit) {
+        try {
+          const created = await createWhiteboardAction('Pizarra principal')
+          if (created.ok && !cancelled) {
+            setBoards([{ id: created.id, title: created.title, thumbnail: null, source: 'local', updatedAt: new Date().toISOString() }])
+            setActiveId(created.id)
+            setSceneBoardId(created.id)
+            setScene({ elements: [], files: {}, appState: {} })
+          } else if (created && !created.ok && !cancelled) {
+            setNotice(created.error)
+          }
+        } catch (err) {
+          if (!cancelled) setNotice(err instanceof Error ? err.message : 'Error creando la primera pizarra')
+        }
       }
     })
+
     return () => {
       cancelled = true
     }
@@ -291,8 +412,11 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
     const id = activeId
     if (id == null) return
     if (!confirm('¿Borrar esta pizarra? Esta acción no se puede deshacer.')) return
-    // Nada pendiente de una pizarra que se va a borrar
+    // Nada pendiente ni respaldo de una pizarra que se va a borrar
     if (pendingSceneRef.current?.id === id) pendingSceneRef.current = null
+    try {
+      localStorage.removeItem(backupKey(tenantId, id))
+    } catch {}
     startTransition(async () => {
       try {
         const result = await deleteWhiteboardAction(id)

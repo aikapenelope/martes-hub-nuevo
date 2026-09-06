@@ -146,7 +146,7 @@ describe('Whiteboard — acciones del workspace', () => {
       const { payload, updated } = mockPayloadFactory({ existing: [{ id: 3, tenant: 1 }] })
       mockedContext.mockResolvedValue(makeContext({ payload }) as never)
 
-      const giant = { elements: [{ blob: 'x'.repeat(MAX_SCENE_BYTES + 10) }], files: {} }
+      const giant = { elements: [{ id: 'a', type: 'rectangle', blob: 'x'.repeat(MAX_SCENE_BYTES + 10) }], files: {} }
       await expect(saveWhiteboardAction(3, giant)).rejects.toThrow('supera el límite')
       expect(updated).toHaveLength(0)
     })
@@ -198,7 +198,7 @@ describe('Whiteboard — acciones del workspace', () => {
       const { payload, created, countCalls } = mockPayloadFactory()
       mockedContext.mockResolvedValue(makeContext({ payload }) as never)
 
-      const file = JSON.stringify({ type: 'excalidraw', version: 2, source: 'excalidraw.com', elements: [{ id: 'x' }], files: {} })
+      const file = JSON.stringify({ type: 'excalidraw', version: 2, source: 'excalidraw.com', elements: [{ id: 'x', type: 'rectangle' }], files: {} })
       const res = await importWhiteboardAction('Mapa mental', file)
 
       expect(res.ok).toBe(true)
@@ -214,7 +214,7 @@ describe('Whiteboard — acciones del workspace', () => {
       const { payload, created } = mockPayloadFactory()
       mockedContext.mockResolvedValue(makeContext({ payload }) as never)
 
-      const res = await importWhiteboardAction('Escena', JSON.stringify({ elements: [{ id: 'y' }] }))
+      const res = await importWhiteboardAction('Escena', JSON.stringify({ elements: [{ id: 'y', type: 'ellipse' }] }))
       expect(res.ok).toBe(true)
       expect(created).toHaveLength(1)
     })
@@ -235,7 +235,7 @@ describe('Whiteboard — acciones del workspace', () => {
       const { payload, created } = mockPayloadFactory()
       mockedContext.mockResolvedValue(makeContext({ payload }) as never)
 
-      const giant = JSON.stringify({ elements: [{ blob: 'x'.repeat(MAX_SCENE_BYTES + 10) }] })
+      const giant = JSON.stringify({ elements: [{ id: 'a', type: 'rectangle', blob: 'x'.repeat(MAX_SCENE_BYTES + 10) }] })
       const res = await importWhiteboardAction('X', giant)
       expect(res.ok).toBe(false)
       if (!res.ok) expect(res.error).toContain('límite')
@@ -248,6 +248,67 @@ describe('Whiteboard — acciones del workspace', () => {
 
       const res = await importWhiteboardAction('X', JSON.stringify({ elements: [{ id: 'z' }] }))
       expect(res.ok).toBe(false)
+      expect(created).toHaveLength(0)
+    })
+  })
+
+  describe('validación estructural de escenas', () => {
+    it('rechaza elementos sin id/type', async () => {
+      const { payload, created } = mockPayloadFactory()
+      mockedContext.mockResolvedValue(makeContext({ payload }) as never)
+
+      const res = await importWhiteboardAction('X', JSON.stringify({ elements: [{ foo: 1 }] }))
+      expect(res.ok).toBe(false)
+      if (!res.ok) expect(res.error).toContain('sin id/type')
+      expect(created).toHaveLength(0)
+    })
+
+    it('rechaza elements que no son objetos planos', async () => {
+      const { payload, created } = mockPayloadFactory()
+      mockedContext.mockResolvedValue(makeContext({ payload }) as never)
+
+      const res = await importWhiteboardAction('X', JSON.stringify({ elements: ['texto suelto'] }))
+      expect(res.ok).toBe(false)
+      if (!res.ok) expect(res.error).toContain('Escena inválida')
+      expect(created).toHaveLength(0)
+    })
+
+    it('poda appState a las claves permitidas (viewport/fondo)', async () => {
+      const { payload, created } = mockPayloadFactory()
+      mockedContext.mockResolvedValue(makeContext({ payload }) as never)
+
+      const file = JSON.stringify({
+        type: 'excalidraw',
+        elements: [{ id: 'a', type: 'rectangle' }],
+        files: {},
+        appState: { viewBackgroundColor: '#ffffff', scrollX: 10, zoom: 1, activeTool: { type: 'weapon' }, userInput: 'junk' },
+      })
+      const res = await importWhiteboardAction('X', file)
+      expect(res.ok).toBe(true)
+      const scene = created[0].scene as { appState: Record<string, unknown> }
+      expect(scene.appState).toEqual({ viewBackgroundColor: '#ffffff', scrollX: 10, zoom: 1 })
+    })
+
+    it('rechaza files con valores que no son objetos planos', async () => {
+      const { payload, created } = mockPayloadFactory()
+      mockedContext.mockResolvedValue(makeContext({ payload }) as never)
+
+      const res = await importWhiteboardAction('X', JSON.stringify({ elements: [{ id: 'a', type: 'image' }], files: { f1: 'data:text/html,inyectado' } }))
+      expect(res.ok).toBe(false)
+      if (!res.ok) expect(res.error).toContain('archivo embebido')
+      expect(created).toHaveLength(0)
+    })
+
+    it('rechaza archivos embebidos cuyo dataURL no es texto', async () => {
+      const { payload, created } = mockPayloadFactory()
+      mockedContext.mockResolvedValue(makeContext({ payload }) as never)
+
+      const res = await importWhiteboardAction('X', JSON.stringify({
+        elements: [{ id: 'a', type: 'image' }],
+        files: { f1: { id: 'f1', dataURL: { mal: true } } },
+      }))
+      expect(res.ok).toBe(false)
+      if (!res.ok) expect(res.error).toContain('dataURL')
       expect(created).toHaveLength(0)
     })
   })

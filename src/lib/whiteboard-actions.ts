@@ -34,18 +34,82 @@ function normalizeTitle(title: string): string {
   return clean
 }
 
-/** Valida y acota una escena cruda del cliente antes de persistirla. */
-function validateScene(scene: WhiteboardScene): WhiteboardScene {
-  if (!scene || !Array.isArray(scene.elements)) {
-    throw new Error('Escena inválida: falta elements')
+/** Límite de elementos por escena (generoso: pizarras de texto son cientos). */
+export const MAX_ELEMENTS = 20_000
+
+/** appState que persistimos: solo viewport y fondo — nada de estado efímero del editor. */
+const ALLOWED_APPSTATE_KEYS = new Set(['viewBackgroundColor', 'gridSize', 'scrollX', 'scrollY', 'zoom'])
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const proto = Object.getPrototypeOf(value)
+  return proto === Object.prototype || proto === null
+}
+
+/** Copia el objeto plano descartando claves peligrosas (prototype pollution). */
+function sanitizeObject(value: unknown, label: string): Record<string, unknown> {
+  if (!isPlainObject(value)) throw new Error(`Escena inválida: ${label}`)
+  const clean: Record<string, unknown> = {}
+  for (const [key, v] of Object.entries(value)) {
+    if (!UNSAFE_KEYS.has(key)) clean[key] = v
   }
-  const serialized = JSON.stringify(scene)
+  return clean
+}
+
+/**
+ * Valida y sanea una escena antes de persistirla. La escena la pasa después
+ * el editor de CUALQUIER agente del tenant, así que no se acepta estructura
+ * arbitraria: elementos con id/type, archivos como objetos con dataURL
+ * string, y appState podado a claves inofensivas. Las propiedades internas
+ * de cada elemento no se validan campo a campo (Excalidraw las re-sanea en
+ * restore), pero se descartan claves de prototype pollution.
+ */
+function validateScene(scene: WhiteboardScene): WhiteboardScene {
+  if (!isPlainObject(scene)) throw new Error('Escena inválida')
+  if (!Array.isArray(scene.elements)) throw new Error('Escena inválida: falta elements')
+  if (scene.elements.length > MAX_ELEMENTS) {
+    throw new Error(`La pizarra supera el límite de ${MAX_ELEMENTS} elementos`)
+  }
+
+  const elements = scene.elements.map((element) => {
+    const clean = sanitizeObject(element, 'elemento sin forma de elemento')
+    if (typeof clean.id !== 'string' || typeof clean.type !== 'string') {
+      throw new Error('Escena inválida: elementos sin id/type')
+    }
+    return clean
+  })
+
+  const files: Record<string, unknown> = {}
+  if (scene.files != null) {
+    if (!isPlainObject(scene.files)) throw new Error('Escena inválida: files')
+    for (const [key, file] of Object.entries(scene.files)) {
+      if (UNSAFE_KEYS.has(key)) continue
+      const cleanFile = sanitizeObject(file, 'archivo embebido sin forma de archivo')
+      if (typeof cleanFile.id !== 'string') throw new Error('Escena inválida: archivos sin id')
+      if (cleanFile.dataURL !== undefined && typeof cleanFile.dataURL !== 'string') {
+        throw new Error('Escena inválida: dataURL de archivo no es texto')
+      }
+      files[key] = cleanFile
+    }
+  }
+
+  const appState: Record<string, unknown> = {}
+  if (scene.appState != null) {
+    if (!isPlainObject(scene.appState)) throw new Error('Escena inválida: appState')
+    for (const key of ALLOWED_APPSTATE_KEYS) {
+      if (key in scene.appState) appState[key] = scene.appState[key]
+    }
+  }
+
+  const sanitized: WhiteboardScene = { elements, files, appState }
+  const serialized = JSON.stringify(sanitized)
   if (serialized.length > MAX_SCENE_BYTES) {
     throw new Error(
       `La pizarra supera el límite de ${Math.round(MAX_SCENE_BYTES / (1024 * 1024))} MB por escena — divide el contenido o quita imágenes`,
     )
   }
-  return scene
+  return sanitized
 }
 
 function validateThumbnail(thumbnail: string | null | undefined): string | null {
