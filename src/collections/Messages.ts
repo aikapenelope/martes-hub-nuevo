@@ -88,6 +88,15 @@ export const Messages: CollectionConfig = {
       },
     },
     {
+      name: 'idempotencyKey',
+      type: 'text',
+      index: true,
+      label: 'Clave de idempotencia',
+      admin: {
+        description: 'Clave de claim de despacho (única por conversación). Oculta: uso interno.',
+      },
+    },
+    {
       name: 'statusJson',
       type: 'json',
       label: 'Estados Meta',

@@ -32,7 +32,8 @@ export interface ConversationReplyContext {
 export interface ConversationReplyInput {
   conversation: Conversation
   text: string
-  idempotencyKey?: string
+  /** Obligatoria: generada por el llamador POR BORRADOR y reutilizada en reintentos. */
+  idempotencyKey: string
   /** Rutas a revalidar tras el despacho exitoso (además del refresco del llamador). */
   revalidatePaths?: string[]
 }
@@ -73,6 +74,14 @@ export async function dispatchConversationReply(
 
   if (!trimmed) return { ok: false, error: 'El mensaje no puede estar vacío' }
 
+  // El despacho escribe con overrideAccess: validar aquí que la conversación
+  // pertenece al tenant del llamador — un admin no puede cruzar límites
+  // enviando por la conversación de otro workspace (revisión Devin PR #75).
+  const convTenant = typeof conversation.tenant === 'object' && conversation.tenant ? conversation.tenant.id : conversation.tenant
+  if (convTenant !== tenantId) {
+    return { ok: false, error: 'La conversación no pertenece al tenant activo' }
+  }
+
   // Enrutamiento por canal: solo los canales con transporte real. whatsapp_web
   // NO es whatsapp — enviarlo por una cuenta de WhatsApp alcanzaría al contacto
   // por un canal que nunca autorizó (revisión Devin PR #75).
@@ -101,57 +110,66 @@ export async function dispatchConversationReply(
   })
   const tenant = tenants.docs[0] as Tenant | undefined
 
-  const stableKey =
-    input.idempotencyKey ||
-    `msg_${conversation.id}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+  const stableKey = input.idempotencyKey
 
-  // Idempotencia: ¿ya existe un registro con esta clave? Si ya se despachó,
-  // devolver su id SIN reenviar. Si estaba marcado fallido, reintentar.
-  const recentMessages = await payload.find({
+  // Idempotencia por consulta directa a la clave (indexada): sin ventana de
+  // "últimos 30 mensajes" — cualquier reintento, por antiguo que sea, se
+  // resuelve por clave (revisión Devin PR #75).
+  const byKey = await payload.find({
     collection: 'messages',
-    where: {
-      and: [{ tenant: { equals: tenantId } }, { conversation: { equals: conversation.id } }],
-    },
-    limit: 30,
-    sort: '-createdAt',
+    where: { idempotencyKey: { equals: stableKey } },
+    limit: 1,
+    depth: 0,
     overrideAccess: true,
   })
+  const existing = byKey.docs[0] as Message | undefined
 
-  const existing = recentMessages.docs.find((m) => {
-    const s = m.statusJson as Record<string, unknown> | undefined
-    return s?.idempotencyKey === stableKey || m.openbspId === `pending:${stableKey}`
-  }) as Message | undefined
-
-  let pendingRecord = existing
-  const statusJson = pendingRecord?.statusJson as Record<string, unknown> | undefined
-  if (
-    pendingRecord &&
-    (statusJson?.dispatchStatus === 'dispatched' ||
-      (pendingRecord.openbspId && !pendingRecord.openbspId.startsWith('pending:')))
-  ) {
-    try {
-      await payload.update({
-        collection: 'conversations',
-        id: conversation.id,
-        overrideAccess: true,
-        data: { lastMessageAt: new Date().toISOString() },
-      })
-    } catch {
-      // Silencioso: no bloquear si la actualización de timestamp ya está al día
+  if (existing) {
+    const statusJson = existing.statusJson as Record<string, unknown> | undefined
+    if (
+      statusJson?.dispatchStatus === 'dispatched' ||
+      (existing.openbspId && !existing.openbspId.startsWith('pending:'))
+    ) {
+      try {
+        await payload.update({
+          collection: 'conversations',
+          id: conversation.id,
+          overrideAccess: true,
+          data: { lastMessageAt: new Date().toISOString() },
+        })
+      } catch {
+        // Silencioso: no bloquear si la actualización de timestamp ya está al día
+      }
+      return { ok: true, messageId: existing.id }
     }
-    return { ok: true, messageId: pendingRecord.id }
+
+    // 'sending': otra petición posee el claim (en vuelo o post-envío sin
+    // persistir). NO reenviar — reconciliar externamente si procede.
+    // Excepción: claim obsoleto (>2 min) = crash pre-envío → recuperar.
+    if (statusJson?.dispatchStatus === 'sending') {
+      const sentAt = typeof statusJson.sentAt === 'string' ? Date.parse(statusJson.sentAt) : 0
+      const stale = sentAt > 0 && Date.now() - sentAt > 2 * 60_000
+      if (!stale) {
+        return {
+          ok: false,
+          error: 'El mensaje está en proceso de envío; espera un momento antes de reintentar',
+        }
+      }
+    }
+    // 'failed' o claim obsoleto: reciclar el registro — el DELETE + re-CREATE
+    // contra la restricción única (conversation_id, idempotency_key) hace que
+    // solo UNA petición gane el nuevo claim; la perdedora resuelve por el
+    // estado del ganador sin reenviar.
+    await payload
+      .delete({ collection: 'messages', id: existing.id, overrideAccess: true })
+      .catch(() => {})
   }
 
-  if (pendingRecord && statusJson?.dispatchStatus === 'failed') {
-    await payload
-      .update({
-        collection: 'messages',
-        id: pendingRecord.id,
-        overrideAccess: true,
-        data: { statusJson: { idempotencyKey: stableKey, dispatchStatus: 'pending' } },
-      })
-      .catch(() => {})
-  } else if (!pendingRecord) {
+  // Claim atómico: la restricción única (conversation_id, idempotency_key)
+  // garantiza que solo UNA petición crea el registro para esta clave. Si
+  // perdemos la carrera, resolvemos por el estado del ganador.
+  let pendingRecord: Message
+  try {
     pendingRecord = (await payload.create({
       collection: 'messages',
       overrideAccess: true,
@@ -162,13 +180,55 @@ export async function dispatchConversationReply(
         type: 'text',
         text: trimmed,
         content: {},
+        idempotencyKey: stableKey,
         statusJson: { idempotencyKey: stableKey, dispatchStatus: 'pending' },
         sentAt: new Date().toISOString(),
         performedBy: user.id,
         tenant: tenantId,
       },
     })) as Message
+  } catch (claimErr) {
+    const msg = claimErr instanceof Error ? claimErr.message : String(claimErr)
+    if (!/duplicate key|unique/i.test(msg)) throw claimErr
+    const winner = await payload.find({
+      collection: 'messages',
+      where: { idempotencyKey: { equals: stableKey } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const win = winner.docs[0] as Message | undefined
+    if (!win) return { ok: false, error: 'Conflicto de idempotencia; reintenta en un momento' }
+    const winStatus = win.statusJson as Record<string, unknown> | undefined
+    if (
+      winStatus?.dispatchStatus === 'dispatched' ||
+      (win.openbspId && !win.openbspId.startsWith('pending:'))
+    ) {
+      return { ok: true, messageId: win.id }
+    }
+    return {
+      ok: false,
+      error: 'El mensaje está en proceso de envío; espera un momento antes de reintentar',
+    }
   }
+
+  // Claim obtenido: marcar 'sending' ANTES del despacho — un reintento durante
+  // el envío ve 'sending' y no re-dispacha; si la persistencia post-envío
+  // fallara, el registro queda en 'sending' (conciliación, no reenvío).
+  await payload
+    .update({
+      collection: 'messages',
+      id: pendingRecord.id,
+      overrideAccess: true,
+      data: {
+        statusJson: {
+          idempotencyKey: stableKey,
+          dispatchStatus: 'sending',
+          sentAt: new Date().toISOString(),
+        },
+      },
+    })
+    .catch(() => {})
 
   // Despacho externo consciente del canal y de la cuenta por la que llegó
   let reconcilePending = false

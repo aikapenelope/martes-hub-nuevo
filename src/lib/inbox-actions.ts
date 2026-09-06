@@ -53,7 +53,7 @@ export async function getInboxAssigneesAction(): Promise<TeamMember[]> {
 export async function replyConversationAction(
   conversationId: number,
   text: string,
-  idempotencyKey?: string,
+  idempotencyKey: string,
 ): Promise<ActionResult<{ messageId: number; reconcilePending?: boolean }>> {
   try {
     const trimmed = text.trim()

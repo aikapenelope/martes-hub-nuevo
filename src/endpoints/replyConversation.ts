@@ -16,7 +16,7 @@ export async function replyConversationHandler(req: PayloadRequest): Promise<Res
     return Response.json({ error: 'Requiere rol admin o agente' }, { status: 403 })
   }
 
-  let body: { conversationId?: number; text?: string }
+  let body: { conversationId?: number; text?: string; idempotencyKey?: string }
   const readJson = req.json
   if (typeof readJson !== 'function') return Response.json({ error: 'Cuerpo requerido' }, { status: 400 })
   try {
@@ -27,8 +27,12 @@ export async function replyConversationHandler(req: PayloadRequest): Promise<Res
 
   const conversationId = body.conversationId
   const text = body.text?.trim()
-  if (!conversationId || !text) {
-    return Response.json({ error: 'conversationId y text son obligatorios' }, { status: 400 })
+  const idempotencyKey = body.idempotencyKey?.trim()
+  if (!conversationId || !text || !idempotencyKey || idempotencyKey.length > 200) {
+    return Response.json(
+      { error: 'conversationId, text e idempotencyKey son obligatorios' },
+      { status: 400 },
+    )
   }
 
   // findByID respeta el aislamiento por tenant vía access del plugin multiTenant
@@ -50,7 +54,7 @@ export async function replyConversationHandler(req: PayloadRequest): Promise<Res
   // Despacho unificado (canal + ventana 24h + idempotencia + conciliación)
   const result = await dispatchConversationReply(
     { payload: req.payload, user, tenantId },
-    { conversation, text },
+    { conversation, text, idempotencyKey },
   )
 
   if (!result.ok) {

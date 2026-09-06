@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Send } from 'lucide-react'
 import { quickReplyLeadChatAction } from '@/lib/crm-pipeline-actions'
+import { useRef } from 'react'
 import type { ConversationInfo, MessageItem } from './types'
 
 const inputCls =
@@ -55,18 +56,34 @@ export function LeadDrawerWhatsAppTab({ leadId, canEdit }: { leadId: number; can
     setMessages(json.docs)
   }
 
+  // Clave de idempotencia POR BORRADOR: se reutiliza en reintentos del mismo
+  // texto (no duplica entrega) y se regenera tras el éxito o al cambiar el texto.
+  const draftKeyRef = useRef<{ text: string; key: string } | null>(null)
+
+  function newIdempotencyKey(): string {
+    const random =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2)
+    return `msg_${Date.now()}_${random}`
+  }
+
   async function send(): Promise<void> {
     const text = draft.trim()
     if (!text || sending) return
     setSending(true)
     setError(null)
-    const result = await quickReplyLeadChatAction(leadId, text)
+    if (!draftKeyRef.current || draftKeyRef.current.text !== text) {
+      draftKeyRef.current = { text, key: newIdempotencyKey() }
+    }
+    const result = await quickReplyLeadChatAction(leadId, text, draftKeyRef.current.key)
     setSending(false)
     if (!result.ok) {
       setError(result.needsTemplate ? `${result.error} (usa una plantilla aprobada desde /admin)` : result.error)
       return
     }
     setDraft('')
+    draftKeyRef.current = null
     if (conversation) void refreshMessages(conversation.id)
   }
 

@@ -30,6 +30,8 @@ export function NoteQuickCreateDialog({
 }: NoteQuickCreateDialogProps) {
   const router = useRouter()
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+  const [formResetKey, setFormResetKey] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [clientSel, setClientSel] = useState<{ id: number; label: string } | null>(
@@ -60,6 +62,11 @@ export function NoteQuickCreateDialog({
       setError(res.error)
       return
     }
+    // Reset completo del formulario y pickers para no dejar borradores viejos
+    formRef.current?.reset()
+    setClientSel(defaultClientId ? { id: defaultClientId, label: 'Cliente seleccionado' } : null)
+    setLeadSel(defaultLeadId ? { id: defaultLeadId, label: 'Lead seleccionado' } : null)
+    setFormResetKey((k) => k + 1)
     dialogRef.current?.close()
     router.refresh()
   }
@@ -87,7 +94,7 @@ export function NoteQuickCreateDialog({
           </button>
         </header>
 
-        <form action={handleSubmit} className="flex flex-col gap-3 p-4">
+        <form key={formResetKey} ref={formRef} action={handleSubmit} className="flex flex-col gap-3 p-4">
           <label className={labelCls}>
             Título *
             <input name="title" required maxLength={120} className={inputCls} placeholder="Ej: Acuerdos de la reunión" />
@@ -172,6 +179,7 @@ function RelatedPicker({
   const [q, setQ] = useState('')
   const [results, setResults] = useState<Array<{ id: number; label: string }>>([])
   const [open, setOpen] = useState(false)
+  const latestQueryRef = useRef('')
 
   useEffect(() => {
     const t = setTimeout(async () => {
@@ -180,8 +188,11 @@ function RelatedPicker({
         setOpen(false)
         return
       }
-      const res = await searchNoteRelatedAction({ q, type })
-      if (res.ok) {
+      const currentQuery = q.trim()
+      const res = await searchNoteRelatedAction({ q: currentQuery, type })
+      // Guard de carrera: una respuesta tardía de una búsqueda vieja nunca
+      // reemplaza los resultados de la consulta actual (revisión Devin PR #75).
+      if (res.ok && latestQueryRef.current === currentQuery) {
         setResults(res.results)
         setOpen(true)
       }
@@ -204,7 +215,10 @@ function RelatedPicker({
     <div className="relative">
       <input
         value={q}
-        onChange={(e) => setQ(e.target.value)}
+        onChange={(e) => {
+          latestQueryRef.current = e.target.value.trim()
+          setQ(e.target.value)
+        }}
         placeholder={placeholder}
         className={inputCls}
         onFocus={() => results.length > 0 && setOpen(true)}

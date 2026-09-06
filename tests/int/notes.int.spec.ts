@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
-import { buildLexicalFromPlainText, createNoteAction, deleteNoteAction, toggleNotePinAction } from '@/lib/notes-actions'
+import { buildLexicalFromPlainText, createNoteAction, deleteNoteAction, searchNoteRelatedAction, toggleNotePinAction } from '@/lib/notes-actions'
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
@@ -165,5 +165,37 @@ describe('Notes — acciones del workspace', () => {
       expect((res as { error?: string }).error).toContain('administrador')
       expect(deleted).toHaveLength(0)
     })
+  })
+})
+
+describe('searchNoteRelatedAction — permisos y scoping', () => {
+  function mockSearchPayload({ canEdit = true }: { canEdit?: boolean } = {}) {
+    const payload = {
+      find: vi.fn(({ collection }: { collection: string }) =>
+        Promise.resolve({
+          docs:
+            collection === 'clients'
+              ? [{ id: 9, tenant: 1, name: 'Cliente Test', phone: '5841211' }]
+              : [],
+          totalDocs: 1,
+        }),
+      ),
+    } as unknown as Payload
+    const context = makeContext({ payload, canEdit })
+    return context
+  }
+
+  it('devuelve resultados acotados al tenant para editores', async () => {
+    mockedContext.mockResolvedValue(mockSearchPayload() as never)
+    const res = await searchNoteRelatedAction({ q: 'Test', type: 'client' })
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.results[0].label).toContain('Cliente Test')
+  })
+
+  it('rechaza a viewers (no pueden enumerar contactos)', async () => {
+    mockedContext.mockResolvedValue(mockSearchPayload({ canEdit: false }) as never)
+    const res = await searchNoteRelatedAction({ q: 'Test', type: 'client' })
+    expect(res.ok).toBe(false)
+    expect((res as { error?: string }).error).toContain('No tienes permiso')
   })
 })

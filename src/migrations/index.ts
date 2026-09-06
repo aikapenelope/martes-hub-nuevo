@@ -24,6 +24,7 @@ import * as migration_20260903_190000_notifications_occurred_at from './20260903
 import * as migration_20260904_120000_form_submissions_event_id from './20260904_120000_form_submissions_event_id';
 import * as migration_20260904_144000_add_ai_worker_settings from './20260904_144000_add_ai_worker_settings';
 import * as migration_20260906_025046_add_notes_collection from './20260906_025046_add_notes_collection';
+import * as migration_20260906_035000_messages_idempotency_key from './20260906_035000_messages_idempotency_key';
 
 export const migrations = [
   {
@@ -155,5 +156,10 @@ export const migrations = [
     up: migration_20260906_025046_add_notes_collection.up,
     down: migration_20260906_025046_add_notes_collection.down,
     name: '20260906_025046_add_notes_collection'
+  },
+  {
+    up: migration_20260906_035000_messages_idempotency_key.up,
+    down: migration_20260906_035000_messages_idempotency_key.down,
+    name: '20260906_035000_messages_idempotency_key'
   },
 ];

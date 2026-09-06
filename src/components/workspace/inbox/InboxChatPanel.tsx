@@ -107,7 +107,7 @@ export function InboxChatPanel({
   nowTs: number
   onToggleContextPanel: () => void
   onLoadMore: () => void
-  onSendMessage: (text: string, idempotencyKey?: string) => Promise<{ ok: boolean; error?: string; needsTemplate?: boolean }>
+  onSendMessage: (text: string, idempotencyKey: string) => Promise<{ ok: boolean; error?: string; needsTemplate?: boolean }>
   onStatusChange: (status: 'open' | 'pending' | 'resolved') => void
   onBack?: () => void
 }) {
@@ -350,7 +350,11 @@ export function InboxChatPanel({
                                   type="button"
                                   onClick={() => {
                                     // Reintento idempotente: conserva la clave original del mensaje fallido
-                                    const origKey = typeof m.statusJson?.idempotencyKey === 'string' ? m.statusJson.idempotencyKey : undefined
+                                    // Reintento idempotente: conserva la clave original del mensaje fallido;
+                                    // si el registro viejo no tenía clave (pre-migración), una determinista por id.
+                                    const origKey = typeof m.statusJson?.idempotencyKey === 'string' && m.statusJson.idempotencyKey
+                                      ? m.statusJson.idempotencyKey
+                                      : `retry_${m.id}`
                                     void onSendMessage(m.text || '', origKey)
                                   }}
                                   className="ml-1 text-[9px] text-red-300 underline hover:text-white"

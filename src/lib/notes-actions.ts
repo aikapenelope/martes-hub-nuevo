@@ -62,6 +62,9 @@ export async function searchNoteRelatedAction(params: {
 }): Promise<{ ok: true; results: Array<{ id: number; label: string }> } | { ok: false; error: string }> {
   try {
     const context = await getWorkspaceContext()
+    // Solo editores: un viewer no debe poder enumerar nombres y teléfonos
+    // de la cartera (revisión Devin PR #75).
+    if (!context.canEdit) throw new DomainError('No tienes permiso para buscar contactos')
     const q = params.q.trim()
     const collection = params.type === 'lead' ? 'leads' : 'clients'
     const conditions: Where[] = [{ tenant: { equals: context.tenantId } }]

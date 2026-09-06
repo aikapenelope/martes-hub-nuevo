@@ -26,7 +26,7 @@ conexión backend de la facturación, (3) aclarar el rol de Tally. Decisión del
 - **Credenciales (para el dueño):** con la API key de OpenBSP basta una llamada para
   obtener Org ID y los phone_number_ids:
   `GET /rest/v1/organizations_addresses?select=organization_id,service,address,status,extra`
-  contra `https://nheelwshzbgenpavwhcy.supabase.co` (constante pública, ya default en
+  contra `https://<HOSTED_SUPABASE_HOST>` (constante pública, ya default en
   `src/integrations/openbsp/client.ts:7`). Ver `docs/plan-openbsp.md` e INTEGRATING.md.
 - **Vercel:** las 35 variables del `.env.example` ya existen en el proyecto
   `martes-hub-nuevo` (verificado con `vercel env ls`). Falta solo actualizar valores
@@ -80,7 +80,7 @@ automático, (c) actualizar el plugin. Verificar contra S3/R2 real antes de deci
 
 **OpenBSP en Vercel** (Production/Preview/Development, vía CLI + API REST):
 `OPENBSP_API_KEY`, `OPENBSP_PUBLISHABLE_KEY`, `OPENBSP_ORG_ID`
-(= `35b1aeae-f9f2-45f7-b9f6-33fbcf5c5fa1`, obtenido vía
+(= `<OPENBSP_ORG_ID>`, obtenido vía
 `GET /rest/v1/organizations_addresses`) y `OPENBSP_WEBHOOK_TOKEN` (regenerado — el
 anterior estaba vacío y el endpoint habría respondido 503). El webhook de `messages`
 (insert/update) lo registró el dueño desde el dashboard (el INSERT por REST choca con

@@ -915,6 +915,10 @@ export interface Message {
     | boolean
     | null;
   /**
+   * Clave de claim de despacho (única por conversación). Oculta: uso interno.
+   */
+  idempotencyKey?: string | null;
+  /**
    * {accepted, sent, delivered, read, failed, errors[]}
    */
   statusJson?:
@@ -2215,6 +2219,7 @@ export interface MessagesSelect<T extends boolean = true> {
   type?: T;
   text?: T;
   content?: T;
+  idempotencyKey?: T;
   statusJson?: T;
   senderAddress?: T;
   performedBy?: T;

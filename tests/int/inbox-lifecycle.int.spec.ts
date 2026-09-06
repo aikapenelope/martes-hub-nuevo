@@ -44,6 +44,10 @@ vi.mock('@/integrations/openbsp/client', () => ({
   }),
 }))
 
+// Claves de idempotencia ÚNICAS por corrida: la BD de pruebas es persistente y el
+// lookup por clave es global (revisión Devin PR #75).
+const IK_PREFIX = `ik-${Date.now()}`
+
 describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }, () => {
   let payload: Payload
   let user: User
@@ -117,7 +121,7 @@ describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }
 
       const result = await replyConversationAction(
         conversation.id,
-        '¡Hola! Te confirmamos que hemos recibido tu solicitud.',
+        '¡Hola! Te confirmamos que hemos recibido tu solicitud.',        `${IK_PREFIX}-ml-1`,
       )
 
       expect(result.ok).toBe(true)
@@ -161,7 +165,7 @@ describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }
 
       const result = await replyConversationAction(
         conversation.id,
-        'Mensaje que debe fallar por ventana expirada',
+        'Mensaje que debe fallar por ventana expirada',        `${IK_PREFIX}-ml-2`,
       )
 
       expect(result.ok).toBe(false)
@@ -184,7 +188,7 @@ describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }
         },
       })) as Conversation
 
-      const result = await replyConversationAction(convOtherTenant.id, 'Hola')
+      const result = await replyConversationAction(convOtherTenant.id, 'Hola', `${IK_PREFIX}-other`)
       expect(result.ok).toBe(false)
       if (!result.ok) {
         expect(result.error).toContain('tenant activo')
@@ -205,7 +209,7 @@ describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }
         },
       })) as Conversation
 
-      const result = await replyConversationAction(conversation.id, 'Hola desde Instagram DM')
+      const result = await replyConversationAction(conversation.id, 'Hola desde Instagram DM', `${IK_PREFIX}-1`)
       expect(result.ok).toBe(true)
       expect(sendText).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -229,7 +233,7 @@ describe('Inbox Omnicanal Unificado 360° (Inbox Lifecycle)', { timeout: 35000 }
         },
       })) as Conversation
 
-      const result = await replyConversationAction(conversation.id, 'Mensaje no soportado')
+      const result = await replyConversationAction(conversation.id, 'Mensaje no soportado', `${IK_PREFIX}-2`)
       expect(result.ok).toBe(false)
       if (!result.ok) {
         expect(result.error).toContain('no admite respuestas salientes')

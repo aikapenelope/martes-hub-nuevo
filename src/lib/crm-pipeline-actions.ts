@@ -89,6 +89,7 @@ export async function changeLeadStageAction(leadId: number, newStatus: LeadStatu
 export async function quickReplyLeadChatAction(
   leadId: number,
   text: string,
+  idempotencyKey: string,
 ): Promise<ActionResult<{ messageId: number }>> {
   try {
     const trimmed = text.trim()
@@ -115,7 +116,7 @@ export async function quickReplyLeadChatAction(
     // idempotencia de despacho — misma ruta que el inbox y el endpoint REST.
     const result = await dispatchConversationReply(
       { payload: context.payload, user: context.user, tenantId: context.tenantId },
-      { conversation, text: trimmed, revalidatePaths: ['/workspace/crm', '/workspace/inbox'] },
+      { conversation, text: trimmed, idempotencyKey, revalidatePaths: ['/workspace/crm', '/workspace/inbox'] },
     )
     if (!result.ok) {
       return {
