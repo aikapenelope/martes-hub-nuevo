@@ -4,6 +4,8 @@
  * Docs: docs/plan-openbsp.md
  */
 
+import crypto from 'crypto'
+
 const DEFAULT_SUPABASE_URL = 'https://nheelwshzbgenpavwhcy.supabase.co'
 
 export interface OpenBSPConfig {
@@ -22,6 +24,21 @@ export interface OpenBSPMessageRow {
 }
 
 export type MediaKind = 'image' | 'video' | 'audio' | 'document' | 'sticker'
+
+/**
+ * Genera un UUID determinista conforme a RFC 4122 (v4 variant) derivado del hash
+ * SHA-256 de una semilla. Permite correlación unívoca e idempotente en OpenBSP.
+ */
+export function toDeterministicUuid(seed: string): string {
+  const hash = crypto.createHash('sha256').update(seed).digest('hex')
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    '4' + hash.slice(13, 16),
+    ((parseInt(hash.slice(16, 18), 16) & 0x3f) | 0x80).toString(16) + hash.slice(18, 20),
+    hash.slice(20, 32),
+  ].join('-')
+}
 
 export function isConfigured(): boolean {
   return Boolean(
@@ -58,6 +75,32 @@ function headers(cfg: OpenBSPConfig): HeadersInit {
   }
 }
 
+/**
+ * Consulta un mensaje en OpenBSP por su ID (UUID) para reconciliar
+ * estados ambiguos de red o claims en vuelo sin re-despachar a ciegas.
+ */
+export async function findMessageById(
+  id: string,
+  tenant?: { openbspOrganizationId?: string | null; openbspPhoneNumberId?: string | null } | null,
+): Promise<OpenBSPMessageRow | null> {
+  const cfg = config(tenant)
+  const res = await fetch(
+    `${cfg.baseUrl}/rest/v1/messages?id=eq.${encodeURIComponent(id)}&select=id,external_id,status`,
+    {
+      headers: {
+        apikey: cfg.publishableKey,
+        'api-key': cfg.apiKey,
+        Accept: 'application/json',
+      },
+    },
+  )
+  if (!res.ok) {
+    throw new Error(`OpenBSP ${res.status} al consultar mensaje ${id}`)
+  }
+  const rows = (await res.json()) as OpenBSPMessageRow[]
+  return rows[0] ?? null
+}
+
 async function insertMessageRow(cfg: OpenBSPConfig, row: Record<string, unknown>): Promise<OpenBSPMessageRow> {
   const res = await fetch(`${cfg.baseUrl}/rest/v1/messages`, {
     method: 'POST',
@@ -66,7 +109,19 @@ async function insertMessageRow(cfg: OpenBSPConfig, row: Record<string, unknown>
   })
   if (!res.ok) {
     const body = await res.text()
-    throw new Error(`OpenBSP ${res.status}: ${body.slice(0, 300)}`)
+    // Si OpenBSP ya aceptó la fila previamente (conflicto 409 con el UUID del cliente),
+    // recuperamos el registro existente en lugar de fallar, asegurando idempotencia provider-side.
+    if (res.status === 409 && typeof row.id === 'string') {
+      try {
+        const existing = await findMessageById(row.id, { openbspOrganizationId: cfg.organizationId })
+        if (existing) return existing
+      } catch {
+        // Fallback a propagar error si la lectura falla
+      }
+    }
+    const err = new Error(`OpenBSP ${res.status}: ${body.slice(0, 300)}`) as Error & { status?: number }
+    err.status = res.status
+    throw err
   }
   return (await res.json()) as OpenBSPMessageRow
 }
@@ -80,6 +135,10 @@ interface SendBase {
   // Remitente explícito (organization_address) de la cuenta por la que llegó el mensaje
   // entrante. Requerido para instagram_dm; para whatsapp se usa el phone_number_id.
   senderAddress?: string
+  /** Identificador determinista opcional para idempotencia nativa en el proveedor */
+  clientMessageId?: string
+  /** Clave local de idempotencia para derivar el clientMessageId si no se provee */
+  idempotencyKey?: string
 }
 
 export async function sendText(
@@ -105,13 +164,24 @@ export async function sendText(
     )
   }
 
-  return insertMessageRow(cfg, {
+  const clientMessageId =
+    args.clientMessageId ||
+    (args.idempotencyKey
+      ? toDeterministicUuid(`openbsp:${cfg.organizationId}:${args.to}:${args.idempotencyKey}`)
+      : undefined)
+
+  const row: Record<string, unknown> = {
     organization_id: cfg.organizationId,
     organization_address: senderAddress || args.tenant?.openbspPhoneNumberId || cfg.phoneNumberId,
     conversation_address: args.to,
     service,
     content: { version: '1', type: 'text', kind: 'text', text: args.text },
-  })
+  }
+  if (clientMessageId) {
+    row.id = clientMessageId
+  }
+
+  return insertMessageRow(cfg, row)
 }
 
 export async function sendMedia(

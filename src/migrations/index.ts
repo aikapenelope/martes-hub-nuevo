@@ -22,6 +22,9 @@ import * as migration_20260901_140000_appointments_gcal_mirror from './20260901_
 import * as migration_20260902_180000_fix_locked_documents_rels from './20260902_180000_fix_locked_documents_rels';
 import * as migration_20260903_190000_notifications_occurred_at from './20260903_190000_notifications_occurred_at';
 import * as migration_20260904_120000_form_submissions_event_id from './20260904_120000_form_submissions_event_id';
+import * as migration_20260904_144000_add_ai_worker_settings from './20260904_144000_add_ai_worker_settings';
+import * as migration_20260906_025046_add_notes_collection from './20260906_025046_add_notes_collection';
+import * as migration_20260906_035000_messages_idempotency_key from './20260906_035000_messages_idempotency_key';
 
 export const migrations = [
   {
@@ -112,7 +115,7 @@ export const migrations = [
   {
     up: migration_20260901_030726_add_chatwoot_conversation_model.up,
     down: migration_20260901_030726_add_chatwoot_conversation_model.down,
-    name: '20260901_030726_add_chatwoot_conversation_model'
+    name: '20260901_030726_add_chatwoot_conversation_model',
   },
   {
     up: migration_20260901_120000_companies_and_email_log_links.up,
@@ -143,5 +146,20 @@ export const migrations = [
     up: migration_20260904_120000_form_submissions_event_id.up,
     down: migration_20260904_120000_form_submissions_event_id.down,
     name: '20260904_120000_form_submissions_event_id',
+  },
+  {
+    up: migration_20260904_144000_add_ai_worker_settings.up,
+    down: migration_20260904_144000_add_ai_worker_settings.down,
+    name: '20260904_144000_add_ai_worker_settings',
+  },
+  {
+    up: migration_20260906_025046_add_notes_collection.up,
+    down: migration_20260906_025046_add_notes_collection.down,
+    name: '20260906_025046_add_notes_collection'
+  },
+  {
+    up: migration_20260906_035000_messages_idempotency_key.up,
+    down: migration_20260906_035000_messages_idempotency_key.down,
+    name: '20260906_035000_messages_idempotency_key'
   },
 ];

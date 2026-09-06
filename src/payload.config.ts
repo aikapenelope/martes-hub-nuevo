@@ -36,6 +36,7 @@ import { EmailLog } from './collections/EmailLog'
 import { EmailMessages } from './collections/EmailMessages'
 import { EmailCampaigns } from './collections/EmailCampaigns'
 import { Offers } from './collections/Offers'
+import { Notes } from './collections/Notes'
 import { FormSubmissions } from './collections/FormSubmissions'
 import { Tasks } from './collections/Tasks'
 import { ConversationSummaries } from './collections/ConversationSummaries'
@@ -101,6 +102,7 @@ export default buildConfig({
     EmailMessages,
     EmailCampaigns,
     Offers,
+    Notes,
     FormSubmissions,
     Tasks,
     ConversationSummaries,
@@ -184,6 +186,7 @@ export default buildConfig({
         'email-messages': {},
         'email-campaigns': {},
         offers: {},
+        notes: {},
         invoices: {},
         quotes: {},
         'form-submissions': {},

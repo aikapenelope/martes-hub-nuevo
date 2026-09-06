@@ -199,7 +199,7 @@ export function InboxWorkspace({
 
   const handleSendMessage = async (
     text: string,
-    idempotencyKey?: string,
+    idempotencyKey: string,
   ): Promise<{ ok: boolean; error?: string; needsTemplate?: boolean }> => {
     if (!selectedId || sending) {
       return { ok: false, error: 'No hay conversación activa' }

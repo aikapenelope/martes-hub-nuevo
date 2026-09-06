@@ -10,11 +10,10 @@ import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { getAssignableUsers } from '@/lib/tasks-data'
 import { buildLeadUpdateData, type LeadFieldsInput } from '@/lib/lead-update-data'
-import { sendText } from '@/integrations/openbsp/client'
+import { dispatchConversationReply } from '@/lib/message-dispatch'
 import { renderEmailHtml } from '@/email/layout'
 import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
 
-const WINDOW_MS = 24 * 60 * 60 * 1000
 
 const STATUS_LABEL: Record<LeadStatus, string> = {
   nuevo: 'Nuevo',
@@ -90,6 +89,7 @@ export async function changeLeadStageAction(leadId: number, newStatus: LeadStatu
 export async function quickReplyLeadChatAction(
   leadId: number,
   text: string,
+  idempotencyKey: string,
 ): Promise<ActionResult<{ messageId: number }>> {
   try {
     const trimmed = text.trim()
@@ -112,53 +112,20 @@ export async function quickReplyLeadChatAction(
     const conversation = conversations.docs[0]
     if (!conversation) throw new Error('Este lead todavía no tiene una conversación activa')
 
-    if (!conversation.lastInboundAt || Date.now() - new Date(conversation.lastInboundAt).getTime() > WINDOW_MS) {
+    // Despacho unificado: canal (rechazo whatsapp_web/web), ventana 24h e
+    // idempotencia de despacho — misma ruta que el inbox y el endpoint REST.
+    const result = await dispatchConversationReply(
+      { payload: context.payload, user: context.user, tenantId: context.tenantId },
+      { conversation, text: trimmed, idempotencyKey, revalidatePaths: ['/workspace/crm', '/workspace/inbox'] },
+    )
+    if (!result.ok) {
       return {
         ok: false,
-        error: 'Fuera de la ventana de 24h: envía una plantilla aprobada en lugar de texto libre',
-        needsTemplate: true,
+        error: result.error,
+        ...('needsTemplate' in result && result.needsTemplate ? { needsTemplate: true } : {}),
       }
     }
-
-    const tenants = await context.payload.find({
-      collection: 'tenants',
-      where: { id: { equals: context.tenantId } },
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    })
-    const tenant = tenants.docs[0] as Tenant | undefined
-
-    const row = await sendText({ to: conversation.contactAddress, text: trimmed, tenant })
-
-    const created = await context.payload.create({
-      collection: 'messages',
-      overrideAccess: true,
-      data: {
-        conversation: conversation.id,
-        direction: 'outbound',
-        openbspId: row.id,
-        externalId: row.external_id ?? undefined,
-        type: 'text',
-        text: trimmed,
-        content: {},
-        statusJson: row.status ?? {},
-        sentAt: new Date().toISOString(),
-        performedBy: context.user.id,
-        tenant: context.tenantId,
-      },
-    })
-
-    await context.payload.update({
-      collection: 'conversations',
-      id: conversation.id,
-      overrideAccess: true,
-      data: { lastMessageAt: new Date().toISOString() },
-    })
-
-    revalidatePath('/workspace/crm')
-    revalidatePath('/workspace/inbox')
-    return { ok: true, messageId: created.id }
+    return { ok: true, messageId: result.messageId }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error enviando mensaje'
     const notConfigured = message.startsWith('OpenBSP no configurado')

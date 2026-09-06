@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Search,
   Share2,
+  StickyNote,
   Users,
   Wallet,
 } from 'lucide-react'
@@ -36,6 +37,7 @@ const QUICK_NAV = [
   { label: 'Tareas', href: '/workspace/tasks', icon: FileText },
   { label: 'Hoy', href: '/workspace/hoy', icon: Calendar },
   { label: 'Inbox', href: '/workspace/inbox', icon: Inbox },
+  { label: 'Notas', href: '/workspace/notes', icon: StickyNote },
   { label: 'Social', href: '/workspace/social', icon: Share2 },
   { label: 'Facturación', href: '/workspace/billing', icon: Wallet },
   { label: 'Membresías', href: '/workspace/memberships', icon: RefreshCw },
