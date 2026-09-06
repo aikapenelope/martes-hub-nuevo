@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle,
   ArrowLeft,
@@ -91,6 +91,8 @@ export function InboxChatPanel({
   canEdit,
   isContextPanelOpen,
   nowTs,
+  draft,
+  onDraftChange,
   onToggleContextPanel,
   onLoadMore,
   onSendMessage,
@@ -105,13 +107,23 @@ export function InboxChatPanel({
   canEdit: boolean
   isContextPanelOpen: boolean
   nowTs: number
+  draft?: string
+  onDraftChange?: (val: string) => void
   onToggleContextPanel: () => void
   onLoadMore: () => void
   onSendMessage: (text: string, idempotencyKey: string) => Promise<{ ok: boolean; error?: string; needsTemplate?: boolean }>
   onStatusChange: (status: 'open' | 'pending' | 'resolved') => void
   onBack?: () => void
 }) {
-  const [draft, setDraft] = useState('')
+  const [localDraft, setLocalDraft] = useState('')
+  const currentDraft = draft !== undefined ? draft : localDraft
+
+  const updateDraft = (val: string) => {
+    if (onDraftChange) onDraftChange(val)
+    else setLocalDraft(val)
+  }
+
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'ventas' | 'cobranza' | 'soporte' | 'info'>('all')
   const [error, setError] = useState<string | null>(null)
   const [needsTemplate, setNeedsTemplate] = useState<boolean>(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -130,10 +142,6 @@ export function InboxChatPanel({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-
-  // Clave de idempotencia del mensaje compuesto: se genera en el cliente y se
-  // conserva hasta que el envío tenga éxito, de modo que cualquier reintento del
-  // mismo borrador reutilice la misma clave y no duplique la entrega.
   const draftKeyRef = useRef<string | null>(null)
 
   function newIdempotencyKey(): string {
@@ -145,7 +153,7 @@ export function InboxChatPanel({
   }
 
   async function handleSend(): Promise<void> {
-    const trimmed = draft.trim()
+    const trimmed = currentDraft.trim()
     if (!trimmed || sending) return
     setError(null)
     setNeedsTemplate(false)
@@ -155,22 +163,38 @@ export function InboxChatPanel({
     if (res.ok) {
       setError(null)
       setNeedsTemplate(false)
-      setDraft('')
+      updateDraft('')
       draftKeyRef.current = null
       textareaRef.current?.focus()
     } else {
-      // Conserva draftKeyRef para que un reintento del mismo mensaje use la misma clave
       setError(res.error || 'Error enviando mensaje')
       setNeedsTemplate(Boolean(res.needsTemplate))
     }
   }
 
   function insertSnippet(snippet: QuickSnippet) {
-    setDraft((prev) => (prev ? `${prev}\n${snippet.text}` : snippet.text))
-    // El texto cambió: el próximo envío es un mensaje nuevo
+    updateDraft(currentDraft ? `${currentDraft}\n${snippet.text}` : snippet.text)
     draftKeyRef.current = null
     textareaRef.current?.focus()
   }
+
+  const visibleSnippets = useMemo(() => {
+    if (selectedCategory === 'all') return DEFAULT_QUICK_SNIPPETS
+    return DEFAULT_QUICK_SNIPPETS.filter((s) => s.category === selectedCategory)
+  }, [selectedCategory])
+
+  // Autocompletado rápido cuando el asesor escribe "/" en el chat
+  const slashQuery = useMemo(() => {
+    if (!currentDraft.startsWith('/')) return null
+    return currentDraft.slice(1).toLowerCase().trim()
+  }, [currentDraft])
+
+  const matchingSlashSnippets = useMemo(() => {
+    if (slashQuery === null) return []
+    return DEFAULT_QUICK_SNIPPETS.filter(
+      (s) => s.shortcut.toLowerCase().includes(slashQuery) || s.label.toLowerCase().includes(slashQuery),
+    )
+  }, [slashQuery])
 
   const messageGroups = groupMessagesByDate(messages)
 
@@ -387,20 +411,73 @@ export function InboxChatPanel({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Barra de Respuestas Rápidas (Snippets Locales) */}
+      {/* Barra de Respuestas Rápidas (Snippets Locales) & Composer */}
       {canEdit && (
-        <div className="flex flex-col border-t border-zinc-800 bg-zinc-950 p-3 gap-2">
-          {/* Fila de Chips de Snippets Rápidos */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-            <span className="inline-flex items-center gap-1 text-[10px] font-mono text-zinc-500 uppercase tracking-wider shrink-0 mr-1">
-              <Zap size={11} className="text-amber-400" /> Atajos:
+        <div className="flex flex-col border-t border-zinc-850 bg-zinc-950 p-3 gap-2 relative">
+          {/* Autocompletado emergente al escribir "/" */}
+          {matchingSlashSnippets.length > 0 && (
+            <div className="absolute bottom-full left-3 right-3 mb-1 bg-zinc-900 border border-zinc-700 shadow-2xl p-1 max-h-48 overflow-y-auto font-mono text-xs z-20">
+              <div className="px-2 py-1 text-[10px] text-zinc-400 uppercase font-bold border-b border-zinc-800 flex items-center justify-between">
+                <span>Atajos rápidos coincidentes con &quot;{slashQuery}&quot;</span>
+                <span className="text-zinc-500 text-[9px]">Click para autocompletar</span>
+              </div>
+              <div className="divide-y divide-zinc-850">
+                {matchingSlashSnippets.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      updateDraft(s.text)
+                      draftKeyRef.current = null
+                      textareaRef.current?.focus()
+                    }}
+                    className="w-full text-left p-2 hover:bg-zinc-800 transition flex items-start gap-2 text-xs"
+                  >
+                    <span className="font-bold text-emerald-400 shrink-0">{s.shortcut}</span>
+                    <div className="min-w-0 flex-1">
+                      <strong className="text-white block text-[11px]">{s.label}</strong>
+                      <p className="text-zinc-400 text-[10px] truncate">{s.text}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Categorías de Snippets */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1 font-mono text-[10px]">
+              <span className="inline-flex items-center gap-1 text-zinc-500 uppercase tracking-wider shrink-0 mr-1">
+                <Zap size={11} className="text-amber-400" /> Atajos:
+              </span>
+              {(['all', 'ventas', 'cobranza', 'soporte', 'info'] as const).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-1.5 py-0.2 uppercase border transition ${
+                    selectedCategory === cat
+                      ? 'bg-zinc-800 text-white font-bold border-zinc-600'
+                      : 'border-zinc-850 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {cat === 'all' ? 'Todos' : cat}
+                </button>
+              ))}
+            </div>
+            <span className="text-[9px] font-mono text-zinc-500 hidden sm:inline">
+              Tip: Escribe <code className="text-emerald-400">/</code> para autocompletar
             </span>
-            {DEFAULT_QUICK_SNIPPETS.map((snippet) => (
+          </div>
+
+          {/* Fila de Chips de Snippets Rápidos Filtrados */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+            {visibleSnippets.map((snippet) => (
               <button
                 key={snippet.id}
                 type="button"
                 onClick={() => insertSnippet(snippet)}
-                className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900/80 px-2 py-0.5 text-[10px] font-mono text-zinc-300 hover:border-zinc-600 hover:text-white hover:bg-zinc-850 transition shrink-0"
+                className="inline-flex items-center gap-1 border border-zinc-800 bg-zinc-900/80 px-2 py-0.5 text-[10px] font-mono text-zinc-300 hover:border-zinc-600 hover:text-white hover:bg-zinc-850 transition shrink-0"
                 title={`${snippet.label}: "${snippet.text}"`}
               >
                 <span className="font-bold text-emerald-400">{snippet.shortcut}</span>
@@ -411,13 +488,13 @@ export function InboxChatPanel({
 
           {/* Banner si la ventana 24h expiró o la acción requirió plantilla */}
           {(!isWindowActive || needsTemplate) && (
-            <div className="border border-amber-800/80 bg-amber-950/40 px-3 py-1.5 text-[11px] font-mono text-amber-300 rounded">
+            <div className="border border-amber-800/80 bg-amber-950/40 px-3 py-1.5 text-[11px] font-mono text-amber-300">
               ⚠️ La ventana de 24 horas de Meta ha vencido. Solo se pueden enviar plantillas pre-aprobadas si se trata de WhatsApp oficial.
             </div>
           )}
 
           {error && !needsTemplate && (
-            <div className="border border-red-800 bg-red-900/30 px-3 py-1.5 text-xs text-red-300 font-mono rounded">
+            <div className="border border-red-800 bg-red-900/30 px-3 py-1.5 text-xs text-red-300 font-mono">
               {error}
             </div>
           )}
@@ -426,15 +503,14 @@ export function InboxChatPanel({
           <div className="flex gap-2 items-end">
             <textarea
               ref={textareaRef}
-              value={draft}
+              value={currentDraft}
               onChange={(e) => {
-                setDraft(e.target.value)
-                // El texto cambió: el próximo envío es un mensaje nuevo con clave propia
+                updateDraft(e.target.value)
                 draftKeyRef.current = null
               }}
-              placeholder="Escribe tu mensaje... (Enter para enviar, Shift+Enter para salto de línea)"
+              placeholder="Escribe tu mensaje... (Enter para enviar, Shift+Enter para salto de línea, / para atajos)"
               rows={2}
-              className="flex-1 border border-zinc-800 bg-black px-3 py-2 text-xs text-white placeholder:text-zinc-500 focus:border-zinc-600 focus:outline-none font-sans rounded resize-none"
+              className="flex-1 border border-zinc-800 bg-black px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none font-sans resize-none"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
@@ -444,16 +520,16 @@ export function InboxChatPanel({
             />
             <button
               type="button"
-              disabled={sending || !draft.trim()}
+              disabled={sending || !currentDraft.trim()}
               onClick={() => void handleSend()}
-              className="inline-flex items-center gap-1.5 rounded border border-white bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider font-mono text-black transition hover:bg-zinc-200 disabled:opacity-50 shrink-0 h-[42px]"
+              className="inline-flex items-center gap-1.5 border border-white bg-white hover:bg-zinc-200 px-4 py-2 text-xs font-bold uppercase tracking-wider font-mono text-black transition disabled:opacity-50 shrink-0 h-[42px] shadow-sm shadow-zinc-950"
             >
               {sending ? (
                 <Loader2 size={13} className="animate-spin text-black" />
               ) : (
                 <Send size={13} />
               )}
-              Enviar
+              <span>Enviar</span>
             </button>
           </div>
         </div>

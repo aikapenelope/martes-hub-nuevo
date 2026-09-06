@@ -3,16 +3,14 @@
 import { revalidatePath } from 'next/cache'
 import { generateObject } from 'ai'
 import { z } from 'zod'
-
-import type { Conversation, Message, Tenant } from '@/payload-types'
+import type { Payload, Where } from 'payload'
+import type { Conversation, Message, User } from '@/payload-types'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { getTenantAiModel } from '@/lib/ai-provider'
 import { dispatchConversationReply } from '@/lib/message-dispatch'
 import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
 import { getAssignableUsers } from '@/lib/tasks-data'
 import type { TeamMember } from '@/components/workspace/inbox/InboxCrmContextPanel'
-
-const WINDOW_MS = 24 * 60 * 60 * 1000
 
 type ActionResult<T extends object = object> =
   | ({ ok: true } & T)
@@ -357,3 +355,402 @@ export async function summarizeConversationWithAiAction(
     return { ok: false, error: err instanceof Error ? err.message : 'Error generando resumen de IA' }
   }
 }
+
+export interface ContactItem {
+  id: number
+  kind: 'client' | 'lead'
+  name: string
+  company?: string | null
+  phone?: string | null
+  email?: string | null
+}
+
+export interface ClientBillingSummary {
+  pendingPaymentsCount: number
+  pendingTotalUsd: number
+  invoicesCount: number
+}
+
+/**
+ * Valida que los IDs de cliente/lead indicados pertenezcan estrictamente al tenant activo.
+ * Previene que editores asocien registros ajenos filtrando datos privados (revisión Devin PR #80).
+ */
+async function assertCrmRelationInTenant(
+  payload: Payload,
+  user: User,
+  tenantId: number,
+  params: { clientId?: number | null; leadId?: number | null },
+): Promise<void> {
+  if (params.clientId) {
+    if (!Number.isInteger(params.clientId) || params.clientId <= 0) {
+      throw new Error('Identificador de cliente inválido')
+    }
+    const clientDoc = await payload.findByID({
+      collection: 'clients',
+      id: params.clientId,
+      depth: 0,
+      overrideAccess: false,
+      user,
+    })
+    if (!clientDoc || relId(clientDoc.tenant) !== tenantId) {
+      throw new Error('El cliente indicado no pertenece a este workspace')
+    }
+  }
+  if (params.leadId) {
+    if (!Number.isInteger(params.leadId) || params.leadId <= 0) {
+      throw new Error('Identificador de prospecto inválido')
+    }
+    const leadDoc = await payload.findByID({
+      collection: 'leads',
+      id: params.leadId,
+      depth: 0,
+      overrideAccess: false,
+      user,
+    })
+    if (!leadDoc || relId(leadDoc.tenant) !== tenantId) {
+      throw new Error('El prospecto indicado no pertenece a este workspace')
+    }
+  }
+}
+
+/**
+ * Búsqueda paginada en servidor de clientes y prospectos del CRM acotada al tenant activo.
+ * Implementa ordenamiento determinista y metadatos de paginación para soportar carga infinita sin truncar (revisión Devin PR #80).
+ */
+export async function searchInboxCrmContactsAction(params: {
+  q: string
+  kind?: 'all' | 'client' | 'lead'
+  page?: number
+  limit?: number
+}): Promise<ActionResult<{ results: ContactItem[]; hasMore: boolean; total: number }>> {
+  try {
+    const context = await getWorkspaceContext()
+    if (!context.canEdit) throw new Error('No tienes permiso para buscar contactos')
+
+    const q = params.q.trim()
+    const kind = params.kind || 'all'
+    const page = Math.max(1, params.page || 1)
+    const limit = Math.min(50, Math.max(5, params.limit || 20))
+
+    const clientConditions: Where[] = [{ tenant: { equals: context.tenantId } }]
+    const leadConditions: Where[] = [{ tenant: { equals: context.tenantId } }]
+
+    if (q) {
+      clientConditions.push({
+        or: [
+          { name: { like: q } },
+          { companyName: { like: q } },
+          { phone: { like: q } },
+          { email: { like: q } },
+        ],
+      })
+      leadConditions.push({
+        or: [
+          { fullName: { like: q } },
+          { companyName: { like: q } },
+          { phone: { like: q } },
+          { email: { like: q } },
+        ],
+      })
+    }
+
+    const [clientsRes, leadsRes] = await Promise.all([
+      kind !== 'lead'
+        ? context.payload.find({
+            collection: 'clients',
+            where: { and: clientConditions },
+            limit,
+            page,
+            sort: 'name',
+            depth: 0,
+            overrideAccess: false,
+            user: context.user,
+            select: {
+              name: true,
+              companyName: true,
+              phone: true,
+              email: true,
+            },
+          })
+        : Promise.resolve({ docs: [], hasNextPage: false, totalDocs: 0 }),
+      kind !== 'client'
+        ? context.payload.find({
+            collection: 'leads',
+            where: { and: leadConditions },
+            limit,
+            page,
+            sort: 'fullName',
+            depth: 0,
+            overrideAccess: false,
+            user: context.user,
+            select: {
+              fullName: true,
+              companyName: true,
+              phone: true,
+              email: true,
+            },
+          })
+        : Promise.resolve({ docs: [], hasNextPage: false, totalDocs: 0 }),
+    ])
+
+    const results: ContactItem[] = [
+      ...clientsRes.docs.map((c) => ({
+        id: c.id,
+        kind: 'client' as const,
+        name: c.name,
+        company: c.companyName ?? null,
+        phone: c.phone ?? null,
+        email: c.email ?? null,
+      })),
+      ...leadsRes.docs.map((l) => ({
+        id: l.id,
+        kind: 'lead' as const,
+        name: l.fullName,
+        company: l.companyName ?? null,
+        phone: l.phone ?? null,
+        email: l.email ?? null,
+      })),
+    ]
+
+    const hasMore = Boolean(clientsRes.hasNextPage || leadsRes.hasNextPage)
+    const total = (clientsRes.totalDocs || 0) + (leadsRes.totalDocs || 0)
+
+    return { ok: true, results, hasMore, total }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al buscar contactos' }
+  }
+}
+
+/**
+ * Crea o localiza una conversación en el tenant activo.
+ * Respeta el canal exacto para no colapsar hilos de diferentes canales (revisión Devin PR #80)
+ * y valida pertenencia multi-tenant de clientes y leads asociados.
+ */
+export async function createConversationAction(params: {
+  contactAddress: string
+  channel?: 'whatsapp' | 'instagram_dm' | 'whatsapp_web'
+  clientId?: number | null
+  leadId?: number | null
+  priority?: 'baja' | 'media' | 'alta'
+  initialMessage?: string
+}): Promise<ActionResult<{ conversationId: number; isNew: boolean }>> {
+  try {
+    const context = await getWorkspaceContext()
+    if (!context.canEdit) throw new Error('No tienes permiso para crear conversaciones')
+
+    const cleanAddress = params.contactAddress.trim().replace(/^\+/, '')
+    if (!cleanAddress) throw new Error('El número o identificador del contacto es obligatorio')
+
+    const channel = params.channel || 'whatsapp'
+
+    // Validar aislamiento multi-tenant de las relaciones CRM provistas
+    await assertCrmRelationInTenant(context.payload, context.user, context.tenantId, {
+      clientId: params.clientId,
+      leadId: params.leadId,
+    })
+
+    // Buscar si ya existe una conversación con esta dirección Y este canal en el tenant
+    const existing = await context.payload.find({
+      collection: 'conversations',
+      where: {
+        and: [
+          { tenant: { equals: context.tenantId } },
+          { contactAddress: { equals: cleanAddress } },
+          { channel: { equals: channel } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+
+    let conversationId: number
+    let isNew = false
+
+    if (existing.docs.length > 0) {
+      conversationId = existing.docs[0].id
+      const patchData: Record<string, unknown> = {}
+      if (params.clientId && !existing.docs[0].client) patchData.client = params.clientId
+      if (params.leadId && !existing.docs[0].lead) patchData.lead = params.leadId
+      if (Object.keys(patchData).length > 0) {
+        await context.payload.update({
+          collection: 'conversations',
+          id: conversationId,
+          data: patchData,
+          overrideAccess: false,
+          user: context.user,
+        })
+      }
+    } else {
+      isNew = true
+      const created = await context.payload.create({
+        collection: 'conversations',
+        overrideAccess: false,
+        user: context.user,
+        data: {
+          tenant: context.tenantId,
+          contactAddress: cleanAddress,
+          channel,
+          status: 'open',
+          priority: params.priority || 'media',
+          client: params.clientId ?? undefined,
+          lead: params.leadId ?? undefined,
+          assignee: context.user.id,
+          lastMessageAt: new Date().toISOString(),
+        },
+      })
+      conversationId = created.id
+    }
+
+    if (params.initialMessage?.trim()) {
+      const idempotencyKey = `init_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      await replyConversationAction(conversationId, params.initialMessage.trim(), idempotencyKey)
+    }
+
+    revalidatePath('/workspace/inbox')
+    return { ok: true, conversationId, isNew }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al crear conversación' }
+  }
+}
+
+/**
+ * Vincula una conversación activa a un Cliente o Prospecto del CRM.
+ * Valida pertenencia multi-tenant estricta para evitar accesos cruzados entre tenants.
+ */
+export async function linkConversationToCrmAction(params: {
+  conversationId: number
+  clientId?: number | null
+  leadId?: number | null
+}): Promise<ActionResult> {
+  try {
+    const context = await getWorkspaceContext()
+    if (!context.canEdit) throw new Error('No tienes permiso para vincular contactos')
+
+    const conv = await context.payload.findByID({
+      collection: 'conversations',
+      id: params.conversationId,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+    if (!conv) throw new Error('Conversación no encontrada')
+
+    const convTenant = relId(conv.tenant)
+    if (convTenant !== context.tenantId) throw new Error('La conversación no pertenece al tenant activo')
+
+    // Validar que el cliente o lead pertenezca estrictamente al tenant activo
+    await assertCrmRelationInTenant(context.payload, context.user, context.tenantId, {
+      clientId: params.clientId,
+      leadId: params.leadId,
+    })
+
+    await context.payload.update({
+      collection: 'conversations',
+      id: params.conversationId,
+      overrideAccess: false,
+      user: context.user,
+      data: {
+        ...(params.clientId !== undefined ? { client: params.clientId } : {}),
+        ...(params.leadId !== undefined ? { lead: params.leadId } : {}),
+      },
+    })
+
+    revalidatePath('/workspace/inbox')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Error al vincular con el CRM' }
+  }
+}
+
+/**
+ * Carga el balance financiero y cobros pendientes de un cliente para la ficha CRM 360°.
+ * Valida pertenencia multi-tenant y calcula la suma total exacta paginando todos los registros pendientes (revisión Devin PR #80).
+ */
+export async function getClientBillingSummaryAction(clientId: number): Promise<
+  | { ok: true; summary: ClientBillingSummary }
+  | { ok: false; error: string }
+> {
+  try {
+    const context = await getWorkspaceContext()
+    if (!Number.isInteger(clientId) || clientId <= 0) {
+      return { ok: false, error: 'Identificador de cliente inválido' }
+    }
+
+    // Verificar explícitamente que el cliente pertenece al tenant activo
+    const clientDoc = await context.payload.findByID({
+      collection: 'clients',
+      id: clientId,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+    if (!clientDoc || relId(clientDoc.tenant) !== context.tenantId) {
+      return { ok: false, error: 'El cliente no pertenece al workspace activo o no existe' }
+    }
+
+    let page = 1
+    let hasNextPage = true
+    let totalPendingCount = 0
+    let pendingTotal = 0
+
+    while (hasNextPage) {
+      const paymentsRes = await context.payload.find({
+        collection: 'payments',
+        where: {
+          and: [
+            { tenant: { equals: context.tenantId } },
+            { client: { equals: clientId } },
+            { status: { in: ['pendiente', 'vencido'] } },
+          ],
+        },
+        limit: 100,
+        page,
+        depth: 0,
+        overrideAccess: false,
+        user: context.user,
+        select: {
+          amount: true,
+        },
+      })
+
+      totalPendingCount = paymentsRes.totalDocs
+      for (const doc of paymentsRes.docs) {
+        pendingTotal += doc.amount || 0
+      }
+
+      hasNextPage = Boolean(paymentsRes.hasNextPage)
+      page += 1
+    }
+
+    const invoicesRes = await context.payload.find({
+      collection: 'invoices',
+      where: {
+        and: [
+          { tenant: { equals: context.tenantId } },
+          { client: { equals: clientId } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+    })
+
+    return {
+      ok: true,
+      summary: {
+        pendingPaymentsCount: totalPendingCount,
+        pendingTotalUsd: pendingTotal,
+        invoicesCount: invoicesRes.totalDocs,
+      },
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Error al consultar estado de facturación',
+    }
+  }
+}
+
