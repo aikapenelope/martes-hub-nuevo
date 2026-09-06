@@ -88,6 +88,7 @@ export async function createWhiteboardAction(title: string): Promise<ActionResul
 
   const count = await context.payload.count({
     collection: 'whiteboards',
+    where: { tenant: { equals: context.tenantId } },
     overrideAccess: false,
     user: context.user,
   })
@@ -229,6 +230,7 @@ export async function importWhiteboardAction(
   const clean = normalizeTitle(title)
   const count = await context.payload.count({
     collection: 'whiteboards',
+    where: { tenant: { equals: context.tenantId } },
     overrideAccess: false,
     user: context.user,
   })

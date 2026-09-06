@@ -44,19 +44,22 @@ function WhiteboardSkeleton() {
 
 interface WhiteboardCanvasProps {
   initialScene?: WhiteboardSceneData | null
+  /** Viewers sin permiso de edición: canvas en modo vista (no editable). */
+  viewModeEnabled?: boolean
   /** Cada cambio de la escena (el padre decide el debounce del autosave). */
   onSceneChange: (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => void
   /** API imperativa para exportar escena/miniatura desde el padre. */
   onReady: (api: ExcalidrawImperativeAPI) => void
 }
 
-export function WhiteboardCanvas({ initialScene, onSceneChange, onReady }: WhiteboardCanvasProps) {
+export function WhiteboardCanvas({ initialScene, viewModeEnabled, onSceneChange, onReady }: WhiteboardCanvasProps) {
   return (
     <div className="flex-1" style={{ backgroundColor: '#000000' }}>
       <Excalidraw
         excalidrawAPI={onReady}
         initialData={initialScene ?? undefined}
         onChange={onSceneChange}
+        viewModeEnabled={viewModeEnabled}
         theme="dark"
         UIOptions={{
           canvasActions: {

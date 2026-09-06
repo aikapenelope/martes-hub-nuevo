@@ -13,8 +13,12 @@ export default async function WhiteboardPage() {
   const context = await getWorkspaceContext()
 
   // Solo resúmenes: las escenas se cargan on demand al abrir cada pizarra.
+  // Filtro explícito de tenant (además del access control) — para un admin el
+  // plugin multi-tenant no restringe por tenant y sin esto vería pizarras de
+  // todos los workspaces.
   const boardsRes = await context.payload.find({
     collection: 'whiteboards',
+    where: { tenant: { equals: context.tenantId } },
     select: { title: true, thumbnail: true, source: true, updatedAt: true },
     limit: 200,
     sort: '-updatedAt',

@@ -43,8 +43,12 @@ function mockPayloadFactory({
   const deleted: number[] = []
   let nextId = existing.length + 1
 
+    const countCalls: Array<Record<string, unknown>> = []
   const payload = {
-    count: vi.fn(() => Promise.resolve({ totalDocs: totalBoards })),
+    count: vi.fn((args: Record<string, unknown>) => {
+      countCalls.push(args)
+      return Promise.resolve({ totalDocs: totalBoards })
+    }),
     find: vi.fn(({ where }: { where?: Record<string, unknown> }) => {
       // scopedWhiteboard filtra por id + tenant; simulamos el aislamiento real
       const and = (where as { and?: Array<Record<string, unknown>> })?.and ?? []
@@ -72,7 +76,7 @@ function mockPayloadFactory({
     }),
   } as unknown as Payload
 
-  return { payload, created, updated, deleted }
+  return { payload, created, updated, deleted, countCalls }
 }
 
 const VALID_SCENE = { elements: [{ id: 'a', type: 'rectangle' }], files: {} }
@@ -84,7 +88,7 @@ describe('Whiteboard — acciones del workspace', () => {
 
   describe('createWhiteboardAction', () => {
     it('crea la pizarra con tenant y escena vacía compartida', async () => {
-      const { payload, created } = mockPayloadFactory()
+      const { payload, created, countCalls } = mockPayloadFactory()
       mockedContext.mockResolvedValue(makeContext({ payload }) as never)
 
       const res = await createWhiteboardAction('Reto Q4')
@@ -95,6 +99,8 @@ describe('Whiteboard — acciones del workspace', () => {
       expect(created[0].title).toBe('Reto Q4')
       expect(created[0].source).toBe('local')
       expect((created[0].scene as { elements: unknown[] }).elements).toEqual([])
+      // Cuota por tenant explícita: sin esto, un admin contaría pizarras de todos sus workspaces
+      expect(countCalls[0]?.where).toEqual({ tenant: { equals: 1 } })
     })
 
     it('rechaza sin permiso de edición (viewer)', async () => {
@@ -189,7 +195,7 @@ describe('Whiteboard — acciones del workspace', () => {
 
   describe('importWhiteboardAction', () => {
     it('importa un archivo exportado de Excalidraw ({ type: excalidraw })', async () => {
-      const { payload, created } = mockPayloadFactory()
+      const { payload, created, countCalls } = mockPayloadFactory()
       mockedContext.mockResolvedValue(makeContext({ payload }) as never)
 
       const file = JSON.stringify({ type: 'excalidraw', version: 2, source: 'excalidraw.com', elements: [{ id: 'x' }], files: {} })
@@ -201,6 +207,7 @@ describe('Whiteboard — acciones del workspace', () => {
       expect(created[0].source).toBe('import')
       expect(created[0].title).toBe('Mapa mental')
       expect((created[0].scene as { elements: unknown[] }).elements).toHaveLength(1)
+      expect(countCalls[0]?.where).toEqual({ tenant: { equals: 1 } })
     })
 
     it('importa una escena cruda { elements }', async () => {

@@ -14,6 +14,8 @@ import {
 } from '@/lib/whiteboard-actions'
 
 const AUTOSAVE_MS = 2000
+const SAVE_RETRY_MS = 5000
+const MAX_SAVE_RETRIES = 5
 // Umbral de complejidad para regenerar la miniatura en cada autosave
 // (pizarras gigantes: exportar PNG en cada trazo cuesta CPU).
 const THUMBNAIL_MAX_ELEMENTS = 500
@@ -45,9 +47,11 @@ function boardLabel(board: WhiteboardSummary): string {
 
 export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, initialBoards }: WhiteboardWorkspaceProps) {
   const [boards, setBoards] = useState<WhiteboardSummary[]>(initialBoards)
-  const [activeId, setActiveId] = useState<number | null>(initialBoards[0]?.id ?? null)
+  const [activeId, setActiveId] = useState<number | null>(null)
+  // La escena siempre sabe de qué pizarra es: el canvas solo se monta cuando
+  // coincide con la pizarra activa — nunca un editable en blanco.
   const [scene, setScene] = useState<WhiteboardSceneData | null>(null)
-  const [loadingScene, setLoadingScene] = useState(false)
+  const [sceneBoardId, setSceneBoardId] = useState<number | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -56,41 +60,143 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
   const pendingSceneRef = useRef<{ id: number; scene: WhiteboardScene } | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const activeIdRef = useRef<number | null>(activeId)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const retryCountRef = useRef(0)
+  const savingRef = useRef(false)
+  const activeIdRef = useRef<number | null>(null)
+  const sceneBoardIdRef = useRef<number | null>(null)
   useEffect(() => {
     activeIdRef.current = activeId
-  }, [activeId])
+    sceneBoardIdRef.current = sceneBoardId
+  }, [activeId, sceneBoardId])
 
-  /** Carga la escena on demand: la lista nunca arrastra escenas completas. */
+  const flushSaveRef = useRef<(() => Promise<void>) | null>(null)
+
+  /** Reintento del autosave fallido (la escena pendiente se conserva). */
+  const scheduleSaveRetry = useCallback(() => {
+    if (retryCountRef.current >= MAX_SAVE_RETRIES) return
+    retryCountRef.current += 1
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+    retryTimerRef.current = setTimeout(() => {
+      void flushSaveRef.current?.()
+    }, SAVE_RETRY_MS)
+  }, [])
+
+  /** Miniatura best-effort para la lista (nunca bloquea el guardado). */
+  const generateThumbnail = useCallback(async (): Promise<string | null> => {
+    const api = apiRef.current
+    if (!api) return null
+    try {
+      if (api.getSceneElements().length > THUMBNAIL_MAX_ELEMENTS) return null
+      const { exportToBlob } = await import('@excalidraw/excalidraw')
+      const blob = await exportToBlob({
+        elements: api.getSceneElements(),
+        appState: { ...api.getAppState(), exportWithBackground: true },
+        files: api.getFiles(),
+        mimeType: 'image/png',
+      })
+      const bitmap = await createImageBitmap(blob)
+      const scale = Math.min(1, 400 / bitmap.width)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return null
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+      return canvas.toDataURL('image/jpeg', 0.6)
+    } catch {
+      return null
+    }
+  }, [])
+
+  const flushSave = useCallback(async () => {
+    // Guard exclusivo: mientras hay un save en vuelo, la escena pendiente se
+    // conserva y el siguiente debounce/retry la guarda completa.
+    if (savingRef.current) return
+    const pending = pendingSceneRef.current
+    if (!pending) return
+    savingRef.current = true
+    setSaveError(null)
+    try {
+      // La miniatura solo se regenera si la pizarra sigue en pantalla; si el
+      // usuario ya cambió de pizarra, el canvas actual sería de otra escena.
+      const thumbnail = pending.id === activeIdRef.current ? await generateThumbnail() : null
+      const result = await saveWhiteboardAction(pending.id, pending.scene, thumbnail === null ? undefined : thumbnail)
+      if (result.ok) {
+        retryCountRef.current = 0
+        // Limpiar solo si el usuario no generó datos más nuevos mientras tanto
+        if (pendingSceneRef.current === pending) pendingSceneRef.current = null
+        setSavedAt(formatTime(new Date()))
+        setBoards((prev) => prev.map((b) => (b.id === pending.id ? { ...b, updatedAt: new Date().toISOString() } : b)))
+      } else {
+        setSaveError(result.error)
+        scheduleSaveRetry()
+      }
+    } catch (err) {
+      // La escena pendiente SE CONSERVA: reintentar automáticamente y no
+      // perder el trabajo si el usuario cierra la pestaña.
+      setSaveError(err instanceof Error ? err.message : 'Error guardando la pizarra')
+      scheduleSaveRetry()
+    } finally {
+      savingRef.current = false
+    }
+  }, [generateThumbnail, scheduleSaveRetry])
+
+  useEffect(() => {
+    flushSaveRef.current = flushSave
+  }, [flushSave])
+
+  /** Abre una pizarra: guarda lo pendiente de la actual y carga su escena. */
   const openBoard = useCallback((id: number) => {
+    if (activeIdRef.current === id && sceneBoardIdRef.current === id) return
+
+    // Flush inmediato de la pizarra actual (con su propio id) antes de salir —
+    // cambiar dentro de la ventana de debounce no puede perder sus ediciones.
+    if (pendingSceneRef.current && pendingSceneRef.current.id !== id) {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+        debounceRef.current = null
+      }
+      void flushSaveRef.current?.()
+    }
+
     setActiveId(id)
+    setScene(null)
+    setSceneBoardId(null)
     setSavedAt(null)
     setSaveError(null)
-    setLoadingScene(true)
     startTransition(async () => {
       try {
         const result = await loadWhiteboardSceneAction(id)
+        // Carga vieja (selecciones rápidas): ignorar si ya no es la activa
+        if (activeIdRef.current !== id) return
         if (result.ok) {
           setScene({ elements: result.scene.elements, appState: result.scene.appState, files: result.scene.files })
+          setSceneBoardId(id)
         } else {
-          setScene(null)
+          // Sin escena el canvas no se monta — nunca un editable en blanco
           setNotice(result.error)
         }
       } catch (err) {
-        setScene(null)
-        setNotice(err instanceof Error ? err.message : 'Error cargando la pizarra')
-      } finally {
-        setLoadingScene(false)
+        if (activeIdRef.current === id) {
+          setNotice(err instanceof Error ? err.message : 'Error cargando la pizarra')
+        }
       }
     })
   }, [])
 
-  // Bootstrap: primer arranque del tenant. Si el navegador tiene un whiteboard
-  // de la fase localStorage (PR #83) lo migramos como pizarra del tenant;
-  // si no, creamos la pizarra inicial.
+  // Arranque: con pizarras existentes se carga la más reciente antes de
+  // montar cualquier canvas; sin pizarras, bootstrap del tenant (con
+  // migración automática del whiteboard localStorage del PR #83).
   useEffect(() => {
-    if (!canEdit || initialBoards.length > 0) return
     let cancelled = false
+    if (initialBoards.length > 0) {
+      openBoard(initialBoards[0].id)
+      return () => {
+        cancelled = true
+      }
+    }
+    if (!canEdit) return
     startTransition(async () => {
       try {
         let sceneToMigrate: WhiteboardScene | null = null
@@ -125,6 +231,7 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
 
         setBoards([{ id: created.id, title: created.title, thumbnail: null, source: 'local', updatedAt: new Date().toISOString() }])
         setActiveId(created.id)
+        setSceneBoardId(created.id)
         setScene({ elements: sceneToMigrate?.elements ?? [], files: sceneToMigrate?.files ?? {}, appState: {} })
       } catch (err) {
         if (!cancelled) setNotice(err instanceof Error ? err.message : 'Error creando la primera pizarra')
@@ -136,58 +243,11 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /** Miniatura best-effort para la lista (nunca bloquea el guardado). */
-  const generateThumbnail = useCallback(async (): Promise<string | null> => {
-    const api = apiRef.current
-    if (!api) return null
-    try {
-      if (api.getSceneElements().length > THUMBNAIL_MAX_ELEMENTS) return null
-      const { exportToBlob } = await import('@excalidraw/excalidraw')
-      const blob = await exportToBlob({
-        elements: api.getSceneElements(),
-        appState: { ...api.getAppState(), exportWithBackground: true },
-        files: api.getFiles(),
-        mimeType: 'image/png',
-      })
-      const bitmap = await createImageBitmap(blob)
-      const scale = Math.min(1, 400 / bitmap.width)
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale))
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return null
-      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-      return canvas.toDataURL('image/jpeg', 0.6)
-    } catch {
-      return null
-    }
-  }, [])
-
-  const flushSave = useCallback(async () => {
-    const pending = pendingSceneRef.current
-    if (!pending) return
-    pendingSceneRef.current = null
-    setSaveError(null)
-    try {
-      // La miniatura solo se regenera si la pizarra sigue en pantalla; si el
-      // usuario ya cambió de pizarra, el canvas actual sería de otra escena.
-      const thumbnail = pending.id === activeIdRef.current ? await generateThumbnail() : null
-      const result = await saveWhiteboardAction(pending.id, pending.scene, thumbnail === null ? undefined : thumbnail)
-      if (result.ok) {
-        setSavedAt(formatTime(new Date()))
-        setBoards((prev) => prev.map((b) => (b.id === pending.id ? { ...b, updatedAt: new Date().toISOString() } : b)))
-      } else {
-        setSaveError(result.error)
-      }
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Error guardando la pizarra')
-    }
-  }, [generateThumbnail])
-
   const handleSceneChange = useCallback(
     (elements: readonly unknown[], appState: Record<string, unknown>, files: Record<string, unknown>) => {
       const currentId = activeIdRef.current
       if (currentId == null) return
+      retryCountRef.current = 0
       pendingSceneRef.current = {
         id: currentId,
         scene: {
@@ -203,10 +263,10 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
       }
       if (debounceRef.current) clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(() => {
-        void flushSave()
+        void flushSaveRef.current?.()
       }, AUTOSAVE_MS)
     },
-    [flushSave],
+    [],
   )
 
   function handleCreate() {
@@ -217,10 +277,7 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
         const result = await createWhiteboardAction(title || 'Sin título')
         if (result.ok) {
           setBoards((prev) => [{ id: result.id, title: result.title, thumbnail: null, source: 'local', updatedAt: new Date().toISOString() }, ...prev])
-          setScene({ elements: [], files: {}, appState: {} })
-          setActiveId(result.id)
-          setSavedAt(null)
-          setSaveError(null)
+          openBoard(result.id)
         } else {
           setNotice(result.error)
         }
@@ -234,14 +291,21 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
     const id = activeId
     if (id == null) return
     if (!confirm('¿Borrar esta pizarra? Esta acción no se puede deshacer.')) return
+    // Nada pendiente de una pizarra que se va a borrar
+    if (pendingSceneRef.current?.id === id) pendingSceneRef.current = null
     startTransition(async () => {
       try {
         const result = await deleteWhiteboardAction(id)
         if (result.ok) {
-          setBoards((prev) => prev.filter((b) => b.id !== id))
+          const remaining = boards.filter((b) => b.id !== id)
+          setBoards(remaining)
           if (activeId === id) {
-            setActiveId(boards.find((b) => b.id !== id)?.id ?? null)
-            setScene(null)
+            if (remaining[0]) openBoard(remaining[0].id)
+            else {
+              setActiveId(null)
+              setScene(null)
+              setSceneBoardId(null)
+            }
           }
         } else {
           setNotice(result.error)
@@ -263,16 +327,7 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
         const result = await importWhiteboardAction(title, raw)
         if (result.ok) {
           setBoards((prev) => [{ id: result.id, title: result.title, thumbnail: null, source: 'import', updatedAt: new Date().toISOString() }, ...prev])
-          setActiveId(result.id)
-          // Recién importada: la escena es exactamente la del archivo, no hace falta re-leerla
-          try {
-            const parsed = JSON.parse(raw) as { elements?: unknown[]; files?: Record<string, unknown> }
-            setScene({ elements: parsed.elements ?? [], files: parsed.files ?? {}, appState: {} })
-          } catch {
-            setScene({ elements: [], files: {}, appState: {} })
-          }
-          setSavedAt(null)
-          setSaveError(null)
+          openBoard(result.id)
         } else {
           setNotice(result.error)
         }
@@ -304,6 +359,7 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
   }
 
   const activeBoard = boards.find((b) => b.id === activeId) ?? null
+  const sceneReady = scene !== null && sceneBoardId === activeId
 
   return (
     <div className="relative flex h-full flex-col bg-zinc-950">
@@ -391,26 +447,29 @@ export function WhiteboardWorkspace({ tenantId, tenantName, isAdmin, canEdit, in
         </div>
       )}
 
-      {/* Canvas — remonta limpio al alternar pizarra */}
-      {activeId == null && boards.length === 0 ? (
+      {/* Canvas: solo se monta con la escena ya cargada de SU pizarra */}
+      {boards.length === 0 ? (
         <div className="flex flex-1 items-center justify-center bg-zinc-950">
           <span className="max-w-sm text-center text-xs font-mono text-zinc-500">
             Sin pizarras todavía. {canEdit ? 'Crea la primera con «Nueva» o importa un archivo .excalidraw.' : 'Pide a un agente que cree la primera.'}
           </span>
         </div>
-      ) : (
+      ) : sceneReady ? (
         <WhiteboardCanvas
           key={activeId ?? 'empty'}
           initialScene={scene}
-          onSceneChange={handleSceneChange}
+          viewModeEnabled={!canEdit}
+          onSceneChange={canEdit ? handleSceneChange : () => {}}
           onReady={(api) => {
             apiRef.current = api
           }}
         />
-      )}
-      {loadingScene && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-3">
-          <span className="border border-zinc-800 bg-black/90 px-3 py-1 text-[10px] font-mono text-zinc-400">Cargando pizarra…</span>
+      ) : (
+        <div className="flex flex-1 items-center justify-center bg-zinc-950">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin border-2 border-zinc-700 border-t-white rounded-full" />
+            <span className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Cargando pizarra…</span>
+          </div>
         </div>
       )}
     </div>
