@@ -1,5 +1,9 @@
 'use client'
 
+// Hoja de estilos del paquete: sin ella el editor se renderiza sin tamaño,
+// posicionamiento ni tema (Next App Router permite CSS global en componentes).
+import '@excalidraw/excalidraw/index.css'
+
 import dynamic from 'next/dynamic'
 import { useState, useCallback, useRef } from 'react'
 import { Download, Trash2, Save, TriangleAlert } from 'lucide-react'
@@ -127,8 +131,13 @@ export function WhiteboardCanvas({ tenantId, tenantName }: WhiteboardCanvasProps
 
   function handleClear() {
     if (!confirm('¿Borrar todo el whiteboard? Esta acción no se puede deshacer.')) return
-    localStorage.removeItem(STORAGE_KEY(tenantId))
-    window.location.reload()
+    // El reload va en finally: si el storage está bloqueado, removeItem
+    // lanza y sin esto el board en memoria nunca se resetea.
+    try {
+      localStorage.removeItem(STORAGE_KEY(tenantId))
+    } finally {
+      window.location.reload()
+    }
   }
 
   function handleExportPNG() {
