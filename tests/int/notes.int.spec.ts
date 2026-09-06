@@ -8,9 +8,11 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 function mockPayloadFactory({
   notes = [],
   users = [],
+  related = { clients: { 5: { id: 5, tenant: 1 } }, leads: { 6: { id: 6, tenant: 1 } } } as Record<string, Record<number, unknown>>,
 }: {
   notes?: Array<Record<string, unknown>>
   users?: Array<Record<string, unknown>>
+  related?: Record<string, Record<number, unknown>>
 } = {}) {
   const created: Array<Record<string, unknown>> = []
   const updated: Array<{ id: number; data: Record<string, unknown> }> = []
@@ -23,7 +25,10 @@ function mockPayloadFactory({
       created.push(doc)
       return Promise.resolve(doc)
     }),
-    findByID: vi.fn(({ id }: { id: number }) => {
+    findByID: vi.fn(({ collection, id }: { collection: string; id: number }) => {
+      if (collection === 'clients' || collection === 'leads') {
+        return Promise.resolve(related[collection]?.[id] ?? null)
+      }
       const doc = [...notes, ...created].find((n) => n.id === id)
       return Promise.resolve(doc ?? null)
     }),
@@ -89,11 +94,12 @@ describe('Notes — acciones del workspace', () => {
       const { payload, created } = mockPayloadFactory()
       mockedContext.mockResolvedValue(makeContext({ payload }) as never)
 
-      const res = await createNoteAction({ title: 'Acuerdos', bodyText: 'Punto 1\n\nPunto 2' })
+      const res = await createNoteAction({ title: 'Acuerdos', bodyText: 'Punto 1\n\nPunto 2', clientId: 5 })
 
       expect(res.ok).toBe(true)
       expect(created).toHaveLength(1)
       expect(created[0].tenant).toBe(1)
+      expect(created[0].client).toBe(5)
       expect(created[0].title).toBe('Acuerdos')
       const body = created[0].body as { root: { children: unknown[] } }
       expect(body.root.children).toHaveLength(2)
@@ -106,6 +112,16 @@ describe('Notes — acciones del workspace', () => {
       const res = await createNoteAction({ title: '  ', bodyText: 'x' })
       expect(res.ok).toBe(false)
       expect((res as { error?: string }).error).toContain('obligatorios')
+    })
+
+    it('rechaza vincular un cliente de otro tenant (cross-tenant)', async () => {
+      const { payload, created } = mockPayloadFactory({ related: { clients: {}, leads: {} } })
+      mockedContext.mockResolvedValue(makeContext({ payload }) as never)
+
+      const res = await createNoteAction({ title: 'x', bodyText: 'y', clientId: 99 })
+      expect(res.ok).toBe(false)
+      expect((res as { error?: string }).error).toContain('no pertenece a este workspace')
+      expect(created).toHaveLength(0)
     })
 
     it('rechaza usuarios sin permiso de edición', async () => {

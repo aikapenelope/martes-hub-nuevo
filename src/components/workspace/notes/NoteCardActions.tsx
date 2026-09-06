@@ -9,12 +9,14 @@ import { deleteNoteAction, toggleNotePinAction } from '@/lib/notes-actions'
 interface NoteCardActionsProps {
   noteId: number
   pinned: boolean
+  /** false (viewer): sin pin ni editar — los viewers solo leen (revisión Devin PR #75). */
+  canEdit: boolean
   isAdmin: boolean
   adminHref: string
 }
 
 /** Acciones de una tarjeta de nota: fijar, editar (→ /admin) y eliminar (admin). */
-export function NoteCardActions({ noteId, pinned, isAdmin, adminHref }: NoteCardActionsProps) {
+export function NoteCardActions({ noteId, pinned, canEdit, isAdmin, adminHref }: NoteCardActionsProps) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -36,15 +38,17 @@ export function NoteCardActions({ noteId, pinned, isAdmin, adminHref }: NoteCard
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          title={pinned ? 'Quitar fijado' : 'Fijar al tope'}
-          disabled={pending}
-          className={btnCls}
-          onClick={() => run(() => toggleNotePinAction({ noteId }))}
-        >
-          {pinned ? <PinOff className="w-3.5 h-3.5 text-sky-400" /> : <Pin className="w-3.5 h-3.5" />}
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            title={pinned ? 'Quitar fijado' : 'Fijar al tope'}
+            disabled={pending}
+            className={btnCls}
+            onClick={() => run(() => toggleNotePinAction({ noteId }))}
+          >
+            {pinned ? <PinOff className="w-3.5 h-3.5 text-sky-400" /> : <Pin className="w-3.5 h-3.5" />}
+          </button>
+        )}
 
         {isAdmin && (
           <button
@@ -61,13 +65,15 @@ export function NoteCardActions({ noteId, pinned, isAdmin, adminHref }: NoteCard
           </button>
         )}
 
-        <a
-          href={adminHref}
-          title="Editar con el editor completo"
-          className="border border-zinc-800 bg-black px-2 py-1.5 text-[10px] font-mono uppercase tracking-wider text-zinc-400 transition hover:text-white hover:border-zinc-600"
-        >
-          Editar
-        </a>
+        {canEdit && (
+          <a
+            href={adminHref}
+            title="Editar con el editor completo"
+            className="border border-zinc-800 bg-black px-2 py-1.5 text-[10px] font-mono uppercase tracking-wider text-zinc-400 transition hover:text-white hover:border-zinc-600"
+          >
+            Editar
+          </a>
+        )}
       </div>
       {error && <span className="text-[10px] font-mono text-rose-400">{error}</span>}
     </div>

@@ -1,14 +1,50 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import type { Payload } from 'payload'
+import type { Payload, Where } from 'payload'
+import type { User } from '@/payload-types'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
 type ActionResult<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string }
 
+/** Errores de dominio: su mensaje SÍ llega al usuario. Cualquier otro error se registra y se enmascara. */
+class DomainError extends Error {}
+
 function assertEditor(canEdit: boolean): void {
-  if (!canEdit) throw new Error('No tienes permiso para crear o modificar notas')
+  if (!canEdit) throw new DomainError('No tienes permiso para crear o modificar notas')
+}
+
+/** Convierte una excepción en respuesta segura: dominio → mensaje; resto → log + genérico. */
+function toUserError(err: unknown, fallback: string): { ok: false; error: string } {
+  if (err instanceof DomainError) return { ok: false, error: err.message }
+  console.error('[notes]', err)
+  return { ok: false, error: fallback }
+}
+
+/**
+ * Valida que el cliente/lead vinculado exista DENTRO del tenant activo —
+ * sin esto un editor podría vincular registros de otro tenant y filtrar sus
+ * datos poblados a través de la nota (revisión Devin PR #75).
+ */
+async function assertRelatedInTenant(
+  payload: Payload,
+  user: User,
+  tenantId: number,
+  collection: 'clients' | 'leads',
+  id: number,
+): Promise<void> {
+  const doc = await payload.findByID({
+    collection,
+    id,
+    depth: 0,
+    overrideAccess: false,
+    user,
+  })
+  const docTenant = typeof doc?.tenant === 'object' && doc.tenant ? doc.tenant.id : doc?.tenant
+  if (!doc || docTenant !== tenantId) {
+    throw new DomainError(`El ${collection === 'clients' ? 'cliente' : 'lead'} indicado no pertenece a este workspace`)
+  }
 }
 
 /**
@@ -16,6 +52,42 @@ function assertEditor(canEdit: boolean): void {
  * un párrafo por línea, sin formato. Las notas se enriquecen después con
  * el editor completo (botón "Editar" → /admin o edición in-place futura).
  */
+/**
+ * Búsqueda acotada al tenant activo para el picker del quick-create: evita el
+ * límite de "primeros 200" al asociar clientes/leads (revisión Devin PR #75).
+ */
+export async function searchNoteRelatedAction(params: {
+  q: string
+  type: 'client' | 'lead'
+}): Promise<{ ok: true; results: Array<{ id: number; label: string }> } | { ok: false; error: string }> {
+  try {
+    const context = await getWorkspaceContext()
+    const q = params.q.trim()
+    const collection = params.type === 'lead' ? 'leads' : 'clients'
+    const conditions: Where[] = [{ tenant: { equals: context.tenantId } }]
+    if (q) {
+      conditions.push(collection === 'clients' ? { name: { like: q } } : { fullName: { like: q } })
+    }
+    const res = await context.payload.find({
+      collection,
+      where: { and: conditions },
+      depth: 0,
+      limit: 8,
+      sort: 'createdAt',
+      overrideAccess: false,
+      user: context.user,
+    })
+    const results = res.docs.map((d) => {
+      const doc = d as unknown as { id: number; name?: string; fullName?: string; phone?: string }
+      const label = doc.name ?? doc.fullName ?? '#' + doc.id
+      return { id: doc.id, label: doc.phone ? `${label} (${doc.phone})` : label }
+    })
+    return { ok: true, results }
+  } catch (err) {
+    return toUserError(err, 'Error al buscar')
+  }
+}
+
 export async function buildLexicalFromPlainText(text: string): Promise<unknown> {
   const paragraphs = text
     .split(/\n{2,}/)
@@ -68,6 +140,13 @@ export async function createNoteAction(params: {
       return { ok: false, error: 'El título y el contenido son obligatorios' }
     }
 
+    if (params.clientId) {
+      await assertRelatedInTenant(context.payload, context.user, context.tenantId, 'clients', params.clientId)
+    }
+    if (params.leadId) {
+      await assertRelatedInTenant(context.payload, context.user, context.tenantId, 'leads', params.leadId)
+    }
+
     const note = await context.payload.create({
       collection: 'notes',
       overrideAccess: false,
@@ -89,7 +168,7 @@ export async function createNoteAction(params: {
     if (params.leadId) revalidatePath(`/workspace/crm/leads/${params.leadId}`)
     return { ok: true, noteId: note.id }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Error al crear la nota' }
+    return toUserError(err, 'Error al crear la nota')
   }
 }
 
@@ -120,7 +199,7 @@ export async function toggleNotePinAction(params: {
     revalidatePath('/workspace/notes')
     return { ok: true, pinned: Boolean(updated.pinned) }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Error al fijar la nota' }
+    return toUserError(err, 'Error al fijar la nota')
   }
 }
 
@@ -129,8 +208,8 @@ export async function deleteNoteAction(params: {
 }): Promise<ActionResult> {
   try {
     const context = await getWorkspaceContext()
-    if (!context.canEdit) throw new Error('No tienes permiso para eliminar notas')
-    if (!context.isAdmin) throw new Error('Solo un administrador puede eliminar notas')
+    if (!context.canEdit) throw new DomainError('No tienes permiso para eliminar notas')
+    if (!context.isAdmin) throw new DomainError('Solo un administrador puede eliminar notas')
 
     await context.payload.delete({
       collection: 'notes',
@@ -142,7 +221,7 @@ export async function deleteNoteAction(params: {
     revalidatePath('/workspace/notes')
     return { ok: true }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Error al eliminar la nota' }
+    return toUserError(err, 'Error al eliminar la nota')
   }
 }
 

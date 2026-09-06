@@ -1,18 +1,16 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, StickyNote, X } from 'lucide-react'
 
-import { createNoteAction } from '@/lib/notes-actions'
+import { createNoteAction, searchNoteRelatedAction } from '@/lib/notes-actions'
 
 const inputCls =
   'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
 const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
 
 interface NoteQuickCreateDialogProps {
-  clients: Array<{ id: number; name: string }>
-  leads: Array<{ id: number; fullName: string }>
   defaultClientId?: number
   defaultLeadId?: number
   variant?: 'primary' | 'secondary'
@@ -25,8 +23,6 @@ interface NoteQuickCreateDialogProps {
  * en /admin (botón "Editar" de cada tarjeta).
  */
 export function NoteQuickCreateDialog({
-  clients,
-  leads,
   defaultClientId,
   defaultLeadId,
   variant = 'primary',
@@ -36,6 +32,12 @@ export function NoteQuickCreateDialog({
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [clientSel, setClientSel] = useState<{ id: number; label: string } | null>(
+    defaultClientId ? { id: defaultClientId, label: 'Cliente seleccionado' } : null,
+  )
+  const [leadSel, setLeadSel] = useState<{ id: number; label: string } | null>(
+    defaultLeadId ? { id: defaultLeadId, label: 'Lead seleccionado' } : null,
+  )
 
   const btnCls =
     variant === 'primary'
@@ -45,15 +47,13 @@ export function NoteQuickCreateDialog({
   async function handleSubmit(formData: FormData) {
     setSaving(true)
     setError(null)
-    const clientRaw = String(formData.get('client') ?? '')
-    const leadRaw = String(formData.get('lead') ?? '')
     const res = await createNoteAction({
       title: String(formData.get('title') ?? ''),
       bodyText: String(formData.get('body') ?? ''),
       category: String(formData.get('category') ?? 'general'),
       pinned: formData.get('pinned') === 'on',
-      clientId: clientRaw ? Number(clientRaw) : null,
-      leadId: leadRaw ? Number(leadRaw) : null,
+      clientId: clientSel?.id ?? null,
+      leadId: leadSel?.id ?? null,
     })
     setSaving(false)
     if (!res.ok) {
@@ -118,24 +118,18 @@ export function NoteQuickCreateDialog({
             </label>
             <label className={labelCls}>
               Asociar a
-              <div className="flex flex-col gap-1">
-                <select name="client" defaultValue={defaultClientId ? String(defaultClientId) : ''} className={inputCls}>
-                  <option value="">— Sin cliente —</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                <select name="lead" defaultValue={defaultLeadId ? String(defaultLeadId) : ''} className={inputCls}>
-                  <option value="">— Sin lead —</option>
-                  {leads.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.fullName}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <RelatedPicker
+                type="client"
+                placeholder="Buscar cliente por nombre..."
+                selected={clientSel}
+                onSelect={setClientSel}
+              />
+              <RelatedPicker
+                type="lead"
+                placeholder="Buscar lead por nombre..."
+                selected={leadSel}
+                onSelect={setLeadSel}
+              />
             </label>
           </div>
 
@@ -164,3 +158,77 @@ export function NoteQuickCreateDialog({
   )
 }
 
+function RelatedPicker({
+  type,
+  placeholder,
+  selected,
+  onSelect,
+}: {
+  type: 'client' | 'lead'
+  placeholder: string
+  selected: { id: number; label: string } | null
+  onSelect: (value: { id: number; label: string } | null) => void
+}) {
+  const [q, setQ] = useState('')
+  const [results, setResults] = useState<Array<{ id: number; label: string }>>([])
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      if (!q.trim()) {
+        setResults([])
+        setOpen(false)
+        return
+      }
+      const res = await searchNoteRelatedAction({ q, type })
+      if (res.ok) {
+        setResults(res.results)
+        setOpen(true)
+      }
+    }, 250)
+    return () => clearTimeout(t)
+  }, [q, type])
+
+  if (selected) {
+    return (
+      <div className="flex items-center justify-between border border-sky-800 bg-sky-950/30 px-2 py-1.5">
+        <span className="truncate text-xs text-sky-200">{selected.label}</span>
+        <button type="button" className="text-sky-400 hover:text-white" onClick={() => onSelect(null)}>
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={placeholder}
+        className={inputCls}
+        onFocus={() => results.length > 0 && setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && results.length > 0 && (
+        <ul className="absolute z-10 mt-1 max-h-40 w-full overflow-y-auto border border-zinc-700 bg-zinc-950 shadow-lg">
+          {results.map((r) => (
+            <li key={r.id}>
+              <button
+                type="button"
+                className="w-full px-3 py-1.5 text-left text-xs text-zinc-200 hover:bg-zinc-800"
+                onMouseDown={() => {
+                  onSelect(r)
+                  setQ('')
+                  setOpen(false)
+                }}
+              >
+                {r.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}

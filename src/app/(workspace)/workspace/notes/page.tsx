@@ -20,12 +20,14 @@ import { EmptyState, OledCard, PageHero, StatusBadge } from '@/components/worksp
 const dateFmt = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric' })
 
 const CATEGORIES = ['general', 'cliente', 'reunion', 'seguimiento', 'idea', 'recordatorio'] as const
+const PAGE_SIZE = 24
 
-function buildUrl(params: { q?: string; cat?: string; pin?: string }): string {
+function buildUrl(params: { q?: string; cat?: string; pin?: string; page?: string }): string {
   const sp = new URLSearchParams()
   if (params.q) sp.set('q', params.q)
   if (params.cat) sp.set('cat', params.cat)
   if (params.pin) sp.set('pin', params.pin)
+  if (params.page && params.page !== '1') sp.set('page', params.page)
   const qs = sp.toString()
   return `/workspace/notes${qs ? `?${qs}` : ''}`
 }
@@ -34,7 +36,7 @@ function buildUrl(params: { q?: string; cat?: string; pin?: string }): string {
 export default async function NotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; cat?: string; pin?: string }>
+  searchParams: Promise<{ q?: string; cat?: string; pin?: string; page?: string }>
 }) {
   const params = await searchParams
   const context = await getWorkspaceContext()
@@ -43,6 +45,7 @@ export default async function NotesPage({
   const q = params.q?.trim() ?? ''
   const cat = params.cat && (CATEGORIES as readonly string[]).includes(params.cat) ? params.cat : ''
   const pinOnly = params.pin === '1'
+  const pageNum = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1)
 
   const conditions: Where[] = [{ tenant: { equals: tenantId } }]
   if (q) conditions.push({ title: { like: q } })
@@ -50,31 +53,14 @@ export default async function NotesPage({
   if (pinOnly) conditions.push({ pinned: { equals: true } })
   const where: Where = { and: conditions }
 
-  const [notesRes, clientsRes, leadsRes] = await Promise.all([
+  const [notesRes] = await Promise.all([
     payload.find({
       collection: 'notes',
       where,
       depth: 1,
-      limit: 100,
+      limit: PAGE_SIZE,
+      page: pageNum,
       sort: '-pinned,-createdAt',
-      overrideAccess: false,
-      user,
-    }),
-    payload.find({
-      collection: 'clients',
-      where: { tenant: { equals: tenantId } },
-      depth: 0,
-      limit: 200,
-      sort: 'name',
-      overrideAccess: false,
-      user,
-    }),
-    payload.find({
-      collection: 'leads',
-      where: { tenant: { equals: tenantId } },
-      depth: 0,
-      limit: 200,
-      sort: '-createdAt',
       overrideAccess: false,
       user,
     }),
@@ -84,6 +70,7 @@ export default async function NotesPage({
   const pinnedNotes = notes.filter((n) => n.pinned)
   const otherNotes = notes.filter((n) => !n.pinned)
   const total = notesRes.totalDocs
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <div className="flex flex-col gap-4">
@@ -93,10 +80,7 @@ export default async function NotesPage({
         description="Notas enriquecidas del equipo — independientes o vinculadas a clientes y leads. El editor completo (títulos, listas, checklist, citas, links) vive en /admin; crea rápido desde aquí."
         actions={
           canEdit ? (
-            <NoteQuickCreateDialog
-              clients={(clientsRes.docs as Client[]).map((c) => ({ id: c.id, name: c.name }))}
-              leads={(leadsRes.docs as Lead[]).map((l) => ({ id: l.id, fullName: l.fullName }))}
-            />
+            <NoteQuickCreateDialog />
           ) : undefined
         }
       />
@@ -156,7 +140,7 @@ export default async function NotesPage({
           </h2>
           <div className="grid gap-3 xl:grid-cols-2">
             {pinnedNotes.map((note) => (
-              <NoteCard key={note.id} note={note} isAdmin={isAdmin} />
+              <NoteCard key={note.id} note={note} canEdit={canEdit} isAdmin={isAdmin} />
             ))}
           </div>
         </section>
@@ -167,16 +151,38 @@ export default async function NotesPage({
           {pinnedNotes.length > 0 && <h2 className="text-[11px] font-mono uppercase tracking-widest text-zinc-400">Todas</h2>}
           <div className="grid gap-3 xl:grid-cols-2">
             {otherNotes.map((note) => (
-              <NoteCard key={note.id} note={note} isAdmin={isAdmin} />
+              <NoteCard key={note.id} note={note} canEdit={canEdit} isAdmin={isAdmin} />
             ))}
           </div>
         </section>
+      )}
+
+      {totalPages > 1 && (
+        <nav className="flex items-center justify-center gap-3 py-2 text-xs font-mono uppercase tracking-wider">
+          {pageNum > 1 ? (
+            <Link href={buildUrl({ q, cat, pin: pinOnly ? '1' : undefined, page: String(pageNum - 1) })} className="border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-200 hover:bg-zinc-800">
+              ← Anterior
+            </Link>
+          ) : (
+            <span className="border border-zinc-900 px-3 py-2 text-zinc-600">← Anterior</span>
+          )}
+          <span className="text-zinc-400">
+            Página {pageNum} de {totalPages}
+          </span>
+          {pageNum < totalPages ? (
+            <Link href={buildUrl({ q, cat, pin: pinOnly ? '1' : undefined, page: String(pageNum + 1) })} className="border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-200 hover:bg-zinc-800">
+              Siguiente →
+            </Link>
+          ) : (
+            <span className="border border-zinc-900 px-3 py-2 text-zinc-600">Siguiente →</span>
+          )}
+        </nav>
       )}
     </div>
   )
 }
 
-function NoteCard({ note, isAdmin }: { note: Note; isAdmin: boolean }) {
+function NoteCard({ note, canEdit, isAdmin }: { note: Note; canEdit: boolean; isAdmin: boolean }) {
   function nameOf(rel: unknown): string {
     if (rel == null || typeof rel === 'number') return ''
     const r = rel as Client | Lead | User
@@ -204,6 +210,7 @@ function NoteCard({ note, isAdmin }: { note: Note; isAdmin: boolean }) {
         <NoteCardActions
           noteId={note.id}
           pinned={Boolean(note.pinned)}
+          canEdit={canEdit}
           isAdmin={isAdmin}
           adminHref={`/admin/collections/notes/${note.id}`}
         />

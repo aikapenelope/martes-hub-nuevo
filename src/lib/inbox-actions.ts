@@ -7,7 +7,7 @@ import { z } from 'zod'
 import type { Conversation, Message, Tenant } from '@/payload-types'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { getTenantAiModel } from '@/lib/ai-provider'
-import { sendText, type OpenBSPService, type OpenBSPMessageRow } from '@/integrations/openbsp/client'
+import { dispatchConversationReply } from '@/lib/message-dispatch'
 import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
 import { getAssignableUsers } from '@/lib/tasks-data'
 import type { TeamMember } from '@/components/workspace/inbox/InboxCrmContextPanel'
@@ -81,243 +81,21 @@ export async function replyConversationAction(
       throw new Error('La conversación no pertenece al tenant activo')
     }
 
-    // Regla de enrutamiento por canal y rechazo explícito de no soportados
-    let service: OpenBSPService
-    if (conversation.channel === 'whatsapp') {
-      service = 'whatsapp'
-    } else if (conversation.channel === 'instagram_dm') {
-      service = 'instagram_dm'
-    } else {
+    // Despacho unificado vía message-dispatch (canal, ventana 24h e
+    // idempotencia) — misma implementación que el drawer del pipeline y el
+    // endpoint REST para que ningún reintento duplique el mensaje.
+    const result = await dispatchConversationReply(
+      { payload: context.payload, user: context.user, tenantId: context.tenantId },
+      { conversation, text: trimmed, idempotencyKey, revalidatePaths: ['/workspace/inbox'] },
+    )
+    if (!result.ok) {
       return {
         ok: false,
-        error: `El canal "${conversation.channel}" no admite respuestas salientes automáticas por API`,
+        error: result.error,
+        ...('needsTemplate' in result && result.needsTemplate ? { needsTemplate: true } : {}),
       }
     }
-
-    // Regla de ventana de 24 horas de Meta
-    if (
-      !conversation.lastInboundAt ||
-      Date.now() - new Date(conversation.lastInboundAt).getTime() > WINDOW_MS
-    ) {
-      return {
-        ok: false,
-        error: 'Fuera de la ventana de 24h: la sesión del cliente ha expirado',
-        needsTemplate: true,
-      }
-    }
-
-    const tenants = await context.payload.find({
-      collection: 'tenants',
-      where: { id: { equals: context.tenantId } },
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    })
-    const tenant = tenants.docs[0] as Tenant | undefined
-
-    const stableKey =
-      idempotencyKey ||
-      `msg_${conversationId}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-
-    // Verificar si ya existe un mensaje reciente con esta clave de idempotencia
-    const recentMessages = await context.payload.find({
-      collection: 'messages',
-      where: {
-        and: [
-          { tenant: { equals: context.tenantId } },
-          { conversation: { equals: conversation.id } },
-        ],
-      },
-      limit: 30,
-      sort: '-createdAt',
-      overrideAccess: true,
-    })
-
-    const existing = recentMessages.docs.find((m) => {
-      const s = m.statusJson as Record<string, unknown> | undefined
-      return s?.idempotencyKey === stableKey || m.openbspId === `pending:${stableKey}`
-    }) as Message | undefined
-
-    let pendingRecord = existing
-
-    // Si ya existía y fue despachado previamente a OpenBSP, reconciliar y retornar sin reenviar
-    const statusJson = pendingRecord?.statusJson as Record<string, unknown> | undefined
-    if (
-      pendingRecord &&
-      (statusJson?.dispatchStatus === 'dispatched' ||
-        (pendingRecord.openbspId && !pendingRecord.openbspId.startsWith('pending:')))
-    ) {
-      try {
-        await context.payload.update({
-          collection: 'conversations',
-          id: conversation.id,
-          overrideAccess: true,
-          data: { lastMessageAt: new Date().toISOString() },
-        })
-      } catch {
-        // Silencioso: no bloquear si la actualización de timestamp ya está al día
-      }
-      return { ok: true, messageId: pendingRecord.id }
-    }
-
-    // Si ya existía y estaba marcado como fallido, actualizarlo a pending para el nuevo intento
-    if (pendingRecord && statusJson?.dispatchStatus === 'failed') {
-      await context.payload
-        .update({
-          collection: 'messages',
-          id: pendingRecord.id,
-          overrideAccess: true,
-          data: {
-            statusJson: {
-              idempotencyKey: stableKey,
-              dispatchStatus: 'pending',
-            },
-          },
-        })
-        .catch(() => {})
-    } else if (!pendingRecord) {
-      pendingRecord = (await context.payload.create({
-        collection: 'messages',
-        overrideAccess: true,
-        data: {
-          conversation: conversation.id,
-          direction: 'outbound',
-          openbspId: `pending:${stableKey}`,
-          type: 'text',
-          text: trimmed,
-          content: {},
-          statusJson: {
-            idempotencyKey: stableKey,
-            dispatchStatus: 'pending',
-          },
-          sentAt: new Date().toISOString(),
-          performedBy: context.user.id,
-          tenant: context.tenantId,
-        },
-      })) as Message
-    }
-
-    // Despacho externo a OpenBSP consciente del canal
-    let reconcilePending = false
-    let row: OpenBSPMessageRow
-    try {
-      row = await sendText({
-        to: conversation.contactAddress,
-        text: trimmed,
-        tenant: tenant ?? undefined,
-        service,
-        // El remitente debe coincidir con la cuenta por la que llegó el mensaje entrante
-        // (organization_address del webhook). En Instagram el phone_number_id es de WhatsApp.
-        senderAddress: conversation.organizationAddress || undefined,
-      })
-    } catch (dispatchErr) {
-      // Registrar fallo para permitir reintento seguro sin duplicar
-      await context.payload
-        .update({
-          collection: 'messages',
-          id: pendingRecord.id,
-          overrideAccess: true,
-          data: {
-            statusJson: {
-              idempotencyKey: stableKey,
-              dispatchStatus: 'failed',
-              error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
-            },
-          },
-        })
-        .catch(() => {})
-      throw dispatchErr
-    }
-
-    // Despacho externo exitoso: persistir identificadores devueltos
-    try {
-      await context.payload.update({
-        collection: 'messages',
-        id: pendingRecord.id,
-        overrideAccess: true,
-        data: {
-          openbspId: row.id,
-          externalId: row.external_id ?? undefined,
-          statusJson: {
-            ...(typeof row.status === 'object' && row.status ? row.status : {}),
-            idempotencyKey: stableKey,
-            dispatchStatus: 'dispatched',
-          },
-        },
-      })
-    } catch (postDispatchUpdateErr) {
-      // La entrega externa ya se produjo: reintentar la persistencia para no dejar la fila
-      // indistinguible de un mensaje no despachado (evita reenvíos duplicados en reintentos).
-      let reconciled = false
-      let lastRetryErr: unknown = postDispatchUpdateErr
-      for (let attempt = 0; attempt < 3 && !reconciled; attempt++) {
-        if (attempt > 0) {
-          await new Promise((resolve) => setTimeout(resolve, 250 * attempt))
-        }
-        try {
-          await context.payload.update({
-            collection: 'messages',
-            id: pendingRecord.id,
-            overrideAccess: true,
-            data: {
-              openbspId: row.id,
-              statusJson: {
-                ...(typeof row.status === 'object' && row.status ? row.status : {}),
-                idempotencyKey: stableKey,
-                dispatchStatus: 'dispatched',
-              },
-            },
-          })
-          reconciled = true
-        } catch (retryErr) {
-          lastRetryErr = retryErr
-        }
-      }
-      if (!reconciled) {
-        // Último recurso: conciliación mínima que persiste solo el identificador externo
-        try {
-          await context.payload.update({
-            collection: 'messages',
-            id: pendingRecord.id,
-            overrideAccess: true,
-            data: {
-              openbspId: row.id,
-            },
-          })
-          reconciled = true
-        } catch (minimalRetryErr) {
-          lastRetryErr = minimalRetryErr
-        }
-      }
-      if (!reconciled) {
-        context.payload.logger.error({
-          msg: 'inbox: failed to persist message state after successful OpenBSP dispatch (reconciliation pending)',
-          err: lastRetryErr,
-          messageId: pendingRecord.id,
-          openbspId: row.id,
-          idempotencyKey: stableKey,
-        })
-        reconcilePending = true
-      }
-    }
-
-    try {
-      await context.payload.update({
-        collection: 'conversations',
-        id: conversation.id,
-        overrideAccess: true,
-        data: { lastMessageAt: new Date().toISOString() },
-      })
-    } catch (postDispatchConvErr) {
-      context.payload.logger.error({
-        msg: 'inbox: failed to update conversation lastMessageAt after successful dispatch',
-        err: postDispatchConvErr,
-        conversationId: conversation.id,
-      })
-    }
-
-    revalidatePath('/workspace/inbox')
-    return { ok: true, messageId: pendingRecord.id, ...(reconcilePending ? { reconcilePending: true } : {}) }
+    return { ok: true, messageId: result.messageId, ...(result.reconcilePending ? { reconcilePending: true } : {}) }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error enviando mensaje'
     const notConfigured = message.startsWith('OpenBSP no configurado')
