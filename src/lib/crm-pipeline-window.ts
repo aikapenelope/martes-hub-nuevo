@@ -54,3 +54,67 @@ export function formatTimeAgo(isoDate?: string | null, referenceTime: number = D
   const diffDays = Math.floor(diffHours / 24)
   return `hace ${diffDays} d`
 }
+
+export type DealTemperature = 'hot' | 'warm' | 'cold'
+
+export interface DealVelocity {
+  temperature: DealTemperature
+  hoursSinceLastActivity: number
+  label: string
+}
+
+/**
+ * Calcula la velocidad comercial y temperatura del trato:
+ * - hot (< 24h): alta velocidad, fresco
+ * - warm (24h - 72h): tibio, seguimiento requerido
+ * - cold (> 72h): frío, en riesgo comercial
+ */
+export function computeDealVelocity(
+  lastActiveIso: string | null | undefined,
+  now: number = Date.now(),
+): DealVelocity {
+  if (!lastActiveIso) {
+    return { temperature: 'cold', hoursSinceLastActivity: 999, label: 'Sin actividad' }
+  }
+  const diffMs = Math.max(0, now - new Date(lastActiveIso).getTime())
+  const hours = Math.floor(diffMs / (60 * 60 * 1000))
+  if (hours < 24) {
+    return {
+      temperature: 'hot',
+      hoursSinceLastActivity: hours,
+      label: hours < 1 ? 'Activo ahora' : `Activo hace ${hours}h`,
+    }
+  }
+  if (hours <= 72) {
+    const days = Math.floor(hours / 24)
+    return {
+      temperature: 'warm',
+      hoursSinceLastActivity: hours,
+      label: `Inactivo hace ${days}d`,
+    }
+  }
+  const days = Math.floor(hours / 24)
+  return {
+    temperature: 'cold',
+    hoursSinceLastActivity: hours,
+    label: `En riesgo (${days}d sin tocar)`,
+  }
+}
+
+/**
+ * Resuelve la marca de tiempo más reciente entre varios eventos (mensajes, actividades, creación).
+ */
+export function resolveLastActiveTimestamp(...dates: (string | null | undefined)[]): string | null {
+  let mostRecent: string | null = null
+  let maxTime = -Infinity
+  for (const date of dates) {
+    if (!date) continue
+    const time = new Date(date).getTime()
+    if (!Number.isNaN(time) && time > maxTime) {
+      maxTime = time
+      mostRecent = date
+    }
+  }
+  return mostRecent
+}
+

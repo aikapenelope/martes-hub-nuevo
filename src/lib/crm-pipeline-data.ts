@@ -1,9 +1,15 @@
 import 'server-only'
 
 import type { Payload } from 'payload'
-import type { Conversation, ConversationSummary, Lead, Message, User } from '@/payload-types'
+import type { Activity, Conversation, ConversationSummary, Lead, Message, User } from '@/payload-types'
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
-import { computeWindowState, relativeLabel } from '@/lib/crm-pipeline-window'
+import {
+  computeDealVelocity,
+  computeWindowState,
+  relativeLabel,
+  resolveLastActiveTimestamp,
+  type DealVelocity,
+} from '@/lib/crm-pipeline-window'
 
 const MAX_CARDS = LEAD_STATUSES.length * 60
 
@@ -33,6 +39,7 @@ export interface PipelineCard {
   lastMessage: { direction: Message['direction']; text: string; relative: string } | null
   aiSummary: { sentiment: ConversationSummary['sentiment']; summary: string } | null
   convertedClientId: number | null
+  velocity: DealVelocity
 }
 
 export interface PipelineColumn {
@@ -97,7 +104,7 @@ export async function getCrmPipelineData({
   const leads = leadsResult.docs as Lead[]
   const leadIds = leads.map((lead) => lead.id)
 
-  const [conversationsResult, summariesResult] = await Promise.all([
+  const [conversationsResult, summariesResult, activitiesResult] = await Promise.all([
     leadIds.length
       ? query({
           collection: 'conversations',
@@ -116,6 +123,16 @@ export async function getCrmPipelineData({
           where: { and: [{ tenant: { equals: tenantId } }, { lead: { in: leadIds } }] },
         })
       : Promise.resolve({ docs: [] as ConversationSummary[] }),
+    leadIds.length
+      ? query({
+          collection: 'activities',
+          depth: 0,
+          limit: Math.max(leadIds.length * 10, 1000),
+          sort: '-occurredAt',
+          where: { and: [{ tenant: { equals: tenantId } }, { lead: { in: leadIds } }] },
+          select: { lead: true, occurredAt: true },
+        })
+      : Promise.resolve({ docs: [] as Activity[] }),
   ])
 
   // Docs vienen ordenados por más reciente primero; nos quedamos con el primero por lead.
@@ -129,6 +146,41 @@ export async function getCrmPipelineData({
   for (const summary of summariesResult.docs as ConversationSummary[]) {
     const leadId = relationId(summary.lead)
     if (leadId && !summaryByLead.has(leadId)) summaryByLead.set(leadId, summary)
+  }
+
+  const lastActivityByLead = new Map<number, Activity>()
+  for (const activity of activitiesResult.docs as Activity[]) {
+    const leadId = relationId(activity.lead)
+    if (leadId && !lastActivityByLead.has(leadId)) lastActivityByLead.set(leadId, activity)
+  }
+
+  // Garantizar que ningún lead con actividad quede omitido si leads hiper-activos
+  // llenaron el cupo inicial: consultamos en chunks acotados los leads faltantes.
+  const missingLeadIds = leadIds.filter((id) => !lastActivityByLead.has(id))
+  if (missingLeadIds.length > 0) {
+    const CHUNK_SIZE = 25
+    for (let i = 0; i < missingLeadIds.length; i += CHUNK_SIZE) {
+      const chunk = missingLeadIds.slice(i, i + CHUNK_SIZE)
+      const fallbackResults = await Promise.all(
+        chunk.map((id) =>
+          query({
+            collection: 'activities',
+            depth: 0,
+            limit: 1,
+            sort: '-occurredAt',
+            where: { and: [{ tenant: { equals: tenantId } }, { lead: { equals: id } }] },
+            select: { lead: true, occurredAt: true },
+          }),
+        ),
+      )
+      for (const res of fallbackResults) {
+        const doc = res.docs[0] as Activity | undefined
+        if (doc) {
+          const leadId = relationId(doc.lead)
+          if (leadId) lastActivityByLead.set(leadId, doc)
+        }
+      }
+    }
   }
 
   const conversationIds = Array.from(conversationByLead.values())
@@ -167,6 +219,13 @@ export async function getCrmPipelineData({
     )
 
     const summary = summaryByLead.get(lead.id)
+    const lastActivity = lastActivityByLead.get(lead.id)
+    const lastActiveAt = resolveLastActiveTimestamp(
+      lastMessageAt,
+      lastActivity?.occurredAt,
+      lead.createdAt,
+    )
+    const velocity = computeDealVelocity(lastActiveAt, now)
 
     return {
       id: lead.id,
@@ -198,6 +257,7 @@ export async function getCrmPipelineData({
         : null,
       aiSummary: summary ? { sentiment: summary.sentiment, summary: summary.summary } : null,
       convertedClientId: relationId(lead.convertedClient) ?? null,
+      velocity,
     }
   })
 
