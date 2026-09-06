@@ -6,6 +6,7 @@ import type { Task, User } from '@/payload-types'
 import {
   checklistProgress,
   dueState,
+  formatTaskDueDate,
   TASK_PRIORITIES,
   type TaskPriority,
   type TaskStatus,
@@ -54,11 +55,6 @@ const relation = (task: Task) =>
     : task.lead && typeof task.lead === 'object'
       ? task.lead.fullName
       : 'Sin relación CRM'
-
-const dateLabel = (value?: string | null) =>
-  value
-    ? new Intl.DateTimeFormat('es', { day: '2-digit', month: 'short' }).format(new Date(value))
-    : 'Sin fecha'
 
 export interface TaskColumn {
   status: TaskStatus
@@ -357,7 +353,7 @@ export function TasksKanbanBoard({
                             className={`flex items-center gap-1 text-[10px] font-mono ${dueCls[due]}`}
                           >
                             <Clock3 size={12} />
-                            {dateLabel(task.dueDate)}
+                            {formatTaskDueDate(task.dueDate)}
                           </span>
                         </div>
 

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { checklistProgress, dueState, parseTaskFilters } from '@/lib/tasks-filters'
+import {
+  checklistProgress,
+  dueState,
+  formatTaskDueDate,
+  parseTaskCalendarDate,
+  parseTaskFilters,
+} from '@/lib/tasks-filters'
 
 describe('task filters', () => {
   it('normalizes unknown values to safe defaults', () => {
@@ -27,4 +33,21 @@ describe('task presentation helpers', () => {
     expect(dueState('2026-08-30', now)).toBe('upcoming')
     expect(dueState(undefined, now)).toBe('none')
   })
+
+  it('parses calendar dates without UTC timezone shift', () => {
+    const parsed = parseTaskCalendarDate('2026-09-06T00:00:00.000Z')
+    expect(parsed).not.toBeNull()
+    expect(parsed?.getFullYear()).toBe(2026)
+    expect(parsed?.getMonth()).toBe(8) // 0-indexed September
+    expect(parsed?.getDate()).toBe(6)
+  })
+
+  it('formats due dates consistently as calendar dates', () => {
+    const formattedShort = formatTaskDueDate('2026-09-06T00:00:00.000Z', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    expect(formattedShort).toContain('06')
+    expect(formattedShort).toContain('09')
+    expect(formattedShort).toContain('2026')
+    expect(formatTaskDueDate(null)).toBe('Sin fecha')
+  })
 })
+

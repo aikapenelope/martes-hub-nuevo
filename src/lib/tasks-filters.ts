@@ -65,19 +65,40 @@ export function checklistProgress(checklist: { done?: boolean | null }[] | null 
   return { done, total, percent: total ? Math.round((done / total) * 100) : 0 }
 }
 
-export function dueState(dueDate: string | null | undefined, now = new Date()): 'none' | 'overdue' | 'today' | 'upcoming' {
-  if (!dueDate) return 'none'
+/**
+ * Parsea una fecha límite de tarea interpretándola como fecha de calendario pura
+ * (YYYY-MM-DD), evitando el desfase de zona horaria al oeste de UTC.
+ */
+export function parseTaskCalendarDate(dueDate: string | null | undefined): Date | null {
+  if (!dueDate) return null
   const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(dueDate)
-  let target: Date
   if (dateOnlyMatch) {
     const year = Number(dateOnlyMatch[1])
     const month = Number(dateOnlyMatch[2]) - 1
     const day = Number(dateOnlyMatch[3])
-    target = new Date(year, month, day)
-  } else {
-    const due = new Date(dueDate)
-    target = new Date(due.getFullYear(), due.getMonth(), due.getDate())
+    return new Date(year, month, day)
   }
+  const due = new Date(dueDate)
+  if (Number.isNaN(due.getTime())) return null
+  return new Date(due.getFullYear(), due.getMonth(), due.getDate())
+}
+
+/**
+ * Formatea la fecha límite de la tarea garantizando coincidencia exacta con dueState en cualquier zona horaria.
+ */
+export function formatTaskDueDate(
+  dueDate: string | null | undefined,
+  options: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' },
+): string {
+  const date = parseTaskCalendarDate(dueDate)
+  if (!date) return 'Sin fecha'
+  return new Intl.DateTimeFormat('es', options).format(date)
+}
+
+export function dueState(dueDate: string | null | undefined, now = new Date()): 'none' | 'overdue' | 'today' | 'upcoming' {
+  if (!dueDate) return 'none'
+  const target = parseTaskCalendarDate(dueDate)
+  if (!target) return 'none'
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   if (target.getTime() < today.getTime()) return 'overdue'
   if (target.getTime() === today.getTime()) return 'today'

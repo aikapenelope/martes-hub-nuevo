@@ -23,6 +23,7 @@ import {
 import {
   checklistProgress,
   dueState,
+  formatTaskDueDate,
   TASK_PRIORITIES,
   TASK_STATUSES,
   type TaskPriority,
@@ -398,13 +399,11 @@ export function TaskSlideOverDrawer({
                       : 'text-zinc-300'
                 }
               >
-                {activeTask.dueDate
-                  ? new Intl.DateTimeFormat('es', {
-                      day: '2-digit',
-                      month: 'long',
-                      year: 'numeric',
-                    }).format(new Date(activeTask.dueDate))
-                  : 'Sin fecha asignada'}
+                {formatTaskDueDate(activeTask.dueDate, {
+                  day: '2-digit',
+                  month: 'long',
+                  year: 'numeric',
+                })}
               </span>
               {due === 'overdue' && (
                 <span className="px-1.5 py-0.5 rounded text-[9px] bg-red-950 border border-red-800 text-red-300 font-bold">
