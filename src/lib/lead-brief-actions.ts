@@ -1,5 +1,6 @@
 'use server'
 
+import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
 import { getScopedLead } from '@/lib/crm-scoped-entities'
 import { generateLeadBrief } from '@/lib/lead-brief'
 import { getWorkspaceContext } from '@/lib/workspace-context'
@@ -51,6 +52,10 @@ export async function getLeadBriefAction(leadId: number): Promise<ActionResult<{
 export async function generateLeadBriefAction(leadId: number): Promise<ActionResult<{ brief: LeadBriefPayload }>> {
   const context = await getWorkspaceContext()
   if (!context.canEdit) throw new Error('No tienes permiso para generar briefs')
+  // Rate limit: la generación consume tokens del proveedor del tenant
+  if (!(await checkUserActionRateLimit(context.user.id, 'lead-brief'))) {
+    return { ok: false, error: 'Demasiados briefs generados seguidos — espera un minuto' }
+  }
   await getScopedLead(leadId)
 
   const brief = await generateLeadBrief({

@@ -22,7 +22,8 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
       "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
     );
     ALTER TABLE "lead_briefs" ADD CONSTRAINT "lead_briefs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;
-    ALTER TABLE "lead_briefs" ADD CONSTRAINT "lead_briefs_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE set null ON UPDATE no action;
+    ALTER TABLE "lead_briefs" ADD CONSTRAINT "lead_briefs_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE cascade ON UPDATE no action;
+    CREATE UNIQUE INDEX IF NOT EXISTS "lead_briefs_tenant_lead_idx" ON "lead_briefs" USING btree ("tenant_id", "lead_id");
     CREATE INDEX "lead_briefs_tenant_idx" ON "lead_briefs" USING btree ("tenant_id");
     CREATE INDEX "lead_briefs_lead_idx" ON "lead_briefs" USING btree ("lead_id");
     CREATE INDEX "lead_briefs_created_at_idx" ON "lead_briefs" USING btree ("created_at");

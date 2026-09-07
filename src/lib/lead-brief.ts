@@ -164,10 +164,30 @@ export async function generateLeadBrief(options: GenerateLeadBriefOptions): Prom
     return { id: existing.docs[0].id, ...data }
   }
 
-  const created = await payload.create({
-    collection: 'lead-briefs',
-    data: { tenant: tenantId, lead: leadId, ...data },
-    overrideAccess: true,
-  })
-  return { id: created.id, ...data }
+  // El índice único (tenant, lead) garantiza un brief vigente por lead bajo
+  // concurrencia: si otra generación creó el registro entre el find y aquí,
+  // la carrera termina en violación de unique → re-leer y actualizar.
+  try {
+    const created = await payload.create({
+      collection: 'lead-briefs',
+      data: { tenant: tenantId, lead: leadId, ...data },
+      overrideAccess: true,
+    })
+    return { id: created.id, ...data }
+  } catch (err) {
+    const pgCode = (err as { cause?: { code?: string } }).cause?.code
+    if (pgCode !== '23505' && !(err instanceof Error && err.message.includes('duplicate key'))) throw err
+
+    const raced = await payload.find({
+      collection: 'lead-briefs',
+      limit: 1,
+      depth: 0,
+      sort: '-createdAt',
+      where: { and: [{ tenant: { equals: tenantId } }, { lead: { equals: leadId } }] },
+      overrideAccess: true,
+    })
+    if (!raced.docs[0]) throw err
+    await payload.update({ collection: 'lead-briefs', id: raced.docs[0].id, data, overrideAccess: true })
+    return { id: raced.docs[0].id, ...data }
+  }
 }

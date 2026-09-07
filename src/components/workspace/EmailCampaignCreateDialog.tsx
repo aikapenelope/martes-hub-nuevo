@@ -31,8 +31,26 @@ export function EmailCampaignCreateDialog({
   const [testTo, setTestTo] = useState(testEmail ?? '')
   const [testFeedback, setTestFeedback] = useState<string | null>(null)
   const [testError, setTestError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
+
+  // Guardar con manejo de error real: si falla, el drawer permanece abierto
+  // con el borrador intacto y el error visible — nunca un falso éxito.
+  const handleSave = useCallback(
+    (formData: FormData) => {
+      startTransition(async () => {
+        setSaveError(null)
+        try {
+          await createEmailCampaignAction(formData)
+          setOpen(false)
+        } catch (err) {
+          setSaveError(err instanceof Error ? err.message : 'Error guardando la campaña')
+        }
+      })
+    },
+    [],
+  )
 
   const readDraft = useCallback(() => {
     const form = formRef.current
@@ -94,7 +112,7 @@ export function EmailCampaignCreateDialog({
       <Drawer open={open} onClose={() => setOpen(false)} title="Nueva Campaña de Email" size="xl">
 
         <div className="grid max-h-[75vh] gap-4 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <form ref={formRef} action={(formData) => { void createEmailCampaignAction(formData); setOpen(false) }} onChange={refreshPreview} className="flex min-w-0 flex-col gap-3">
+        <form ref={formRef} action={handleSave} onChange={refreshPreview} className="flex min-w-0 flex-col gap-3">
           <label className={labelCls}>
             Nombre interno
             <input name="name" required maxLength={160} placeholder="Ej: Promo julio 2026" className={inputCls} />
@@ -124,6 +142,11 @@ export function EmailCampaignCreateDialog({
             El HTML se sanitiza en el servidor (sin scripts/iframes/handlers inline) y se envuelve
             automáticamente con la plantilla base de la marca.
           </p>
+          {saveError && (
+            <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300" role="alert">
+              {saveError}
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-1">
             <button
               type="button"
@@ -132,8 +155,8 @@ export function EmailCampaignCreateDialog({
             >
               Cancelar
             </button>
-            <button type="submit" className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono">
-              Guardar borrador
+            <button type="submit" disabled={isPending} className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono disabled:opacity-50">
+              {isPending ? 'Guardando…' : 'Guardar borrador'}
             </button>
           </div>
         </form>

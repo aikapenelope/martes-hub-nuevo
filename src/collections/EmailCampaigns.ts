@@ -1,5 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
+import { sanitizeCampaignHtml } from '../email/sanitize'
+
 import { authenticated, editorsOnly, adminOnly } from '../access'
 import { sendCampaignHandler } from '../endpoints/sendCampaign'
 
@@ -25,13 +27,8 @@ export const EmailCampaigns: CollectionConfig = {
     beforeValidate: [
       ({ data }) => {
         if (typeof data?.bodyHtml === 'string') {
-          // Sanitización server-side contra XSS: elimina scripts, iframes, eval y event handlers inline
-          data.bodyHtml = data.bodyHtml
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-            .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-            .replace(/\s*on\w+\s*=\s*(['"]).*?\1/gi, '')
-            .replace(/\s*on\w+\s*=\s*[^>\s]+/gi, '')
-            .replace(/javascript:/gi, '')
+          // Sanitización server-side contra XSS (regla compartida con preview y envío de prueba)
+          data.bodyHtml = sanitizeCampaignHtml(data.bodyHtml)
         }
         return data
       },

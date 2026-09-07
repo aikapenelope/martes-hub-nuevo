@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 
 import { renderEmailHtml } from '@/email/layout'
+import { sanitizeCampaignHtml } from '@/email/sanitize'
+import { collectCampaignRecipients } from '@/lib/campaign-recipients'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
 const MAX_NAME = 160
@@ -114,7 +116,7 @@ export async function renderCampaignPreviewAction(input: {
   return {
     html: renderEmailHtml({
       title: input.subject.trim().slice(0, 200) || 'Vista previa',
-      bodyHtml: input.bodyHtml.slice(0, 20000),
+      bodyHtml: sanitizeCampaignHtml(input.bodyHtml.slice(0, 20000)),
       preheader: input.preheader?.trim().slice(0, 200) || undefined,
     }),
   }
@@ -131,49 +133,24 @@ export async function campaignRecipientCountAction(
   const context = await getWorkspaceContext()
   if (!context.canEdit) throw new Error('No tienes permiso para ver campañas')
 
-  const segmentFilter = segmentId && Number.isInteger(segmentId) && segmentId > 0 ? [{ segment: { equals: segmentId } }] : []
-  const base = { tenant: { equals: context.tenantId } }
+  // Misma fuente única que el job de envío: el alcance mostrado no puede
+  // desviarse de lo que realmente se entrega (segmento, conversión, etapa,
+  // opt-out, tope 500, dedupe por email).
+  const recipients = await collectCampaignRecipients({
+    payload: context.payload,
+    tenantId: context.tenantId,
+    segmentId: segmentId && Number.isInteger(segmentId) && segmentId > 0 ? segmentId : undefined,
+    user: context.user,
+  })
 
-  const [leadsRes, clientsRes] = await Promise.all([
-    context.payload.find({
-      collection: 'leads',
-      where: { and: [base, ...segmentFilter, { email: { exists: true } }] },
-      limit: 5000,
-      depth: 0,
-      select: { email: true },
-      overrideAccess: false,
-      user: context.user,
-    }),
-    context.payload.find({
-      collection: 'clients',
-      where: { and: [base, ...segmentFilter, { optOutAt: { exists: false } }, { email: { exists: true } }] },
-      limit: 5000,
-      depth: 0,
-      select: { email: true },
-      overrideAccess: false,
-      user: context.user,
-    }),
-  ])
-
-  const seen = new Set<string>()
   let leadCount = 0
   let clientCount = 0
-  for (const lead of leadsRes.docs as Array<{ email?: string | null }>) {
-    const key = (lead.email ?? '').toLowerCase()
-    if (!key) continue
-    if (seen.has(key)) continue
-    seen.add(key)
-    leadCount += 1
-  }
-  for (const client of clientsRes.docs as Array<{ email?: string | null }>) {
-    const key = (client.email ?? '').toLowerCase()
-    if (!key) continue
-    if (seen.has(key)) continue
-    seen.add(key)
-    clientCount += 1
+  for (const recipient of recipients.values()) {
+    if (recipient.leadId) leadCount += 1
+    else if (recipient.clientId) clientCount += 1
   }
 
-  return { total: seen.size, leads: leadCount, clients: clientCount }
+  return { total: recipients.size, leads: leadCount, clients: clientCount }
 }
 
 /** Envío de prueba a una dirección (default: el propio usuario) — no crea ni toca la campaña. */
@@ -193,7 +170,9 @@ export async function sendCampaignTestAction(input: {
   const subject = input.subject.trim().slice(0, 200) || 'Prueba de campaña'
   const html = renderEmailHtml({
     title: subject,
-    bodyHtml: input.bodyHtml.slice(0, 20000),
+    // Mismo sanitizador que el guardado y el envío real: el test no es una
+    // vía para entregar HTML activo o engañoso a direcciones arbitrarias.
+    bodyHtml: sanitizeCampaignHtml(input.bodyHtml.slice(0, 20000)),
     preheader: input.preheader?.trim().slice(0, 200) || undefined,
   })
 

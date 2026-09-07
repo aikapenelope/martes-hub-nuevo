@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { generateObject } from 'ai'
+import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
 import { getScopedLead } from '@/lib/crm-scoped-entities'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
@@ -21,6 +22,10 @@ type ActionResult<T extends object = object> = ({ ok: true } & T) | { ok: false;
 export async function generateOutreachMessageAction(leadId: number): Promise<ActionResult<{ message: string }>> {
   const context = await getWorkspaceContext()
   if (!context.canEdit) throw new Error('No tienes permiso para generar mensajes')
+  // Rate limit: la generación consume tokens del proveedor del tenant
+  if (!(await checkUserActionRateLimit(context.user.id, 'outreach-message'))) {
+    return { ok: false, error: 'Demasiados mensajes generados seguidos — espera un minuto' }
+  }
   const { lead } = await getScopedLead(leadId)
 
   const { getTenantAiModel } = await import('@/lib/ai-provider')

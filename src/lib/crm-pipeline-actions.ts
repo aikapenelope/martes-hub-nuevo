@@ -286,41 +286,63 @@ export async function updateLeadFieldsAction(
       data: buildLeadUpdateData(input),
     })
 
-    // Automatización "lead interesado" (Attio-style): al subir a caliente,
-    // encola el brief 360 con IA y deja tarea de recordatorio para llamar.
-    const becameHot =
-      input.nivelInteres === 'caliente' &&
-      (lead.nivelInteres ?? undefined) !== 'caliente'
-    if (becameHot) {
+    // Automatización "lead interesado" (Attio-style). Recuperable e
+    // idempotente: cada pieza verifica si falta y se completa de forma
+    // independiente — si el job o la tarea fallaron en una pasada anterior,
+    // el próximo guardado del lead (siguiendo caliente) reintenta solo, sin
+    // duplicar recordatorios. Los fallos se registran, no se tragan.
+    if (input.nivelInteres === 'caliente') {
+      const hotBase = { tenant: { equals: context.tenantId } }
+      const leadFilter = { lead: { equals: leadId } }
+
       try {
-        await context.payload.jobs.queue({
-          task: 'generate-lead-brief',
-          input: { leadId, tenantId: context.tenantId },
+        const briefCount = await context.payload.count({
+          collection: 'lead-briefs',
+          where: { and: [hotBase, leadFilter] },
           overrideAccess: true,
         })
-        const previousAssignee =
-          input.assignedTo != null
-            ? input.assignedTo
-            : typeof lead.assignedTo === 'object' && lead.assignedTo
-              ? lead.assignedTo.id
-              : lead.assignedTo
-        await context.payload.create({
+        if (briefCount.totalDocs === 0) {
+          await context.payload.jobs.queue({
+            task: 'generate-lead-brief',
+            input: { leadId, tenantId: context.tenantId },
+            overrideAccess: true,
+          })
+        }
+      } catch (err) {
+        console.error('[lead-hot] encolando brief IA:', err)
+      }
+
+      try {
+        const taskTitle = `📞 Llamar a ${lead.fullName} — marcado como interesado`
+        const duplicate = await context.payload.count({
           collection: 'tasks',
-          overrideAccess: false,
-          user: context.user,
-          data: {
-            tenant: context.tenantId,
-            title: `📞 Llamar a ${lead.fullName} — marcado como interesado`,
-            status: 'pendiente',
-            priority: 'alta',
-            dueDate: new Date(Date.now() + 86_400_000).toISOString(),
-            lead: leadId,
-            ...(previousAssignee ? { assignedTo: previousAssignee } : { assignedTo: context.user.id }),
-          },
+          where: { and: [hotBase, leadFilter, { title: { equals: taskTitle } }] },
+          overrideAccess: true,
         })
-      } catch {
-        // El guardado del lead nunca debe fallar por el trigger — el brief y
-        // la tarea son un extra; el fallo queda en los logs del job.
+        if (duplicate.totalDocs === 0) {
+          const previousAssignee =
+            input.assignedTo != null
+              ? input.assignedTo
+              : typeof lead.assignedTo === 'object' && lead.assignedTo
+                ? lead.assignedTo.id
+                : lead.assignedTo
+          await context.payload.create({
+            collection: 'tasks',
+            overrideAccess: false,
+            user: context.user,
+            data: {
+              tenant: context.tenantId,
+              title: taskTitle,
+              status: 'pendiente',
+              priority: 'alta',
+              dueDate: new Date(Date.now() + 86_400_000).toISOString(),
+              lead: leadId,
+              ...(previousAssignee ? { assignedTo: previousAssignee } : { assignedTo: context.user.id }),
+            },
+          })
+        }
+      } catch (err) {
+        console.error('[lead-hot] creando tarea recordatoria:', err)
       }
     }
 
