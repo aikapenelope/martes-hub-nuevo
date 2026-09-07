@@ -104,3 +104,103 @@ export async function getMonthlyTrends({
     return null
   }
 }
+
+export interface WeeklyCashflow {
+  /** 'YYYY-MM-DD' del lunes que abre cada semana (8: 7 completas + la actual). */
+  weekStarts: string[]
+  /** Cobros `pagado` de la semana, agrupados por `paid_at` (instante real). */
+  cobrado: number[]
+  /** Cobros `pendiente` + `vencido` con vencimiento en la semana, por `due_date`. */
+  pendiente: number[]
+}
+
+/** Fecha 'YYYY-MM-DD' de hoy vista desde America/Caracas. */
+function caracasToday(now = new Date()): { y: number; m: number; d: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Caracas',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now)
+  const [y, m, d] = parts.split('-').map(Number)
+  return { y, m, d }
+}
+
+/** Lunes (fecha calendario 'YYYY-MM-DD') que abre la semana en curso según Caracas. */
+function currentMondayKey(now = new Date()): string {
+  const { y, m, d } = caracasToday(now)
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay() // 0 = domingo
+  const monday = new Date(Date.UTC(y, m - 1, d - ((dow + 6) % 7)))
+  return `${monday.getUTCFullYear()}-${String(monday.getUTCMonth() + 1).padStart(2, '0')}-${String(monday.getUTCDate()).padStart(2, '0')}`
+}
+
+/**
+ * Serie semanal (8 semanas: 7 completas + la actual) de cobranza para el
+ * chart segmentado del Resumen. Dos agregaciones sobre payments:
+ * - cobrado: status `pagado` agrupado por semana de `paid_at` (instante real,
+ *   truncado en hora de Caracas, mismo criterio que getMonthlyTrends).
+ * - pendiente: status `pendiente` + `vencido` agrupado por semana de
+ *   `due_date` SIN conversión de zona, igual que monthlyPendingSeries en
+ *   db-aggregates: due_date se escribe como fecha calendario a medianoche UTC
+ *   y convertir a Caracas correría el vencimiento al día anterior.
+ *
+ * ⚠️ La clave de semana se formatea SIEMPRE con máscara explícita en el
+ * to_char ('YYYY-MM-DD'): date_trunc('week') formateado sin máscara produce
+ * claves 'YYYY-DD-MM' con mes/día intercambiados (ronda abortada previa) y
+ * las filas no matchearían contra los Mondays calculados en TS.
+ */
+export async function getWeeklyCashflow({
+  payload,
+  tenantId,
+  user,
+}: {
+  payload: Payload
+  tenantId: number
+  user?: User
+}): Promise<WeeklyCashflow | null> {
+  const db = payload.db as { pool?: { query: (sql: string, params: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }> } }
+  if (!db.pool || typeof db.pool.query !== 'function') return null
+
+  // Aritmética de fechas en UTC sobre la fecha de Caracas: tz-independiente.
+  const weekStarts: string[] = []
+  const [my, mm, md] = currentMondayKey().split('-').map(Number)
+  for (let i = 7; i >= 0; i--) {
+    const d = new Date(Date.UTC(my, mm - 1, md - i * 7))
+    weekStarts.push(
+      `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`,
+    )
+  }
+  const since = weekStarts[0]
+
+  try {
+    const [paidRes, pendingRes] = await Promise.all([
+      db.pool.query(
+        `SELECT to_char(date_trunc('week', paid_at AT TIME ZONE 'America/Caracas'), 'YYYY-MM-DD') AS w,
+                COALESCE(SUM(amount), 0)::float8 AS total
+         FROM payments
+         WHERE tenant_id = $1 AND status::text = 'pagado' AND paid_at >= $2
+         GROUP BY 1`,
+        [tenantId, `${since}T00:00:00-04:00`],
+      ),
+      db.pool.query(
+        `SELECT to_char(date_trunc('week', due_date), 'YYYY-MM-DD') AS w,
+                COALESCE(SUM(amount), 0)::float8 AS total
+         FROM payments
+         WHERE tenant_id = $1 AND status::text = ANY($2::text[]) AND due_date >= $3
+         GROUP BY 1`,
+        [tenantId, ['pendiente', 'vencido'], `${since}T00:00:00Z`],
+      ),
+    ])
+
+    const byWeek = (rows: Array<Record<string, unknown>>): number[] =>
+      weekStarts.map((w) => Number(rows.find((r) => r.w === w)?.total ?? 0))
+
+    return {
+      weekStarts,
+      cobrado: byWeek(paidRes.rows),
+      pendiente: byWeek(pendingRes.rows),
+    }
+  } catch {
+    return null
+  }
+}

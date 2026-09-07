@@ -7,6 +7,7 @@
  * - CockpitFollowupsToday: Contactos que superaron su SLA de seguimiento hoy (WhatsApp directo).
  * - CockpitKpiGrid: 5 tarjetas de métricas comerciales y salud del canal.
  * - ActivityHeatmap: Matriz anual interactiva de 364 días (actividades + mensajes + pagos).
+ * - WeeklyCashflowCard: Cobranza de 8 semanas en barras segmentadas (cobrado por paid_at + pendiente por due_date).
  * - CockpitCashflowChart: Flujo de caja de 6 meses (cobrado por paid_at + pendiente por due_date).
  * - CockpitConversionFunnel: Embudo de conversión real entre etapas de leads y clientes.
  * - CockpitSourceBreakdown: Desglose de canales de captación (Google Maps, WhatsApp, etc.).
@@ -21,8 +22,9 @@ import Link from 'next/link'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import type { Client, Segment, User } from '@/payload-types'
 import { getWorkspaceOverviewData } from '@/lib/overview-data'
-import { getMonthlyTrends } from '@/lib/trend-widgets'
+import { getMonthlyTrends, getWeeklyCashflow } from '@/lib/trend-widgets'
 import { TrendStrip } from '@/components/workspace/overview/TrendStrip'
+import { WeeklyCashflowCard } from '@/components/workspace/overview/WeeklyCashflowCard'
 import { getUpcomingAgenda } from '@/lib/agenda-data'
 import { CockpitFocusViews } from '@/components/workspace/overview/CockpitFocusViews'
 import type { TimeRangeKey } from '@/components/workspace/overview/types'
@@ -45,10 +47,11 @@ export default async function WorkspacePage({
       ? (queryParams.rango as TimeRangeKey)
       : '30d'
 
-  const [data, agenda, trends] = await Promise.all([
+  const [data, agenda, trends, cashflow] = await Promise.all([
     getWorkspaceOverviewData({ payload, user, tenant, tenantId, timeRange }),
     getUpcomingAgenda({ payload, user, tenantId, days: 7 }),
     getMonthlyTrends({ payload, tenantId, user }),
+    getWeeklyCashflow({ payload, tenantId, user }),
   ])
 
   // Lista ligera de clientes (solo id/name) para el dialog de "+ Cobro".
@@ -123,6 +126,9 @@ export default async function WorkspacePage({
       </nav>
 
       {trends && <TrendStrip trends={trends} />}
+
+      {/* Cobranza de 8 semanas (chart segmentado: blanco = cobrado, gris = pendiente) */}
+      {cashflow && <WeeklyCashflowCard data={cashflow} />}
 
       {/* Accesos rápidos */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Acciones rápidas">
