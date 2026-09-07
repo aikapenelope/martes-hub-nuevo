@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import type { PayloadRequest } from 'payload'
 
 import { generateObject } from 'ai'
 import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
@@ -76,31 +77,50 @@ export async function markLeadContactedAction(leadId: number): Promise<ActionRes
   const now = new Date().toISOString()
   const prevCount = typeof lead.numeroDeLlamadas === 'number' ? lead.numeroDeLlamadas : 0
 
-  await context.payload.update({
-    collection: 'leads',
-    id: leadId,
-    overrideAccess: false,
+  // Transacción: la actualización del lead y su actividad de timeline se
+  // confirman juntas — un fallo a mitad hace rollback de ambas y el reintento
+  // nunca duplica el contador.
+  const transactionReq = {
+    payload: context.payload,
     user: context.user,
-    data: {
-      lastContactedAt: now,
-      numeroDeLlamadas: prevCount + 1,
-      lastContactChannel: 'whatsapp',
-    },
-  })
+  } as unknown as PayloadRequest
+  const transactionID = await context.payload.db.beginTransaction()
+  if (transactionID) transactionReq.transactionID = transactionID
 
-  await context.payload.create({
-    collection: 'activities',
-    overrideAccess: false,
-    user: context.user,
-    data: {
-      tenant: context.tenantId,
-      type: 'whatsapp',
-      summary: 'Mensaje enviado manualmente por WhatsApp (prospección)',
-      occurredAt: now,
-      lead: leadId,
-      performedBy: context.user.id,
-    },
-  })
+  try {
+    await context.payload.update({
+      collection: 'leads',
+      id: leadId,
+      overrideAccess: false,
+      user: context.user,
+      req: transactionReq,
+      data: {
+        lastContactedAt: now,
+        numeroDeLlamadas: prevCount + 1,
+        lastContactChannel: 'whatsapp',
+      },
+    })
+
+    await context.payload.create({
+      collection: 'activities',
+      overrideAccess: false,
+      user: context.user,
+      req: transactionReq,
+      data: {
+        tenant: context.tenantId,
+        type: 'whatsapp',
+        summary: 'Mensaje enviado manualmente por WhatsApp (prospección)',
+        occurredAt: now,
+        lead: leadId,
+        performedBy: context.user.id,
+      },
+    })
+
+    if (transactionID) await context.payload.db.commitTransaction(transactionID)
+  } catch (err) {
+    if (transactionID) await context.payload.db.rollbackTransaction(transactionID)
+    throw err
+  }
 
   revalidatePath('/workspace/outreach')
   revalidatePath('/workspace/crm')

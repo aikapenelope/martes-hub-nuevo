@@ -66,16 +66,23 @@ export function EmailCampaignCreateDialog({
     }
   }, [])
 
+  // IDs monotónicos: una respuesta vieja (draft anterior) nunca pisa el
+  // preview/conteo del estado más reciente del formulario.
+  const previewSeqRef = useRef(0)
+  const countSeqRef = useRef(0)
+
   const refreshPreview = useCallback(() => {
     const draft = readDraft()
     if (!draft) {
+      previewSeqRef.current += 1
       setPreviewHtml('')
       return
     }
+    const seq = ++previewSeqRef.current
     startTransition(async () => {
       try {
         const result = await renderCampaignPreviewAction(draft)
-        setPreviewHtml(result.html)
+        if (seq === previewSeqRef.current) setPreviewHtml(result.html)
       } catch {
         // la preview es best-effort: sin render se muestra el placeholder
       }
@@ -83,12 +90,14 @@ export function EmailCampaignCreateDialog({
   }, [readDraft])
 
   const refreshCount = useCallback(() => {
+    const seq = ++countSeqRef.current
     const draft = readDraft()
     startTransition(async () => {
       try {
-        setRecipientCount(await campaignRecipientCountAction(draft?.segmentId))
+        const result = await campaignRecipientCountAction(draft?.segmentId)
+        if (seq === countSeqRef.current) setRecipientCount(result)
       } catch {
-        setRecipientCount(null)
+        if (seq === countSeqRef.current) setRecipientCount(null)
       }
     })
   }, [readDraft])

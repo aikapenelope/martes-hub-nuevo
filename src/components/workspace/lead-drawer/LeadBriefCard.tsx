@@ -24,6 +24,8 @@ export function LeadBriefCard({ leadId, canEdit }: { leadId: number; canEdit: bo
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
+    // La tarjeta se monta por lead (key={lead.id} en el caller): el estado
+    // arranca vacío por construcción — nunca se muestra el brief del anterior.
     let cancelled = false
     startTransition(async () => {
       try {

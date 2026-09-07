@@ -17,31 +17,40 @@ export const metadata: Metadata = {
 export default async function OutreachPage() {
   const context = await getWorkspaceContext()
 
-  // Interesados: nivel templado/caliente o prioridad alta, sin convertir y con teléfono
-  const leadsRes = await context.payload.find({
-    collection: 'leads',
-    where: {
-      and: [
-        { tenant: { equals: context.tenantId } },
-        { convertedClient: { exists: false } },
-        { phone: { exists: true } },
-        {
-          or: [
-            { nivelInteres: { in: ['templado', 'caliente'] } },
-            { prioridad: { equals: 'alta' } },
-          ],
-        },
-      ],
-    },
-    limit: 100,
-    depth: 0,
-    sort: '-updatedAt',
-    overrideAccess: false,
-    user: context.user,
-  })
+  // Interesados: nivel templado/caliente o prioridad alta, sin convertir y con teléfono.
+  // Paginación completa: ningún interesado elegible se queda fuera de la lista.
+  const interestedLeads: Lead[] = []
+  let page = 1
+  for (;;) {
+    const batch = await context.payload.find({
+      collection: 'leads',
+      where: {
+        and: [
+          { tenant: { equals: context.tenantId } },
+          { convertedClient: { exists: false } },
+          { phone: { exists: true } },
+          {
+            or: [
+              { nivelInteres: { in: ['templado', 'caliente'] } },
+              { prioridad: { equals: 'alta' } },
+            ],
+          },
+        ],
+      },
+      limit: 500,
+      page,
+      depth: 0,
+      sort: '-updatedAt',
+      overrideAccess: false,
+      user: context.user,
+    })
+    interestedLeads.push(...(batch.docs as Lead[]))
+    if (!batch.hasNextPage) break
+    page += 1
+  }
 
   // Último brief por lead (mensaje pre-escrito consultable)
-  const leadIds = (leadsRes.docs as Lead[]).map((l) => l.id)
+  const leadIds = interestedLeads.map((l) => l.id)
   const briefsByLead = new Map<number, string>()
   if (leadIds.length > 0) {
     const briefsRes = await context.payload.find({
@@ -64,7 +73,7 @@ export default async function OutreachPage() {
     }
   }
 
-  const rows = (leadsRes.docs as Lead[]).map((lead) => ({
+  const rows = interestedLeads.map((lead) => ({
     id: lead.id,
     fullName: lead.fullName,
     phone: lead.phone ?? '',

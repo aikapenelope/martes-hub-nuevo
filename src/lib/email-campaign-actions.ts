@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { renderEmailHtml } from '@/email/layout'
+import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
 import { sanitizeCampaignHtml } from '@/email/sanitize'
 import { collectCampaignRecipients } from '@/lib/campaign-recipients'
 import { getWorkspaceContext } from '@/lib/workspace-context'
@@ -133,6 +134,20 @@ export async function campaignRecipientCountAction(
   const context = await getWorkspaceContext()
   if (!context.canEdit) throw new Error('No tienes permiso para ver campañas')
 
+  // Validación de propiedad del rubro: sin esto, un segmentId ajeno al tenant
+  // revela conteos de otro workspace.
+  if (segmentId && Number.isInteger(segmentId) && segmentId > 0) {
+    const check = await context.payload.find({
+      collection: 'segments',
+      limit: 1,
+      depth: 0,
+      overrideAccess: false,
+      user: context.user,
+      where: { and: [{ id: { equals: segmentId } }, { tenant: { equals: context.tenantId } }] },
+    })
+    if (check.docs.length === 0) throw new Error('Rubro no encontrado en el tenant activo')
+  }
+
   // Misma fuente única que el job de envío: el alcance mostrado no puede
   // desviarse de lo que realmente se entrega (segmento, conversión, etapa,
   // opt-out, tope 500, dedupe por email).
@@ -163,6 +178,11 @@ export async function sendCampaignTestAction(input: {
   const context = await getWorkspaceContext()
   if (!context.canEdit) throw new Error('No tienes permiso para enviar campañas')
   if (!process.env.RESEND_API_KEY) throw new Error('Email no configurado (falta RESEND_API_KEY)')
+  // Rate limit: mismo criterio que el resto de acciones de costo variable —
+  // sin tope, llamadas automatizadas agotan la cuota del proveedor.
+  if (!(await checkUserActionRateLimit(context.user.id, 'campaign-test'))) {
+    throw new Error('Demasiados envíos de prueba seguidos — espera un minuto')
+  }
 
   const to = (input.to || context.user.email || '').trim()
   if (!to) throw new Error('No hay dirección de destino para la prueba')

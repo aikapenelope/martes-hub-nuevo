@@ -259,7 +259,7 @@ export function LeadDrawerDataTab({
 
   return (
     <div className="flex flex-col gap-3 pb-6">
-    <LeadBriefCard leadId={lead.id} canEdit={canEdit} />
+    <LeadBriefCard key={lead.id} leadId={lead.id} canEdit={canEdit} />
     <form onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-3">
       <fieldset disabled={!canEdit || saving || converting} className="flex flex-col gap-3">
         {/* Banner de Estado / Conversión a Cliente */}
