@@ -1,4 +1,7 @@
+'use client'
+
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { parseCrmFilters } from '@/lib/crm-data'
 
 export function buildCrmHref(
@@ -34,6 +37,7 @@ export function CrmViewNavigation({
   agents?: User[]
   currentUser?: User
 }) {
+  const router = useRouter()
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <nav className="inline-flex border border-zinc-800 bg-zinc-950 p-0.5" aria-label="Vista CRM">
@@ -76,7 +80,7 @@ export function CrmViewNavigation({
             className="border border-zinc-800 bg-black px-2 py-1 text-xs text-white focus:outline-none focus:border-zinc-600"
             value={filters.agent || 'todos'}
             onChange={(e) => {
-              window.location.href = buildCrmHref(filters, { agente: e.target.value })
+              router.push(buildCrmHref(filters, { agente: e.target.value }))
             }}
           >
             <option value="todos">Todos los Agentes</option>

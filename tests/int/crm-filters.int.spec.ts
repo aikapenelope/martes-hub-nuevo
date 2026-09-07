@@ -10,6 +10,8 @@ describe('parseCrmFilters', () => {
       query: '',
       status: 'todos',
       stage: 'todos',
+      agent: 'todos',
+      source: undefined,
       page: 1,
     })
   })
@@ -42,5 +44,23 @@ describe('parseCrmFilters', () => {
 
     const invalidSourceFilters = parseCrmFilters({ vista: 'leads', fuente: 'canal_inexistente' })
     expect(invalidSourceFilters.source).toBeUndefined()
+  })
+})
+
+import { buildCrmHref } from '@/components/workspace/crm/CrmViewNavigation'
+
+describe('buildCrmHref', () => {
+  it('construye la URL respetando vista y filtros activos', () => {
+    const filters = parseCrmFilters({ vista: 'leads', agente: 'me', estado: 'contactado' })
+    const href = buildCrmHref(filters, { agente: 'user_123' })
+    expect(href).toContain('vista=leads')
+    expect(href).toContain('agente=user_123')
+    expect(href).toContain('estado=contactado')
+  })
+
+  it('elimina parámetros cuando se pasa todos o undefined', () => {
+    const filters = parseCrmFilters({ vista: 'leads', agente: 'me' })
+    const href = buildCrmHref(filters, { agente: 'todos' })
+    expect(href).not.toContain('agente=')
   })
 })
