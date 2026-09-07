@@ -32,6 +32,7 @@ import {
   Sun,
   Inbox,
   Receipt,
+  Target,
 } from 'lucide-react'
 
 const NAV_GROUPS = [
@@ -41,6 +42,7 @@ const NAV_GROUPS = [
       { label: 'Resumen', href: '/workspace', icon: LayoutDashboard, exact: true },
       { label: 'Hoy', href: '/workspace/hoy', icon: Sun },
       { label: 'CRM', href: '/workspace/crm', icon: Kanban },
+      { label: 'Prospección', href: '/workspace/outreach', icon: Target },
       { label: 'Tareas', href: '/workspace/tasks', icon: CheckSquare },
       { label: 'Inbox', href: '/workspace/inbox', icon: Inbox },
       { label: 'Facturación', href: '/workspace/billing', icon: Receipt },
