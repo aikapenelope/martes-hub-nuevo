@@ -51,9 +51,9 @@ export function CockpitKpiGrid({
   const periodLabel = RANGE_LABELS[timeRange] ?? 'Cobrado en el Período'
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5">
       {/* Cobrado en el Período */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>{periodLabel}</span>
           <span className="p-1.5 bg-sky-950/80 text-sky-400 border border-sky-800/80">
@@ -87,7 +87,7 @@ export function CockpitKpiGrid({
       </article>
 
       {/* Pipeline Ponderado */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>Pipeline Ponderado</span>
           <span className="p-1.5 bg-indigo-950/80 text-indigo-400 border border-indigo-800/80">
@@ -110,7 +110,7 @@ export function CockpitKpiGrid({
       </article>
 
       {/* Leads en Gestión */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>Leads en Gestión</span>
           <span className="p-1.5 bg-cyan-950/80 text-cyan-400 border border-cyan-800/80">
@@ -135,7 +135,7 @@ export function CockpitKpiGrid({
       </article>
 
       {/* Tareas Vencidas */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>Tareas Vencidas</span>
           <span className="p-1.5 bg-amber-950/80 text-amber-400 border border-amber-800/80">
@@ -154,7 +154,7 @@ export function CockpitKpiGrid({
       </article>
 
       {/* Por Cobrar */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>Por Cobrar</span>
           <span className="p-1.5 bg-amber-950/80 text-amber-400 border border-amber-800/80">
@@ -179,7 +179,7 @@ export function CockpitKpiGrid({
       </article>
 
       {/* Ventana WhatsApp 24H */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>Ventana WhatsApp 24H</span>
           <span className="p-1.5 bg-rose-950/80 text-rose-400 border border-rose-800/80">

@@ -474,7 +474,7 @@ export function CockpitFocusViews({
 
       {/* Panel Desplegable: Personalización del Bento Modular y Elástico */}
       {showConfig && (
-        <div className="p-4 oled-card border-sky-900/50 bg-sky-950/15 space-y-3 animate-fadeIn font-mono text-xs">
+        <div className="p-3.5 oled-card border-sky-900/50 bg-sky-950/15 space-y-3 animate-fadeIn font-mono text-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
             <div className="flex items-center gap-2">
               <LayoutGrid size={15} className="text-sky-400" />

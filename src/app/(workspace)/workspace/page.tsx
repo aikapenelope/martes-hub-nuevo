@@ -131,9 +131,9 @@ export default async function WorkspacePage({
       {cashflow && <WeeklyCashflowCard data={cashflow} />}
 
       {/* Accesos rápidos */}
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Acciones rápidas">
+      <section className="grid grid-cols-2 gap-2.5 lg:grid-cols-4" aria-label="Acciones rápidas">
         {QUICK_ACTIONS.map((action) => (
-          <Link key={action.href} href={action.href} className="oled-card p-4 transition hover:border-zinc-600">
+          <Link key={action.href} href={action.href} className="oled-card p-3.5 transition hover:border-zinc-600">
             <p className="text-xs font-bold text-white">{action.title}</p>
             <p className="mt-1 text-[11px] text-zinc-500">{action.desc}</p>
           </Link>

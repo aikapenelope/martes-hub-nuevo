@@ -78,15 +78,15 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       <CrmHeader tenant={context.tenant} view={data.view} canEdit={context.canEdit} />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="oled-card p-4">
+        <div className="oled-card p-3.5">
           <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Leads abiertos</p>
           <p className="mt-1.5 text-2xl font-bold tracking-tight text-white">{data.totals.leads}</p>
         </div>
-        <div className="oled-card p-4">
+        <div className="oled-card p-3.5">
           <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Clientes activos</p>
           <p className="mt-1.5 text-2xl font-bold tracking-tight text-white">{data.totals.clients}</p>
         </div>
-        <div className="oled-card p-4">
+        <div className="oled-card p-3.5">
           <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Empresas registradas</p>
           <p className="mt-1.5 text-2xl font-bold tracking-tight text-white">{data.totals.companies}</p>
         </div>

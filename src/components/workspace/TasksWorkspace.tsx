@@ -172,7 +172,7 @@ export function TasksWorkspace({
 
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-4" aria-label="Resumen de tareas">
         {metricCards.map(([value, label, note]) => (
-          <article key={label} className="oled-card p-4">
+          <article key={label} className="oled-card p-3.5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-zinc-400 font-mono uppercase tracking-wider">{label}</span>
               {label === 'Vencidas' ? (

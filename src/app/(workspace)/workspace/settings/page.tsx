@@ -84,17 +84,17 @@ export default async function SettingsPage({
 
       {/* Grid de metadata del tenant */}
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="oled-card p-4">
+        <div className="oled-card p-3.5">
           <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Tenant Activo</p>
           <p className="mt-1 text-lg font-bold text-white truncate">{context.tenant.name}</p>
           <span className="text-[10px] text-zinc-500 font-mono">ID: {context.tenant.id}</span>
         </div>
-        <div className="oled-card p-4">
+        <div className="oled-card p-3.5">
           <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Slug / Identificador</p>
           <p className="mt-1 text-lg font-mono font-bold text-white">{context.tenant.slug}</p>
           <span className="text-[10px] text-zinc-500 font-mono">Espacio aislado multi-tenant</span>
         </div>
-        <div className="oled-card p-4">
+        <div className="oled-card p-3.5">
           <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Moneda Operativa</p>
           <p className="mt-1 text-lg font-mono font-bold text-emerald-400">{currency}</p>
           <span className="text-[10px] text-zinc-500 font-mono">Dólares estadounidenses</span>

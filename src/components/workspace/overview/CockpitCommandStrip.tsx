@@ -49,7 +49,7 @@ export function CockpitCommandStrip({
   }
 
   return (
-    <section className="p-4 oled-card bracket-accent flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+    <section className="p-3.5 oled-card bracket-accent flex flex-col xl:flex-row xl:items-center justify-between gap-4">
       <div>
         <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400 uppercase tracking-widest mb-1">
           <span className="w-2 h-2 bg-sky-400 pulse-glow inline-block" />

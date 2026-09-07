@@ -42,7 +42,7 @@ export function ActivityHeatmap({ daysData, totalInteractions }: ActivityHeatmap
   }, [daysData])
 
   return (
-    <div className="p-4 oled-card space-y-3">
+    <div className="p-3.5 oled-card space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800/80">
         <div>
           <div className="flex items-center gap-2.5">

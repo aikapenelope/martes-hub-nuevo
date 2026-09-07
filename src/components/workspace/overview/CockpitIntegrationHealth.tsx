@@ -52,7 +52,7 @@ export function CockpitIntegrationHealth({ health }: { health: SystemHealthSumma
   const { items, overallStatus, recentErrorCount } = health
 
   return (
-    <div className="p-4 oled-card space-y-3.5">
+    <div className="p-3.5 oled-card space-y-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-zinc-800">
         <div>
           <h2 className="text-xs font-black text-white font-mono uppercase tracking-wider flex items-center gap-2">

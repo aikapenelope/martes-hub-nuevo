@@ -206,31 +206,31 @@ export default async function HoyPage() {
 
       {/* KPI Cards Strip */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <div className="oled-card p-4">
+        <div className="oled-card p-3.5">
           <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
             <Calendar className="w-4 h-4 text-sky-400" /> Citas hoy
           </div>
           <p className="mt-2 text-2xl font-bold font-mono text-white">{appointments.length}</p>
         </div>
-        <div className="oled-card p-4">
+        <div className="oled-card p-3.5">
           <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
             <CheckSquare className="w-4 h-4 text-amber-400" /> Tareas hoy
           </div>
           <p className="mt-2 text-2xl font-bold font-mono text-white">{tasks.length}</p>
         </div>
-        <div className="oled-card p-4">
+        <div className="oled-card p-3.5">
           <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
             <CreditCard className="w-4 h-4 text-emerald-400" /> Cobros hoy
           </div>
           <p className="mt-2 text-2xl font-bold font-mono text-white">{payments.length}</p>
         </div>
-        <div className="oled-card p-4">
+        <div className="oled-card p-3.5">
           <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
             <MessageCircle className="w-4 h-4 text-[#25d366]" /> A contactar
           </div>
           <p className="mt-2 text-2xl font-bold font-mono text-white">{followups.length}</p>
         </div>
-        <div className="oled-card p-4">
+        <div className="oled-card p-3.5">
           <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
             <AlertTriangle className={`w-4 h-4 ${totalOverdue > 0 ? 'text-red-400' : 'text-zinc-500'}`} /> Vencidas
           </div>
