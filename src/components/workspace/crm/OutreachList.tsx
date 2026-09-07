@@ -3,7 +3,7 @@
 import { useCallback, useState, useTransition } from 'react'
 import { Copy, ExternalLink, MessageSquareText, Send } from 'lucide-react'
 
-import { generateOutreachMessageAction, markLeadContactedAction } from '@/lib/outreach-actions'
+import { generateOutreachMessageAction, markLeadContactedAction, scheduleFollowUpAction } from '@/lib/outreach-actions'
 
 export interface OutreachRow {
   id: number
@@ -36,6 +36,9 @@ export function OutreachList({ rows, canEdit }: { rows: OutreachRow[]; canEdit: 
   const [busy, setBusy] = useState<Record<number, string | null>>({})
   const [notice, setNotice] = useState<string | null>(null)
   const [contacted, setContacted] = useState<Record<number, boolean>>({})
+  // Confirmación post-envío: abrir WhatsApp NO implica haber enviado —
+  // el botón primario aparece tras abrir y exige confirmación explícita.
+  const [sentPending, setSentPending] = useState<Record<number, boolean>>({})
   const [, startTransition] = useTransition()
 
   const setRowBusy = useCallback((id: number, label: string | null) => {
@@ -82,6 +85,22 @@ export function OutreachList({ rows, canEdit }: { rows: OutreachRow[]; canEdit: 
         }
       } catch (err) {
         setNotice(err instanceof Error ? err.message : 'Error marcando el contacto')
+      } finally {
+        setRowBusy(row.id, null)
+      }
+    })
+  }, [setRowBusy])
+
+  const scheduleFollowUp = useCallback((row: OutreachRow, days: number) => {
+    setRowBusy(row.id, `follow-${days}`)
+    startTransition(async () => {
+      try {
+        const result = await scheduleFollowUpAction(row.id, days)
+        setNotice(result.ok
+          ? `Seguimiento de ${row.fullName} agendado en ${days} día(s) — queda en Tareas`
+          : result.error)
+      } catch (err) {
+        setNotice(err instanceof Error ? err.message : 'Error agendando el seguimiento')
       } finally {
         setRowBusy(row.id, null)
       }
@@ -165,6 +184,7 @@ export function OutreachList({ rows, canEdit }: { rows: OutreachRow[]; canEdit: 
                     href={waLink(row.phone, messages[row.id] || undefined)}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={() => setSentPending((prev) => ({ ...prev, [row.id]: true }))}
                     className="inline-flex items-center gap-1.5 border border-emerald-700 bg-emerald-950/60 px-2.5 py-1.5 text-[11px] font-mono text-emerald-300 transition hover:bg-emerald-900/60"
                   >
                     <Send size={11} /> Abrir WhatsApp (+{row.phone.replace(/\D/g, '')})
@@ -176,14 +196,33 @@ export function OutreachList({ rows, canEdit }: { rows: OutreachRow[]; canEdit: 
                   >
                     <Copy size={11} /> Copiar mensaje
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => markContacted(row)}
-                    disabled={busyLabel === 'done' || isDone}
-                    className="inline-flex items-center gap-1.5 border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-[11px] font-mono text-zinc-400 transition hover:text-white disabled:opacity-40"
-                  >
-                    {isDone ? '✓ Contactado' : busyLabel === 'done' ? 'Guardando…' : 'Marcar contactado'}
-                  </button>
+                  {sentPending[row.id] && !isDone ? (
+                    <button
+                      type="button"
+                      onClick={() => markContacted(row)}
+                      disabled={busyLabel === 'done'}
+                      className="inline-flex items-center gap-1.5 border border-emerald-600 bg-emerald-600 px-2.5 py-1.5 text-[11px] font-mono font-bold text-black transition hover:bg-emerald-500 disabled:opacity-50"
+                    >
+                      {busyLabel === 'done' ? 'Guardando…' : '¿Ya lo enviaste? Confirmar'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => markContacted(row)}
+                      disabled={busyLabel === 'done' || isDone}
+                      className="inline-flex items-center gap-1.5 border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-[11px] font-mono text-zinc-400 transition hover:text-white disabled:opacity-40"
+                    >
+                      {isDone ? '✓ Contactado' : busyLabel === 'done' ? 'Guardando…' : 'Marcar contactado'}
+                    </button>
+                  )}
+                  {isDone && (
+                    <span className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500">
+                      Seguimiento:
+                      <button type="button" onClick={() => scheduleFollowUp(row, 3)} disabled={busyLabel === 'follow-3'} className="border border-zinc-800 bg-zinc-900 px-2 py-1 transition hover:text-white disabled:opacity-40">3d</button>
+                      <button type="button" onClick={() => scheduleFollowUp(row, 7)} disabled={busyLabel === 'follow-7'} className="border border-zinc-800 bg-zinc-900 px-2 py-1 transition hover:text-white disabled:opacity-40">7d</button>
+                      <button type="button" onClick={() => scheduleFollowUp(row, 14)} disabled={busyLabel === 'follow-14'} className="border border-zinc-800 bg-zinc-900 px-2 py-1 transition hover:text-white disabled:opacity-40">14d</button>
+                    </span>
+                  )}
                 </div>
               )}
             </div>

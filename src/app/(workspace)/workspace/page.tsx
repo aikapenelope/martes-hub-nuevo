@@ -19,6 +19,8 @@ import 'server-only'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import type { Client, Segment, User } from '@/payload-types'
 import { getWorkspaceOverviewData } from '@/lib/overview-data'
+import { getMonthlyTrends } from '@/lib/trend-widgets'
+import { TrendStrip } from '@/components/workspace/overview/TrendStrip'
 import { getUpcomingAgenda } from '@/lib/agenda-data'
 import { CockpitFocusViews } from '@/components/workspace/overview/CockpitFocusViews'
 import type { TimeRangeKey } from '@/components/workspace/overview/types'
@@ -41,9 +43,10 @@ export default async function WorkspacePage({
       ? (queryParams.rango as TimeRangeKey)
       : '30d'
 
-  const [data, agenda] = await Promise.all([
+  const [data, agenda, trends] = await Promise.all([
     getWorkspaceOverviewData({ payload, user, tenant, tenantId, timeRange }),
     getUpcomingAgenda({ payload, user, tenantId, days: 7 }),
+    getMonthlyTrends({ payload, tenantId, user }),
   ])
 
   // Lista ligera de clientes (solo id/name) para el dialog de "+ Cobro".
@@ -86,17 +89,20 @@ export default async function WorkspacePage({
   ])
 
   return (
-    <CockpitFocusViews
-      tenant={tenant}
-      dateTitle={data.dateTitle}
-      canEdit={canEdit}
-      clients={(clientsForDialog?.docs ?? []) as Client[]}
-      assignees={(agentsForDrawer?.docs ?? []) as User[]}
-      segments={(segmentsForDrawer?.docs ?? []) as Segment[]}
-      data={data}
-      agenda={agenda}
-      initialView={initialView}
-    />
+    <div className="space-y-4">
+      {trends && <TrendStrip trends={trends} />}
+      <CockpitFocusViews
+        tenant={tenant}
+        dateTitle={data.dateTitle}
+        canEdit={canEdit}
+        clients={(clientsForDialog?.docs ?? []) as Client[]}
+        assignees={(agentsForDrawer?.docs ?? []) as User[]}
+        segments={(segmentsForDrawer?.docs ?? []) as Segment[]}
+        data={data}
+        agenda={agenda}
+        initialView={initialView}
+      />
+    </div>
   )
 }
 
