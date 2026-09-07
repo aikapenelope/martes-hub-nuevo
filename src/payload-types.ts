@@ -126,8 +126,11 @@ export interface Config {
       appointments: 'appointments';
     };
     leads: {
-      conversations: 'conversations';
+      touchpoints: 'activities';
+      contenidoRelacionado: 'notes';
+      tareas: 'tasks';
       tasks: 'tasks';
+      conversations: 'conversations';
       formSubmissions: 'form-submissions';
       appointments: 'appointments';
     };
@@ -476,6 +479,7 @@ export interface Lead {
     | 'manual'
     | 'google_maps'
     | 'puerta_fria'
+    | 'llamada_fria'
     | 'whatsapp'
     | 'instagram_dm'
     | 'linkedin'
@@ -492,6 +496,11 @@ export interface Lead {
    */
   googleMapsUrl?: string | null;
   socialHandle?: string | null;
+  website?: string | null;
+  /**
+   * Link directo wa.me/... del contacto
+   */
+  whatsappLink?: string | null;
   segment?: (number | null) | Segment;
   /**
    * Cuenta del prospecto, si aplica; se hereda al convertir a cliente
@@ -501,8 +510,25 @@ export interface Lead {
    * Estimación de la oportunidad; alimenta el pipeline del workspace
    */
   estimatedValue?: number | null;
+  nivelInteres?: ('frio' | 'templado' | 'caliente') | null;
+  prioridad?: ('baja' | 'media' | 'alta') | null;
+  servicioInteres?: string | null;
+  personaInteres?: string | null;
+  /**
+   * ID de origen (p. ej. Fibery / CRM anterior) para trazabilidad de migración
+   */
+  identificador?: string | null;
+  /**
+   * Sector original del export de Fibery
+   */
+  sectorFibery?: string | null;
   lastContactChannel?: ('whatsapp' | 'instagram_dm' | 'llamada' | 'en_persona' | 'email' | 'otro') | null;
   lastContactedAt?: string | null;
+  numeroDeLlamadas?: number | null;
+  fechaProximaLlamada?: string | null;
+  visitadoPresencialmente?: boolean | null;
+  pudoHablarDecisor?: boolean | null;
+  notasLlamada?: string | null;
   assignedTo?: (number | null) | User;
   /**
    * Notas de reuniones, objeciones expresadas, acuerdos verbales y contexto comercial clave.
@@ -513,6 +539,21 @@ export interface Lead {
    * Se llena automáticamente al convertir el lead
    */
   convertedClient?: (number | null) | Client;
+  touchpoints?: {
+    docs?: (number | Activity)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  contenidoRelacionado?: {
+    docs?: (number | Note)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  tareas?: {
+    docs?: (number | Task)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   conversations?: {
     docs?: (number | Conversation)[];
     hasNextPage?: boolean;
@@ -534,6 +575,80 @@ export interface Lead {
     totalDocs?: number;
   };
   kanbanStatus?: ('nuevo' | 'contactado' | 'calificado' | 'descartado') | null;
+  kanbanOrderRank?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Notas enriquecidas del equipo (editor de texto rico, independientes o por cliente/lead).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notes".
+ */
+export interface Note {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  title: string;
+  body: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  category?: ('general' | 'cliente' | 'reunion' | 'seguimiento' | 'idea' | 'recordatorio') | null;
+  /**
+   * Las notas fijadas aparecen primero en /workspace/notes
+   */
+  pinned?: boolean | null;
+  /**
+   * Opcional: vincula la nota a un cliente del CRM
+   */
+  client?: (number | null) | Client;
+  /**
+   * Opcional: vincula la nota a un lead del pipeline
+   */
+  lead?: (number | null) | Lead;
+  /**
+   * Se rellena automáticamente con el usuario autenticado
+   */
+  author?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tasks".
+ */
+export interface Task {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  title: string;
+  description?: string | null;
+  status: 'pendiente' | 'en_progreso' | 'completada' | 'bloqueada' | 'cancelada';
+  priority: 'baja' | 'media' | 'alta' | 'urgente';
+  dueDate?: string | null;
+  assignedTo?: (number | null) | User;
+  client?: (number | null) | Client;
+  lead?: (number | null) | Lead;
+  source?: ('manual' | 'tally_complaint' | 'payment_overdue' | 'openbsp_error' | 'hermes_ai') | null;
+  checklist?:
+    | {
+        item: string;
+        done?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  completedAt?: string | null;
+  kanbanStatus?: ('pendiente' | 'en_progreso' | 'completada' | 'bloqueada' | 'cancelada') | null;
   kanbanOrderRank?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -567,35 +682,6 @@ export interface Conversation {
    * Si es mayor a 24h, solo se pueden enviar plantillas
    */
   lastInboundAt?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "tasks".
- */
-export interface Task {
-  id: number;
-  tenant?: (number | null) | Tenant;
-  title: string;
-  description?: string | null;
-  status: 'pendiente' | 'en_progreso' | 'completada' | 'bloqueada' | 'cancelada';
-  priority: 'baja' | 'media' | 'alta' | 'urgente';
-  dueDate?: string | null;
-  assignedTo?: (number | null) | User;
-  client?: (number | null) | Client;
-  lead?: (number | null) | Lead;
-  source?: ('manual' | 'tally_complaint' | 'payment_overdue' | 'openbsp_error' | 'hermes_ai') | null;
-  checklist?:
-    | {
-        item: string;
-        done?: boolean | null;
-        id?: string | null;
-      }[]
-    | null;
-  completedAt?: string | null;
-  kanbanStatus?: ('pendiente' | 'en_progreso' | 'completada' | 'bloqueada' | 'cancelada') | null;
-  kanbanOrderRank?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1014,51 +1100,6 @@ export interface Offer {
    * Los inactivos no se ofrecen en nuevas cotizaciones
    */
   active?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Notas enriquecidas del equipo (editor de texto rico, independientes o por cliente/lead).
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "notes".
- */
-export interface Note {
-  id: number;
-  tenant?: (number | null) | Tenant;
-  title: string;
-  body: {
-    root: {
-      type: string;
-      children: {
-        type: any;
-        version: number;
-        [k: string]: unknown;
-      }[];
-      direction: ('ltr' | 'rtl') | null;
-      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-      indent: number;
-      version: number;
-    };
-    [k: string]: unknown;
-  };
-  category?: ('general' | 'cliente' | 'reunion' | 'seguimiento' | 'idea' | 'recordatorio') | null;
-  /**
-   * Las notas fijadas aparecen primero en /workspace/notes
-   */
-  pinned?: boolean | null;
-  /**
-   * Opcional: vincula la nota a un cliente del CRM
-   */
-  client?: (number | null) | Client;
-  /**
-   * Opcional: vincula la nota a un lead del pipeline
-   */
-  lead?: (number | null) | Lead;
-  /**
-   * Se rellena automáticamente con el usuario autenticado
-   */
-  author?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
 }
@@ -2110,15 +2151,31 @@ export interface LeadsSelect<T extends boolean = true> {
   address?: T;
   googleMapsUrl?: T;
   socialHandle?: T;
+  website?: T;
+  whatsappLink?: T;
   segment?: T;
   company?: T;
   estimatedValue?: T;
+  nivelInteres?: T;
+  prioridad?: T;
+  servicioInteres?: T;
+  personaInteres?: T;
+  identificador?: T;
+  sectorFibery?: T;
   lastContactChannel?: T;
   lastContactedAt?: T;
+  numeroDeLlamadas?: T;
+  fechaProximaLlamada?: T;
+  visitadoPresencialmente?: T;
+  pudoHablarDecisor?: T;
+  notasLlamada?: T;
   assignedTo?: T;
   commercialNotes?: T;
   notes?: T;
   convertedClient?: T;
+  touchpoints?: T;
+  contenidoRelacionado?: T;
+  tareas?: T;
   conversations?: T;
   tasks?: T;
   formSubmissions?: T;

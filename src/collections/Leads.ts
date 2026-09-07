@@ -70,6 +70,7 @@ export const Leads: CollectionConfig = {
         { label: 'Manual', value: 'manual' },
         { label: 'Google Maps / Local', value: 'google_maps' },
         { label: 'Puerta Fría / En Persona', value: 'puerta_fria' },
+        { label: 'Llamada Fría', value: 'llamada_fria' },
         { label: 'WhatsApp Directo', value: 'whatsapp' },
         { label: 'Instagram DM', value: 'instagram_dm' },
         { label: 'LinkedIn', value: 'linkedin' },
@@ -122,6 +123,19 @@ export const Leads: CollectionConfig = {
       label: 'Usuario de Red Social (IG/LinkedIn)',
     },
     {
+      name: 'website',
+      type: 'text',
+      label: 'Website',
+    },
+    {
+      name: 'whatsappLink',
+      type: 'text',
+      label: 'Enlace de WhatsApp',
+      admin: {
+        description: 'Link directo wa.me/... del contacto',
+      },
+    },
+    {
       name: 'segment',
       type: 'relationship',
       relationTo: 'segments',
@@ -163,6 +177,58 @@ export const Leads: CollectionConfig = {
       },
     },
     {
+      name: 'nivelInteres',
+      type: 'select',
+      label: 'Nivel de interés',
+      options: [
+        { label: '❄️ Frío', value: 'frio' },
+        { label: '🌡️ Templado', value: 'templado' },
+        { label: '🔥 Caliente', value: 'caliente' },
+      ],
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'prioridad',
+      type: 'select',
+      label: 'Prioridad',
+      options: [
+        { label: 'Baja', value: 'baja' },
+        { label: 'Media', value: 'media' },
+        { label: '🔥 Alta', value: 'alta' },
+      ],
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'servicioInteres',
+      type: 'text',
+      label: 'Servicio de interés',
+    },
+    {
+      name: 'personaInteres',
+      type: 'text',
+      label: 'Persona de interés (decisor / contacto clave)',
+    },
+    {
+      name: 'identificador',
+      type: 'text',
+      label: 'Identificador externo',
+      admin: {
+        description: 'ID de origen (p. ej. Fibery / CRM anterior) para trazabilidad de migración',
+      },
+    },
+    {
+      name: 'sectorFibery',
+      type: 'text',
+      label: 'Sector (Fibery)',
+      admin: {
+        description: 'Sector original del export de Fibery',
+      },
+    },
+    {
       name: 'lastContactChannel',
       type: 'select',
       label: 'Último canal de contacto',
@@ -181,10 +247,42 @@ export const Leads: CollectionConfig = {
     {
       name: 'lastContactedAt',
       type: 'date',
-      label: 'Fecha de último contacto',
+      label: 'Última llamada',
       admin: {
         position: 'sidebar',
       },
+    },
+    {
+      name: 'numeroDeLlamadas',
+      type: 'number',
+      min: 0,
+      defaultValue: 0,
+      label: 'Número de llamadas',
+    },
+    {
+      name: 'fechaProximaLlamada',
+      type: 'date',
+      label: 'Próxima llamada programada',
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'visitadoPresencialmente',
+      type: 'checkbox',
+      label: '¿Visitado presencialmente?',
+      defaultValue: false,
+    },
+    {
+      name: 'pudoHablarDecisor',
+      type: 'checkbox',
+      label: '¿Pudo hablar con el decisor?',
+      defaultValue: false,
+    },
+    {
+      name: 'notasLlamada',
+      type: 'textarea',
+      label: 'Notas de llamada',
     },
     {
       name: 'assignedTo',
@@ -227,6 +325,39 @@ export const Leads: CollectionConfig = {
         position: 'sidebar',
         readOnly: true,
         description: 'Se llena automáticamente al convertir el lead',
+      },
+    },
+    // Relaciones inversas (skill Payload: join field — sin duplicar datos):
+    // touchpoints = actividades del lead; notas y tareas ya viven en sus
+    // colecciones con relación `lead`, aquí se leen en la dirección contraria.
+    {
+      name: 'touchpoints',
+      type: 'join',
+      collection: 'activities',
+      on: 'lead',
+      label: 'Touchpoints (actividades)',
+      admin: {
+        defaultColumns: ['type', 'summary', 'occurredAt', 'performedBy'],
+      },
+    },
+    {
+      name: 'contenidoRelacionado',
+      type: 'join',
+      collection: 'notes',
+      on: 'lead',
+      label: 'Notas relacionadas',
+      admin: {
+        defaultColumns: ['title', 'updatedAt'],
+      },
+    },
+    {
+      name: 'tareas',
+      type: 'join',
+      collection: 'tasks',
+      on: 'lead',
+      label: 'Tareas',
+      admin: {
+        defaultColumns: ['title', 'status', 'priority', 'dueDate'],
       },
     },
     // Joins inversos: ver todo lo vinculado al lead desde el modelo

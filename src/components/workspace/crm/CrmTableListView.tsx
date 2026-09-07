@@ -22,6 +22,7 @@ const sourceLabels: Record<Lead['source'], string> = {
   manual: 'Manual',
   google_maps: 'Google Maps',
   puerta_fria: 'Puerta Fría',
+  llamada_fria: 'Llamada Fría',
   whatsapp: 'WhatsApp',
   instagram_dm: 'Instagram',
   linkedin: 'LinkedIn',

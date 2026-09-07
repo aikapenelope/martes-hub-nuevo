@@ -1,7 +1,13 @@
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { LeadDrawerDataTab, collectLeadFieldsInput } from '@/components/workspace/lead-drawer/LeadDrawerDataTab'
+import {
+  LeadDrawerDataTab,
+  collectLeadFieldsInput,
+  ifDatetimeChanged,
+  ifDateChanged,
+  toDateInput,
+} from '@/components/workspace/lead-drawer/LeadDrawerDataTab'
 import { updateLeadFieldsAction } from '@/lib/crm-pipeline-actions'
 import type { Lead, Segment, User } from '@/payload-types'
 
@@ -224,5 +230,131 @@ describe('collectLeadFieldsInput — regla de preservación', () => {
 
     expect(input.city).toBeUndefined()
     expect(input.phone).toBeUndefined()
+  })
+})
+
+describe('LeadDrawerDataTab — preservación de fechas y timezones (lastContactedAt y fechaProximaLlamada)', () => {
+  it('lastContactedAt sin editar se omite (undefined) y no sufre shift horario al guardar', () => {
+    const instant = '2026-09-06T15:30:00.000Z'
+    const lead = { fullName: 'Alguien', source: 'manual', lastContactedAt: instant } as unknown as Lead
+    const form = new FormData()
+    form.set('fullName', 'Alguien')
+    // El input datetime-local lleva el valor renderizado por toDateInput en el browser
+    form.set('lastContactedAt', toDateInput(instant, true))
+
+    const input = collectLeadFieldsInput(form, lead, {
+      hasAssigneeChoices: false,
+      hasSegmentChoices: false,
+    })
+
+    // Crítico: undefined significa que el update no envía ni altera lastContactedAt
+    expect(input.lastContactedAt).toBeUndefined()
+  })
+
+  it('lastContactedAt editado activamente se convierte a ISO UTC instant antes de invocar la acción', () => {
+    const lead = { fullName: 'Alguien', source: 'manual', lastContactedAt: '2026-09-06T15:30:00.000Z' } as unknown as Lead
+    const form = new FormData()
+    form.set('fullName', 'Alguien')
+    form.set('lastContactedAt', '2026-09-06T18:45')
+
+    const input = collectLeadFieldsInput(form, lead, {
+      hasAssigneeChoices: false,
+      hasSegmentChoices: false,
+    })
+
+    expect(typeof input.lastContactedAt).toBe('string')
+    expect(input.lastContactedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+    const submittedMs = new Date(input.lastContactedAt as string).getTime()
+    const expectedMs = new Date('2026-09-06T18:45').getTime()
+    expect(submittedMs).toBe(expectedMs)
+  })
+
+  it('lastContactedAt borrado explícitamente envía null para limpiar el campo en la base de datos', () => {
+    const lead = { fullName: 'Alguien', source: 'manual', lastContactedAt: '2026-09-06T15:30:00.000Z' } as unknown as Lead
+    const form = new FormData()
+    form.set('fullName', 'Alguien')
+    form.set('lastContactedAt', '')
+
+    const input = collectLeadFieldsInput(form, lead, {
+      hasAssigneeChoices: false,
+      hasSegmentChoices: false,
+    })
+
+    expect(input.lastContactedAt).toBeNull()
+  })
+
+  it('lastContactedAt ausente en el lead y sin valor en el formulario queda undefined (no se toca)', () => {
+    const lead = { fullName: 'Alguien', source: 'manual' } as unknown as Lead
+    const form = new FormData()
+    form.set('fullName', 'Alguien')
+    form.set('lastContactedAt', '')
+
+    const input = collectLeadFieldsInput(form, lead, {
+      hasAssigneeChoices: false,
+      hasSegmentChoices: false,
+    })
+
+    expect(input.lastContactedAt).toBeUndefined()
+  })
+
+  it('preserva el instante idéntico a través de diferentes husos horarios (browser offset vs server offset)', () => {
+    const leadInstant = '2026-09-06T15:30:00.000Z'
+
+    // Si el usuario edita a las 14:00 hora local en el navegador
+    const editedLocal = '2026-09-06T14:00'
+    const parsedLocal = new Date(editedLocal)
+    const isoFromBrowser = ifDatetimeChanged(leadInstant, editedLocal)
+
+    expect(isoFromBrowser).toBe(parsedLocal.toISOString())
+    // Y el servidor, independientemente de su huso horario, parsea el string ISO UTC sin desviación
+    const serverParsedMs = new Date(isoFromBrowser as string).getTime()
+    expect(serverParsedMs).toBe(parsedLocal.getTime())
+
+    // Comprobar que un valor sin editar se detecta como idéntico al minuto y se omite
+    const uneditedIso = ifDatetimeChanged(leadInstant, toDateInput(leadInstant, true))
+    expect(uneditedIso).toBeUndefined()
+  })
+
+  it('fechaProximaLlamada sin editar se omite; editada se envía; vacía se limpia (null)', () => {
+    const lead = {
+      fullName: 'Alguien',
+      source: 'manual',
+      fechaProximaLlamada: '2026-09-10T00:00:00.000Z',
+    } as unknown as Lead
+
+    const uneditedForm = new FormData()
+    uneditedForm.set('fullName', 'Alguien')
+    uneditedForm.set('fechaProximaLlamada', toDateInput(lead.fechaProximaLlamada))
+
+    const uneditedInput = collectLeadFieldsInput(uneditedForm, lead, {
+      hasAssigneeChoices: false,
+      hasSegmentChoices: false,
+    })
+    expect(uneditedInput.fechaProximaLlamada).toBeUndefined()
+
+    const editedForm = new FormData()
+    editedForm.set('fullName', 'Alguien')
+    editedForm.set('fechaProximaLlamada', '2026-09-20')
+
+    const editedInput = collectLeadFieldsInput(editedForm, lead, {
+      hasAssigneeChoices: false,
+      hasSegmentChoices: false,
+    })
+    expect(editedInput.fechaProximaLlamada).toBe('2026-09-20')
+
+    const clearedForm = new FormData()
+    clearedForm.set('fullName', 'Alguien')
+    clearedForm.set('fechaProximaLlamada', '')
+
+    const clearedInput = collectLeadFieldsInput(clearedForm, lead, {
+      hasAssigneeChoices: false,
+      hasSegmentChoices: false,
+    })
+    expect(clearedInput.fechaProximaLlamada).toBeNull()
+
+    // Verificación unitaria de la función pura ifDateChanged
+    expect(ifDateChanged(lead.fechaProximaLlamada, toDateInput(lead.fechaProximaLlamada))).toBeUndefined()
+    expect(ifDateChanged(lead.fechaProximaLlamada, '2026-09-20')).toBe('2026-09-20')
+    expect(ifDateChanged(lead.fechaProximaLlamada, '')).toBeNull()
   })
 })
