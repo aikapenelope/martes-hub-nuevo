@@ -2,7 +2,13 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { MAX_BOARDS_PER_TENANT, MAX_SCENE_BYTES, MAX_THUMBNAIL_BYTES, MAX_TITLE } from '@/collections/Whiteboards'
+import {
+  MAX_BOARDS_PER_TENANT,
+  MAX_ELEMENTS,
+  MAX_SCENE_BYTES,
+  MAX_THUMBNAIL_BYTES,
+  MAX_TITLE,
+} from '@/collections/Whiteboards'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
 type ActionResult<T extends object = object> =
@@ -47,9 +53,6 @@ function normalizeTitle(title: string): string {
   if (!clean) throw new Error('El título de la pizarra no puede estar vacío')
   return clean
 }
-
-/** Límite de elementos por escena (generoso: pizarras de texto son cientos). */
-export const MAX_ELEMENTS = 20_000
 
 /** appState que persistimos: solo viewport y fondo — nada de estado efímero del editor. */
 const ALLOWED_APPSTATE_KEYS = new Set(['viewBackgroundColor', 'gridSize', 'scrollX', 'scrollY', 'zoom'])

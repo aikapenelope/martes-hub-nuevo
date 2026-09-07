@@ -8,6 +8,8 @@ export const MAX_SCENE_BYTES = 5 * 1024 * 1024
 export const MAX_THUMBNAIL_BYTES = 512 * 1024
 /** Pizarras máximas por tenant. */
 export const MAX_BOARDS_PER_TENANT = 500
+/** Límite de elementos por escena (generoso: pizarras de texto son cientos). */
+export const MAX_ELEMENTS = 20_000
 export const MAX_TITLE = 120
 
 export const Whiteboards: CollectionConfig = {

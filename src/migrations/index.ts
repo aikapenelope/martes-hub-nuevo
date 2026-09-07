@@ -169,3 +169,10 @@ export const migrations = [
     name: '20260906_223000_add_whiteboards_and_versions'
   },
 ];
+
+import * as migration_20260906_200303_add_payment_methods_columns from './20260906_200303_add_payment_methods_columns';
+migrations.push({
+  up: migration_20260906_200303_add_payment_methods_columns.up,
+  down: migration_20260906_200303_add_payment_methods_columns.down,
+  name: '20260906_200303_add_payment_methods_columns',
+});
