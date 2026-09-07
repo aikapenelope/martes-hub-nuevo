@@ -5,7 +5,7 @@ import { generateObject } from 'ai'
 import { z } from 'zod'
 import { getTenantAiModel } from '@/lib/ai-provider'
 
-import type { Lead, Message, Tenant } from '@/payload-types'
+import type { Lead, Message } from '@/payload-types'
 import { LEAD_STATUSES, type LeadStatus } from '@/lib/crm-filters'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { getAssignableUsers } from '@/lib/tasks-data'
@@ -243,7 +243,7 @@ export async function updateLeadFieldsAction(
   input: LeadFieldsInput,
 ): Promise<ActionResult> {
   try {
-    const { context } = await scopedLead(leadId)
+    const { lead, context } = await scopedLead(leadId)
     if (!context.canEdit) throw new Error('No tienes permiso para editar este lead')
 
     const fullName = input.fullName.trim().slice(0, 160)
@@ -285,6 +285,44 @@ export async function updateLeadFieldsAction(
       // undefined = omitir el campo (no toca el valor guardado).
       data: buildLeadUpdateData(input),
     })
+
+    // Automatización "lead interesado" (Attio-style): al subir a caliente,
+    // encola el brief 360 con IA y deja tarea de recordatorio para llamar.
+    const becameHot =
+      input.nivelInteres === 'caliente' &&
+      (lead.nivelInteres ?? undefined) !== 'caliente'
+    if (becameHot) {
+      try {
+        await context.payload.jobs.queue({
+          task: 'generate-lead-brief',
+          input: { leadId, tenantId: context.tenantId },
+          overrideAccess: true,
+        })
+        const previousAssignee =
+          input.assignedTo != null
+            ? input.assignedTo
+            : typeof lead.assignedTo === 'object' && lead.assignedTo
+              ? lead.assignedTo.id
+              : lead.assignedTo
+        await context.payload.create({
+          collection: 'tasks',
+          overrideAccess: false,
+          user: context.user,
+          data: {
+            tenant: context.tenantId,
+            title: `📞 Llamar a ${lead.fullName} — marcado como interesado`,
+            status: 'pendiente',
+            priority: 'alta',
+            dueDate: new Date(Date.now() + 86_400_000).toISOString(),
+            lead: leadId,
+            ...(previousAssignee ? { assignedTo: previousAssignee } : { assignedTo: context.user.id }),
+          },
+        })
+      } catch {
+        // El guardado del lead nunca debe fallar por el trigger — el brief y
+        // la tarea son un extra; el fallo queda en los logs del job.
+      }
+    }
 
     revalidatePath('/workspace/crm')
     revalidatePath(`/workspace/crm/leads/${leadId}`)

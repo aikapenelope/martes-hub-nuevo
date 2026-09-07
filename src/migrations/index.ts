@@ -170,6 +170,13 @@ export const migrations = [
   },
 ];
 
+import * as migration_20260906_204706_add_lead_briefs from './20260906_204706_add_lead_briefs';
+migrations.push({
+  up: migration_20260906_204706_add_lead_briefs.up,
+  down: migration_20260906_204706_add_lead_briefs.down,
+  name: '20260906_204706_add_lead_briefs',
+});
+
 import * as migration_20260906_201443_leads_fibery_fields from './20260906_201443_leads_fibery_fields';
 migrations.push({
   up: migration_20260906_201443_leads_fibery_fields.up,
