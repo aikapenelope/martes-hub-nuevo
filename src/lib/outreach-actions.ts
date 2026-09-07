@@ -128,3 +128,30 @@ export async function markLeadContactedAction(leadId: number): Promise<ActionRes
   revalidatePath('/workspace/crm')
   return { ok: true }
 }
+
+/** Crea una tarea de seguimiento para el lead en N días (3, 7 o 14). */
+export async function scheduleFollowUpAction(leadId: number, days: number): Promise<ActionResult> {
+  const context = await getWorkspaceContext()
+  if (!context.canEdit) throw new Error('No tienes permiso para crear seguimientos')
+  const { lead } = await getScopedLead(leadId)
+
+  const daysSafe = [3, 7, 14].includes(days) ? days : 7
+  await context.payload.create({
+    collection: 'tasks',
+    overrideAccess: false,
+    user: context.user,
+    data: {
+      tenant: context.tenantId,
+      title: `☎️ Seguimiento: ${lead.fullName}`,
+      status: 'pendiente',
+      priority: 'media',
+      dueDate: new Date(Date.now() + daysSafe * 86_400_000).toISOString(),
+      lead: leadId,
+      assignedTo: context.user.id,
+    },
+  })
+
+  revalidatePath('/workspace/tasks')
+  revalidatePath('/workspace/outreach')
+  return { ok: true }
+}
