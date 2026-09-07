@@ -33,11 +33,14 @@ function fmtMoney(n: number): string {
   return `$${Math.round(n)}`
 }
 
-/** Chip ▲/▼ de variación % (mes vs mes anterior); oculto si no hay base de comparación. */
+/** Chip ▲/▼ de variación % (mes completo anterior vs su previo); oculto si no hay base de comparación. */
 function DeltaChip({ delta }: { delta: number | null }) {
   if (delta === null) return null
   return (
-    <span className={`flex items-center gap-1 text-[10px] font-mono ${delta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+    <span
+      title="Δ% del último mes completo vs el anterior"
+      className={`flex items-center gap-1 text-[10px] font-mono ${delta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+    >
       {delta >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
       {delta >= 0 ? '+' : ''}
       {Math.round(delta)}%

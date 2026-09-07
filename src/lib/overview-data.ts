@@ -268,8 +268,8 @@ export async function getWorkspaceOverviewData({
     systemHealth,
     leadsCreatedPeriod,
     leadsCreatedPrev,
-    clientsCreatedPeriod,
-    clientsCreatedPrev,
+    conversionsPeriod,
+    conversionsPrev,
   ] = await Promise.all([
     c({
       collection: 'leads',
@@ -380,7 +380,10 @@ export async function getWorkspaceOverviewData({
     monthlyPendingSeries(payload, tenantId, 6),
     collectFollowupsToday({ payload, user, tenantId }),
     getIntegrationsHealth(payload, tenant, tenantId, user),
-    // Deltas por ventana real: leads y clientes creados en el período vs el previo
+    // Deltas por ventana real: leads captados (createdAt) y conversiones
+    // (convertedAt — instante persistido al convertir; las conversiones
+    // históricas sin instante no cuentan, y la creación directa de clientes
+    // sin lead no contamina la métrica)
     c({
       collection: 'leads',
       where: tenantWhere(tenantId, {
@@ -394,15 +397,15 @@ export async function getWorkspaceOverviewData({
       }),
     }),
     c({
-      collection: 'clients',
+      collection: 'leads',
       where: tenantWhere(tenantId, {
-        createdAt: { greater_than_equal: periodStartIso, less_than: periodEndIso },
+        convertedAt: { greater_than_equal: periodStartIso, less_than: periodEndIso },
       }),
     }),
     c({
-      collection: 'clients',
+      collection: 'leads',
       where: tenantWhere(tenantId, {
-        createdAt: { greater_than_equal: previousStartIso, less_than: previousEndIso },
+        convertedAt: { greater_than_equal: previousStartIso, less_than: previousEndIso },
       }),
     }),
   ])
@@ -439,16 +442,11 @@ export async function getWorkspaceOverviewData({
   // Tendencia período contra período previo
   const revenueTrendPct = pctChange(revenuePeriod.total, revenuePreviousPeriod.total)
 
-  // Deltas de captación y conversión por cohorte (clientes creados / leads captados
-  // en cada ventana — no hay snapshot histórico de stocks, así que la comparación
-  // honesta es por flujo de creación)
+  // Deltas por ventana real: captación (leads creados) y conversión (leads con
+  // convertedAt en cada ventana — evento medible ligado al lead, no a la
+  // creación de clientes, que puede ser directa o de leads antiguos)
   const leadsNuevosTrendPct = pctChange(leadsCreatedPeriod.totalDocs, leadsCreatedPrev.totalDocs)
-  const conversionCurrent = stageRate(clientsCreatedPeriod.totalDocs, leadsCreatedPeriod.totalDocs)
-  const conversionPrevious = stageRate(clientsCreatedPrev.totalDocs, leadsCreatedPrev.totalDocs)
-  const conversionTrendPct =
-    conversionCurrent !== null && conversionPrevious !== null
-      ? pctChange(conversionCurrent, conversionPrevious)
-      : null
+  const conversionTrendPct = pctChange(conversionsPeriod.totalDocs, conversionsPrev.totalDocs)
 
   // Cotizaciones activas y Ticket promedio
   const quotesActiveCount = activeQuotesCountRes.totalDocs
@@ -608,6 +606,7 @@ export async function getWorkspaceOverviewData({
     leadsCalificadoCount: leadsCalificado.totalDocs,
 
     leadsCreatedInPeriod: leadsCreatedPeriod.totalDocs,
+    conversionsInPeriod: conversionsPeriod.totalDocs,
     leadsNuevosTrendPct,
     conversionTrendPct,
 

@@ -429,7 +429,7 @@ export async function convertLeadAction(formData: FormData): Promise<void> {
     id,
     overrideAccess: false,
     user: context.user,
-    data: { status: 'calificado', convertedClient: client.id },
+    data: { status: 'calificado', convertedClient: client.id, convertedAt: new Date().toISOString() },
   })
 
   await Promise.all([

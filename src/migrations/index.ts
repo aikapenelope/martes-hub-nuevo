@@ -196,3 +196,10 @@ migrations.push({
   down: migration_20260906_200303_add_payment_methods_columns.down,
   name: '20260906_200303_add_payment_methods_columns',
 });
+
+import * as migration_20260907_234500_leads_converted_at from './20260907_234500_leads_converted_at';
+migrations.push({
+  up: migration_20260907_234500_leads_converted_at.up,
+  down: migration_20260907_234500_leads_converted_at.down,
+  name: '20260907_234500_leads_converted_at',
+});

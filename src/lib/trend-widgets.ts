@@ -14,11 +14,11 @@ export interface MonthlySeries {
   cobrado: number[]
   leadsNuevos: number[]
   actividades: number[]
-  /** Δ% del último mes completo vs el anterior en cobrado. */
+  /** Δ% del último mes COMPLETO vs el anterior (el mes parcial en curso no participa). */
   cobradoDeltaPct: number | null
-  /** Δ% del último mes completo vs el anterior en leads nuevos. */
+  /** Δ% del último mes COMPLETO vs el anterior en leads nuevos. */
   leadsNuevosDeltaPct: number | null
-  /** Δ% del último mes completo vs el anterior en actividades. */
+  /** Δ% del último mes COMPLETO vs el anterior en actividades. */
   actividadesDeltaPct: number | null
 }
 
@@ -97,10 +97,14 @@ export async function getMonthlyTrends({
     const leadsNuevos = toSeries(leadsRes.rows, 'n')
     const actividades = toSeries(activitiesRes.rows, 'n')
 
-    /** Δ% del último mes completo vs el anterior dentro de una serie de 6 meses. */
+    /**
+     * Δ% entre los DOS ÚLTIMOS MESES COMPLETOS de la serie (índices 3 y 4):
+     * el índice 5 es el mes parcial en curso — compararlo contra un mes
+     * completo haría que todo se viera en caída al inicio de cada mes.
+     */
     const lastMonthDeltaPct = (series: number[]): number | null => {
-      const prev = series[4] ?? 0
-      const last = series[5] ?? 0
+      const prev = series[3] ?? 0
+      const last = series[4] ?? 0
       return prev > 0 ? ((last - prev) / prev) * 100 : null
     }
 

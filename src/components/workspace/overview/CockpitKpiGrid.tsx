@@ -50,6 +50,7 @@ export function CockpitKpiGrid({
     weightedProbabilityPct,
     globalConversionRate,
     leadsCreatedInPeriod,
+    conversionsInPeriod,
     leadsNuevosTrendPct,
     conversionTrendPct,
     overdueTasksCount,
@@ -137,6 +138,7 @@ export function CockpitKpiGrid({
               <span className="font-bold text-white">
                 {globalConversionRate !== null ? `${globalConversionRate.toFixed(1)}%` : '—'}
               </span>
+              <span className="text-zinc-500">· {conversionsInPeriod} conv.</span>
               {conversionTrendPct !== null && (
                 <span
                   className={`text-[10px] font-mono font-bold ${conversionTrendPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}

@@ -77,7 +77,9 @@ export interface WorkspaceOverviewMetrics {
   leadsCreatedInPeriod: number
   /** Δ% de leads captados vs el período previo de igual duración */
   leadsNuevosTrendPct: number | null
-  /** Δ% de la conversión por cohorte (clientes creados / leads captados) vs el período previo */
+  /** Leads convertidos (convertedAt) dentro del período seleccionado */
+  conversionsInPeriod: number
+  /** Δ% de conversiones vs el período previo de igual duración */
   conversionTrendPct: number | null
 
   rateNewToContacted: number | null
