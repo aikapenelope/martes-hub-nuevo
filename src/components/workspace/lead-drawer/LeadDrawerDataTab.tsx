@@ -85,8 +85,14 @@ export function collectLeadFieldsInput(
     numeroDeLlamadas: form.get('numeroDeLlamadas') ? Number(form.get('numeroDeLlamadas')) : null,
     visitadoPresencialmente: form.get('visitadoPresencialmente') === 'on',
     pudoHablarDecisor: form.get('pudoHablarDecisor') === 'on',
-    lastContactedAt: form.get('lastContactedAt') ? String(form.get('lastContactedAt')) : null,
-    fechaProximaLlamada: form.get('fechaProximaLlamada') ? String(form.get('fechaProximaLlamada')) : null,
+    lastContactedAt: ifDatetimeChanged(
+      lead.lastContactedAt,
+      form.get('lastContactedAt') ? String(form.get('lastContactedAt')) : null,
+    ),
+    fechaProximaLlamada: ifDateChanged(
+      lead.fechaProximaLlamada,
+      form.get('fechaProximaLlamada') ? String(form.get('fechaProximaLlamada')) : null,
+    ),
     notasLlamada: ifChanged('notasLlamada', lead.notasLlamada, capText(String(form.get('notasLlamada') ?? ''), 20000)),
     commercialNotes: ifChanged(
       'commercialNotes',
@@ -97,8 +103,59 @@ export function collectLeadFieldsInput(
   }
 }
 
+/**
+ * Convierte un valor de input datetime-local (hora local sin offset) a ISO instant en UTC.
+ * Si el instante no cambió respecto al ya guardado en el lead, se omite (undefined)
+ * para evitar que las diferencias de huso horario entre el cliente y el servidor
+ * desplacen la hora de la llamada al guardar el drawer.
+ * Si el usuario borró el valor, devuelve null para limpiar el campo en la base de datos.
+ */
+export function ifDatetimeChanged(
+  currentIso: string | null | undefined,
+  submittedLocal: string | null | undefined,
+): string | null | undefined {
+  const trimmed = submittedLocal?.trim() ?? ''
+  if (!trimmed) {
+    return currentIso ? null : undefined
+  }
+
+  const parsed = new Date(trimmed)
+  if (Number.isNaN(parsed.getTime())) return undefined
+
+  if (currentIso) {
+    const currentMs = new Date(currentIso).getTime()
+    const submittedMs = parsed.getTime()
+    // Los inputs datetime-local editan año/mes/día/hora/minuto.
+    // Comparamos el instante con resolución de minutos.
+    if (Number.isFinite(currentMs) && Math.floor(currentMs / 60000) === Math.floor(submittedMs / 60000)) {
+      return undefined
+    }
+  }
+
+  return parsed.toISOString()
+}
+
+/**
+ * Compara valores de input date (YYYY-MM-DD); omite (undefined) si no cambió respecto
+ * a la representación local del lead para no reenviar ni mutar la fecha si no fue tocada.
+ */
+export function ifDateChanged(
+  currentIso: string | null | undefined,
+  submittedDate: string | null | undefined,
+): string | null | undefined {
+  const trimmed = submittedDate?.trim() ?? ''
+  if (!trimmed) {
+    return currentIso ? null : undefined
+  }
+  const currentFormatted = toDateInput(currentIso)
+  if (trimmed === currentFormatted) {
+    return undefined
+  }
+  return trimmed
+}
+
 /** ISO → valor aceptado por input date/datetime-local (hora local del navegador). */
-function toDateInput(iso: string | null | undefined, withTime = false): string {
+export function toDateInput(iso: string | null | undefined, withTime = false): string {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''

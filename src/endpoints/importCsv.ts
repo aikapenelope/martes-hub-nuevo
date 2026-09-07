@@ -9,17 +9,29 @@ const MAX_ROWS = 1000
 
 type CsvRow = Record<string, string>
 
+function stripAccents(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+function cleanKey(k: string): string {
+  return stripAccents(k.toLowerCase()).replace(/[^a-z0-9]/g, '')
+}
+
 /** Primer alias presente y no vacío (los headers del export varían entre CRMs). */
 function pick(row: CsvRow, ...keys: string[]): string | undefined {
+  // 1. Coincidencia exacta primero
   for (const key of keys) {
     const value = row[key]
     if (value && value.trim()) return value.trim()
   }
+  // 2. Coincidencia normalizada (sin acentos, espacios ni signos de puntuación)
+  const cleanTargets = new Set(keys.map(cleanKey))
+  for (const [k, v] of Object.entries(row)) {
+    if (cleanTargets.has(cleanKey(k)) && v && v.trim()) {
+      return v.trim()
+    }
+  }
   return undefined
-}
-
-function stripAccents(value: string): string {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
 type LeadSource =
@@ -68,8 +80,24 @@ function normalizeEnum<T extends string>(value: string | undefined, allowed: Set
 
 function parseDate(value: string | undefined): string | undefined {
   if (!value) return undefined
-  const ms = Date.parse(value)
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const dmy = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/)
+  if (dmy) {
+    const [, d, m, y, h = '0', min = '0', s = '0'] = dmy
+    const date = new Date(Date.UTC(+y, +m - 1, +d, +h, +min, +s))
+    if (Number.isFinite(date.getTime())) return date.toISOString()
+  }
+  const ms = Date.parse(trimmed)
   return Number.isFinite(ms) ? new Date(ms).toISOString() : undefined
+}
+
+function parseBool(value: string | undefined): boolean | undefined {
+  if (!value) return undefined
+  const norm = stripAccents(value.trim().toLowerCase())
+  if (norm === 'true' || norm === 'si' || norm === '1' || norm === 'yes') return true
+  if (norm === 'false' || norm === 'no' || norm === '0') return false
+  return undefined
 }
 
 function firstTenantId(user: User): number | null {
@@ -126,7 +154,14 @@ export async function importCsvHandler(req: PayloadRequest): Promise<Response> {
 
   let rows: CsvRow[]
   try {
-    rows = parse(await file.text(), {
+    const csvContent =
+      typeof file.text === 'function'
+        ? await file.text()
+        : typeof (file as unknown as { arrayBuffer?: () => Promise<ArrayBuffer> }).arrayBuffer === 'function'
+          ? Buffer.from(await (file as unknown as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer()).toString('utf-8')
+          : String(file)
+
+    rows = parse(csvContent, {
       columns: true,
       skip_empty_lines: true,
       trim: true,
@@ -145,17 +180,29 @@ export async function importCsvHandler(req: PayloadRequest): Promise<Response> {
   for (const [index, raw] of rows.entries()) {
     const rowNumber = index + 2
     try {
-      const name = raw.name || raw.fullName || raw.nombre
+      const name = pick(raw, 'name', 'fullName', 'nombre')
       if (!name) throw new Error('Falta columna obligatoria name/fullName')
 
+      const rawEmail = pick(raw, 'email', 'correo', 'e-mail', 'correoElectronico', 'correo electronico')
+      const email = rawEmail ? rawEmail.toLowerCase().trim() : undefined
+      const rawPhone = pick(raw, 'phone', 'telefono', 'teléfono', 'whatsapp', 'celular', 'movil')
+      const phone = rawPhone ? rawPhone.trim() : undefined
+
       let dedupeWhere: Where | null = null
-      if (raw.email) {
+      const identifiers: Where[] = []
+      if (email) {
+        identifiers.push({ email: { equals: email } })
+      }
+      if (phone) {
+        identifiers.push({ phone: { equals: phone } })
+      }
+
+      if (identifiers.length > 0) {
         dedupeWhere = {
-          and: [{ email: { equals: raw.email.toLowerCase() } }, { tenant: { equals: tenantId } }],
-        }
-      } else if (raw.phone) {
-        dedupeWhere = {
-          and: [{ phone: { equals: raw.phone } }, { tenant: { equals: tenantId } }],
+          and: [
+            identifiers.length === 1 ? identifiers[0] : { or: identifiers },
+            { tenant: { equals: tenantId } },
+          ],
         }
       }
 
@@ -173,9 +220,6 @@ export async function importCsvHandler(req: PayloadRequest): Promise<Response> {
           continue
         }
       }
-
-      const email = pick(raw, 'email', 'correo')
-      const phone = pick(raw, 'phone', 'telefono', 'whatsapp')
 
       if (collection === 'clients') {
         const doc = await req.payload.create({
@@ -219,8 +263,12 @@ export async function importCsvHandler(req: PayloadRequest): Promise<Response> {
             numeroDeLlamadas: Number(pick(raw, 'numeroDeLlamadas')) || 0,
             lastContactedAt: parseDate(pick(raw, 'lastContactedAt', 'ultimaLlamada')),
             fechaProximaLlamada: parseDate(pick(raw, 'fechaProximaLlamada')),
-            visitadoPresencialmente: pick(raw, 'visitadoPresencialmente')?.toLowerCase() === 'true' || undefined,
-            pudoHablarDecisor: pick(raw, 'pudoHablarDecisor')?.toLowerCase() === 'true' || undefined,
+            visitadoPresencialmente: parseBool(
+              pick(raw, 'visitadoPresencialmente', 'visitado presencialmente', 'visitado presencialmente?'),
+            ),
+            pudoHablarDecisor: parseBool(
+              pick(raw, 'pudoHablarDecisor', 'pudo hablar decisor', 'pudo hablar con decisor', 'pudo hablar con el decisor?'),
+            ),
             notasLlamada: pick(raw, 'notasLlamada'),
             notes: pick(raw, 'notes', 'notas'),
             tenant: tenantId,
@@ -247,3 +295,5 @@ export async function importCsvHandler(req: PayloadRequest): Promise<Response> {
     issues,
   })
 }
+
+export { pick, cleanKey, parseDate, parseBool, normalizeSource, normalizeEnum }
