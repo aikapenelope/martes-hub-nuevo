@@ -16,6 +16,10 @@ export interface MonthlySeries {
   actividades: number[]
   /** Δ% del último mes completo vs el anterior en cobrado. */
   cobradoDeltaPct: number | null
+  /** Δ% del último mes completo vs el anterior en leads nuevos. */
+  leadsNuevosDeltaPct: number | null
+  /** Δ% del último mes completo vs el anterior en actividades. */
+  actividadesDeltaPct: number | null
 }
 
 /** 'YYYY-MM' del mes actual visto desde America/Caracas (mismo criterio que db-aggregates: el SQL agrupa con esa timezone). */
@@ -90,15 +94,24 @@ export async function getMonthlyTrends({
       })
 
     const cobrado = toSeries(paidRes.rows, 'total')
-    const prev = cobrado[4] ?? 0
-    const last = cobrado[5] ?? 0
+    const leadsNuevos = toSeries(leadsRes.rows, 'n')
+    const actividades = toSeries(activitiesRes.rows, 'n')
+
+    /** Δ% del último mes completo vs el anterior dentro de una serie de 6 meses. */
+    const lastMonthDeltaPct = (series: number[]): number | null => {
+      const prev = series[4] ?? 0
+      const last = series[5] ?? 0
+      return prev > 0 ? ((last - prev) / prev) * 100 : null
+    }
 
     return {
       months,
       cobrado,
-      leadsNuevos: toSeries(leadsRes.rows, 'n'),
-      actividades: toSeries(activitiesRes.rows, 'n'),
-      cobradoDeltaPct: prev > 0 ? ((last - prev) / prev) * 100 : null,
+      leadsNuevos,
+      actividades,
+      cobradoDeltaPct: lastMonthDeltaPct(cobrado),
+      leadsNuevosDeltaPct: lastMonthDeltaPct(leadsNuevos),
+      actividadesDeltaPct: lastMonthDeltaPct(actividades),
     }
   } catch {
     return null

@@ -17,6 +17,20 @@ const RANGE_LABELS: Record<TimeRangeKey, string> = {
   ano: 'Cobrado en el Año',
 }
 
+/** Chip ▲/▼ de variación % del período vs el previo; oculto si no hay base de comparación. */
+function TrendChip({ pct }: { pct: number | null }) {
+  if (pct === null) return null
+  return (
+    <span
+      className={`text-xs font-mono font-bold flex items-center gap-0.5 ${pct >= 0 ? 'text-sky-400' : 'text-rose-400'}`}
+    >
+      {pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+      {pct >= 0 ? '+' : ''}
+      {pct.toFixed(1)}%
+    </span>
+  )
+}
+
 export function CockpitKpiGrid({
   metrics,
   revenueSeries,
@@ -34,8 +48,10 @@ export function CockpitKpiGrid({
     weightedPipelineTotal,
     totalLeadsActive,
     weightedProbabilityPct,
-    leadsNuevoCount,
     globalConversionRate,
+    leadsCreatedInPeriod,
+    leadsNuevosTrendPct,
+    conversionTrendPct,
     overdueTasksCount,
     metaHealthPct,
     critical24hCount,
@@ -62,19 +78,7 @@ export function CockpitKpiGrid({
         </div>
         <div className="flex items-baseline justify-between">
           <span className="text-3xl font-bold tracking-tight text-white">{currency.format(revenuePeriodTotal)}</span>
-          {revenueTrendPct !== null && (
-            <span
-              className={`text-xs font-mono font-bold flex items-center gap-0.5 ${revenueTrendPct >= 0 ? 'text-sky-400' : 'text-rose-400'}`}
-            >
-              {revenueTrendPct >= 0 ? (
-                <TrendingUp className="w-3.5 h-3.5" />
-              ) : (
-                <TrendingDown className="w-3.5 h-3.5" />
-              )}
-              {revenueTrendPct >= 0 ? '+' : ''}
-              {revenueTrendPct.toFixed(1)}%
-            </span>
-          )}
+          <TrendChip pct={revenueTrendPct} />
         </div>
         <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400">
           <span>
@@ -119,13 +123,28 @@ export function CockpitKpiGrid({
         </div>
         <div className="flex items-baseline justify-between">
           <span className="text-3xl font-bold tracking-tight text-white">{totalLeadsActive}</span>
-          <span className="text-xs font-mono font-bold text-cyan-400">+{leadsNuevoCount} nuevos</span>
+          <span className="flex items-center gap-1.5">
+            <span className="text-xs font-mono font-bold text-cyan-400">
+              {leadsCreatedInPeriod} nuevos en el período
+            </span>
+            <TrendChip pct={leadsNuevosTrendPct} />
+          </span>
         </div>
         <div className="space-y-1">
           <div className="flex justify-between text-[11px] font-mono text-zinc-400">
             <span>Conversión a cliente</span>
-            <span className="font-bold text-white">
-              {globalConversionRate !== null ? `${globalConversionRate.toFixed(1)}%` : '—'}
+            <span className="flex items-center gap-1.5">
+              <span className="font-bold text-white">
+                {globalConversionRate !== null ? `${globalConversionRate.toFixed(1)}%` : '—'}
+              </span>
+              {conversionTrendPct !== null && (
+                <span
+                  className={`text-[10px] font-mono font-bold ${conversionTrendPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
+                >
+                  {conversionTrendPct >= 0 ? '+' : ''}
+                  {conversionTrendPct.toFixed(1)}%
+                </span>
+              )}
             </span>
           </div>
           <div className="h-1.5 w-full bg-zinc-900 overflow-hidden">
