@@ -2,7 +2,6 @@ import { getWorkspaceContext } from '@/lib/workspace-context'
 import { paymentsAggregate, startOfMonthIso } from '@/lib/overview-data'
 import { BillingWorkspace } from '@/components/workspace/billing/BillingWorkspace'
 import type { Client, Invoice, Offer, Payment, Quote } from '@/payload-types'
-import { Download, Ban, CircleDollarSign, Clock3, ShieldAlert } from 'lucide-react'
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 
@@ -81,10 +80,10 @@ export default async function BillingPage({
   const payments = recent.docs as Payment[]
 
   const cards = [
-    { label: 'Cobrado este mes', value: usd.format(collected.total), note: `${collected.count} pagos registrados`, icon: CircleDollarSign, accent: 'sky' as const },
-    { label: 'Por cobrar', value: usd.format(pending.total), note: `${pending.count} cobros abiertos (pendiente + vencido)`, icon: Clock3, accent: 'amber' as const },
-    { label: 'Vencidos', value: usd.format(overdue.total), note: `${overdue.count} pagos vencidos por gestionar`, icon: ShieldAlert, accent: 'rose' as const },
-    { label: 'Anulados', value: usd.format(cancelled.total), note: `${cancelled.count} registros anulados`, icon: Ban, accent: 'indigo' as const },
+    { key: 'collected' as const, label: 'Cobrado este mes', value: usd.format(collected.total), note: `${collected.count} pagos registrados`, accent: 'sky' as const },
+    { key: 'pending' as const, label: 'Por cobrar', value: usd.format(pending.total), note: `${pending.count} cobros abiertos (pendiente + vencido)`, accent: 'amber' as const },
+    { key: 'overdue' as const, label: 'Vencidos', value: usd.format(overdue.total), note: `${overdue.count} pagos vencidos por gestionar`, accent: 'rose' as const },
+    { key: 'cancelled' as const, label: 'Anulados', value: usd.format(cancelled.total), note: `${cancelled.count} registros anulados`, accent: 'indigo' as const },
   ]
 
   return (

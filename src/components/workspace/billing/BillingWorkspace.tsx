@@ -10,6 +10,7 @@ import {
   Check,
   CheckCircle2,
   CircleAlert,
+  CircleDollarSign,
   Clock3,
   Copy,
   ExternalLink,
@@ -21,6 +22,7 @@ import {
   RotateCcw,
   Search,
   Share2,
+  ShieldAlert,
   X,
 } from 'lucide-react'
 
@@ -69,11 +71,23 @@ function getCalendarDayDiff(
 
 type BillingTab = 'todos_cobros' | 'pendientes' | 'pagados' | 'cotizaciones' | 'facturas'
 
-interface BillingCard {
+export type BillingCardKey = 'collected' | 'pending' | 'overdue' | 'cancelled'
+
+const CARD_ICONS: Record<BillingCardKey, LucideIcon> = {
+  collected: CircleDollarSign,
+  pending: Clock3,
+  overdue: ShieldAlert,
+  cancelled: Ban,
+}
+
+const DEFAULT_CARD_ICONS: LucideIcon[] = [CircleDollarSign, Clock3, ShieldAlert, Ban]
+
+export interface BillingCard {
+  key?: BillingCardKey
   label: string
   value: string
   note: string
-  icon: LucideIcon
+  icon?: LucideIcon
   accent: 'sky' | 'amber' | 'rose' | 'indigo'
 }
 
@@ -508,16 +522,19 @@ export function BillingWorkspace({
 
       {/* 3. Indicadores de Salud Financiera (KPIs) */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicadores de cobranza">
-        {cards.map((card) => (
-          <KpiCard
-            key={card.label}
-            label={card.label}
-            value={card.value}
-            icon={card.icon}
-            accent={card.accent}
-            note={card.note}
-          />
-        ))}
+        {cards.map((card, idx) => {
+          const Icon = card.icon || (card.key ? CARD_ICONS[card.key] : DEFAULT_CARD_ICONS[idx % DEFAULT_CARD_ICONS.length])
+          return (
+            <KpiCard
+              key={card.label}
+              label={card.label}
+              value={card.value}
+              icon={Icon}
+              accent={card.accent}
+              note={card.note}
+            />
+          )
+        })}
       </section>
 
       {/* 4. Barra de Navegación por Pestañas & Buscador Reactivo */}
