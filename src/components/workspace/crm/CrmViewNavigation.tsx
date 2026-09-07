@@ -3,27 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { parseCrmFilters } from '@/lib/crm-data'
-
-export function buildCrmHref(
-  filters: ReturnType<typeof parseCrmFilters>,
-  changes: Record<string, string | number | undefined>,
-) {
-  const params = new URLSearchParams()
-  params.set('vista', filters.view)
-  if (filters.view === 'leads' && filters.mode !== 'pipeline') params.set('modo', filters.mode)
-  if (filters.query) params.set('q', filters.query)
-  if (filters.source) params.set('fuente', filters.source)
-  const status = filters.view === 'leads' ? filters.status : filters.stage
-  if (status !== 'todos') params.set('estado', status)
-  if (filters.agent && filters.agent !== 'todos') params.set('agente', filters.agent)
-  if (filters.page > 1) params.set('page', String(filters.page))
-  for (const [key, value] of Object.entries(changes)) {
-    if (value === undefined || value === '' || value === 'todos') params.delete(key)
-    else params.set(key, String(value))
-  }
-  return `/workspace/crm?${params.toString()}`
-}
-
+import { buildCrmHref } from '@/lib/crm-href'
 import type { User } from '@/payload-types'
 
 export function CrmViewNavigation({

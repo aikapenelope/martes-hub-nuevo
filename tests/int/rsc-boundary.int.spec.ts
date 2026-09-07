@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildCrmHref } from '@/components/workspace/crm/CrmViewNavigation'
+import { buildCrmHref } from '@/lib/crm-href'
 import { parseCrmFilters } from '@/lib/crm-filters'
 import type { BillingCard } from '@/components/workspace/billing/BillingWorkspace'
 

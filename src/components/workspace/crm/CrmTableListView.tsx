@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ArrowRight, Search, UsersRound } from 'lucide-react'
 import type { getCrmData, parseCrmFilters } from '@/lib/crm-data'
 import type { Lead, Segment, User } from '@/payload-types'
-import { buildCrmHref } from './CrmViewNavigation'
+import { buildCrmHref } from '@/lib/crm-href'
 
 const leadLabels = {
   nuevo: 'Nuevo',

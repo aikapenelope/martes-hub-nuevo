@@ -47,7 +47,7 @@ describe('parseCrmFilters', () => {
   })
 })
 
-import { buildCrmHref } from '@/components/workspace/crm/CrmViewNavigation'
+import { buildCrmHref } from '@/lib/crm-href'
 
 describe('buildCrmHref', () => {
   it('construye la URL respetando vista y filtros activos', () => {
