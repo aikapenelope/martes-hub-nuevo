@@ -64,7 +64,7 @@ export function PageHero({
           <span className="w-2 h-2 bg-sky-400 pulse-glow inline-block" />
           <span>{eyebrow}</span>
         </div>
-        <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white font-mono uppercase">{title}</h1>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">{title}</h1>
         {description && <p className="mt-1 text-xs text-zinc-400">{description}</p>}
         {notice && (
           <p className="mt-3 border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400 font-mono" role="status">
@@ -163,7 +163,7 @@ export function KpiCard({
         </span>
       </div>
       <div className="flex items-baseline justify-between">
-        <span className="text-3xl font-black text-white font-mono">{value}</span>
+        <span className="text-3xl font-bold tracking-tight text-white">{value}</span>
         {trend}
       </div>
       <div className="flex items-center justify-between gap-2">

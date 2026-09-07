@@ -146,7 +146,7 @@ export function WorkspaceSidebar({ isAdmin, defaultCollapsed = false, onNavigate
                   onClick={onNavigate}
                   title={collapsed ? item.label : undefined}
                   aria-current={active ? 'page' : undefined}
-                  className={`flex items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${
+                  className={`flex items-center gap-2.5 px-3 py-1.5 text-[13px] font-medium transition-colors ${
                     active
                       ? 'bg-zinc-900 text-white border-l-2 border-white font-bold'
                       : 'text-zinc-500 hover:text-white hover:bg-zinc-900/60 border-l-2 border-transparent'
@@ -154,7 +154,7 @@ export function WorkspaceSidebar({ isAdmin, defaultCollapsed = false, onNavigate
                 >
                   <Icon size={15} className={`shrink-0 ${active ? 'text-white' : 'text-zinc-500'}`} />
                   {!collapsed && (
-                    <span className="font-mono tracking-wide truncate">{item.label}</span>
+                    <span className="truncate">{item.label}</span>
                   )}
                 </Link>
               )

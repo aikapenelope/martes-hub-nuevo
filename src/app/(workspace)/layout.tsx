@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Geist } from 'next/font/google'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
@@ -6,6 +7,15 @@ import { WorkspaceTopbar } from '@/components/workspace/WorkspaceTopbar'
 import { CommandPalette } from '@/components/workspace/CommandPalette'
 import { MobileNavDrawer } from '@/components/workspace/MobileNavDrawer'
 import '@/styles/workspace.css'
+
+// Fuente display del workspace (patrón dashboard-9): sans refinada para
+// títulos, números y cuerpo. El mono se reserva para eyebrows, tags y
+// metadatos — la identidad tipográfica es híbrida.
+const geist = Geist({
+  subsets: ['latin'],
+  variable: '--font-geist',
+  display: 'swap',
+})
 
 export const metadata = {
   title: 'Martes Hub — Workspace',
@@ -36,7 +46,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
 
   return (
     <html lang="es">
-      <body className="min-h-screen bg-black font-sans antialiased text-zinc-100 selection:bg-white selection:text-black">
+      <body className={`${geist.variable} min-h-screen bg-black font-sans antialiased text-zinc-100 selection:bg-white selection:text-black`}>
         {/* Layout: Sidebar fijo a la izquierda + contenido derecho */}
         <div className="flex h-screen overflow-hidden">
           {/* Sidebar — oculto en mobile, siempre visible en lg+ */}

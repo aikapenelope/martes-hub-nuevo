@@ -8,6 +8,16 @@
  */
 @import 'tailwindcss';
 
+/*
+ * Tipografía híbrida (Fase 1 del plan dashboard-9):
+ * - Geist Sans (variable --font-geist, inyectada en el root layout) es la
+ *   fuente por defecto: títulos, números, cuerpo.
+ * - El mono queda reservado para eyebrows, tags, estados y metadatos.
+ */
+@theme {
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
 :root {
   --oled-bg: #000000;
   --oled-card-bg: #08080a;
