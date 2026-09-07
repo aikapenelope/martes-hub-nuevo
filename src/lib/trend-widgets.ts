@@ -18,11 +18,24 @@ export interface MonthlySeries {
   cobradoDeltaPct: number | null
 }
 
+/** 'YYYY-MM' del mes actual visto desde America/Caracas (mismo criterio que db-aggregates: el SQL agrupa con esa timezone). */
+function caracasYearMonth(now = new Date()): { y: number; m: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Caracas',
+    year: 'numeric',
+    month: '2-digit',
+  }).format(now)
+  const [y, m] = parts.split('-').map(Number)
+  return { y, m }
+}
+
 function lastSixMonthKeys(now = new Date()): string[] {
+  // Aritmética de meses en UTC sobre (año, mes de Caracas): tz-independiente.
+  const { y, m } = caracasYearMonth(now)
   const keys: string[] = []
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+    const d = new Date(Date.UTC(y, m - 1 - i, 1))
+    keys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
   }
   return keys
 }
