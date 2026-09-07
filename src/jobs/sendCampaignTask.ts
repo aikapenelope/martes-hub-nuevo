@@ -1,5 +1,6 @@
 import type { TaskConfig } from 'payload'
 import { renderEmailHtml } from '../email/layout'
+import { collectCampaignRecipients } from '../lib/campaign-recipients'
 
 function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] ?? name
@@ -25,104 +26,34 @@ export const sendCampaignTask: TaskConfig = {
       throw new Error('Parámetros de campaña inválidos (campaignId y tenantId requeridos)')
     }
 
-    const campaign = await req.payload.findByID({
+    // El job recibe campaignId y tenantId por separado: sin esta validación,
+    // un job con IDs cruzados enviaría contenido de un tenant a los
+    // destinatarios de otro.
+    const campaignRes = await req.payload.find({
       collection: 'email-campaigns',
-      id: campaignId,
+      limit: 1,
       depth: 1,
+      where: { and: [{ id: { equals: campaignId } }, { tenant: { equals: tenantId } }] },
       overrideAccess: true,
       req,
     })
+    const campaign = campaignRes.docs[0]
 
     if (!campaign) {
-      throw new Error(`Campaña ${campaignId} no encontrada`)
+      throw new Error(`Campaña ${campaignId} no encontrada para el tenant ${tenantId}`)
     }
 
     const segmentId =
       typeof campaign.segment === 'object' && campaign.segment ? campaign.segment.id : campaign.segment
 
-    const recipients = new Map<
-      string,
-      { email: string; name: string; leadId?: number; clientId?: number }
-    >()
-
-    if (segmentId) {
-      const leads = await req.payload.find({
-        collection: 'leads',
-        where: {
-          and: [
-            { tenant: { equals: tenantId } },
-            { segment: { equals: segmentId } },
-            { status: { not_equals: 'descartado' } },
-            { convertedClient: { exists: false } },
-            { email: { exists: true } },
-          ],
-        },
-        limit: 500,
-        depth: 0,
-        overrideAccess: true,
-        req,
-      })
-      for (const lead of leads.docs) {
-        if (lead.email) {
-          recipients.set(lead.email.toLowerCase(), {
-            email: lead.email,
-            name: lead.fullName,
-            leadId: lead.id,
-          })
-        }
-      }
-
-      const clients = await req.payload.find({
-        collection: 'clients',
-        where: {
-          and: [
-            { tenant: { equals: tenantId } },
-            { segment: { equals: segmentId } },
-            { stage: { not_equals: 'perdido' } },
-            { optOutAt: { exists: false } },
-            { email: { exists: true } },
-          ],
-        },
-        limit: 500,
-        depth: 0,
-        overrideAccess: true,
-        req,
-      })
-      for (const client of clients.docs) {
-        if (client.email) {
-          recipients.set(client.email.toLowerCase(), {
-            email: client.email,
-            name: client.name,
-            clientId: client.id,
-          })
-        }
-      }
-    } else {
-      const leads = await req.payload.find({
-        collection: 'leads',
-        where: {
-          and: [
-            { tenant: { equals: tenantId } },
-            { status: { not_equals: 'descartado' } },
-            { convertedClient: { exists: false } },
-            { email: { exists: true } },
-          ],
-        },
-        limit: 500,
-        depth: 0,
-        overrideAccess: true,
-        req,
-      })
-      for (const lead of leads.docs) {
-        if (lead.email) {
-          recipients.set(lead.email.toLowerCase(), {
-            email: lead.email,
-            name: lead.fullName,
-            leadId: lead.id,
-          })
-        }
-      }
-    }
+    // Fuente única de destinatarios: mismas reglas que el conteo del editor
+    // (segmento, opt-out, conversión, tope 500, dedupe por email).
+    const recipients = await collectCampaignRecipients({
+      payload: req.payload,
+      tenantId,
+      segmentId: segmentId || undefined,
+      req,
+    })
 
     let sent = 0
     let failed = 0

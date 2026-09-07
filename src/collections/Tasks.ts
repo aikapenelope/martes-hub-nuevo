@@ -105,6 +105,7 @@ export const Tasks: CollectionConfig = {
         { label: 'Cobro Vencido', value: 'payment_overdue' },
         { label: 'Error OpenBSP', value: 'openbsp_error' },
         { label: 'IA (resumen automático)', value: 'hermes_ai' },
+        { label: 'Lead interesado (auto)', value: 'lead_hot' },
       ],
       admin: {
         position: 'sidebar',

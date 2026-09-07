@@ -38,6 +38,7 @@ import { EmailMessages } from './collections/EmailMessages'
 import { EmailCampaigns } from './collections/EmailCampaigns'
 import { Offers } from './collections/Offers'
 import { Notes } from './collections/Notes'
+import { LeadBriefs } from './collections/LeadBriefs'
 import { Whiteboards } from './collections/Whiteboards'
 import { FormSubmissions } from './collections/FormSubmissions'
 import { Tasks } from './collections/Tasks'
@@ -58,6 +59,7 @@ import { dashboardStatsHandler } from './endpoints/dashboardStats'
 import { sendCampaignTask } from './jobs/sendCampaignTask'
 import { sendScheduledCampaignsTask } from './jobs/sendScheduledCampaigns'
 import { syncEmailTask } from './jobs/syncEmail'
+import { generateLeadBriefTask } from './jobs/generateLeadBrief'
 import { syncGcalTask } from './jobs/syncGcal'
 import { summarizeConversationTask } from './jobs/summarizeConversation'
 import { sweepConversationsTask } from './jobs/sweepConversations'
@@ -106,6 +108,7 @@ export default buildConfig({
     Offers,
     Notes,
     Whiteboards,
+    LeadBriefs,
     FormSubmissions,
     Tasks,
     ConversationSummaries,
@@ -191,6 +194,7 @@ export default buildConfig({
         offers: {},
         notes: {},
         whiteboards: {},
+        'lead-briefs': {},
         invoices: {},
         quotes: {},
         'form-submissions': {},
@@ -373,6 +377,7 @@ export default buildConfig({
       sendScheduledCampaignsTask,
       syncEmailTask,
       syncGcalTask,
+      generateLeadBriefTask,
       summarizeConversationTask,
       sweepConversationsTask,
     ],

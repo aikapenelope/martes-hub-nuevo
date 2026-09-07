@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { CheckCircle2, ExternalLink, Loader2, UserCheck } from 'lucide-react'
 import { convertLeadInSituAction, updateLeadFieldsAction } from '@/lib/crm-pipeline-actions'
+import { LeadBriefCard } from './LeadBriefCard'
 import type { Lead, Segment, User } from '@/payload-types'
 
 const inputCls =
@@ -257,7 +258,9 @@ export function LeadDrawerDataTab({
   }
 
   return (
-    <form onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-3 pb-6">
+    <div className="flex flex-col gap-3 pb-6">
+    <LeadBriefCard key={lead.id} leadId={lead.id} canEdit={canEdit} />
+    <form onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-3">
       <fieldset disabled={!canEdit || saving || converting} className="flex flex-col gap-3">
         {/* Banner de Estado / Conversión a Cliente */}
         <div className="border border-zinc-800 bg-zinc-950 p-3">
@@ -520,5 +523,6 @@ export function LeadDrawerDataTab({
         )}
       </fieldset>
     </form>
+    </div>
   )
 }
