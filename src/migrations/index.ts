@@ -170,7 +170,13 @@ export const migrations = [
   },
 ];
 
+import * as migration_20260906_204500_tasks_lead_hot_enum from './20260906_204500_tasks_lead_hot_enum';
 import * as migration_20260906_204706_add_lead_briefs from './20260906_204706_add_lead_briefs';
+migrations.push({
+  up: migration_20260906_204500_tasks_lead_hot_enum.up,
+  down: migration_20260906_204500_tasks_lead_hot_enum.down,
+  name: '20260906_204500_tasks_lead_hot_enum',
+});
 migrations.push({
   up: migration_20260906_204706_add_lead_briefs.up,
   down: migration_20260906_204706_add_lead_briefs.down,

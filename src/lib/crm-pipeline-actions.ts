@@ -302,11 +302,16 @@ export async function updateLeadFieldsAction(
           overrideAccess: true,
         })
         if (briefCount.totalDocs === 0) {
-          await context.payload.jobs.queue({
-            task: 'generate-lead-brief',
-            input: { leadId, tenantId: context.tenantId },
-            overrideAccess: true,
-          })
+          // Sin brief todavía, cada save re-encolaría la generación (p. ej. si
+          // la IA falla): tope por usuario para no inundar la cola de
+          // llamadas pagadas al proveedor.
+          if (await checkUserActionRateLimit(context.user.id, 'lead-brief-queue')) {
+            await context.payload.jobs.queue({
+              task: 'generate-lead-brief',
+              input: { leadId, tenantId: context.tenantId },
+              overrideAccess: true,
+            })
+          }
         }
       } catch (err) {
         console.error('[lead-hot] encolando brief IA:', err)
@@ -350,21 +355,29 @@ export async function updateLeadFieldsAction(
                   : typeof lead.assignedTo === 'number'
                     ? lead.assignedTo
                     : context.user.id
-          await context.payload.create({
-            collection: 'tasks',
-            overrideAccess: false,
-            user: context.user,
-            data: {
-              tenant: context.tenantId,
-              title: taskTitle,
-              status: 'pendiente',
-              priority: 'alta',
-              dueDate: new Date(Date.now() + 86_400_000).toISOString(),
-              lead: leadId,
-              source: 'lead_hot',
-              assignedTo: assignee,
-            },
-          })
+          try {
+            await context.payload.create({
+              collection: 'tasks',
+              overrideAccess: false,
+              user: context.user,
+              data: {
+                tenant: context.tenantId,
+                title: taskTitle,
+                status: 'pendiente',
+                priority: 'alta',
+                dueDate: new Date(Date.now() + 86_400_000).toISOString(),
+                lead: leadId,
+                source: 'lead_hot',
+                assignedTo: assignee,
+              },
+            })
+          } catch (err) {
+            // Carrera de saves concurrentes: el índice único parcial
+            // (tenant, lead) WHERE source=lead_hot la resuelve — el ganador
+            // creó el recordatorio, este save simplemente continúa.
+            const pgCode = (err as { cause?: { code?: string } }).cause?.code
+            if (pgCode !== '23505' && !(err instanceof Error && err.message.includes('duplicate key'))) throw err
+          }
         }
       } catch (err) {
         console.error('[lead-hot] creando tarea recordatoria:', err)

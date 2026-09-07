@@ -49,6 +49,8 @@ interface GenerateLeadBriefOptions {
   leadId: number
   /** Si no viene (job del sistema), las consultas van con overrideAccess. */
   user?: User
+  /** Regeneración manual: ignora el brief existente y llama al modelo. */
+  force?: boolean
 }
 
 /** Consulta corta con control de acceso si hay usuario, override si es job del sistema. */
@@ -59,7 +61,7 @@ function queryOpts(options: GenerateLeadBriefOptions) {
 }
 
 export async function generateLeadBrief(options: GenerateLeadBriefOptions): Promise<LeadBriefResult> {
-  const { payload, tenantId, leadId } = options
+  const { payload, tenantId, leadId, force } = options
   const opts = queryOpts(options)
 
   const leadRes = await payload.find({
@@ -71,6 +73,37 @@ export async function generateLeadBrief(options: GenerateLeadBriefOptions): Prom
   })
   const lead = leadRes.docs[0] as unknown as Record<string, unknown> | undefined
   if (!lead) throw new Error('Lead no encontrado en el tenant activo')
+
+  // Worker idempotente: si un brief ya existe y NO es regeneración manual
+  // (cola duplicada), no repetir la llamada pagada al modelo — el existente
+  // queda vigente.
+  const existingBrief = await payload.count({
+    collection: 'lead-briefs',
+    where: { and: [{ tenant: { equals: tenantId } }, { lead: { equals: leadId } }] },
+    overrideAccess: true,
+  })
+  if (!force && existingBrief.totalDocs > 0) {
+    const current = await payload.find({
+      collection: 'lead-briefs',
+      limit: 1,
+      depth: 0,
+      sort: '-createdAt',
+      where: { and: [{ tenant: { equals: tenantId } }, { lead: { equals: leadId } }] },
+      overrideAccess: true,
+    })
+    const doc = current.docs[0] as unknown as Record<string, unknown> | undefined
+    if (doc) {
+      return {
+        id: doc.id as number,
+        summary: String(doc.summary ?? ''),
+        senales: String(doc.senales ?? ''),
+        sentiment: (doc.sentiment as LeadBriefResult['sentiment']) ?? 'neutral',
+        proximaAccion: String(doc.proximaAccion ?? ''),
+        mensajeWhatsapp: String(doc.mensajeWhatsapp ?? ''),
+        model: String(doc.model ?? ''),
+      }
+    }
+  }
 
   const [activitiesRes, summariesRes, paymentsRes] = await Promise.all([
     payload.find({

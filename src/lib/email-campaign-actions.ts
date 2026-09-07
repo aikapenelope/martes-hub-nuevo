@@ -184,14 +184,17 @@ export async function sendCampaignTestAction(input: {
     throw new Error('Demasiados envíos de prueba seguidos — espera un minuto')
   }
 
-  const to = (input.to || context.user.email || '').trim()
-  if (!to) throw new Error('No hay dirección de destino para la prueba')
+  // Solo al correo del PROPIO editor: aceptar direcciones arbitrarias
+  // convertiría la prueba en un canal de spam/phishing con el remitente
+  // configurado del tenant.
+  const to = (context.user.email || '').trim()
+  if (!to) throw new Error('Tu usuario no tiene correo para recibir la prueba')
 
   const subject = input.subject.trim().slice(0, 200) || 'Prueba de campaña'
   const html = renderEmailHtml({
     title: subject,
     // Mismo sanitizador que el guardado y el envío real: el test no es una
-    // vía para entregar HTML activo o engañoso a direcciones arbitrarias.
+    // vía para entregar HTML activo o engañoso.
     bodyHtml: sanitizeCampaignHtml(input.bodyHtml.slice(0, 20000)),
     preheader: input.preheader?.trim().slice(0, 200) || undefined,
   })

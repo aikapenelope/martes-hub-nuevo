@@ -223,13 +223,10 @@ export function EmailCampaignCreateDialog({
             <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-zinc-400">
               <Send size={12} /> Envío de prueba
             </span>
-            <div className="flex gap-2">
-              <input
-                value={testTo}
-                onChange={(e) => setTestTo(e.target.value)}
-                placeholder="correo@destino.com"
-                className="min-w-0 flex-1 border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600"
-              />
+            <div className="flex items-center gap-2">
+              <p className="min-w-0 flex-1 text-[11px] font-mono text-zinc-500">
+                Destino: {testTo || 'tu correo de usuario'}
+              </p>
               <button
                 type="button"
                 onClick={() => {
@@ -238,7 +235,7 @@ export function EmailCampaignCreateDialog({
                   setTestError(null)
                   startTransition(async () => {
                     try {
-                      const result = await sendCampaignTestAction({ ...draft, to: testTo })
+                      const result = await sendCampaignTestAction(draft)
                       setTestFeedback(`Prueba enviada a ${result.to}`)
                     } catch (err) {
                       setTestFeedback(null)

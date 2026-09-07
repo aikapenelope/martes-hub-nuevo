@@ -7,7 +7,7 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
   await db.execute(sql`
     ALTER TYPE "public"."enum_payload_jobs_task_slug" ADD VALUE IF NOT EXISTS 'generate-lead-brief';
     ALTER TYPE "public"."enum_payload_jobs_log_task_slug" ADD VALUE IF NOT EXISTS 'generate-lead-brief';
-    ALTER TYPE "public"."enum_tasks_source" ADD VALUE IF NOT EXISTS 'lead_hot';
+    CREATE UNIQUE INDEX IF NOT EXISTS "tasks_tenant_lead_lead_hot_idx" ON "tasks" ("tenant_id", "lead_id") WHERE (source = 'lead_hot');
     CREATE TYPE "public"."enum_lead_briefs_sentiment" AS ENUM('positivo', 'neutral', 'negativo');
     CREATE TABLE "lead_briefs" (
       "id" serial PRIMARY KEY NOT NULL,

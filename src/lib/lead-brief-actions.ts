@@ -63,6 +63,7 @@ export async function generateLeadBriefAction(leadId: number): Promise<ActionRes
     tenantId: context.tenantId,
     leadId,
     user: context.user,
+    force: true,
   })
 
   return {

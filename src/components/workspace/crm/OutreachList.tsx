@@ -76,7 +76,7 @@ export function OutreachList({ rows, canEdit }: { rows: OutreachRow[]; canEdit: 
         const result = await markLeadContactedAction(row.id)
         if (result.ok) {
           setContacted((prev) => ({ ...prev, [row.id]: true }))
-          setNotice(`${row.fullName} marcado como contactado (${result.numeroDeLlamadas ?? 1} contacto(s))`)
+          setNotice(`${row.fullName} marcado como contactado — la actividad WhatsApp quedó en su ficha`)
         } else {
           setNotice(result.error)
         }
