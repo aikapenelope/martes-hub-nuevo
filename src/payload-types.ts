@@ -90,6 +90,7 @@ export interface Config {
     offers: Offer;
     notes: Note;
     whiteboards: Whiteboard;
+    'lead-briefs': LeadBrief;
     'form-submissions': FormSubmission;
     tasks: Task;
     'conversation-summaries': ConversationSummary;
@@ -158,6 +159,7 @@ export interface Config {
     offers: OffersSelect<false> | OffersSelect<true>;
     notes: NotesSelect<false> | NotesSelect<true>;
     whiteboards: WhiteboardsSelect<false> | WhiteboardsSelect<true>;
+    'lead-briefs': LeadBriefsSelect<false> | LeadBriefsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
     tasks: TasksSelect<false> | TasksSelect<true>;
     'conversation-summaries': ConversationSummariesSelect<false> | ConversationSummariesSelect<true>;
@@ -204,6 +206,7 @@ export interface Config {
       'send-scheduled-campaigns': TaskSendScheduledCampaigns;
       'sync-email': TaskSyncEmail;
       'sync-gcal': TaskSyncGcal;
+      'generate-lead-brief': TaskGenerateLeadBrief;
       'summarize-conversation': TaskSummarizeConversation;
       'sweep-unsummarized-conversations': TaskSweepUnsummarizedConversations;
       createCollectionExport: TaskCreateCollectionExport;
@@ -1135,6 +1138,35 @@ export interface Whiteboard {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "lead-briefs".
+ */
+export interface LeadBrief {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  lead: number | Lead;
+  /**
+   * Quién es, qué quiere y por dónde va la conversación.
+   */
+  summary?: string | null;
+  /**
+   * Una por línea: interés, objeciones, urgencia, cobros pendientes, etc.
+   */
+  senales?: string | null;
+  sentiment?: ('positivo' | 'neutral' | 'negativo') | null;
+  proximaAccion?: string | null;
+  /**
+   * Mensaje pre-escrito y personalizado para retomar el contacto.
+   */
+  mensajeWhatsapp?: string | null;
+  /**
+   * Proveedor/modelo que generó el brief (trazabilidad).
+   */
+  model?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "conversation-summaries".
  */
 export interface ConversationSummary {
@@ -1767,6 +1799,7 @@ export interface PayloadJob {
           | 'send-scheduled-campaigns'
           | 'sync-email'
           | 'sync-gcal'
+          | 'generate-lead-brief'
           | 'summarize-conversation'
           | 'sweep-unsummarized-conversations'
           | 'createCollectionExport'
@@ -1814,6 +1847,7 @@ export interface PayloadJob {
         | 'send-scheduled-campaigns'
         | 'sync-email'
         | 'sync-gcal'
+        | 'generate-lead-brief'
         | 'summarize-conversation'
         | 'sweep-unsummarized-conversations'
         | 'createCollectionExport'
@@ -1929,6 +1963,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'whiteboards';
         value: number | Whiteboard;
+      } | null)
+    | ({
+        relationTo: 'lead-briefs';
+        value: number | LeadBrief;
       } | null)
     | ({
         relationTo: 'form-submissions';
@@ -2481,6 +2519,22 @@ export interface WhiteboardsSelect<T extends boolean = true> {
   scene?: T;
   thumbnail?: T;
   source?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "lead-briefs_select".
+ */
+export interface LeadBriefsSelect<T extends boolean = true> {
+  tenant?: T;
+  lead?: T;
+  summary?: T;
+  senales?: T;
+  sentiment?: T;
+  proximaAccion?: T;
+  mensajeWhatsapp?: T;
+  model?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3212,6 +3266,19 @@ export interface TaskSyncGcal {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskGenerate-lead-brief".
+ */
+export interface TaskGenerateLeadBrief {
+  input: {
+    leadId: number;
+    tenantId: number;
+  };
+  output: {
+    briefId?: number | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "TaskSummarize-conversation".
  */
 export interface TaskSummarizeConversation {
@@ -3268,6 +3335,7 @@ export interface TaskCreateCollectionExport {
       | 'offers'
       | 'notes'
       | 'whiteboards'
+      | 'lead-briefs'
       | 'form-submissions'
       | 'tasks'
       | 'conversation-summaries'

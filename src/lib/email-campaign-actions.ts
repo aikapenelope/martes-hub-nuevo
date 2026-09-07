@@ -2,6 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { renderEmailHtml } from '@/email/layout'
+import { sanitizeCampaignHtml } from '@/email/sanitize'
+import { collectCampaignRecipients } from '@/lib/campaign-recipients'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
 const MAX_NAME = 160
@@ -98,4 +101,81 @@ export async function sendEmailCampaignAction(formData: FormData): Promise<void>
   })
 
   revalidatePath('/workspace/email')
+}
+
+/**
+ * Renderiza el HTML final de la campaña con el layout de marca — alimenta
+ * la vista previa del editor (desktop/móvil) sin tocar la BD.
+ */
+export async function renderCampaignPreviewAction(input: {
+  subject: string
+  preheader?: string
+  bodyHtml: string
+}): Promise<{ html: string }> {
+  await getWorkspaceContext()
+  return {
+    html: renderEmailHtml({
+      title: input.subject.trim().slice(0, 200) || 'Vista previa',
+      bodyHtml: sanitizeCampaignHtml(input.bodyHtml.slice(0, 20000)),
+      preheader: input.preheader?.trim().slice(0, 200) || undefined,
+    }),
+  }
+}
+
+/**
+ * Cuenta los destinatarios reales de un segmento ANTES de enviar: leads con
+ * email + clientes con email y sin opt-out, deduplicados por dirección en
+ * minúsculas — misma regla de negocio del job send-campaign-batch.
+ */
+export async function campaignRecipientCountAction(
+  segmentId?: number,
+): Promise<{ total: number; leads: number; clients: number }> {
+  const context = await getWorkspaceContext()
+  if (!context.canEdit) throw new Error('No tienes permiso para ver campañas')
+
+  // Misma fuente única que el job de envío: el alcance mostrado no puede
+  // desviarse de lo que realmente se entrega (segmento, conversión, etapa,
+  // opt-out, tope 500, dedupe por email).
+  const recipients = await collectCampaignRecipients({
+    payload: context.payload,
+    tenantId: context.tenantId,
+    segmentId: segmentId && Number.isInteger(segmentId) && segmentId > 0 ? segmentId : undefined,
+    user: context.user,
+  })
+
+  let leadCount = 0
+  let clientCount = 0
+  for (const recipient of recipients.values()) {
+    if (recipient.leadId) leadCount += 1
+    else if (recipient.clientId) clientCount += 1
+  }
+
+  return { total: recipients.size, leads: leadCount, clients: clientCount }
+}
+
+/** Envío de prueba a una dirección (default: el propio usuario) — no crea ni toca la campaña. */
+export async function sendCampaignTestAction(input: {
+  subject: string
+  preheader?: string
+  bodyHtml: string
+  to?: string
+}): Promise<{ to: string }> {
+  const context = await getWorkspaceContext()
+  if (!context.canEdit) throw new Error('No tienes permiso para enviar campañas')
+  if (!process.env.RESEND_API_KEY) throw new Error('Email no configurado (falta RESEND_API_KEY)')
+
+  const to = (input.to || context.user.email || '').trim()
+  if (!to) throw new Error('No hay dirección de destino para la prueba')
+
+  const subject = input.subject.trim().slice(0, 200) || 'Prueba de campaña'
+  const html = renderEmailHtml({
+    title: subject,
+    // Mismo sanitizador que el guardado y el envío real: el test no es una
+    // vía para entregar HTML activo o engañoso a direcciones arbitrarias.
+    bodyHtml: sanitizeCampaignHtml(input.bodyHtml.slice(0, 20000)),
+    preheader: input.preheader?.trim().slice(0, 200) || undefined,
+  })
+
+  await context.payload.sendEmail({ to, subject: `[PRUEBA] ${subject}`, html })
+  return { to }
 }

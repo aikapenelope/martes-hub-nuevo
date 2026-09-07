@@ -101,7 +101,7 @@ export default async function EmailCampaignsPage() {
         actions={canEdit ? (
           <div className="flex items-center gap-2">
             <DirectEmailDrawer leads={leads} clients={clients} />
-            <EmailCampaignCreateDialog segments={segments} />
+            <EmailCampaignCreateDialog segments={segments} testEmail={context.user.email} />
           </div>
         ) : undefined}
       />
