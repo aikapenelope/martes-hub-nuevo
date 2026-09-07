@@ -28,6 +28,7 @@ export interface LeadFieldsInput {
     | 'manual'
     | 'google_maps'
     | 'puerta_fria'
+    | 'llamada_fria'
     | 'whatsapp'
     | 'instagram_dm'
     | 'linkedin'
@@ -35,6 +36,20 @@ export interface LeadFieldsInput {
     | 'apify'
     | 'referido'
   segment?: number | null
+  website?: string
+  whatsappLink?: string
+  nivelInteres?: 'frio' | 'templado' | 'caliente'
+  prioridad?: 'baja' | 'media' | 'alta'
+  servicioInteres?: string
+  personaInteres?: string
+  identificador?: string
+  sectorFibery?: string
+  numeroDeLlamadas?: number | null
+  visitadoPresencialmente?: boolean
+  pudoHablarDecisor?: boolean
+  lastContactedAt?: string | null
+  fechaProximaLlamada?: string | null
+  notasLlamada?: string
   estimatedValue?: number | null
   assignedTo?: number | null
   lastContactChannel?: 'whatsapp' | 'instagram_dm' | 'llamada' | 'en_persona' | 'email' | 'otro'
@@ -58,6 +73,26 @@ function wholeUsdField(
   return wholeUsd(value)
 }
 
+/** Contador entero ≥ 0: undefined se omite; null limpia. */
+function countField(value: number | null | undefined): number | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  return Math.max(0, Math.round(value))
+}
+
+/** Booleano explícito: undefined = no tocar. */
+function boolField(value: boolean | undefined): boolean | undefined {
+  return value
+}
+
+/** Fecha ISO: undefined se omite; null/vacío limpia; inválida se omite. */
+function dateField(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null || value === '') return null
+  const ms = new Date(value).getTime()
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : undefined
+}
+
 /** Recorta y limpia texto acotado: las server actions no deben poder crear registros gigantes. */
 function cap(value: string | undefined, max: number): string | undefined {
   const trimmed = value?.trim()
@@ -66,6 +101,13 @@ function cap(value: string | undefined, max: number): string | undefined {
 
 // Límites por campo alineados con el tamaño real de la UI (textarea/input).
 const LIMITS = {
+  website: 300,
+  whatsappLink: 300,
+  servicioInteres: 160,
+  personaInteres: 160,
+  identificador: 120,
+  sectorFibery: 120,
+  notasLlamada: 20000,
   companyName: 200,
   position: 120,
   phone: 40,
@@ -93,6 +135,20 @@ export function buildLeadUpdateData(input: LeadFieldsInput): Record<string, unkn
     googleMapsUrl: cap(input.googleMapsUrl, LIMITS.googleMapsUrl),
     socialHandle: cap(input.socialHandle, LIMITS.socialHandle),
     source: input.source || undefined,
+    website: cap(input.website, LIMITS.website),
+    whatsappLink: cap(input.whatsappLink, LIMITS.whatsappLink),
+    nivelInteres: input.nivelInteres || undefined,
+    prioridad: input.prioridad || undefined,
+    servicioInteres: cap(input.servicioInteres, LIMITS.servicioInteres),
+    personaInteres: cap(input.personaInteres, LIMITS.personaInteres),
+    identificador: cap(input.identificador, LIMITS.identificador),
+    sectorFibery: cap(input.sectorFibery, LIMITS.sectorFibery),
+    numeroDeLlamadas: countField(input.numeroDeLlamadas),
+    visitadoPresencialmente: boolField(input.visitadoPresencialmente),
+    pudoHablarDecisor: boolField(input.pudoHablarDecisor),
+    lastContactedAt: dateField(input.lastContactedAt),
+    fechaProximaLlamada: dateField(input.fechaProximaLlamada),
+    notasLlamada: cap(input.notasLlamada, LIMITS.notasLlamada),
     segment: relationshipField(input.segment),
     estimatedValue: wholeUsdField(input.estimatedValue),
     assignedTo: relationshipField(input.assignedTo),

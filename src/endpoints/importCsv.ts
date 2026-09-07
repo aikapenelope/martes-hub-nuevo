@@ -9,6 +9,69 @@ const MAX_ROWS = 1000
 
 type CsvRow = Record<string, string>
 
+/** Primer alias presente y no vacío (los headers del export varían entre CRMs). */
+function pick(row: CsvRow, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = row[key]
+    if (value && value.trim()) return value.trim()
+  }
+  return undefined
+}
+
+function stripAccents(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+type LeadSource =
+  | 'manual'
+  | 'google_maps'
+  | 'puerta_fria'
+  | 'llamada_fria'
+  | 'whatsapp'
+  | 'instagram_dm'
+  | 'linkedin'
+  | 'tally'
+  | 'apify'
+  | 'referido'
+
+const SOURCES = new Set<LeadSource>([
+  'manual',
+  'google_maps',
+  'puerta_fria',
+  'llamada_fria',
+  'whatsapp',
+  'instagram_dm',
+  'linkedin',
+  'tally',
+  'apify',
+  'referido',
+])
+
+/** Normaliza 'Llamada fría' → llamada_fria; valores desconocidos → manual. */
+function normalizeSource(value: string | undefined): LeadSource {
+  if (!value) return 'manual'
+  const normalized = stripAccents(value.toLowerCase()).replace(/\s+/g, '_') as LeadSource
+  return SOURCES.has(normalized) ? normalized : 'manual'
+}
+
+type NivelInteres = 'frio' | 'templado' | 'caliente'
+type Prioridad = 'baja' | 'media' | 'alta'
+
+const NIVELES = new Set<NivelInteres>(['frio', 'templado', 'caliente'])
+const PRIORIDADES = new Set<Prioridad>(['baja', 'media', 'alta'])
+
+function normalizeEnum<T extends string>(value: string | undefined, allowed: Set<T>): T | undefined {
+  if (!value) return undefined
+  const normalized = stripAccents(value.toLowerCase()).replace(/\s+/g, '_') as T
+  return allowed.has(normalized) ? normalized : undefined
+}
+
+function parseDate(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const ms = Date.parse(value)
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : undefined
+}
+
 function firstTenantId(user: User): number | null {
   const membership = user.tenants?.[0]?.tenant
   if (!membership) return null
@@ -111,17 +174,19 @@ export async function importCsvHandler(req: PayloadRequest): Promise<Response> {
         }
       }
 
-      const email = raw.email || undefined
-      const phone = raw.phone || raw.telefono || undefined
+      const email = pick(raw, 'email', 'correo')
+      const phone = pick(raw, 'phone', 'telefono', 'whatsapp')
 
       if (collection === 'clients') {
         const doc = await req.payload.create({
           collection: 'clients',
           data: {
             name,
-            stage: (raw.stage as 'nuevo' | 'activo' | 'inactivo' | 'perdido') || 'nuevo',
+            stage: (pick(raw, 'stage', 'etapa') as 'nuevo' | 'activo' | 'inactivo' | 'perdido') || 'nuevo',
             email,
             phone,
+            city: pick(raw, 'city', 'ciudad'),
+            address: pick(raw, 'address', 'direccion', 'ubicacion'),
             tenant: tenantId,
           },
           overrideAccess: false,
@@ -129,16 +194,35 @@ export async function importCsvHandler(req: PayloadRequest): Promise<Response> {
         })
         createdIds.push(doc.id)
       } else {
+        // Upsert/mapeo completo en Sprint 2 del plan de fase final — hoy: crea
+        // con mapeo ampliado de columnas (export Fibery incluido).
         const doc = await req.payload.create({
           collection: 'leads',
           data: {
             fullName: name,
-            status: (raw.status as 'nuevo' | 'contactado' | 'calificado' | 'descartado') || 'nuevo',
-            source:
-              (raw.source as 'manual' | 'apify' | 'tally' | 'whatsapp' | 'instagram_dm' | 'referido') ||
-              'manual',
+            status: (pick(raw, 'status', 'estado') as 'nuevo' | 'contactado' | 'calificado' | 'descartado') || 'nuevo',
+            source: normalizeSource(pick(raw, 'source', 'fuente')),
             email,
             phone,
+            city: pick(raw, 'city', 'ciudad'),
+            address: pick(raw, 'address', 'direccion', 'ubicacion'),
+            socialHandle: pick(raw, 'socialHandle', 'instagram', 'redSocial'),
+            website: pick(raw, 'website', 'sitioWeb'),
+            whatsappLink: pick(raw, 'whatsappLink', 'whatsapp link'),
+            estimatedValue: Number(pick(raw, 'estimatedValue', 'montoPotencialUSD', 'montoPotencial')) || undefined,
+            nivelInteres: normalizeEnum(pick(raw, 'nivelInteres', 'nivelInterés'), NIVELES),
+            prioridad: normalizeEnum(pick(raw, 'prioridad'), PRIORIDADES),
+            servicioInteres: pick(raw, 'servicioInteres', 'servicioInterés'),
+            personaInteres: pick(raw, 'personaInteres', 'personaInterés'),
+            identificador: pick(raw, 'identificador', 'id'),
+            sectorFibery: pick(raw, 'sectorFibery', 'sector fibery', 'sector'),
+            numeroDeLlamadas: Number(pick(raw, 'numeroDeLlamadas')) || 0,
+            lastContactedAt: parseDate(pick(raw, 'lastContactedAt', 'ultimaLlamada')),
+            fechaProximaLlamada: parseDate(pick(raw, 'fechaProximaLlamada')),
+            visitadoPresencialmente: pick(raw, 'visitadoPresencialmente')?.toLowerCase() === 'true' || undefined,
+            pudoHablarDecisor: pick(raw, 'pudoHablarDecisor')?.toLowerCase() === 'true' || undefined,
+            notasLlamada: pick(raw, 'notasLlamada'),
+            notes: pick(raw, 'notes', 'notas'),
             tenant: tenantId,
           },
           overrideAccess: false,

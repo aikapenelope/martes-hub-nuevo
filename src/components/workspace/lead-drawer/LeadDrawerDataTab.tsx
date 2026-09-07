@@ -56,6 +56,7 @@ export function collectLeadFieldsInput(
       | 'manual'
       | 'google_maps'
       | 'puerta_fria'
+      | 'llamada_fria'
       | 'whatsapp'
       | 'instagram_dm'
       | 'linkedin'
@@ -73,6 +74,20 @@ export function collectLeadFieldsInput(
         ? Number(assignedToRaw)
         : null
       : undefined,
+    website: ifChanged('website', lead.website, capText(String(form.get('website') ?? ''), 300)),
+    whatsappLink: ifChanged('whatsappLink', lead.whatsappLink, capText(String(form.get('whatsappLink') ?? ''), 300)),
+    nivelInteres: (form.get('nivelInteres') as 'frio' | 'templado' | 'caliente' | '') || undefined,
+    prioridad: (form.get('prioridad') as 'baja' | 'media' | 'alta' | '') || undefined,
+    servicioInteres: ifChanged('servicioInteres', lead.servicioInteres, capText(String(form.get('servicioInteres') ?? ''), 160)),
+    personaInteres: ifChanged('personaInteres', lead.personaInteres, capText(String(form.get('personaInteres') ?? ''), 160)),
+    identificador: ifChanged('identificador', lead.identificador, capText(String(form.get('identificador') ?? ''), 120)),
+    sectorFibery: ifChanged('sectorFibery', lead.sectorFibery, capText(String(form.get('sectorFibery') ?? ''), 120)),
+    numeroDeLlamadas: form.get('numeroDeLlamadas') ? Number(form.get('numeroDeLlamadas')) : null,
+    visitadoPresencialmente: form.get('visitadoPresencialmente') === 'on',
+    pudoHablarDecisor: form.get('pudoHablarDecisor') === 'on',
+    lastContactedAt: form.get('lastContactedAt') ? String(form.get('lastContactedAt')) : null,
+    fechaProximaLlamada: form.get('fechaProximaLlamada') ? String(form.get('fechaProximaLlamada')) : null,
+    notasLlamada: ifChanged('notasLlamada', lead.notasLlamada, capText(String(form.get('notasLlamada') ?? ''), 20000)),
     commercialNotes: ifChanged(
       'commercialNotes',
       lead.commercialNotes,
@@ -80,6 +95,16 @@ export function collectLeadFieldsInput(
     ),
     notes: ifChanged('notes', lead.notes, capText(String(form.get('notes') ?? ''), 20000)),
   }
+}
+
+/** ISO → valor aceptado por input date/datetime-local (hora local del navegador). */
+function toDateInput(iso: string | null | undefined, withTime = false): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  return withTime ? `${day}T${pad(date.getHours())}:${pad(date.getMinutes())}` : day
 }
 
 /** Recorta texto acotado; vacío → undefined (omitir). */
@@ -241,6 +266,7 @@ export function LeadDrawerDataTab({
               <option value="manual">Manual</option>
               <option value="google_maps">Google Maps / Local</option>
               <option value="puerta_fria">Puerta Fría / En Persona</option>
+              <option value="llamada_fria">Llamada Fría</option>
               <option value="whatsapp">WhatsApp Directo</option>
               <option value="instagram_dm">Instagram DM</option>
               <option value="linkedin">LinkedIn</option>
@@ -282,6 +308,91 @@ export function LeadDrawerDataTab({
         <label className={labelCls}>
           Enlace Google Maps
           <input name="googleMapsUrl" defaultValue={lead.googleMapsUrl ?? ''} placeholder="https://maps.google.com/..." className={inputCls} />
+        </label>
+
+        {/* Web y WhatsApp */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={labelCls}>
+            Website
+            <input name="website" defaultValue={lead.website ?? ''} placeholder="https://..." className={inputCls} />
+          </label>
+          <label className={labelCls}>
+            Enlace de WhatsApp
+            <input name="whatsappLink" defaultValue={lead.whatsappLink ?? ''} placeholder="https://wa.me/58..." className={inputCls} />
+          </label>
+        </div>
+
+        {/* Cualificación */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={labelCls}>
+            Nivel de interés
+            <select name="nivelInteres" defaultValue={lead.nivelInteres ?? ''} className={inputCls}>
+              <option value="">Sin nivel</option>
+              <option value="frio">❄️ Frío</option>
+              <option value="templado">🌡️ Templado</option>
+              <option value="caliente">🔥 Caliente</option>
+            </select>
+          </label>
+          <label className={labelCls}>
+            Prioridad
+            <select name="prioridad" defaultValue={lead.prioridad ?? ''} className={inputCls}>
+              <option value="">Sin prioridad</option>
+              <option value="baja">Baja</option>
+              <option value="media">Media</option>
+              <option value="alta">🔥 Alta</option>
+            </select>
+          </label>
+          <label className={labelCls}>
+            Servicio de interés
+            <input name="servicioInteres" defaultValue={lead.servicioInteres ?? ''} className={inputCls} />
+          </label>
+          <label className={labelCls}>
+            Persona de interés
+            <input name="personaInteres" defaultValue={lead.personaInteres ?? ''} className={inputCls} />
+          </label>
+        </div>
+
+        {/* Trazabilidad de origen */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={labelCls}>
+            Identificador externo
+            <input name="identificador" defaultValue={lead.identificador ?? ''} placeholder="Ej: FIB-12345" className={inputCls} />
+          </label>
+          <label className={labelCls}>
+            Sector (Fibery)
+            <input name="sectorFibery" defaultValue={lead.sectorFibery ?? ''} className={inputCls} />
+          </label>
+        </div>
+
+        {/* Llamadas */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={labelCls}>
+            Última llamada
+            <input name="lastContactedAt" type="datetime-local" defaultValue={toDateInput(lead.lastContactedAt, true)} className={inputCls} />
+          </label>
+          <label className={labelCls}>
+            Próxima llamada programada
+            <input name="fechaProximaLlamada" type="date" defaultValue={toDateInput(lead.fechaProximaLlamada)} className={inputCls} />
+          </label>
+          <label className={labelCls}>
+            Número de llamadas
+            <input name="numeroDeLlamadas" type="number" min={0} defaultValue={lead.numeroDeLlamadas ?? 0} className={inputCls} />
+          </label>
+          <div className="flex flex-col justify-end gap-1.5 pb-1">
+            <label className="flex items-center gap-2 text-xs text-zinc-300">
+              <input type="checkbox" name="visitadoPresencialmente" defaultChecked={lead.visitadoPresencialmente ?? false} className="h-4 w-4 accent-white" />
+              ¿Visitado presencialmente?
+            </label>
+            <label className="flex items-center gap-2 text-xs text-zinc-300">
+              <input type="checkbox" name="pudoHablarDecisor" defaultChecked={lead.pudoHablarDecisor ?? false} className="h-4 w-4 accent-white" />
+              ¿Pudo hablar con el decisor?
+            </label>
+          </div>
+        </div>
+
+        <label className={labelCls}>
+          Notas de llamada
+          <textarea name="notasLlamada" rows={3} defaultValue={lead.notasLlamada ?? ''} placeholder="Resumen de la llamada..." className={inputCls} />
         </label>
 
         {/* Segmento y Oportunidad */}
