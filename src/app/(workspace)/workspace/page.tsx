@@ -111,7 +111,7 @@ export default async function WorkspacePage({
         {RANGES.map((r) => (
           <Link
             key={r.key}
-            href={`/workspace?rango=${r.key}`}
+            href={`/workspace?rango=${r.key}&vista=${initialView}`}
             aria-current={timeRange === r.key ? 'true' : undefined}
             className={`px-2.5 py-1 text-[11px] font-mono uppercase transition ${
               timeRange === r.key ? 'bg-white text-black font-bold' : 'border border-zinc-800 text-zinc-400 hover:text-white'

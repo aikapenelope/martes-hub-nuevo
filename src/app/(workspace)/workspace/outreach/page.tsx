@@ -88,7 +88,18 @@ export default async function OutreachPage({
     }),
     context.payload.find({
       collection: 'users',
-      where: { active: { equals: true } },
+      where: {
+        and: [
+          { active: { equals: true } },
+          { roles: { in: ['admin', 'agente'] } },
+          {
+            or: [
+              { 'tenants.tenant': { equals: context.tenantId } },
+              { roles: { contains: 'admin' } },
+            ],
+          },
+        ],
+      },
       limit: 100,
       depth: 0,
       overrideAccess: false,
