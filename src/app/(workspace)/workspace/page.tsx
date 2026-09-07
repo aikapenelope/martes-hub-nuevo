@@ -16,6 +16,8 @@
 
 import 'server-only'
 
+import Link from 'next/link'
+
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import type { Client, Segment, User } from '@/payload-types'
 import { getWorkspaceOverviewData } from '@/lib/overview-data'
@@ -88,9 +90,49 @@ export default async function WorkspacePage({
       : Promise.resolve(null),
   ])
 
+  const RANGES: Array<{ key: TimeRangeKey; label: string }> = [
+    { key: 'hoy', label: 'Hoy' },
+    { key: '7d', label: '7D' },
+    { key: '30d', label: '1M' },
+    { key: '90d', label: '3M' },
+    { key: 'ano', label: '1A' },
+  ]
+  const QUICK_ACTIONS = [
+    { href: '/workspace/billing', title: 'Registrar cobro', desc: 'Pagos, facturas y conciliación.' },
+    { href: '/workspace/outreach', title: 'Prospección WhatsApp', desc: 'Interesados con mensajes listos.' },
+    { href: '/workspace/email', title: 'Nueva campaña', desc: 'Email masivo por segmento.' },
+    { href: '/workspace/activities', title: 'Registrar actividad', desc: 'Llamadas, reuniones, notas.' },
+  ]
+
   return (
     <div className="space-y-4">
+      {/* Selector de rango (estilo dashboard-9: 14D/1M/3M/6M) */}
+      <nav aria-label="Rango de tiempo" className="flex items-center gap-1">
+        {RANGES.map((r) => (
+          <Link
+            key={r.key}
+            href={`/workspace?rango=${r.key}`}
+            aria-current={timeRange === r.key ? 'true' : undefined}
+            className={`px-2.5 py-1 text-[11px] font-mono uppercase transition ${
+              timeRange === r.key ? 'bg-white text-black font-bold' : 'border border-zinc-800 text-zinc-400 hover:text-white'
+            }`}
+          >
+            {r.label}
+          </Link>
+        ))}
+      </nav>
+
       {trends && <TrendStrip trends={trends} />}
+
+      {/* Accesos rápidos */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Acciones rápidas">
+        {QUICK_ACTIONS.map((action) => (
+          <Link key={action.href} href={action.href} className="oled-card p-4 transition hover:border-zinc-600">
+            <p className="text-xs font-bold text-white">{action.title}</p>
+            <p className="mt-1 text-[11px] text-zinc-500">{action.desc}</p>
+          </Link>
+        ))}
+      </section>
       <CockpitFocusViews
         tenant={tenant}
         dateTitle={data.dateTitle}

@@ -61,7 +61,7 @@ export function CockpitKpiGrid({
           </span>
         </div>
         <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-black text-white font-mono">{currency.format(revenuePeriodTotal)}</span>
+          <span className="text-3xl font-bold tracking-tight text-white">{currency.format(revenuePeriodTotal)}</span>
           {revenueTrendPct !== null && (
             <span
               className={`text-xs font-mono font-bold flex items-center gap-0.5 ${revenueTrendPct >= 0 ? 'text-sky-400' : 'text-rose-400'}`}
@@ -95,7 +95,7 @@ export function CockpitKpiGrid({
           </span>
         </div>
         <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-black text-white font-mono">{currency.format(weightedPipelineTotal)}</span>
+          <span className="text-3xl font-bold tracking-tight text-white">{currency.format(weightedPipelineTotal)}</span>
           <span className="text-xs font-mono font-bold text-indigo-400">{totalLeadsActive} tratos</span>
         </div>
         <div className="space-y-1">
@@ -118,7 +118,7 @@ export function CockpitKpiGrid({
           </span>
         </div>
         <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-black text-white font-mono">{totalLeadsActive}</span>
+          <span className="text-3xl font-bold tracking-tight text-white">{totalLeadsActive}</span>
           <span className="text-xs font-mono font-bold text-cyan-400">+{leadsNuevoCount} nuevos</span>
         </div>
         <div className="space-y-1">
@@ -143,7 +143,7 @@ export function CockpitKpiGrid({
           </span>
         </div>
         <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-black text-white font-mono">{overdueTasksCount}</span>
+          <span className="text-3xl font-bold tracking-tight text-white">{overdueTasksCount}</span>
           <Link href="/workspace/tasks" className="text-xs font-mono font-bold text-amber-400 hover:underline">
             Ver tareas →
           </Link>
@@ -162,7 +162,7 @@ export function CockpitKpiGrid({
           </span>
         </div>
         <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-black text-white font-mono">{currency.format(revenuePendingTotal)}</span>
+          <span className="text-3xl font-bold tracking-tight text-white">{currency.format(revenuePendingTotal)}</span>
           <Link href="/workspace/billing" className="text-xs font-mono font-bold text-amber-400 hover:underline">
             Facturación →
           </Link>
@@ -187,7 +187,7 @@ export function CockpitKpiGrid({
           </span>
         </div>
         <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-black text-white font-mono">{metaHealthPct.toFixed(1)}%</span>
+          <span className="text-3xl font-bold tracking-tight text-white">{metaHealthPct.toFixed(1)}%</span>
           <span className="text-xs font-mono font-bold text-rose-400">
             {critical24hCount > 0 ? `${critical24hCount} por vencer` : '0 críticas'}
           </span>
