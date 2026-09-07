@@ -26,16 +26,21 @@ export const sendCampaignTask: TaskConfig = {
       throw new Error('Parámetros de campaña inválidos (campaignId y tenantId requeridos)')
     }
 
-    const campaign = await req.payload.findByID({
+    // El job recibe campaignId y tenantId por separado: sin esta validación,
+    // un job con IDs cruzados enviaría contenido de un tenant a los
+    // destinatarios de otro.
+    const campaignRes = await req.payload.find({
       collection: 'email-campaigns',
-      id: campaignId,
+      limit: 1,
       depth: 1,
+      where: { and: [{ id: { equals: campaignId } }, { tenant: { equals: tenantId } }] },
       overrideAccess: true,
       req,
     })
+    const campaign = campaignRes.docs[0]
 
     if (!campaign) {
-      throw new Error(`Campaña ${campaignId} no encontrada`)
+      throw new Error(`Campaña ${campaignId} no encontrada para el tenant ${tenantId}`)
     }
 
     const segmentId =

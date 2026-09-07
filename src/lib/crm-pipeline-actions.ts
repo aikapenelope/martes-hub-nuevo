@@ -313,15 +313,30 @@ export async function updateLeadFieldsAction(
       }
 
       try {
-        // Del lead ACTUALIZADO: un rename en este mismo guardado debe
-        // reflejarse en el título del recordatorio.
-        const taskTitle = `📞 Llamar a ${String((updatedLead as { fullName?: string }).fullName ?? lead.fullName)} — marcado como interesado`
-        const duplicate = await context.payload.count({
+        // Dedupe por marcador estable (source=auto, no por título): un
+        // renombre del lead actualiza el recordatorio existente en vez de
+        // crear un duplicado.
+        const autoReminders = await context.payload.find({
           collection: 'tasks',
-          where: { and: [hotBase, leadFilter, { title: { equals: taskTitle } }] },
+          limit: 1,
+          depth: 0,
+          sort: '-createdAt',
+          where: {
+            and: [hotBase, leadFilter, { source: { equals: 'lead_hot' } }],
+          },
           overrideAccess: true,
         })
-        if (duplicate.totalDocs === 0) {
+        const taskTitle = `📞 Llamar a ${String((updatedLead as { fullName?: string }).fullName ?? lead.fullName)} — marcado como interesado`
+        const existingReminder = autoReminders.docs[0]
+        if (existingReminder && existingReminder.title !== taskTitle) {
+          await context.payload.update({
+            collection: 'tasks',
+            id: existingReminder.id,
+            overrideAccess: true,
+            data: { title: taskTitle },
+          })
+        }
+        if (!existingReminder) {
           // Semántica de asignación: null = "sin asignar" explícito (no caer
           // al agente viejo); undefined = no se tocó → mantener el actual.
           const assignee =
@@ -346,6 +361,7 @@ export async function updateLeadFieldsAction(
               priority: 'alta',
               dueDate: new Date(Date.now() + 86_400_000).toISOString(),
               lead: leadId,
+              source: 'lead_hot',
               assignedTo: assignee,
             },
           })

@@ -49,27 +49,35 @@ export default async function OutreachPage() {
     page += 1
   }
 
-  // Último brief por lead (mensaje pre-escrito consultable)
+  // Último brief por lead (mensaje pre-escrito consultable) — paginado por
+  // lotes: los interesados ya no caben en una sola página de briefs.
   const leadIds = interestedLeads.map((l) => l.id)
   const briefsByLead = new Map<number, string>()
   if (leadIds.length > 0) {
-    const briefsRes = await context.payload.find({
-      collection: 'lead-briefs',
-      where: { and: [{ tenant: { equals: context.tenantId } }, { lead: { in: leadIds } }] },
-      limit: 200,
-      depth: 0,
-      sort: '-createdAt',
-      overrideAccess: false,
-      user: context.user,
-    })
-    for (const brief of briefsRes.docs as unknown as Array<{ lead?: unknown; mensajeWhatsapp?: string | null }>) {
-      const leadId =
-        typeof brief.lead === 'object' && brief.lead !== null
-          ? (brief.lead as { id: number }).id
-          : (brief.lead as number | undefined)
-      if (leadId && brief.mensajeWhatsapp && !briefsByLead.has(leadId)) {
-        briefsByLead.set(leadId, brief.mensajeWhatsapp)
+    let briefPage = 1
+    for (;;) {
+      const briefsRes = await context.payload.find({
+        collection: 'lead-briefs',
+        where: { and: [{ tenant: { equals: context.tenantId } }, { lead: { in: leadIds } }] },
+        limit: 500,
+        page: briefPage,
+        depth: 0,
+        sort: '-createdAt',
+        overrideAccess: false,
+        user: context.user,
+      })
+      for (const brief of briefsRes.docs as unknown as Array<{ lead?: unknown; mensajeWhatsapp?: string | null }>) {
+        const leadId =
+          typeof brief.lead === 'object' && brief.lead !== null
+            ? (brief.lead as { id: number }).id
+            : (brief.lead as number | undefined)
+        // Primer brief por lead = el más reciente (sort -createdAt)
+        if (leadId && brief.mensajeWhatsapp && !briefsByLead.has(leadId)) {
+          briefsByLead.set(leadId, brief.mensajeWhatsapp)
+        }
       }
+      if (!briefsRes.hasNextPage) break
+      briefPage += 1
     }
   }
 

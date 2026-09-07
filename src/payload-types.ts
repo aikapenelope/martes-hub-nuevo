@@ -642,7 +642,7 @@ export interface Task {
   assignedTo?: (number | null) | User;
   client?: (number | null) | Client;
   lead?: (number | null) | Lead;
-  source?: ('manual' | 'tally_complaint' | 'payment_overdue' | 'openbsp_error' | 'hermes_ai') | null;
+  source?: ('manual' | 'tally_complaint' | 'payment_overdue' | 'openbsp_error' | 'hermes_ai' | 'lead_hot') | null;
   checklist?:
     | {
         item: string;

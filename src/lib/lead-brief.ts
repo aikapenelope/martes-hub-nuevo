@@ -19,14 +19,17 @@ import type { User } from '@/payload-types'
 export const AI_BRIEF_SCHEMA = z.object({
   resumenEjecutivo: z
     .string()
+    .max(1200)
     .describe('Quién es, qué quiere y por dónde va la conversación, en 2-4 frases en español'),
   senales: z
-    .array(z.string())
+    .array(z.string().max(300))
+    .max(12)
     .describe('Señales concretas detectadas (interés, objeciones, urgencia, cobros), una por entrada'),
   sentimiento: z.enum(['positivo', 'neutral', 'negativo']),
-  proximaAccion: z.string().describe('Próxima acción concreta sugerida, en 1 frase'),
+  proximaAccion: z.string().max(400).describe('Próxima acción concreta sugerida, en 1 frase'),
   mensajeWhatsapp: z
     .string()
+    .max(700)
     .describe('Mensaje de WhatsApp pre-escrito y personalizado para retomar contacto, en español, tono cercano, máx 500 caracteres'),
 })
 

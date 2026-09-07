@@ -72,10 +72,10 @@ export async function generateOutreachMessageAction(leadId: number): Promise<Act
 export async function markLeadContactedAction(leadId: number): Promise<ActionResult<{ numeroDeLlamadas: number | null }>> {
   const context = await getWorkspaceContext()
   if (!context.canEdit) throw new Error('No tienes permiso para actualizar leads')
-  const { lead } = await getScopedLead(leadId)
+  // Validación de pertenencia al tenant activo (el valor fresco se relee dentro de la transacción)
+  await getScopedLead(leadId)
 
   const now = new Date().toISOString()
-  const prevCount = typeof lead.numeroDeLlamadas === 'number' ? lead.numeroDeLlamadas : 0
 
   // Transacción: la actualización del lead y su actividad de timeline se
   // confirman juntas — un fallo a mitad hace rollback de ambas y el reintento
@@ -87,19 +87,41 @@ export async function markLeadContactedAction(leadId: number): Promise<ActionRes
   const transactionID = await context.payload.db.beginTransaction()
   if (transactionID) transactionReq.transactionID = transactionID
 
+  // Incremento con relectura + guard optimista DENTRO de la transacción:
+  // dos contactos concurrentes terminan con dos actividades y +2 en el
+  // contador (si el guard falla por carrera, se relee y reintenta).
+  let next = 1
   try {
-    await context.payload.update({
-      collection: 'leads',
-      id: leadId,
-      overrideAccess: false,
-      user: context.user,
-      req: transactionReq,
-      data: {
-        lastContactedAt: now,
-        numeroDeLlamadas: prevCount + 1,
-        lastContactChannel: 'whatsapp',
-      },
-    })
+    for (let attempt = 0; ; attempt++) {
+      const fresh = await context.payload.findByID({
+        collection: 'leads',
+        id: leadId,
+        depth: 0,
+        overrideAccess: false,
+        user: context.user,
+        req: transactionReq,
+      })
+      const current = typeof fresh.numeroDeLlamadas === 'number' ? fresh.numeroDeLlamadas : 0
+      next = current + 1
+      const guarded = await context.payload.update({
+        collection: 'leads',
+        where: {
+          and: [
+            { id: { equals: leadId } },
+            { numeroDeLlamadas: { equals: current } },
+          ],
+        },
+        overrideAccess: false,
+        user: context.user,
+        req: transactionReq,
+        data: {
+          lastContactedAt: now,
+          numeroDeLlamadas: next,
+          lastContactChannel: 'whatsapp',
+        },
+      })
+      if (guarded.docs.length > 0 || attempt >= 5) break
+    }
 
     await context.payload.create({
       collection: 'activities',
@@ -124,5 +146,5 @@ export async function markLeadContactedAction(leadId: number): Promise<ActionRes
 
   revalidatePath('/workspace/outreach')
   revalidatePath('/workspace/crm')
-  return { ok: true, numeroDeLlamadas: prevCount + 1 }
+  return { ok: true, numeroDeLlamadas: next }
 }

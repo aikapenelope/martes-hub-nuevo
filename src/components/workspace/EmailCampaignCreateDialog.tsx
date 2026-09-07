@@ -35,19 +35,22 @@ export function EmailCampaignCreateDialog({
   const [isPending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
 
-  // Guardar con manejo de error real: si falla, el drawer permanece abierto
-  // con el borrador intacto y el error visible — nunca un falso éxito.
+  // Guardar con manejo de error real: la acción DEVEULVE la promesa — React
+  // no resetea el formulario hasta que settle, así que un fallo conserva el
+  // borrador completo con el drawer abierto y el error visible.
+  const [saving, setSaving] = useState(false)
   const handleSave = useCallback(
-    (formData: FormData) => {
-      startTransition(async () => {
-        setSaveError(null)
-        try {
-          await createEmailCampaignAction(formData)
-          setOpen(false)
-        } catch (err) {
-          setSaveError(err instanceof Error ? err.message : 'Error guardando la campaña')
-        }
-      })
+    async (formData: FormData) => {
+      setSaving(true)
+      setSaveError(null)
+      try {
+        await createEmailCampaignAction(formData)
+        setOpen(false)
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : 'Error guardando la campaña')
+      } finally {
+        setSaving(false)
+      }
     },
     [],
   )
@@ -164,8 +167,8 @@ export function EmailCampaignCreateDialog({
             >
               Cancelar
             </button>
-            <button type="submit" disabled={isPending} className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono disabled:opacity-50">
-              {isPending ? 'Guardando…' : 'Guardar borrador'}
+            <button type="submit" disabled={saving} className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono disabled:opacity-50">
+              {saving ? 'Guardando…' : 'Guardar borrador'}
             </button>
           </div>
         </form>
