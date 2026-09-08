@@ -13,6 +13,7 @@ import { buildLeadUpdateData, type LeadFieldsInput } from '@/lib/lead-update-dat
 import { dispatchConversationReply } from '@/lib/message-dispatch'
 import { renderEmailHtml } from '@/email/layout'
 import { checkUserActionRateLimit } from '@/endpoints/rateLimit'
+import { runHotLeadAutomation } from '@/lib/hot-lead'
 
 
 const STATUS_LABEL: Record<LeadStatus, string> = {
@@ -286,102 +287,34 @@ export async function updateLeadFieldsAction(
       data: buildLeadUpdateData(input),
     })
 
-    // Automatización "lead interesado" (Attio-style). Recuperable e
-    // idempotente: cada pieza verifica si falta y se completa de forma
-    // independiente — si el job o la tarea fallaron en una pasada anterior,
-    // el próximo guardado del lead (siguiendo caliente) reintenta solo, sin
-    // duplicar recordatorios. Los fallos se registran, no se tragan.
+    // Automatización "lead interesado" (Attio-style), extraída a
+    // src/lib/hot-lead.ts para que el job de scoring la reutilice. Los
+    // fallos se registran allí, no se tragan. Recuperable e idempotente.
     if (input.nivelInteres === 'caliente') {
-      const hotBase = { tenant: { equals: context.tenantId } }
-      const leadFilter = { lead: { equals: leadId } }
-
-      try {
-        const briefCount = await context.payload.count({
-          collection: 'lead-briefs',
-          where: { and: [hotBase, leadFilter] },
-          overrideAccess: true,
-        })
-        if (briefCount.totalDocs === 0) {
-          // Sin brief todavía, cada save re-encolaría la generación (p. ej. si
-          // la IA falla): tope por usuario para no inundar la cola de
-          // llamadas pagadas al proveedor.
-          if (await checkUserActionRateLimit(context.user.id, 'lead-brief-queue')) {
-            await context.payload.jobs.queue({
-              task: 'generate-lead-brief',
-              input: { leadId, tenantId: context.tenantId },
-              overrideAccess: true,
-            })
-          }
-        }
-      } catch (err) {
-        console.error('[lead-hot] encolando brief IA:', err)
-      }
-
-      try {
-        // Dedupe por marcador estable (source=auto, no por título): un
-        // renombre del lead actualiza el recordatorio existente en vez de
-        // crear un duplicado.
-        const autoReminders = await context.payload.find({
-          collection: 'tasks',
-          limit: 1,
-          depth: 0,
-          sort: '-createdAt',
-          where: {
-            and: [hotBase, leadFilter, { source: { equals: 'lead_hot' } }],
-          },
-          overrideAccess: true,
-        })
-        const taskTitle = `📞 Llamar a ${String((updatedLead as { fullName?: string }).fullName ?? lead.fullName)} — marcado como interesado`
-        const existingReminder = autoReminders.docs[0]
-        if (existingReminder && existingReminder.title !== taskTitle) {
-          await context.payload.update({
-            collection: 'tasks',
-            id: existingReminder.id,
-            overrideAccess: true,
-            data: { title: taskTitle },
-          })
-        }
-        if (!existingReminder) {
-          // Semántica de asignación: null = "sin asignar" explícito (no caer
-          // al agente viejo); undefined = no se tocó → mantener el actual.
-          const assignee =
-            input.assignedTo === null
-              ? context.user.id
-              : input.assignedTo != null
-                ? input.assignedTo
-                : typeof (updatedLead as { assignedTo?: unknown }).assignedTo === 'object' &&
-                    (updatedLead as { assignedTo?: { id?: number } }).assignedTo?.id
-                  ? (updatedLead as { assignedTo: { id: number } }).assignedTo.id
-                  : typeof lead.assignedTo === 'number'
-                    ? lead.assignedTo
-                    : context.user.id
-          try {
-            await context.payload.create({
-              collection: 'tasks',
-              overrideAccess: false,
-              user: context.user,
-              data: {
-                tenant: context.tenantId,
-                title: taskTitle,
-                status: 'pendiente',
-                priority: 'alta',
-                dueDate: new Date(Date.now() + 86_400_000).toISOString(),
-                lead: leadId,
-                source: 'lead_hot',
-                assignedTo: assignee,
-              },
-            })
-          } catch (err) {
-            // Carrera de saves concurrentes: el índice único parcial
-            // (tenant, lead) WHERE source=lead_hot la resuelve — el ganador
-            // creó el recordatorio, este save simplemente continúa.
-            const pgCode = (err as { cause?: { code?: string } }).cause?.code
-            if (pgCode !== '23505' && !(err instanceof Error && err.message.includes('duplicate key'))) throw err
-          }
-        }
-      } catch (err) {
-        console.error('[lead-hot] creando tarea recordatoria:', err)
-      }
+      // Semántica de asignación: null = "sin asignar" explícito (cae al
+      // editor); undefined = no se tocó → mantener el agente actual del lead
+      // (o el editor si no tiene).
+      const currentAssigneeId =
+        typeof (updatedLead as { assignedTo?: unknown }).assignedTo === 'object' &&
+        (updatedLead as { assignedTo?: { id?: number } }).assignedTo?.id
+          ? (updatedLead as { assignedTo: { id: number } }).assignedTo.id
+          : typeof lead.assignedTo === 'number'
+            ? lead.assignedTo
+            : null
+      const assigneeId =
+        input.assignedTo === null
+          ? context.user.id
+          : input.assignedTo != null
+            ? input.assignedTo
+            : (currentAssigneeId ?? context.user.id)
+      await runHotLeadAutomation({
+        payload: context.payload,
+        tenantId: context.tenantId,
+        leadId,
+        leadName: String((updatedLead as { fullName?: string }).fullName ?? lead.fullName),
+        assigneeId,
+        user: context.user,
+      })
     }
 
     revalidatePath('/workspace/crm')
