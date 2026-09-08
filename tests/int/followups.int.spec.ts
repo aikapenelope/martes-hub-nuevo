@@ -17,7 +17,7 @@ function mockPayloadFactory({
   clients = [],
   conversations = [],
 }: {
-  leads?: Array<{ id: number; fullName: string; phone: string; status: string; createdAt: string }>
+  leads?: Array<{ id: number; fullName: string; phone: string; status: string; createdAt: string; lastContactedAt?: string | null; fechaProximaLlamada?: string | null }>
   clients?: Array<{ id: number; name: string; phone: string; stage: string; createdAt: string }>
   conversations?: Array<Record<string, unknown>>
 } = {}) {
@@ -107,5 +107,49 @@ describe('collectFollowupsToday — criterio SLA unificado', () => {
       .find((c) => c.collection === 'clients')
     const whereStr = JSON.stringify(clientsCall?.where)
     expect(whereStr).toContain('optOutAt')
+  })
+})
+
+describe('collectFollowupsToday — reglas del triage (ítem 3)', () => {
+  it('omite leads pospuestos (snooze con fechaProximaLlamada futura) y los trae al vencer', async () => {
+    const tenDaysAgo = new Date(Date.now() - 10 * DAY_MS).toISOString()
+    const tomorrow = new Date(Date.now() + DAY_MS).toISOString()
+    const lastWeek = new Date(Date.now() - 7 * DAY_MS).toISOString()
+    const { payload } = mockPayloadFactory({
+      leads: [
+        { id: 20, fullName: 'Pospuesto', phone: '584120000020', status: 'nuevo', createdAt: tenDaysAgo, fechaProximaLlamada: tomorrow },
+        { id: 21, fullName: 'Snooze Vencido', phone: '584120000021', status: 'nuevo', createdAt: tenDaysAgo, fechaProximaLlamada: lastWeek },
+      ],
+    })
+    const items = await collectFollowupsToday({ payload, user: mockUser, tenantId: 10 })
+
+    expect(items.map((i) => i.id)).toEqual([21])
+  })
+
+  it('"E = contactado": lastContactedAt reciente saca al lead de la cola', async () => {
+    const tenDaysAgo = new Date(Date.now() - 10 * DAY_MS).toISOString()
+    const thisMorning = new Date(Date.now() - 3600_000).toISOString()
+    const { payload } = mockPayloadFactory({
+      leads: [{ id: 22, fullName: 'Contactado Hoy', phone: '584120000022', status: 'nuevo', createdAt: tenDaysAgo, lastContactedAt: thisMorning }],
+    })
+    const items = await collectFollowupsToday({ payload, user: mockUser, tenantId: 10 })
+    expect(items).toHaveLength(0)
+  })
+
+  it('lastContactedAt vencido reintroduce al lead con días contados desde el contacto', async () => {
+    const tenDaysAgo = new Date(Date.now() - 10 * DAY_MS).toISOString()
+    const fourDaysAgo = new Date(Date.now() - 4 * DAY_MS).toISOString()
+    const { payload } = mockPayloadFactory({
+      leads: [{ id: 23, fullName: 'Contactado Hace 4d', phone: '584120000023', status: 'nuevo', createdAt: tenDaysAgo, lastContactedAt: fourDaysAgo }],
+    })
+    const items = await collectFollowupsToday({ payload, user: mockUser, tenantId: 10 })
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      id: 23,
+      daysSince: 4,
+      reason: '4 días sin contacto',
+      priority: 60, // 4 días * 10 + bonus 20 de etapa nuevo
+    })
   })
 })

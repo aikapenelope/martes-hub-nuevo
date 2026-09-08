@@ -128,6 +128,8 @@ export async function collectFollowupsToday({
       phone: true,
       status: true,
       createdAt: true,
+      lastContactedAt: true,
+      fechaProximaLlamada: true,
     },
     overrideAccess: false,
     user,
@@ -140,14 +142,27 @@ export async function collectFollowupsToday({
     const lastInboundMs = conv?.lastInboundAt ? Date.parse(conv.lastInboundAt) : null
     if (lastInboundMs !== null && now - lastInboundMs < DAY_MS) continue
 
-    const referenceMs =
-      lastInboundMs ??
-      (conv?.lastMessageAt ? Date.parse(conv.lastMessageAt) : null) ??
-      Date.parse(lead.createdAt)
+    // Snooze del triage (ítem 3): "S = posponer" fija fechaProximaLlamada;
+    // el lead sale de la cola hasta esa fecha.
+    const snoozeUntilMs = lead.fechaProximaLlamada ? Date.parse(lead.fechaProximaLlamada) : null
+    if (snoozeUntilMs !== null && snoozeUntilMs > now) continue
+
+    // Referencia = último contacto en CUALQUIER dirección (hallazgo de
+    // producto del triage: "E = contactado" marca lastContactedAt y saca al
+    // lead de la cola hasta vencer su SLA de nuevo). Para clientes se
+    // mantiene la cadena original (no tienen campos de contacto manual).
+    const lastContactedMs = lead.lastContactedAt ? Date.parse(lead.lastContactedAt) : null
+    const referenceMs = Math.max(
+      lastInboundMs ?? 0,
+      conv?.lastMessageAt ? Date.parse(conv.lastMessageAt) : 0,
+      lastContactedMs ?? 0,
+      Date.parse(lead.createdAt),
+    )
     const daysSince = Math.floor((now - referenceMs) / DAY_MS)
     if (daysSince < rule.thresholdDays) continue
 
-    const reason = conv ? `${daysSince} días sin respuesta` : 'Nunca contactado'
+    const touched = Boolean(conv || lastContactedMs)
+    const reason = touched ? `${daysSince} días sin contacto` : 'Nunca contactado'
     items.push({
       kind: 'lead',
       id: lead.id,

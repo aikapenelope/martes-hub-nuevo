@@ -7,22 +7,20 @@ import {
   Check,
   CheckCircle2,
   CheckSquare,
-  Clock3,
   CreditCard,
-  ExternalLink,
   MessageCircle,
   RefreshCw,
   Sparkles,
-  UserRound,
 } from 'lucide-react'
 
 import { getUpcomingAgenda } from '@/lib/agenda-data'
 import { collectFollowupsToday } from '@/lib/followups-today'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
+import { FollowupsTriage } from '@/components/workspace/hoy/FollowupsTriage'
 import { getAssignableUsers } from '@/lib/tasks-data'
 import { changeTaskStatusAction } from '@/lib/tasks-actions'
-import type { Client, Lead, Payment, Task, User } from '@/payload-types'
+import type { Client, Lead, Payment, Task } from '@/payload-types'
 
 const priorityCls: Record<string, string> = {
   baja: 'bg-zinc-800 text-zinc-300 border border-zinc-700',
@@ -485,49 +483,7 @@ export default async function HoyPage() {
                 </p>
               </div>
             ) : (
-              <div className="mt-4 space-y-3">
-                {followups.map((item) => (
-                  <div
-                    key={`${item.kind}-${item.id}`}
-                    className="p-3.5 bg-zinc-900/50 border border-zinc-800 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-[10px] font-mono px-1.5 py-0.5 ${
-                            item.kind === 'lead'
-                              ? 'bg-amber-900/50 text-amber-300 border border-amber-800'
-                              : 'bg-emerald-900/50 text-emerald-400 border border-emerald-800'
-                          }`}
-                        >
-                          {item.kind === 'lead' ? 'Lead' : 'Cliente'}
-                        </span>
-                        <strong className="text-sm text-white">{item.name}</strong>
-                        <span className="text-[10px] font-mono text-zinc-500">· {item.pipeline}</span>
-                      </div>
-                      <p className="text-xs text-zinc-300 mt-1">{item.reason}</p>
-                      <div className="mt-1 flex items-center gap-3 text-[11px] font-mono text-zinc-500">
-                        <span>Sin contacto hace {item.daysSince} días</span>
-                        <Link href={item.crmUrl} className="text-zinc-400 hover:text-white underline">
-                          Ver ficha CRM
-                        </Link>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
-                      <a
-                        href={item.waLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3.5 py-2 bg-[#25d366] hover:bg-[#20b858] text-black text-xs font-bold uppercase tracking-wider font-mono inline-flex items-center gap-1.5 shadow-sm transition"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 fill-black" />
-                        WhatsApp
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <FollowupsTriage items={followups} canEdit={context.canEdit} assignees={assignees} />
             )}
           </div>
         </div>
