@@ -63,8 +63,8 @@ describe('HourlyHeatmap — matriz 7×24 (ítem 6 del sector UI)', () => {
 describe('overview-data — derivación de hourBuckets en la zona horaria del tenant', () => {
   it('un evento en el borde UTC cae en el día y hora locales de Caracas', async () => {
     // Martes 01:30 UTC = Lunes 21:30 en America/Caracas (UTC-4).
-    // La agregación la hace Postgres (AT TIME ZONE $tz): el mock del pool
-    // devuelve la fila YA agrupada como la produciría el SQL real.
+    // La agregación la hace Postgres (AT TIME ZONE $tz + GROUP BY): el mock del
+    // pool devuelve la fila YA agrupada como la produciría el SQL real.
     const poolQuery = (() => ({
       rows: [
         { day: '2026-09-07', dow: 0, hour: 21, n: 1 }, // lunes 21:30 local
@@ -101,6 +101,79 @@ describe('overview-data — derivación de hourBuckets en la zona horaria del te
     expect(tuesday1?.count).toBe(0)
   })
 
+  it('una fila agrupada del SQL suma sus N eventos (no uno por fila)', async () => {
+    // Postgres devuelve conteos por grupo: 7 eventos del mismo (día, dow, hora)
+    const poolQuery = (() => ({
+      rows: [{ day: '2026-09-07', dow: 0, hour: 9, n: 7 }],
+    })) as unknown as () => Promise<{ rows: Array<Record<string, unknown>> }>
+
+    const mockPayload = {
+      find: (() => {
+        let settingsCalled = false
+        return (opts: { collection: string }) => {
+          if (opts.collection === 'company-settings' && !settingsCalled) {
+            settingsCalled = true
+            return Promise.resolve({ docs: [{ timezone: 'America/Caracas' }] })
+          }
+          return Promise.resolve({ docs: [], totalDocs: 0 })
+        }
+      })(),
+      count: () => Promise.resolve({ totalDocs: 0 }),
+      db: { pool: { query: poolQuery } },
+    } as unknown as Payload
+
+    const result = await getWorkspaceOverviewData({
+      payload: mockPayload,
+      user: mockUser,
+      tenantId: 10,
+    })
+
+    expect(result.hourBuckets.find((b) => b.dow === 0 && b.hour === 9)?.count).toBe(7)
+    expect(result.dayBuckets.find((b) => b.dateStr === '2026-09-07')?.count).toBe(7)
+    expect(result.totalYearInteractions).toBe(7)
+  })
+
+  it('activities se agrupa por occurredAt (fallback): la actividad tardía cae en su día real', async () => {
+    // Actividad creada el martes pero ocurrida el lunes 09:00 local
+    const occurredMonday = '2026-09-07T13:00:00.000Z' // lunes 09:00 Caracas
+    const createdTuesday = '2026-09-08T13:00:00.000Z' // martes 09:00 Caracas
+
+    const mockFind = (() => {
+      let settingsCalled = false
+      return (opts: { collection: string; select?: Record<string, unknown> }) => {
+        if (opts.collection === 'company-settings' && !settingsCalled) {
+          settingsCalled = true
+          return Promise.resolve({ docs: [{ timezone: 'America/Caracas' }] })
+        }
+        if (opts.collection === 'activities') {
+          return Promise.resolve({
+            docs: [{ occurredAt: occurredMonday, createdAt: createdTuesday }],
+            totalDocs: 1,
+            hasNextPage: false,
+          })
+        }
+        return Promise.resolve({ docs: [], totalDocs: 0, hasNextPage: false })
+      }
+    })()
+    const mockPayload = {
+      find: mockFind,
+      count: () => Promise.resolve({ totalDocs: 0 }),
+      db: { pool: undefined }, // fuerza el fallback paginado
+    } as unknown as Payload
+
+    const result = await getWorkspaceOverviewData({
+      payload: mockPayload,
+      user: mockUser,
+      tenantId: 10,
+    })
+
+    // Lunes 09:00 local (por occurredAt), NO martes
+    const monday9 = result.hourBuckets.find((b) => b.dow === 0 && b.hour === 9)
+    expect(monday9?.count).toBe(1)
+    const tuesday9 = result.hourBuckets.find((b) => b.dow === 1 && b.hour === 9)
+    expect(tuesday9?.count).toBe(0)
+  })
+
   it('agrupa los pagos por paidAt (no createdAt) y pagina el fallback sin cap', async () => {
     // Pago creado hace 2 años pero PAGADO hace 2 horas — califica por paidAt
     // (dentro del año y dentro del día local de hoy) y cae por hora local
@@ -108,10 +181,10 @@ describe('overview-data — derivación de hourBuckets en la zona horaria del te
     const createdLongAgo = '2024-01-10T10:00:00.000Z'
     // 500 actividades en página 1 + hasNextPage, 100 en página 2 (600 en total)
     const page1 = Array.from({ length: 500 }, (_, i) => ({
-      createdAt: new Date(Date.now() - i * 3600_000).toISOString(),
+      occurredAt: new Date(Date.now() - i * 3600_000).toISOString(),
     }))
     const page2 = Array.from({ length: 100 }, (_, i) => ({
-      createdAt: new Date(Date.now() - (500 + i) * 3600_000).toISOString(),
+      occurredAt: new Date(Date.now() - (500 + i) * 3600_000).toISOString(),
     }))
 
     const mockFind = (() => {
@@ -191,14 +264,14 @@ describe('overview-data — derivación de hourBuckets en la zona horaria del te
     for (const now of delicateInstants) {
       const buckets = buildEmptyDayBuckets('America/New_York', now)
       const dates = buckets.map((b) => b.dateStr)
-      // 364 fechas únicas, consecutivas (hoy → atrás), con la fecha de hoy presente
+      // 364 fechas únicas, cronológicas (más antigua → hoy), presentes y consecutivas
       expect(new Set(dates).size).toBe(364)
-      expect(dates[0]).toBe(
+      expect(dates[dates.length - 1]).toBe(
         new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now),
       )
       for (let i = 1; i < dates.length; i++) {
-        const newer = new Date(`${dates[i - 1]}T00:00:00Z`).getTime()
-        const older = new Date(`${dates[i]}T00:00:00Z`).getTime()
+        const older = new Date(`${dates[i - 1]}T00:00:00Z`).getTime()
+        const newer = new Date(`${dates[i]}T00:00:00Z`).getTime()
         expect(newer - older).toBe(24 * 3600_000)
       }
     }

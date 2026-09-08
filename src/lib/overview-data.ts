@@ -176,8 +176,9 @@ export function resolveTimeRangeWindow(
   }
 }
 
-/** 364 días (52 semanas × 7) de más antiguo a más reciente, en blanco para agregar conteos reales.
- * Aritmética de CALENDARIO local: (y, m, d) local de `now` y retroceso del campo día vía
+/** 364 días (52 semanas × 7), del más antiguo al más reciente — el orden cronológico
+ * que el grid anual renderiza izquierda→derecha.
+ * Aritmética de CALENDARIO local: (y, m, d) local de `now` y avance del campo día vía
  * Date.UTC — los componentes UTC del resultado SON la fecha calendario local (formatear el
  * instante con la zona del tenant correría cada clave un día en zonas UTC-negativas, y en
  * DST los días duran 23/25h). Las claves coinciden con el formateo Intl de los eventos. */
@@ -190,7 +191,7 @@ export function buildEmptyDayBuckets(timeZone: string, now: Date): DayBucket[] {
   }).format(now)
   const [y, m, d] = todayParts.split('-').map(Number)
   return Array.from({ length: 364 }, (_, i) => {
-    const dt = new Date(Date.UTC(y, m - 1, d - i))
+    const dt = new Date(Date.UTC(y, m - 1, d - (363 - i)))
     const dateStr = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
     return { dateStr, count: 0 }
   })
@@ -546,99 +547,114 @@ export async function getWorkspaceOverviewData({
   const dayBuckets = buildEmptyDayBuckets(timeZone, now)
   const bucketIndex = new Map(dayBuckets.map((b, i) => [b.dateStr, i]))
 
-  /**
-   * Conteos de interacción (activities + messages + payments pagados) por día
-   * local y por (día de semana, hora) local, para los heatmaps del resumen.
-   *
-   * Ruta primaria: UNA agregación SQL tenant-scoped (patrón db-aggregates) con
-   * UNION ALL de las tres fuentes — el GROUP BY lo hace Postgres con la zona
-   * del tenant como parámetro, sin límite de filas y con payments por paid_at
-   * (el instante que califica el registro, coherente con el filtro).
-   *
-   * Fallback (drivers sin pool SQL directo): paginación RLS hasta agotar
-   * resultados de las tres fuentes — sin cap de 3.000, y derivando dow/hora
-   * local con Intl del mismo instante que el día.
-   */
-  const fetchInteractionCounts = async (): Promise<{
-    dayCounts: Map<string, number>
-    hourCounts: Map<string, number>
-  }> => {
-    const dayCounts = new Map<string, number>()
-    const hourCounts = new Map<string, number>()
-    const db = payload.db as {
-      pool?: { query: (sql: string, params: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }> }
-    }
+    /**
+     * Conteos de interacción (activities + messages + payments pagados) por día
+     * local y por (día de semana, hora) local, para los heatmaps del resumen.
+     *
+     * Ruta primaria: UNA agregación SQL tenant-scoped (patrón db-aggregates) con
+     * UNION ALL de las tres fuentes agrupada por fecha/día/hora local — Postgres
+     * agrupa con la zona del tenant como parámetro (nunca interpolada), devuelve
+     * conteos por grupo (no filas por evento) y payments se mide por paid_at
+     * (el instante que califica el registro, coherente con el filtro).
+     *
+     * Fallback (drivers sin pool SQL directo): paginación RLS hasta agotar
+     * resultados de las tres fuentes — sin cap, y derivando dow/hora local con
+     * Intl del mismo instante que el día. activities usa occurredAt (el momento
+     * real de la interacción, no el del alta tardía).
+     *
+     * Confianza: tenantId proviene de getWorkspaceContext (sesión validada del
+     * usuario), el mismo límite de confianza de TODAS las agregaciones pool del
+     * repo (paymentsAggregate en este archivo) — nunca de input del cliente.
+     */
+    const fetchInteractionCounts = async (): Promise<{
+      dayCounts: Map<string, number>
+      hourCounts: Map<string, number>
+    }> => {
+      const dayCounts = new Map<string, number>()
+      const hourCounts = new Map<string, number>()
+      const db = payload.db as {
+        pool?: { query: (sql: string, params: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }> }
+      }
 
-    const add = (day: string, dow: number, hour: number) => {
-      dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1)
-      const key = `${dow}-${hour}`
-      hourCounts.set(key, (hourCounts.get(key) ?? 0) + 1)
-    }
+      const add = (day: string, dow: number, hour: number, n: number) => {
+        dayCounts.set(day, (dayCounts.get(day) ?? 0) + n)
+        const key = `${dow}-${hour}`
+        hourCounts.set(key, (hourCounts.get(key) ?? 0) + n)
+      }
 
-    if (db.pool && typeof db.pool.query === 'function') {
-      // ISO weekday de Postgres (1=lun…7=dom) → índice 0-6; hora local 0-23
-      const res = await db.pool.query(
-        `SELECT to_char(ts AT TIME ZONE $2, 'YYYY-MM-DD') AS day,
-                ((EXTRACT(ISODOW FROM ts AT TIME ZONE $2) - 1))::int AS dow,
-                EXTRACT(HOUR FROM ts AT TIME ZONE $2)::int AS hour
-         FROM (
-           SELECT created_at AS ts FROM activities WHERE tenant_id = $1 AND created_at >= $3
-           UNION ALL
-           SELECT created_at AS ts FROM messages WHERE tenant_id = $1 AND created_at >= $3
-           UNION ALL
-           SELECT paid_at AS ts FROM payments WHERE tenant_id = $1 AND status::text = 'pagado' AND paid_at >= $3
-         ) events`,
-        [tenantId, timeZone, yearAgo],
-      )
-      for (const row of res.rows) {
-        add(String(row.day), Number(row.dow), Number(row.hour))
+      if (db.pool && typeof db.pool.query === 'function') {
+        // ISO weekday de Postgres (1=lun…7=dom) → índice 0-6; hora local 0-23.
+        // GROUP BY en Postgres: conteos por grupo, nunca una fila por evento.
+        const res = await db.pool.query(
+          `SELECT to_char(ts AT TIME ZONE $2, 'YYYY-MM-DD') AS day,
+                  ((EXTRACT(ISODOW FROM ts AT TIME ZONE $2) - 1))::int AS dow,
+                  EXTRACT(HOUR FROM ts AT TIME ZONE $2)::int AS hour,
+                  COUNT(*)::int AS n
+           FROM (
+             SELECT occurred_at AS ts FROM activities WHERE tenant_id = $1 AND occurred_at >= $3
+             UNION ALL
+             SELECT created_at AS ts FROM messages WHERE tenant_id = $1 AND created_at >= $3
+             UNION ALL
+             SELECT paid_at AS ts FROM payments WHERE tenant_id = $1 AND status::text = 'pagado' AND paid_at >= $3
+           ) events
+           GROUP BY 1, 2, 3`,
+          [tenantId, timeZone, yearAgo],
+        )
+        for (const row of res.rows) {
+          add(String(row.day), Number(row.dow), Number(row.hour), Number(row.n))
+        }
+        return { dayCounts, hourCounts }
+      }
+
+      // Fallback paginado con RLS — sin límite artificial, hasta agotar páginas
+      const dayHourFmt = new Intl.DateTimeFormat('en-US', { timeZone, hour12: false, weekday: 'short', hour: '2-digit' })
+      const dayOnlyFmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
+      const DOW_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+      const PAGE = 500
+      const sources: Array<{ collection: 'activities' | 'messages' | 'payments'; tsField: 'occurredAt' | 'createdAt' | 'paidAt' }> = [
+        { collection: 'activities', tsField: 'occurredAt' },
+        { collection: 'messages', tsField: 'createdAt' },
+        { collection: 'payments', tsField: 'paidAt' },
+      ]
+      for (const { collection, tsField } of sources) {
+        let page = 1
+        while (true) {
+          const res = await q({
+            collection,
+            limit: PAGE,
+            page,
+            depth: 0,
+            select: {
+              createdAt: tsField === 'createdAt',
+              occurredAt: tsField === 'occurredAt',
+              paidAt: tsField === 'paidAt',
+            } as never,
+            where: tenantWhere(
+              tenantId,
+              tsField === 'paidAt'
+                ? { status: { equals: 'pagado' }, paidAt: { greater_than_equal: yearAgo } }
+                : tsField === 'occurredAt'
+                  ? { occurredAt: { greater_than_equal: yearAgo } }
+                  : { createdAt: { greater_than_equal: yearAgo } },
+            ),
+          })
+          for (const doc of res.docs as unknown as Array<Record<string, string | null>>) {
+            const iso = doc[tsField] ?? null
+            if (!iso) continue
+            const d = new Date(iso)
+            const dayParts = dayHourFmt.format(d)
+            const dow = DOW_ORDER.indexOf(dayParts.slice(0, 3))
+            const hourRaw = Number.parseInt(dayParts.slice(-2), 10)
+            if (dow < 0 || Number.isNaN(hourRaw)) continue
+            const hour = hourRaw === 24 ? 0 : hourRaw
+            add(dayOnlyFmt.format(d), dow, hour, 1)
+          }
+          if (!res.hasNextPage || res.docs.length === 0) break
+          page++
+        }
       }
       return { dayCounts, hourCounts }
     }
-
-    // Fallback paginado con RLS — sin límite artificial, hasta agotar páginas
-    const dayHourFmt = new Intl.DateTimeFormat('en-US', { timeZone, hour12: false, weekday: 'short', hour: '2-digit' })
-    const dayOnlyFmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
-    const DOW_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    const PAGE = 500
-    const sources: Array<{ collection: 'activities' | 'messages' | 'payments'; tsField: 'createdAt' | 'paidAt' }> = [
-      { collection: 'activities', tsField: 'createdAt' },
-      { collection: 'messages', tsField: 'createdAt' },
-      { collection: 'payments', tsField: 'paidAt' },
-    ]
-    for (const { collection, tsField } of sources) {
-      let page = 1
-      while (true) {
-        const res = await q({
-          collection,
-          limit: PAGE,
-          page,
-          depth: 0,
-          select: { createdAt: tsField === 'createdAt', paidAt: tsField === 'paidAt' } as never,
-          where: tenantWhere(
-            tenantId,
-            tsField === 'paidAt'
-              ? { status: { equals: 'pagado' }, paidAt: { greater_than_equal: yearAgo } }
-              : { createdAt: { greater_than_equal: yearAgo } },
-          ),
-        })
-        for (const doc of res.docs as unknown as Array<Record<string, string | null>>) {
-          const iso = doc[tsField === 'paidAt' ? 'paidAt' : 'createdAt'] ?? null
-          if (!iso) continue
-          const d = new Date(iso)
-          const dayParts = dayHourFmt.format(d)
-          const dow = DOW_ORDER.indexOf(dayParts.slice(0, 3))
-          const hourRaw = Number.parseInt(dayParts.slice(-2), 10)
-          if (dow < 0 || Number.isNaN(hourRaw)) continue
-          const hour = hourRaw === 24 ? 0 : hourRaw
-          add(dayOnlyFmt.format(d), dow, hour)
-        }
-        if (!res.hasNextPage || res.docs.length === 0) break
-        page++
-      }
-    }
-    return { dayCounts, hourCounts }
-  }
 
   const { dayCounts: rawDay, hourCounts } = await fetchInteractionCounts()
   for (const [day, count] of rawDay) {
