@@ -1,6 +1,6 @@
 import type { TaskConfig } from 'payload'
 
-import { scoreTenantLeads } from '@/lib/lead-scoring'
+import { findAllPages, scoreTenantLeads } from '@/lib/lead-scoring'
 
 /**
  * Scoring automático de leads: recalcula nivelInteres/prioridad desde las
@@ -22,19 +22,24 @@ export const recalculateLeadScoresTask: TaskConfig = {
     { name: 'summary', type: 'text' },
   ],
   handler: async ({ req }) => {
-    const tenants = await req.payload.find({
-      collection: 'tenants',
-      limit: 100,
-      depth: 0,
-      overrideAccess: true,
-      req,
-    })
+    // Paginado completo: el primer page de 100 dejaría tenants sin scoring ni
+    // hot-lead para siempre (hallazgo Devin PR #102).
+    const tenants = await findAllPages((page) =>
+      req.payload.find({
+        collection: 'tenants',
+        limit: 100,
+        page,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      }),
+    )
 
     let totalScored = 0
     let totalUpdated = 0
     let totalPromoted = 0
 
-    for (const tenant of tenants.docs) {
+    for (const tenant of tenants) {
       try {
         const res = await scoreTenantLeads({ payload: req.payload, tenantId: tenant.id })
         totalScored += res.scored

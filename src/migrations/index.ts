@@ -203,3 +203,10 @@ migrations.push({
   down: migration_20260907_234500_leads_converted_at.down,
   name: '20260907_234500_leads_converted_at',
 });
+
+import * as migration_20260908_060000_add_recalculate_lead_scores_slug from './20260908_060000_add_recalculate_lead_scores_slug';
+migrations.push({
+  up: migration_20260908_060000_add_recalculate_lead_scores_slug.up,
+  down: migration_20260908_060000_add_recalculate_lead_scores_slug.down,
+  name: '20260908_060000_add_recalculate_lead_scores_slug',
+});

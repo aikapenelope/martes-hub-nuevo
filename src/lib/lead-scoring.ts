@@ -117,6 +117,27 @@ interface InboundRef {
   lastMessageAt: string | null
 }
 
+/**
+ * Recorre TODAS las páginas de un find de Payload (hasNextPage). Paginar las
+ * señales es obligatorio: con un solo page de 1000, un tenant grande perdería
+ * conversaciones/resúmenes y los leads se degradarían por señales incompletas
+ * (hallazgo Devin PR #102).
+ */
+export async function findAllPages<T>(
+  find: (page: number) => Promise<{ docs: T[]; hasNextPage?: boolean }>,
+): Promise<T[]> {
+  const all: T[] = []
+  let page = 1
+  let hasMore = true
+  while (hasMore) {
+    const res = await find(page)
+    all.push(...res.docs)
+    hasMore = Boolean(res.hasNextPage)
+    page += 1
+  }
+  return all
+}
+
 export interface ScoreTenantLeadsResult {
   scored: number
   updated: number
@@ -143,16 +164,20 @@ export async function scoreTenantLeads({
 
   // Señal inbound por lead: conversación más reciente (mismo mapeo que
   // followups-today.ts — varios docs de conversación: gana el más nuevo).
+  // Paginado completo: ver findAllPages.
   const inboundByLeadId = new Map<number, InboundRef>()
-  const conversations = await payload.find({
-    collection: 'conversations',
-    where: tenantWhere,
-    limit: 1000,
-    depth: 0,
-    select: { lead: true, lastInboundAt: true, lastMessageAt: true },
-    overrideAccess: true,
-  })
-  for (const conv of conversations.docs) {
+  const conversations = await findAllPages((page) =>
+    payload.find({
+      collection: 'conversations',
+      where: tenantWhere,
+      limit: 500,
+      page,
+      depth: 0,
+      select: { lead: true, lastInboundAt: true, lastMessageAt: true },
+      overrideAccess: true,
+    }),
+  )
+  for (const conv of conversations) {
     const leadId = typeof conv.lead === 'object' ? conv.lead?.id : conv.lead
     if (!leadId) continue
     const candidate: InboundRef = {
@@ -173,19 +198,24 @@ export async function scoreTenantLeads({
     if (candidateTime >= prevTime) inboundByLeadId.set(leadId, candidate)
   }
 
-  // Último sentimiento IA por lead: barrido desc por createdAt, primero gana.
-  // Cap 1000: con más resúmenes los más viejos simplemente no puntúan.
+  // Último sentimiento IA por lead: barrido desc por createdAt, primero gana
+  // (las páginas siguientes contienen resúmenes más viejos, así que el merge
+  // conserva el más reciente por lead aunque caiga en una página tardía).
+  // Paginado completo: ver findAllPages.
   const sentimentByLeadId = new Map<number, LeadSentiment>()
-  const summaries = await payload.find({
-    collection: 'conversation-summaries',
-    where: tenantWhere,
-    limit: 1000,
-    depth: 0,
-    sort: '-createdAt',
-    select: { lead: true, sentiment: true },
-    overrideAccess: true,
-  })
-  for (const sum of summaries.docs) {
+  const summaries = await findAllPages((page) =>
+    payload.find({
+      collection: 'conversation-summaries',
+      where: tenantWhere,
+      limit: 500,
+      page,
+      depth: 0,
+      sort: '-createdAt',
+      select: { lead: true, sentiment: true },
+      overrideAccess: true,
+    }),
+  )
+  for (const sum of summaries) {
     const leadId = typeof sum.lead === 'object' ? sum.lead?.id : sum.lead
     if (!leadId || sentimentByLeadId.has(leadId)) continue
     sentimentByLeadId.set(leadId, sum.sentiment)
@@ -242,19 +272,25 @@ export async function scoreTenantLeads({
         now,
       )
 
-      if (lead.nivelInteres === result.nivelInteres && lead.prioridad === result.prioridad) continue
+      const changed = lead.nivelInteres !== result.nivelInteres || lead.prioridad !== result.prioridad
+      if (changed) {
+        await payload.update({
+          collection: 'leads',
+          id: lead.id,
+          data: { nivelInteres: result.nivelInteres, prioridad: result.prioridad },
+          overrideAccess: true,
+        })
+        updated++
+      }
 
-      await payload.update({
-        collection: 'leads',
-        id: lead.id,
-        data: { nivelInteres: result.nivelInteres, prioridad: result.prioridad },
-        overrideAccess: true,
-      })
-      updated++
-
-      // Promoción a caliente → automatización hot-lead existente (modo
-      // sistema, sin usuario: ver hot-lead.ts). Asignatario = agente del lead.
-      if (result.nivelInteres === 'caliente' && lead.nivelInteres !== 'caliente') {
+      // Automatización hot-lead (modo sistema, sin usuario: ver hot-lead.ts).
+      // Se ejecuta para TODO lead caliente, no solo en la transición: es
+      // idempotente (verifica brief y tarea existentes antes de crear), así
+      // que si una pasada anterior falló a mitad, el barrido diario repara lo
+      // que falte — sin duplicar recordatorios ni llamadas pagadas al
+      // proveedor de IA (hallazgo Devin PR #102). Asignatario = agente del
+      // lead. `promoted` cuenta solo la transición a caliente.
+      if (result.nivelInteres === 'caliente') {
         const assigneeId =
           typeof lead.assignedTo === 'object' ? (lead.assignedTo?.id ?? null) : (lead.assignedTo ?? null)
         await runHotLeadAutomation({
@@ -264,7 +300,7 @@ export async function scoreTenantLeads({
           leadName: lead.fullName,
           assigneeId,
         })
-        promoted++
+        if (changed && lead.nivelInteres !== 'caliente') promoted++
       }
     }
 

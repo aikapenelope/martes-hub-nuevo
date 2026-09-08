@@ -161,31 +161,43 @@ describe('computeLeadScore — fórmula de scoring', () => {
   })
 })
 
+interface PageResult {
+  docs: Record<string, unknown>[]
+  hasNextPage: boolean
+}
+
 interface TenantLeadsMocks {
   payload: Payload
+  find: ReturnType<typeof vi.fn>
   update: ReturnType<typeof vi.fn>
   create: ReturnType<typeof vi.fn>
   queue: ReturnType<typeof vi.fn>
 }
 
-function buildMockPayload(lead: Record<string, unknown>, extras?: {
-  conversations?: Record<string, unknown>[]
-  summaries?: Record<string, unknown>[]
-}): TenantLeadsMocks {
+interface MockExtras {
+  conversationsPages?: PageResult[]
+  summariesPages?: PageResult[]
+  tenantsPages?: PageResult[]
+}
+
+function buildMockPayload(lead: Record<string, unknown>, extras?: MockExtras): TenantLeadsMocks {
   const update = vi.fn().mockResolvedValue({})
   const create = vi.fn().mockResolvedValue({})
   const queue = vi.fn().mockResolvedValue({})
-  const find = vi.fn().mockImplementation(({ collection }: { collection: string }) => {
-    if (collection === 'conversations') {
-      return Promise.resolve({ docs: extras?.conversations ?? [], hasNextPage: false })
-    }
-    if (collection === 'conversation-summaries') {
-      return Promise.resolve({ docs: extras?.summaries ?? [], hasNextPage: false })
-    }
+  const find = vi.fn().mockImplementation(({ collection, page }: { collection: string; page?: number }) => {
+    const pages: PageResult[] =
+      collection === 'conversations'
+        ? (extras?.conversationsPages ?? [{ docs: [], hasNextPage: false }])
+        : collection === 'conversation-summaries'
+          ? (extras?.summariesPages ?? [{ docs: [], hasNextPage: false }])
+          : collection === 'tenants'
+            ? (extras?.tenantsPages ?? [{ docs: [], hasNextPage: false }])
+            : [{ docs: [], hasNextPage: false }]
     if (collection === 'leads') {
       return Promise.resolve({ docs: [lead], hasNextPage: false })
     }
-    return Promise.resolve({ docs: [], hasNextPage: false })
+    const result = pages[(page ?? 1) - 1] ?? { docs: [], hasNextPage: false }
+    return Promise.resolve(result)
   })
   const count = vi.fn().mockResolvedValue({ totalDocs: 0 })
   const payload = {
@@ -196,26 +208,29 @@ function buildMockPayload(lead: Record<string, unknown>, extras?: {
     jobs: { queue },
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   } as unknown as Payload
-  return { payload, update, create, queue }
+  return { payload, find, update, create, queue }
+}
+
+const promoteLead = {
+  id: 7,
+  fullName: 'Ana Pérez',
+  status: 'nuevo',
+  createdAt: daysAgoIso(1),
+  numeroDeLlamadas: 0,
+  pudoHablarDecisor: false,
+  visitadoPresencialmente: false,
+  nivelInteres: 'frio',
+  prioridad: 'baja',
+  assignedTo: 3,
 }
 
 describe('scoreTenantLeads — barrido tenant-scoped', () => {
   it('escribe el recálculo y dispara hot-lead al promover a caliente', async () => {
-    const lead = {
-      id: 7,
-      fullName: 'Ana Pérez',
-      status: 'nuevo',
-      createdAt: daysAgoIso(1),
-      numeroDeLlamadas: 0,
-      pudoHablarDecisor: false,
-      visitadoPresencialmente: false,
-      nivelInteres: 'frio',
-      prioridad: 'baja',
-      assignedTo: 3,
-    }
-    const mocks = buildMockPayload(lead, {
-      conversations: [{ lead: 7, lastInboundAt: daysAgoIso(0.5), lastMessageAt: daysAgoIso(0.5) }],
-      summaries: [{ lead: 7, sentiment: 'positivo' }],
+    const mocks = buildMockPayload(promoteLead, {
+      conversationsPages: [
+        { docs: [{ lead: 7, lastInboundAt: daysAgoIso(0.5), lastMessageAt: daysAgoIso(0.5) }], hasNextPage: false },
+      ],
+      summariesPages: [{ docs: [{ lead: 7, sentiment: 'positivo' }], hasNextPage: false }],
     })
 
     const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1 })
@@ -243,15 +258,9 @@ describe('scoreTenantLeads — barrido tenant-scoped', () => {
 
   it('no escribe ni dispara automatización cuando el scoring no cambia', async () => {
     const lead = {
+      ...promoteLead,
       id: 8,
       fullName: 'Beto Ruiz',
-      status: 'nuevo',
-      createdAt: daysAgoIso(0.2),
-      numeroDeLlamadas: 0,
-      pudoHablarDecisor: false,
-      visitadoPresencialmente: false,
-      nivelInteres: 'frio',
-      prioridad: 'baja',
       assignedTo: null,
     }
     const mocks = buildMockPayload(lead)
@@ -293,35 +302,84 @@ describe('scoreTenantLeads — barrido tenant-scoped', () => {
     expect(mocks.create).not.toHaveBeenCalled()
     expect(mocks.queue).not.toHaveBeenCalled()
   })
+
+  it('lee señales de páginas posteriores (tenant con >1 page de conversaciones/summaries)', async () => {
+    const mocks = buildMockPayload(promoteLead, {
+      conversationsPages: [
+        { docs: [], hasNextPage: true },
+        { docs: [{ lead: 7, lastInboundAt: daysAgoIso(0.5), lastMessageAt: daysAgoIso(0.5) }], hasNextPage: false },
+      ],
+      summariesPages: [
+        { docs: [{ lead: 99, sentiment: 'negativo' }], hasNextPage: true },
+        { docs: [{ lead: 7, sentiment: 'positivo' }], hasNextPage: false },
+      ],
+    })
+
+    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1 })
+
+    // El inbound y el sentimiento del lead 7 viven en la página 2 — si no se
+    // paginara, el lead se evaluaría frio por señales incompletas.
+    expect(res).toEqual({ scored: 1, updated: 1, promoted: 1 })
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'leads',
+        id: 7,
+        data: { nivelInteres: 'caliente', prioridad: 'media' },
+      }),
+    )
+    expect(mocks.find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'conversations', page: 2 }))
+    expect(mocks.find).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'conversation-summaries', page: 2 }),
+    )
+  })
+
+  it('repara automatización incompleta de un lead ya caliente (self-heal idempotente)', async () => {
+    const lead = {
+      id: 10,
+      fullName: 'Daniela Ruiz',
+      status: 'contactado',
+      createdAt: daysAgoIso(10),
+      numeroDeLlamadas: 0,
+      pudoHablarDecisor: false,
+      visitadoPresencialmente: false,
+      nivelInteres: 'caliente',
+      prioridad: 'media',
+      assignedTo: 5,
+    }
+    const mocks = buildMockPayload(lead, {
+      conversationsPages: [
+        { docs: [{ lead: 10, lastInboundAt: daysAgoIso(0.2), lastMessageAt: daysAgoIso(0.2) }], hasNextPage: false },
+      ],
+      summariesPages: [{ docs: [{ lead: 10, sentiment: 'positivo' }], hasNextPage: false }],
+    })
+
+    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1 })
+
+    // 30 (inbound) + 25 (positivo) + 10 (contactado) = 65 → sigue caliente/media
+    expect(res).toEqual({ scored: 1, updated: 0, promoted: 0 })
+    expect(mocks.update).not.toHaveBeenCalled()
+    // Pero la automatización corre igual: si una pasada anterior falló a mitad
+    // (brief o tarea faltantes), el barrido diario la repara sin duplicar.
+    expect(mocks.queue).toHaveBeenCalledWith(
+      expect.objectContaining({ task: 'generate-lead-brief', input: { leadId: 10, tenantId: 1 } }),
+    )
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'tasks',
+        data: expect.objectContaining({ source: 'lead_hot', assignedTo: 5 }),
+      }),
+    )
+  })
 })
 
 describe('recalculate-lead-scores — handler del job', () => {
   it('itera tenants y agrega totales en el output', async () => {
-    const lead = {
-      id: 7,
-      fullName: 'Ana Pérez',
-      status: 'nuevo',
-      createdAt: daysAgoIso(1),
-      numeroDeLlamadas: 0,
-      pudoHablarDecisor: false,
-      visitadoPresencialmente: false,
-      nivelInteres: 'frio',
-      prioridad: 'baja',
-      assignedTo: 3,
-    }
-    const mocks = buildMockPayload(lead, {
-      conversations: [{ lead: 7, lastInboundAt: daysAgoIso(0.5), lastMessageAt: daysAgoIso(0.5) }],
-      summaries: [{ lead: 7, sentiment: 'positivo' }],
-    })
-    const findMock = mocks.payload.find as unknown as ReturnType<typeof vi.fn>
-    const originalImpl = findMock.getMockImplementation() as
-      | ((opts: { collection: string }) => Promise<unknown>)
-      | undefined
-    findMock.mockImplementation(({ collection }: { collection: string }) => {
-      if (collection === 'tenants') {
-        return Promise.resolve({ docs: [{ id: 1, name: 'Tenant Alpha' }], hasNextPage: false })
-      }
-      return originalImpl?.({ collection })
+    const mocks = buildMockPayload(promoteLead, {
+      tenantsPages: [{ docs: [{ id: 1, name: 'Tenant Alpha' }], hasNextPage: false }],
+      conversationsPages: [
+        { docs: [{ lead: 7, lastInboundAt: daysAgoIso(0.5), lastMessageAt: daysAgoIso(0.5) }], hasNextPage: false },
+      ],
+      summariesPages: [{ docs: [{ lead: 7, sentiment: 'positivo' }], hasNextPage: false }],
     })
 
     if (typeof recalculateLeadScoresTask.handler !== 'function') {
@@ -338,5 +396,37 @@ describe('recalculate-lead-scores — handler del job', () => {
 
     expect(result.output).toMatchObject({ scored: 1, updated: 1, promoted: 1 })
     expect(result.output.summary).toContain('Evaluados: 1')
+  })
+
+  it('procesa tenants de páginas posteriores (hasNextPage true)', async () => {
+    const mocks = buildMockPayload(promoteLead, {
+      tenantsPages: [
+        { docs: [{ id: 1, name: 'Tenant Alpha' }], hasNextPage: true },
+        { docs: [{ id: 2, name: 'Tenant Beta' }], hasNextPage: false },
+      ],
+      conversationsPages: [
+        { docs: [{ lead: 7, lastInboundAt: daysAgoIso(0.5), lastMessageAt: daysAgoIso(0.5) }], hasNextPage: false },
+      ],
+      summariesPages: [{ docs: [{ lead: 7, sentiment: 'positivo' }], hasNextPage: false }],
+    })
+
+    if (typeof recalculateLeadScoresTask.handler !== 'function') {
+      throw new Error('recalculateLeadScoresTask.handler must be a function')
+    }
+    type TaskArgs = Parameters<
+      Extract<typeof recalculateLeadScoresTask.handler, (...args: never[]) => unknown>
+    >[0]
+    const result = (await recalculateLeadScoresTask.handler({
+      req: { payload: mocks.payload },
+    } as unknown as TaskArgs)) as {
+      output: { scored: number; updated: number; promoted: number }
+    }
+
+    // El lead se evalúa una vez por tenant — 2 tenants = 2 promociones.
+    expect(result.output).toMatchObject({ scored: 2, updated: 2, promoted: 2 })
+    expect(mocks.find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'tenants', page: 2 }))
+    expect(mocks.queue).toHaveBeenCalledWith(
+      expect.objectContaining({ task: 'generate-lead-brief', input: { leadId: 7, tenantId: 2 } }),
+    )
   })
 })
