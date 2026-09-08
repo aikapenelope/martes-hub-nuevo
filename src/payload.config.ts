@@ -44,6 +44,7 @@ import { FormSubmissions } from './collections/FormSubmissions'
 import { Tasks } from './collections/Tasks'
 import { ConversationSummaries } from './collections/ConversationSummaries'
 import { ConversationNotes } from './collections/ConversationNotes'
+import { SavedCrmViews } from './collections/SavedCrmViews'
 import { SocialAccounts } from './collections/SocialAccounts'
 import { SocialPosts } from './collections/SocialPosts'
 import { PostMetrics } from './collections/PostMetrics'
@@ -114,6 +115,7 @@ export default buildConfig({
     Tasks,
     ConversationSummaries,
     ConversationNotes,
+    SavedCrmViews,
     SocialAccounts,
     SocialPosts,
     PostMetrics,
@@ -201,6 +203,7 @@ export default buildConfig({
         'form-submissions': {},
         tasks: {},
         'conversation-summaries': {},
+        'saved-crm-views': {},
         'conversation-notes': {},
         'social-accounts': {},
         'social-posts': {},

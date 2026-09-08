@@ -15,6 +15,7 @@ import type { Segment, User } from '@/payload-types'
 import { CrmHeader } from '@/components/workspace/crm/CrmHeader'
 import { CrmViewNavigation } from '@/components/workspace/crm/CrmViewNavigation'
 import { CrmTableListView } from '@/components/workspace/crm/CrmTableListView'
+import { CrmSavedViews } from '@/components/workspace/crm/CrmSavedViews'
 
 interface CrmPageProps {
   searchParams: Promise<CrmSearchParams>
@@ -63,6 +64,32 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
 
   const agents = agentsResult.docs as User[]
   const segmentsList = segmentsResult.docs as Segment[]
+
+  // Vistas guardadas del CRM: privadas del usuario del tenant activo (ítem 4).
+  const savedViewsRes = await context.payload.find({
+    collection: 'saved-crm-views',
+    where: {
+      and: [
+        { tenant: { equals: context.tenantId } },
+        { createdBy: { equals: context.user.id } },
+      ],
+    },
+    limit: 100,
+    depth: 0,
+    sort: 'name',
+    overrideAccess: false,
+    user: context.user,
+  })
+  const savedViews = savedViewsRes.docs.map((view) => ({
+    id: view.id,
+    name: view.name,
+    vista: view.vista,
+    modo: view.modo,
+    q: view.q,
+    estado: view.estado,
+    fuente: view.fuente,
+    agente: view.agente,
+  }))
   const pipelineColumns = showPipeline
     ? await getCrmPipelineData({
         payload: context.payload,
@@ -93,6 +120,8 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       </section>
 
       <CrmViewNavigation filters={filters} view={data.view} agents={agents} currentUser={context.user} />
+
+      <CrmSavedViews views={savedViews} filters={filters} canEdit={context.canEdit} />
 
       {showPipeline ? (
         <CrmPipelineWorkspace columns={pipelineColumns} canEdit={context.canEdit} assignees={agents} segments={segmentsList} />

@@ -210,3 +210,10 @@ migrations.push({
   down: migration_20260908_060000_add_recalculate_lead_scores_slug.down,
   name: '20260908_060000_add_recalculate_lead_scores_slug',
 });
+
+import * as migration_20260908_193000_create_saved_crm_views from './20260908_193000_create_saved_crm_views';
+migrations.push({
+  up: migration_20260908_193000_create_saved_crm_views.up,
+  down: migration_20260908_193000_create_saved_crm_views.down,
+  name: '20260908_193000_create_saved_crm_views',
+});
