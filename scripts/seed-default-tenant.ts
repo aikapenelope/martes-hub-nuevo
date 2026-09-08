@@ -36,3 +36,8 @@ export async function seedDefaultTenant(): Promise<void> {
 }
 
 await seedDefaultTenant()
+
+// El pool de Postgres queda abierto (idleTimeoutMillis: 0 en payload.config)
+// y node no saldría jamás: colgó 20 min el job de CI de este modo. Un CLI de
+// una sola pieza debe terminar explícito.
+process.exit(0)

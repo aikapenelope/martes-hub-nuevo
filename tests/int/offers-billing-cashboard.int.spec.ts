@@ -33,11 +33,11 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
   beforeEach(async () => {
     payload = await getPayload({ config: configPromise })
 
-    const userDoc = (await payload.find({ collection: 'users', limit: 1 })).docs[0]
+    const userDoc = (await payload.find({ collection: 'users', limit: 1, sort: 'createdAt' })).docs[0]
     expect(userDoc).toBeDefined()
     user = userDoc
 
-    const tenantDocs = (await payload.find({ collection: 'tenants', limit: 1 })).docs
+    const tenantDocs = (await payload.find({ collection: 'tenants', limit: 1, sort: 'createdAt' })).docs
     expect(tenantDocs.length).toBeGreaterThanOrEqual(1)
     tenant1 = tenantDocs[0]
 
