@@ -132,6 +132,23 @@ export const EmailLog: CollectionConfig = {
       },
     },
     {
+      name: 'sequenceEnrollmentId',
+      type: 'number',
+      index: true,
+      label: 'Inscripción de secuencia',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+        description: 'Id de la inscripción: clave de idempotencia del paso (con sequenceStepIndex).',
+      },
+    },
+    {
+      name: 'sequenceStepIndex',
+      type: 'number',
+      label: 'Paso de la secuencia',
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
       name: 'eventsJson',
       type: 'json',
       label: 'Eventos del proveedor',

@@ -171,9 +171,11 @@ export default async function CrmRecordPage({
   const companyRecord = isCompany ? detail.company! : null
 
   if (isLead) {
-    // Paginado completo — un límite fijo dejaría secuencias fuera del selector
-    // (hallazgo Devin #104-4).
-    const [sequencesDocs, enrollmentsRes] = await Promise.all([
+    // Paginado completo en ambas lecturas — un límite fijo dejaría secuencias
+    // fuera del selector (hallazgo Devin #104-4) y, peor, inscripciones
+    // ACTIVAS sin control de cancelación (hallazgo Devin #104-6). El
+    // historial no activo sí se acota a las 10 más recientes.
+    const [sequencesDocs, activeEnrollmentsDocs, historyEnrollmentsDocs] = await Promise.all([
       findAllPages((page) =>
         context.payload.find({
           collection: 'sequences',
@@ -189,10 +191,34 @@ export default async function CrmRecordPage({
           user: context.user,
         }),
       ),
+      findAllPages((page) =>
+        context.payload.find({
+          collection: 'sequence-enrollments',
+          where: {
+            and: [
+              { tenant: { equals: context.tenantId } },
+              { lead: { equals: id } },
+              { status: { equals: 'activa' } },
+            ],
+          },
+          limit: 100,
+          page,
+          depth: 1,
+          sort: 'createdAt',
+          overrideAccess: false,
+          user: context.user,
+        }),
+      ),
       context.payload.find({
         collection: 'sequence-enrollments',
-        where: { and: [{ tenant: { equals: context.tenantId } }, { lead: { equals: id } }] },
-        limit: 20,
+        where: {
+          and: [
+            { tenant: { equals: context.tenantId } },
+            { lead: { equals: id } },
+            { status: { in: ['completada', 'cancelada', 'respondida'] } },
+          ],
+        },
+        limit: 10,
         depth: 1,
         sort: '-createdAt',
         overrideAccess: false,
@@ -200,7 +226,7 @@ export default async function CrmRecordPage({
       }),
     ])
     activeSequences = sequencesDocs.map((s) => ({ id: s.id, name: s.name }))
-    leadEnrollments = enrollmentsRes.docs.map((e) => ({
+    leadEnrollments = [...activeEnrollmentsDocs, ...historyEnrollmentsDocs.docs].map((e) => ({
       id: e.id,
       status: e.status,
       currentStep: e.currentStep ?? 0,

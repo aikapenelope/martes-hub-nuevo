@@ -217,3 +217,10 @@ migrations.push({
   down: migration_20260908_181500_create_sequences_and_enrollments.down,
   name: '20260908_181500_create_sequences_and_enrollments',
 });
+
+import * as migration_20260908_193000_sequence_step_identity from './20260908_193000_sequence_step_identity';
+migrations.push({
+  up: migration_20260908_193000_sequence_step_identity.up,
+  down: migration_20260908_193000_sequence_step_identity.down,
+  name: '20260908_193000_sequence_step_identity',
+});

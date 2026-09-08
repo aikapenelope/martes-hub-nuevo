@@ -85,6 +85,18 @@ export const SequenceEnrollments: CollectionConfig = {
       admin: { position: 'sidebar', readOnly: true },
     },
     {
+      name: 'stepAttempts',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      label: 'Reintentos del paso',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+        description: 'Fallos consecutivos del paso actual (un email fallido se reintenta hasta 3 veces).',
+      },
+    },
+    {
       name: 'enrolledBy',
       type: 'relationship',
       relationTo: 'users',

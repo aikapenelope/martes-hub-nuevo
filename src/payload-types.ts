@@ -654,6 +654,11 @@ export interface Task {
   lead?: (number | null) | Lead;
   source?:
     ('manual' | 'tally_complaint' | 'payment_overdue' | 'openbsp_error' | 'hermes_ai' | 'lead_hot' | 'sequence') | null;
+  /**
+   * Id de la inscripción: clave de idempotencia del paso (con sequenceStepIndex).
+   */
+  sequenceEnrollmentId?: number | null;
+  sequenceStepIndex?: number | null;
   checklist?:
     | {
         item: string;
@@ -884,6 +889,11 @@ export interface EmailLog {
    */
   lead?: (number | null) | Lead;
   error?: string | null;
+  /**
+   * Id de la inscripción: clave de idempotencia del paso (con sequenceStepIndex).
+   */
+  sequenceEnrollmentId?: number | null;
+  sequenceStepIndex?: number | null;
   eventsJson?:
     | {
         [k: string]: unknown;
@@ -1250,6 +1260,9 @@ export interface Sequence {
    * Las inscripciones de secuencias inactivas quedan en pausa (no se cancelan).
    */
   active?: boolean | null;
+  /**
+   * Con inscripciones activas no se puede cambiar la estructura (agregar/quitar/reordenar pasos); el contenido de cada paso sí es editable.
+   */
   steps: {
     type: 'email' | 'tarea' | 'esperar';
     /**
@@ -1257,7 +1270,7 @@ export interface Sequence {
      */
     subject?: string | null;
     /**
-     * Se envuelve con la plantilla de marca. Soporta {{nombre}}.
+     * Se envuelve con la plantilla de marca. Soporta {{nombre}}. El HTML se sanitiza al guardar (sin scripts, iframes, handlers ni javascript:) — mismo modelo que las campañas.
      */
     bodyHtml?: string | null;
     taskTitle?: string | null;
@@ -1285,6 +1298,10 @@ export interface SequenceEnrollment {
    */
   currentStep?: number | null;
   nextRunAt: string;
+  /**
+   * Fallos consecutivos del paso actual (un email fallido se reintenta hasta 3 veces).
+   */
+  stepAttempts?: number | null;
   enrolledBy?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
@@ -2516,6 +2533,8 @@ export interface EmailLogSelect<T extends boolean = true> {
   client?: T;
   lead?: T;
   error?: T;
+  sequenceEnrollmentId?: T;
+  sequenceStepIndex?: T;
   eventsJson?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -2655,6 +2674,8 @@ export interface TasksSelect<T extends boolean = true> {
   client?: T;
   lead?: T;
   source?: T;
+  sequenceEnrollmentId?: T;
+  sequenceStepIndex?: T;
   checklist?:
     | T
     | {
@@ -2740,6 +2761,7 @@ export interface SequenceEnrollmentsSelect<T extends boolean = true> {
   status?: T;
   currentStep?: T;
   nextRunAt?: T;
+  stepAttempts?: T;
   enrolledBy?: T;
   updatedAt?: T;
   createdAt?: T;
