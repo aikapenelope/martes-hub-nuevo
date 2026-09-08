@@ -20,6 +20,8 @@ import {
 import { getAnalyticsData } from '@/lib/analytics-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { monthlyRevenueSeries } from '@/lib/db-aggregates'
+import { getConversionReport } from '@/lib/conversion-reports'
+import { ConversionReportTable } from '@/components/workspace/analytics/ConversionReportTable'
 import { EmptyState, HeroAction, KpiCard, OledCard, PageHero, SectionHeader } from '@/components/workspace/oled'
 import {
   MonoAreaChart,
@@ -32,9 +34,10 @@ const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD',
 
 export default async function AnalyticsPage() {
   const context = await getWorkspaceContext()
-  const [data, revenueSeries] = await Promise.all([
+  const [data, revenueSeries, conversionReport] = await Promise.all([
     getAnalyticsData(context),
     monthlyRevenueSeries(context.payload, context.tenantId, 12),
+    getConversionReport({ payload: context.payload, user: context.user, tenantId: context.tenantId }),
   ])
 
   const { funnel, satisfaction, sources, clientsByStage, activities, financials, tasks } = data
@@ -258,6 +261,32 @@ export default async function AnalyticsPage() {
           </OledCard>
         </div>
       </section>
+
+      {/* Desglose del embudo por origen y por agente (ítem 5, sector operacional) */}
+      <OledCard>
+        <SectionHeader
+          eyebrow="Rendimiento comercial"
+          title="Conversión por Origen y por Agente"
+          description="Embudo entrada → contactado → calificado → cliente. Agregado en base de datos."
+          action={
+            <Link href="/workspace/crm" className="text-xs text-zinc-400 hover:text-white font-mono transition">
+              Ver CRM →
+            </Link>
+          }
+        />
+        <div className="grid gap-6 xl:grid-cols-2">
+          <ConversionReportTable
+            eyebrow="Por origen de captación"
+            title="Origen"
+            rows={conversionReport.bySource}
+          />
+          <ConversionReportTable
+            eyebrow="Por agente asignado"
+            title="Agente"
+            rows={conversionReport.byAgent}
+          />
+        </div>
+      </OledCard>
 
       <section className="grid gap-4 sm:grid-cols-2">
         <OledCard>
