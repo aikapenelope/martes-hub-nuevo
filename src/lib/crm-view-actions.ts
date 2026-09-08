@@ -20,6 +20,12 @@ function firstOf(value: FormDataEntryValue | null): string {
   return typeof value === 'string' ? value : ''
 }
 
+/** Violación de constraint único de Postgres (23505 / mensaje pg). Mismo criterio que sequences.ts. */
+function isUniqueViolation(err: unknown): boolean {
+  const pgCode = (err as { cause?: { code?: string } })?.cause?.code
+  return pgCode === '23505' || (err instanceof Error && err.message.includes('duplicate key'))
+}
+
 export async function createCrmSavedViewAction(form: FormData): Promise<void> {
   const context = await getWorkspaceContext()
   if (!context.canEdit) redirect('/workspace/crm')
@@ -76,12 +82,43 @@ export async function createCrmSavedViewAction(form: FormData): Promise<void> {
       data,
     })
   } else {
-    await context.payload.create({
-      collection: 'saved-crm-views',
-      overrideAccess: false,
-      user: context.user,
-      data,
-    })
+    try {
+      await context.payload.create({
+        collection: 'saved-crm-views',
+        overrideAccess: false,
+        user: context.user,
+        data,
+      })
+    } catch (err) {
+      // Carrera de dobles envíos con el mismo nombre (hallazgo Devin #107-1):
+      // dos creates concurrentes alcanzan el create y el índice único
+      // (tenant, owner, name) rechaza a uno. Se completa el upsert: re-lectura
+      // owner-scoped y update del registro ganador.
+      if (!isUniqueViolation(err)) throw err
+      const raced = await context.payload.find({
+        collection: 'saved-crm-views',
+        limit: 1,
+        depth: 0,
+        where: {
+          and: [
+            { tenant: { equals: context.tenantId } },
+            { createdBy: { equals: context.user.id } },
+            { name: { equals: name } },
+          ],
+        },
+        overrideAccess: false,
+        user: context.user,
+      })
+      const winner = raced.docs[0]
+      if (!winner) throw err
+      await context.payload.update({
+        collection: 'saved-crm-views',
+        id: winner.id,
+        overrideAccess: false,
+        user: context.user,
+        data,
+      })
+    }
   }
 
   revalidatePath('/workspace/crm')

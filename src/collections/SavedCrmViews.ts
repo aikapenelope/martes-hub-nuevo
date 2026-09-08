@@ -26,13 +26,33 @@ export const SavedCrmViews: CollectionConfig = {
     // Privadas: cada usuario solo ve las suyas (constraint por owner).
     read: ({ req }) => (req.user ? { createdBy: { equals: req.user.id } } : false),
     create: editorsOnly,
-    update: editorsOnly,
+    // Solo el dueño (o un admin) puede modificar una vista — editorsOnly solo
+    // valida rol y permitiría a un editor sobrescribir vistas ajenas
+    // (hallazgo Devin #107 SEC-1).
+    update: ({ req }) => {
+      const user = req.user as User | null
+      if (!user) return false
+      if (user.roles?.includes('admin')) return true
+      return { createdBy: { equals: user.id } }
+    },
     delete: ({ req }) => {
       const user = req.user as User | null
       if (!user) return false
       if (user.roles?.includes('admin')) return true
       return { createdBy: { equals: user.id } }
     },
+  },
+  hooks: {
+    beforeChange: [
+      ({ data, operation, req }) => {
+        if (operation !== 'create') return data
+        // El dueño SIEMPRE es el usuario autenticado: un editor no puede
+        // forjar createdBy para adueñarse o regalar vistas (hallazgo Devin
+        // #107 SEC-2).
+        if (req.user) data.createdBy = req.user.id
+        return data
+      },
+    ],
   },
   timestamps: true,
   fields: [

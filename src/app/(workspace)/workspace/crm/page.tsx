@@ -11,6 +11,7 @@ import { CrmPipelineWorkspace } from '@/components/workspace/CrmPipelineWorkspac
 import { getCrmData, parseCrmFilters, type CrmSearchParams } from '@/lib/crm-data'
 import { getCrmPipelineData } from '@/lib/crm-pipeline-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
+import { findAllPages } from '@/lib/lead-scoring'
 import type { Segment, User } from '@/payload-types'
 import { CrmHeader } from '@/components/workspace/crm/CrmHeader'
 import { CrmViewNavigation } from '@/components/workspace/crm/CrmViewNavigation'
@@ -66,21 +67,27 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
   const segmentsList = segmentsResult.docs as Segment[]
 
   // Vistas guardadas del CRM: privadas del usuario del tenant activo (ítem 4).
-  const savedViewsRes = await context.payload.find({
-    collection: 'saved-crm-views',
-    where: {
-      and: [
-        { tenant: { equals: context.tenantId } },
-        { createdBy: { equals: context.user.id } },
-      ],
-    },
-    limit: 100,
-    depth: 0,
-    sort: 'name',
-    overrideAccess: false,
-    user: context.user,
-  })
-  const savedViews = savedViewsRes.docs.map((view) => ({
+  // Paginado completo (hallazgo Devin #107-2): un límite fijo haría
+  // desaparecer vistas (sin poder borrarlas) cuando el usuario pasa el tope.
+  // La lista es owner-scoped, así que el conjunto es pequeño por diseño.
+  const savedViewsDocs = await findAllPages((page) =>
+    context.payload.find({
+      collection: 'saved-crm-views',
+      where: {
+        and: [
+          { tenant: { equals: context.tenantId } },
+          { createdBy: { equals: context.user.id } },
+        ],
+      },
+      limit: 100,
+      page,
+      depth: 0,
+      sort: 'name',
+      overrideAccess: false,
+      user: context.user,
+    }),
+  )
+  const savedViews = savedViewsDocs.map((view) => ({
     id: view.id,
     name: view.name,
     vista: view.vista,

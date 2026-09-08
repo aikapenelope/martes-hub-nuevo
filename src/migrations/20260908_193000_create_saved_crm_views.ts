@@ -25,7 +25,7 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
       "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
     );
     ALTER TABLE "saved_crm_views" ADD CONSTRAINT "saved_crm_views_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;
-    ALTER TABLE "saved_crm_views" ADD CONSTRAINT "saved_crm_views_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+    ALTER TABLE "saved_crm_views" ADD CONSTRAINT "saved_crm_views_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
     CREATE INDEX "saved_crm_views_tenant_idx" ON "saved_crm_views" USING btree ("tenant_id");
     CREATE INDEX "saved_crm_views_created_by_idx" ON "saved_crm_views" USING btree ("created_by_id");
     CREATE INDEX "saved_crm_views_updated_at_idx" ON "saved_crm_views" USING btree ("updated_at");
