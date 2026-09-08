@@ -106,10 +106,28 @@ export const Tasks: CollectionConfig = {
         { label: 'Error OpenBSP', value: 'openbsp_error' },
         { label: 'IA (resumen automático)', value: 'hermes_ai' },
         { label: 'Lead interesado (auto)', value: 'lead_hot' },
+        { label: 'Secuencia de email (auto)', value: 'sequence' },
       ],
       admin: {
         position: 'sidebar',
       },
+    },
+    {
+      name: 'sequenceEnrollmentId',
+      type: 'number',
+      index: true,
+      label: 'Inscripción de secuencia',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+        description: 'Id de la inscripción: clave de idempotencia del paso (con sequenceStepIndex).',
+      },
+    },
+    {
+      name: 'sequenceStepIndex',
+      type: 'number',
+      label: 'Paso de la secuencia',
+      admin: { position: 'sidebar', readOnly: true },
     },
     {
       name: 'checklist',

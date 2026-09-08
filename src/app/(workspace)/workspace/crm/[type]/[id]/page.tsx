@@ -30,6 +30,8 @@ import {
   updateCompanyAction,
   updateLeadAction,
 } from '@/lib/crm-actions'
+import { cancelSequenceEnrollmentAction, enrollLeadInSequenceAction } from '@/lib/sequence-actions'
+import { findAllPages } from '@/lib/lead-scoring'
 import { getCrmRecord, type CrmView } from '@/lib/crm-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
@@ -69,7 +71,7 @@ export default async function CrmRecordPage({
   searchParams,
 }: {
   params: Promise<{ type: string; id: string }>
-  searchParams: Promise<{ created?: string; updated?: string; converted?: string; taskCreated?: string }>
+  searchParams: Promise<{ created?: string; updated?: string; converted?: string; taskCreated?: string; sequenceError?: string }>
 }) {
   const { type: rawType, id: rawId } = await params
   const feedback = await searchParams
@@ -146,6 +148,20 @@ export default async function CrmRecordPage({
   const clientOptions = clientsRes.docs as Client[]
   const leadOptions = leadsRes.docs as Lead[]
 
+  // Secuencias (solo ficha de lead): activas del tenant + inscripciones del lead.
+  interface SequenceOption {
+    id: number
+    name: string
+  }
+  interface EnrollmentRow {
+    id: number
+    status: string
+    currentStep: number
+    sequence: number | { id: number; name: string }
+  }
+  let activeSequences: SequenceOption[] = []
+  let leadEnrollments: EnrollmentRow[] = []
+
   const isLead = type === 'leads'
   const isCompany = type === 'empresas'
   const isClient = type === 'clientes'
@@ -153,6 +169,73 @@ export default async function CrmRecordPage({
   const leadRecord = isLead ? detail.lead! : null
   const clientRecord = isClient ? detail.client! : null
   const companyRecord = isCompany ? detail.company! : null
+
+  if (isLead) {
+    // Paginado completo en ambas lecturas — un límite fijo dejaría secuencias
+    // fuera del selector (hallazgo Devin #104-4) y, peor, inscripciones
+    // ACTIVAS sin control de cancelación (hallazgo Devin #104-6). El
+    // historial no activo sí se acota a las 10 más recientes.
+    const [sequencesDocs, activeEnrollmentsDocs, historyEnrollmentsDocs] = await Promise.all([
+      findAllPages((page) =>
+        context.payload.find({
+          collection: 'sequences',
+          where: {
+            and: [{ tenant: { equals: context.tenantId } }, { active: { equals: true } }],
+          },
+          limit: 500,
+          page,
+          depth: 0,
+          sort: 'name',
+          select: { name: true },
+          overrideAccess: false,
+          user: context.user,
+        }),
+      ),
+      findAllPages((page) =>
+        context.payload.find({
+          collection: 'sequence-enrollments',
+          where: {
+            and: [
+              { tenant: { equals: context.tenantId } },
+              { lead: { equals: id } },
+              { status: { equals: 'activa' } },
+            ],
+          },
+          limit: 100,
+          page,
+          depth: 1,
+          sort: 'createdAt',
+          overrideAccess: false,
+          user: context.user,
+        }),
+      ),
+      context.payload.find({
+        collection: 'sequence-enrollments',
+        where: {
+          and: [
+            { tenant: { equals: context.tenantId } },
+            { lead: { equals: id } },
+            { status: { in: ['completada', 'cancelada', 'respondida'] } },
+          ],
+        },
+        limit: 10,
+        depth: 1,
+        sort: '-createdAt',
+        overrideAccess: false,
+        user: context.user,
+      }),
+    ])
+    activeSequences = sequencesDocs.map((s) => ({ id: s.id, name: s.name }))
+    leadEnrollments = [...activeEnrollmentsDocs, ...historyEnrollmentsDocs.docs].map((e) => ({
+      id: e.id,
+      status: e.status,
+      currentStep: e.currentStep ?? 0,
+      sequence:
+        typeof e.sequence === 'object'
+          ? { id: e.sequence.id, name: (e.sequence as { name?: string }).name ?? `#${e.sequence.id}` }
+          : e.sequence,
+    }))
+  }
 
   if (clientRecord && !clientOptions.some((c) => c.id === clientRecord.id)) {
     clientOptions.unshift(clientRecord)
@@ -983,6 +1066,71 @@ export default async function CrmRecordPage({
                 </li>
               ))}
             </ol>
+          )}
+
+          {isLead && (leadEnrollments.length > 0 || (context.canEdit && activeSequences.length > 0)) && (
+            <section className="mt-4 border border-zinc-800 bg-black p-3">
+              <strong className="block text-xs text-white">Secuencias de email</strong>
+              {leadEnrollments.length > 0 && (
+                <ul className="mt-2 divide-y divide-zinc-900 border border-zinc-900">
+                  {leadEnrollments.map((enrollment) => {
+                    const seqName =
+                      typeof enrollment.sequence === 'object'
+                        ? enrollment.sequence.name
+                        : `#${enrollment.sequence}`
+                    return (
+                      <li key={enrollment.id} className="flex items-center justify-between gap-2 p-2 text-xs">
+                        <div className="min-w-0">
+                          <span className="block truncate text-white">{seqName}</span>
+                          <span className="font-mono text-[10px] text-zinc-500">
+                            {enrollment.status === 'activa'
+                              ? `activa · paso ${enrollment.currentStep + 1}`
+                              : enrollment.status}
+                          </span>
+                        </div>
+                        {context.canEdit && enrollment.status === 'activa' && (
+                          <form action={cancelSequenceEnrollmentAction} className="shrink-0">
+                            <input type="hidden" name="enrollmentId" value={enrollment.id} />
+                            <input type="hidden" name="redirectTo" value={`/workspace/crm/leads/${id}`} />
+                            <button
+                              type="submit"
+                              className="font-mono text-[10px] uppercase text-zinc-400 hover:text-rose-300"
+                            >
+                              Cancelar
+                            </button>
+                          </form>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              {context.canEdit && activeSequences.length > 0 && (
+                <form action={enrollLeadInSequenceAction} className="mt-3 flex flex-col gap-2">
+                  <input type="hidden" name="leadId" value={id} />
+                  <input type="hidden" name="redirectTo" value={`/workspace/crm/leads/${id}`} />
+                  <select name="sequenceId" required defaultValue="" className={inputCls}>
+                    <option value="">Inscribir en secuencia…</option>
+                    {activeSequences.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="submit"
+                    className="self-start px-3 py-1.5 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono"
+                  >
+                    Inscribir
+                  </button>
+                </form>
+              )}
+              {feedback.sequenceError && (
+                <p className="mt-2 text-xs text-rose-400" role="alert">
+                  {feedback.sequenceError}
+                </p>
+              )}
+            </section>
           )}
 
           {!isCompany && context.canEdit && (

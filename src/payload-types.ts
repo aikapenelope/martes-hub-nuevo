@@ -96,6 +96,8 @@ export interface Config {
     'conversation-summaries': ConversationSummary;
     'conversation-notes': ConversationNote;
     'saved-crm-views': SavedCrmView;
+    sequences: Sequence;
+    'sequence-enrollments': SequenceEnrollment;
     'social-accounts': SocialAccount;
     'social-posts': SocialPost;
     'post-metrics': PostMetric;
@@ -166,6 +168,8 @@ export interface Config {
     'conversation-summaries': ConversationSummariesSelect<false> | ConversationSummariesSelect<true>;
     'conversation-notes': ConversationNotesSelect<false> | ConversationNotesSelect<true>;
     'saved-crm-views': SavedCrmViewsSelect<false> | SavedCrmViewsSelect<true>;
+    sequences: SequencesSelect<false> | SequencesSelect<true>;
+    'sequence-enrollments': SequenceEnrollmentsSelect<false> | SequenceEnrollmentsSelect<true>;
     'social-accounts': SocialAccountsSelect<false> | SocialAccountsSelect<true>;
     'social-posts': SocialPostsSelect<false> | SocialPostsSelect<true>;
     'post-metrics': PostMetricsSelect<false> | PostMetricsSelect<true>;
@@ -212,6 +216,7 @@ export interface Config {
       'summarize-conversation': TaskSummarizeConversation;
       'sweep-unsummarized-conversations': TaskSweepUnsummarizedConversations;
       'recalculate-lead-scores': TaskRecalculateLeadScores;
+      'dispatch-sequences': TaskDispatchSequences;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -649,7 +654,13 @@ export interface Task {
   assignedTo?: (number | null) | User;
   client?: (number | null) | Client;
   lead?: (number | null) | Lead;
-  source?: ('manual' | 'tally_complaint' | 'payment_overdue' | 'openbsp_error' | 'hermes_ai' | 'lead_hot') | null;
+  source?:
+    ('manual' | 'tally_complaint' | 'payment_overdue' | 'openbsp_error' | 'hermes_ai' | 'lead_hot' | 'sequence') | null;
+  /**
+   * Id de la inscripción: clave de idempotencia del paso (con sequenceStepIndex).
+   */
+  sequenceEnrollmentId?: number | null;
+  sequenceStepIndex?: number | null;
   checklist?:
     | {
         item: string;
@@ -865,7 +876,7 @@ export interface EmailLog {
    * queued→sent lo setea el envío; delivered/bounced/complained llegan por webhook de Resend
    */
   status: 'queued' | 'sent' | 'delivered' | 'bounced' | 'complained' | 'failed';
-  source: 'transactional' | 'campaign' | 'test';
+  source: 'transactional' | 'campaign' | 'sequence' | 'test';
   /**
    * email_id que devuelve la API; lo usa el webhook para actualizar el estado
    */
@@ -880,6 +891,11 @@ export interface EmailLog {
    */
   lead?: (number | null) | Lead;
   error?: string | null;
+  /**
+   * Id de la inscripción: clave de idempotencia del paso (con sequenceStepIndex).
+   */
+  sequenceEnrollmentId?: number | null;
+  sequenceStepIndex?: number | null;
   eventsJson?:
     | {
         [k: string]: unknown;
@@ -1251,6 +1267,70 @@ export interface SavedCrmView {
    * 'me', 'todos' o id numérico de usuario.
    */
   agente?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Cadenas de nurturing por email para leads (pasos: email, tarea, esperar N días).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sequences".
+ */
+export interface Sequence {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  name: string;
+  /**
+   * Para qué sirve esta secuencia (ej: seguimiento post-cotización).
+   */
+  description?: string | null;
+  /**
+   * Las inscripciones de secuencias inactivas quedan en pausa (no se cancelan).
+   */
+  active?: boolean | null;
+  /**
+   * Con inscripciones activas no se puede cambiar la estructura (agregar/quitar/reordenar pasos); el contenido de cada paso sí es editable.
+   */
+  steps: {
+    type: 'email' | 'tarea' | 'esperar';
+    /**
+     * Soporta {{nombre}} para personalizar con el nombre del lead.
+     */
+    subject?: string | null;
+    /**
+     * Se envuelve con la plantilla de marca. Soporta {{nombre}}. El HTML se sanitiza al guardar (sin scripts, iframes, handlers ni javascript:) — mismo modelo que las campañas.
+     */
+    bodyHtml?: string | null;
+    taskTitle?: string | null;
+    taskDueInDays?: number | null;
+    days?: number | null;
+    id?: string | null;
+  }[];
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Lo escribe el sistema y las acciones de inscripción; lectura en admin.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sequence-enrollments".
+ */
+export interface SequenceEnrollment {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  sequence: number | Sequence;
+  lead: number | Lead;
+  status: 'activa' | 'completada' | 'cancelada' | 'respondida';
+  /**
+   * Índice del próximo paso a procesar.
+   */
+  currentStep?: number | null;
+  nextRunAt: string;
+  /**
+   * Fallos consecutivos del paso actual (un email fallido se reintenta hasta 3 veces).
+   */
+  stepAttempts?: number | null;
+  enrolledBy?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
 }
@@ -1836,6 +1916,7 @@ export interface PayloadJob {
           | 'summarize-conversation'
           | 'sweep-unsummarized-conversations'
           | 'recalculate-lead-scores'
+          | 'dispatch-sequences'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -1885,6 +1966,7 @@ export interface PayloadJob {
         | 'summarize-conversation'
         | 'sweep-unsummarized-conversations'
         | 'recalculate-lead-scores'
+        | 'dispatch-sequences'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -2022,6 +2104,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'saved-crm-views';
         value: number | SavedCrmView;
+      } | null)
+    | ({
+        relationTo: 'sequences';
+        value: number | Sequence;
+      } | null)
+    | ({
+        relationTo: 'sequence-enrollments';
+        value: number | SequenceEnrollment;
       } | null)
     | ({
         relationTo: 'social-accounts';
@@ -2475,6 +2565,8 @@ export interface EmailLogSelect<T extends boolean = true> {
   client?: T;
   lead?: T;
   error?: T;
+  sequenceEnrollmentId?: T;
+  sequenceStepIndex?: T;
   eventsJson?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -2614,6 +2706,8 @@ export interface TasksSelect<T extends boolean = true> {
   client?: T;
   lead?: T;
   source?: T;
+  sequenceEnrollmentId?: T;
+  sequenceStepIndex?: T;
   checklist?:
     | T
     | {
@@ -2679,6 +2773,45 @@ export interface SavedCrmViewsSelect<T extends boolean = true> {
   estado?: T;
   fuente?: T;
   agente?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sequences_select".
+ */
+export interface SequencesSelect<T extends boolean = true> {
+  tenant?: T;
+  name?: T;
+  description?: T;
+  active?: T;
+  steps?:
+    | T
+    | {
+        type?: T;
+        subject?: T;
+        bodyHtml?: T;
+        taskTitle?: T;
+        taskDueInDays?: T;
+        days?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sequence-enrollments_select".
+ */
+export interface SequenceEnrollmentsSelect<T extends boolean = true> {
+  tenant?: T;
+  sequence?: T;
+  lead?: T;
+  status?: T;
+  currentStep?: T;
+  nextRunAt?: T;
+  stepAttempts?: T;
+  enrolledBy?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3375,6 +3508,22 @@ export interface TaskRecalculateLeadScores {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskDispatch-sequences".
+ */
+export interface TaskDispatchSequences {
+  input?: unknown;
+  output: {
+    processed?: number | null;
+    emailsSent?: number | null;
+    emailsFailed?: number | null;
+    tasksCreated?: number | null;
+    stopped?: number | null;
+    completed?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "TaskCreateCollectionExport".
  */
 export interface TaskCreateCollectionExport {
@@ -3411,6 +3560,8 @@ export interface TaskCreateCollectionExport {
       | 'conversation-summaries'
       | 'conversation-notes'
       | 'saved-crm-views'
+      | 'sequences'
+      | 'sequence-enrollments'
       | 'social-accounts'
       | 'social-posts'
       | 'post-metrics'
