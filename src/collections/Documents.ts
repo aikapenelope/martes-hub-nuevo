@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated, editorsOnly, adminOnly } from '../access'
+import { normalizeUploadBuffer } from '../hooks/normalize-upload-buffer'
 
 export const Documents: CollectionConfig = {
   slug: 'documents',
@@ -8,6 +9,10 @@ export const Documents: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'client', 'documentType', 'updatedAt'],
     group: 'CRM',
+  },
+  hooks: {
+    // Mismo fix que Media: normaliza req.file.data a Uint8Array (#13309).
+    beforeOperation: [normalizeUploadBuffer],
   },
   access: {
     read: authenticated,

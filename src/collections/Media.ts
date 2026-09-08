@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { adminOnly, authenticated, editorsOnly } from '../access'
+import { normalizeUploadBuffer } from '../hooks/normalize-upload-buffer'
 
 export const Media: CollectionConfig = {
   slug: 'media',
@@ -53,6 +54,10 @@ export const Media: CollectionConfig = {
     },
   },
   hooks: {
+    // Payload #13309: los Buffer del Local API rompen la detección de tipo
+    // (factura→PDF→Media). Normaliza req.file.data a Uint8Array antes de
+    // generateFileData.
+    beforeOperation: [normalizeUploadBuffer],
     beforeValidate: [
       async ({ data, req }) => {
         if (!data) return data
