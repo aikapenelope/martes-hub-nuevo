@@ -12,8 +12,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Separado por tipo de evento: un E2E manual y un push automático comparten
+# ref (main) — sin este prefijo, cancel-in-progress haría que se maten entre
+# sí (hallazgo Devin #109-2).
 concurrency:
-  group: tests-${{ github.ref }}
+  group: tests-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -65,6 +68,13 @@ jobs:
 
       - name: Migrate database
         run: pnpm migrate
+
+      # BD fresca = sin users/tenants: los specs de ciclo de vida los exigen
+      # en su beforeEach (hallazgo Devin #109-1). Seeds idempotentes del repo.
+      - name: Seed fixtures (tenant + usuario)
+        run: |
+          pnpm tsx scripts/seed-default-tenant.ts
+          pnpm tsx scripts/seed-dev-user.ts
 
       - name: Run integration tests
         run: pnpm test:int
@@ -125,6 +135,11 @@ jobs:
 
       - name: Migrate database
         run: pnpm migrate
+
+      - name: Seed fixtures (tenant + usuario)
+        run: |
+          pnpm tsx scripts/seed-default-tenant.ts
+          pnpm tsx scripts/seed-dev-user.ts
 
       - name: Run E2E tests
         run: pnpm test:e2e
