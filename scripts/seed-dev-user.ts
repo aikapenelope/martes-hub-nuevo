@@ -71,3 +71,7 @@ export async function seedDevUser(): Promise<void> {
 }
 
 await seedDevUser()
+
+// Mismo motivo que seed-default-tenant: el pool abierto (idleTimeoutMillis: 0)
+// mantiene el proceso vivo indefinidamente.
+process.exit(0)
