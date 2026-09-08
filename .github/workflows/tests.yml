@@ -47,6 +47,18 @@ jobs:
       # efímera; sin pooler ni SSL acá).
       DATABASE_URL_DIRECT: postgresql://postgres:postgres@localhost:5432/marteshub_test
       PAYLOAD_SECRET: ci-secret-for-payload-tests-only-0123456789
+      # Storage de PRODUCCIÓN (Cloudflare R2, S3-compatible) vía secrets del
+      # repo: payload.config monta s3Storage solo si S3_BUCKET existe. Sin
+      # secrets el plugin queda apagado y los specs que suben PDFs a Media no
+      # pueden correr (Payload 3 sin adaptador no guarda archivos). Añadir
+      # S3_BUCKET / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY / S3_ENDPOINT en
+      # Settings → Secrets and variables → Actions y quitar los --exclude del
+      # paso "Run integration tests".
+      S3_BUCKET: ${{ secrets.S3_BUCKET }}
+      S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+      S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+      S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+      S3_REGION: auto
 
     steps:
       - name: Checkout repository
@@ -76,11 +88,11 @@ jobs:
           pnpm tsx scripts/seed-default-tenant.ts
           pnpm tsx scripts/seed-dev-user.ts
 
-      # billing-lifecycle y offers-billing-cashboard quedan excluidos de CI
-      # por ahora: dependen del pipeline factura→PDF→Media de payload-invoicepdf
-      # y en CI no hay adaptador de storage (el repo solo trae S3/R2). Falta
-      # añadir @payloadcms/storage-local (o un MinIO como service) para
-      # incorporarlos. El resto de la suite corre completa.
+      # billing-lifecycle y offers-billing-cashboard quedan excluidos hasta
+      # añadir los secrets de R2 (S3_*): sus tests dependen del pipeline
+      # factura→PDF→Media de payload-invoicepdf, que necesita el adaptador de
+      # storage. Con R2 conectado (env de arriba), borra los dos --exclude de
+      # abajo y la suite queda completa. El resto corre ya entera.
       - name: Run integration tests
         run: >-
           pnpm vitest run --config ./vitest.config.mts
