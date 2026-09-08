@@ -1,0 +1,138 @@
+name: Tests
+
+# Suite de tests en los runners de GitHub (no en la máquina de nadie).
+# El CI existente (.github/workflows/ci.yml) ya cubre typecheck/lint/build;
+# este workflow agrega la suite de integración (Vitest) contra un Postgres
+# real efímero, que es lo que faltaba subir a CI (pendiente F10 del README).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vitest:
+    name: Integration Tests (Vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: marteshub_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # sslmode=disable: el service container no habla SSL.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/marteshub_test?sslmode=disable
+      # scripts/migrate.mjs prefiere DIRECT para las migraciones (misma base
+      # efímera; sin pooler ni SSL acá).
+      DATABASE_URL_DIRECT: postgresql://postgres:postgres@localhost:5432/marteshub_test
+      PAYLOAD_SECRET: ci-secret-for-payload-tests-only-0123456789
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Migrate database
+        run: pnpm migrate
+
+      - name: Run integration tests
+        run: pnpm test:int
+
+      - name: Summary
+        if: always()
+        run: echo "Vitest terminó con estado ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+
+  # E2E (Playwright) SOLO manual desde la pestaña Actions — es el job pesado
+  # (navegadores + dev server) y no queremos gastarlo en cada push. La config
+  # de Playwright ya trae webServer (`pnpm dev`, timeout 120s) y workers: 1.
+  e2e:
+    name: E2E (Playwright) — manual
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: marteshub_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/marteshub_test?sslmode=disable
+      DATABASE_URL_DIRECT: postgresql://postgres:postgres@localhost:5432/marteshub_test
+      PAYLOAD_SECRET: ci-secret-for-payload-tests-only-0123456789
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Migrate database
+        run: pnpm migrate
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
