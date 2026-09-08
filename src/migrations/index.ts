@@ -210,3 +210,10 @@ migrations.push({
   down: migration_20260908_060000_add_recalculate_lead_scores_slug.down,
   name: '20260908_060000_add_recalculate_lead_scores_slug',
 });
+
+import * as migration_20260908_181500_create_sequences_and_enrollments from './20260908_181500_create_sequences_and_enrollments';
+migrations.push({
+  up: migration_20260908_181500_create_sequences_and_enrollments.up,
+  down: migration_20260908_181500_create_sequences_and_enrollments.down,
+  name: '20260908_181500_create_sequences_and_enrollments',
+});

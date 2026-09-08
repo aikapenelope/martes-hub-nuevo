@@ -77,6 +77,7 @@ export const EmailLog: CollectionConfig = {
       options: [
         { label: 'Transaccional', value: 'transactional' },
         { label: 'Campaña', value: 'campaign' },
+        { label: 'Secuencia', value: 'sequence' },
         { label: 'Prueba', value: 'test' },
       ],
       admin: { position: 'sidebar' },
