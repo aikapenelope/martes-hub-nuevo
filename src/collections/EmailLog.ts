@@ -77,6 +77,7 @@ export const EmailLog: CollectionConfig = {
       options: [
         { label: 'Transaccional', value: 'transactional' },
         { label: 'Campaña', value: 'campaign' },
+        { label: 'Secuencia', value: 'sequence' },
         { label: 'Prueba', value: 'test' },
       ],
       admin: { position: 'sidebar' },
@@ -129,6 +130,23 @@ export const EmailLog: CollectionConfig = {
       admin: {
         condition: (_data, siblingData) => siblingData?.status === 'failed' || siblingData?.status === 'bounced',
       },
+    },
+    {
+      name: 'sequenceEnrollmentId',
+      type: 'number',
+      index: true,
+      label: 'Inscripción de secuencia',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+        description: 'Id de la inscripción: clave de idempotencia del paso (con sequenceStepIndex).',
+      },
+    },
+    {
+      name: 'sequenceStepIndex',
+      type: 'number',
+      label: 'Paso de la secuencia',
+      admin: { position: 'sidebar', readOnly: true },
     },
     {
       name: 'eventsJson',

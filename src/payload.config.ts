@@ -44,6 +44,8 @@ import { FormSubmissions } from './collections/FormSubmissions'
 import { Tasks } from './collections/Tasks'
 import { ConversationSummaries } from './collections/ConversationSummaries'
 import { ConversationNotes } from './collections/ConversationNotes'
+import { Sequences } from './collections/Sequences'
+import { SequenceEnrollments } from './collections/SequenceEnrollments'
 import { SocialAccounts } from './collections/SocialAccounts'
 import { SocialPosts } from './collections/SocialPosts'
 import { PostMetrics } from './collections/PostMetrics'
@@ -64,6 +66,7 @@ import { syncGcalTask } from './jobs/syncGcal'
 import { summarizeConversationTask } from './jobs/summarizeConversation'
 import { sweepConversationsTask } from './jobs/sweepConversations'
 import { recalculateLeadScoresTask } from './jobs/leadScoring'
+import { dispatchSequencesTask } from './jobs/dispatchSequences'
 import { Appointments } from './collections/Appointments'
 import type { User } from './payload-types'
 import { adminOnly } from './access'
@@ -114,6 +117,8 @@ export default buildConfig({
     Tasks,
     ConversationSummaries,
     ConversationNotes,
+    Sequences,
+    SequenceEnrollments,
     SocialAccounts,
     SocialPosts,
     PostMetrics,
@@ -200,6 +205,8 @@ export default buildConfig({
         quotes: {},
         'form-submissions': {},
         tasks: {},
+        sequences: {},
+        'sequence-enrollments': {},
         'conversation-summaries': {},
         'conversation-notes': {},
         'social-accounts': {},
@@ -382,6 +389,7 @@ export default buildConfig({
       summarizeConversationTask,
       sweepConversationsTask,
       recalculateLeadScoresTask,
+      dispatchSequencesTask,
     ],
   },
   editor: lexicalEditor(),
