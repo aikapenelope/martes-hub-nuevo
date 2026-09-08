@@ -29,18 +29,4 @@ export const normalizeUploadBuffer: CollectionBeforeOperationHook = async ({ req
     }
   }
 
-  // Diagnóstico temporal issue #110: confirmar la naturaleza del buffer que
-  // llega a la validación (constructor, longitud, bytes mágicos).
-  try {
-    const bytes = file.data as Uint8Array
-    req.payload.logger.info({
-      msg: '[debug #110] upload normalizado',
-      file: file.name,
-      ctor: (file.data as object)?.constructor?.name,
-      len: bytes.length ?? null,
-      magic: bytes.length ? Buffer.from(bytes.subarray(0, 8)).toString('latin1') : '(vacío)',
-    })
-  } catch {
-    // El diagnóstico nunca debe romper el flujo de subida.
-  }
 }

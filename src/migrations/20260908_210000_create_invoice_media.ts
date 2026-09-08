@@ -30,6 +30,10 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
     ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "invoice_media_id" integer;
     ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_invoice_media_fk" FOREIGN KEY ("invoice_media_id") REFERENCES "public"."invoice_media"("id") ON DELETE cascade ON UPDATE no action;
     CREATE INDEX "payload_locked_documents_rels_invoice_media_id_idx" ON "payload_locked_documents_rels" ("invoice_media_id");
+    -- generatedPdfs (hasMany del plugin) ahora apunta a invoice-media:
+    -- Payload espera estas columnas en las tablas de relaciones.
+    ALTER TABLE "quotes_rels" ADD COLUMN IF NOT EXISTS "invoice_media_id" integer;
+    ALTER TABLE "invoices_rels" ADD COLUMN IF NOT EXISTS "invoice_media_id" integer;
   `)
 }
 
