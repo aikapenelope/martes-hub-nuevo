@@ -78,6 +78,7 @@ export interface Config {
     segments: Segment;
     documents: Document;
     media: Media;
+    'invoice-media': InvoiceMedia;
     payments: Payment;
     memberships: Membership;
     conversations: Conversation;
@@ -150,6 +151,7 @@ export interface Config {
     segments: SegmentsSelect<false> | SegmentsSelect<true>;
     documents: DocumentsSelect<false> | DocumentsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    'invoice-media': InvoiceMediaSelect<false> | InvoiceMediaSelect<true>;
     payments: PaymentsSelect<false> | PaymentsSelect<true>;
     memberships: MembershipsSelect<false> | MembershipsSelect<true>;
     conversations: ConversationsSelect<false> | ConversationsSelect<true>;
@@ -1000,6 +1002,28 @@ export interface Media {
   focalY?: number | null;
 }
 /**
+ * PDFs generados por facturas y cotizaciones. Uso interno.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "invoice-media".
+ */
+export interface InvoiceMedia {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  alt: string;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "messages".
  */
@@ -1584,7 +1608,7 @@ export interface Invoice {
   subtotal?: number | null;
   taxTotal?: number | null;
   total?: number | null;
-  generatedPdfs?: (number | Media)[] | null;
+  generatedPdfs?: (number | InvoiceMedia)[] | null;
   lastSentAt?: string | null;
   sendHistory?:
     | {
@@ -1592,7 +1616,7 @@ export interface Invoice {
         to?: string | null;
         templateUsed?: string | null;
         subject?: string | null;
-        attachedPdf?: (number | null) | Media;
+        attachedPdf?: (number | null) | InvoiceMedia;
         sentBy?: (number | null) | User;
         id?: string | null;
       }[]
@@ -1656,7 +1680,7 @@ export interface Quote {
   rejectToken?: string | null;
   tokenExpiresAt?: string | null;
   rejectionReason?: string | null;
-  generatedPdfs?: (number | Media)[] | null;
+  generatedPdfs?: (number | InvoiceMedia)[] | null;
   lastSentAt?: string | null;
   sendHistory?:
     | {
@@ -1664,7 +1688,7 @@ export interface Quote {
         to?: string | null;
         templateUsed?: string | null;
         subject?: string | null;
-        attachedPdf?: (number | null) | Media;
+        attachedPdf?: (number | null) | InvoiceMedia;
         sentBy?: (number | null) | User;
         id?: string | null;
       }[]
@@ -2032,6 +2056,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'invoice-media';
+        value: number | InvoiceMedia;
       } | null)
     | ({
         relationTo: 'payments';
@@ -2427,6 +2455,25 @@ export interface DocumentsSelect<T extends boolean = true> {
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
+  tenant?: T;
+  alt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "invoice-media_select".
+ */
+export interface InvoiceMediaSelect<T extends boolean = true> {
   tenant?: T;
   alt?: T;
   updatedAt?: T;
@@ -3542,6 +3589,7 @@ export interface TaskCreateCollectionExport {
       | 'segments'
       | 'documents'
       | 'media'
+      | 'invoice-media'
       | 'payments'
       | 'memberships'
       | 'conversations'

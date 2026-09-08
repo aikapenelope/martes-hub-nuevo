@@ -11,6 +11,7 @@ import sharp from 'sharp'
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
+import { InvoiceMedia } from './collections/InvoiceMedia'
 import { Companies } from './collections/Companies'
 import { Clients } from './collections/Clients'
 import { Leads } from './collections/Leads'
@@ -101,6 +102,7 @@ export default buildConfig({
     Segments,
     Documents,
     Media,
+    InvoiceMedia,
     Payments,
     Memberships,
     Conversations,
@@ -172,7 +174,7 @@ export default buildConfig({
         name: 'name',
         email: 'email',
       },
-      mediaCollection: 'media',
+      mediaCollection: 'invoice-media',
       currency: '$',
       defaultTaxRate: 0.16,
       defaultPaymentTerms: 30,
@@ -190,6 +192,7 @@ export default buildConfig({
         segments: {},
         documents: {},
         media: {},
+        'invoice-media': {},
         payments: {},
         memberships: {},
         conversations: {},
@@ -362,6 +365,7 @@ export default buildConfig({
             collections: {
               media: true,
               documents: true,
+              'invoice-media': true,
             },
             bucket: process.env.S3_BUCKET,
             config: {

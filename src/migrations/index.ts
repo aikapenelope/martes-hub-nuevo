@@ -231,3 +231,10 @@ migrations.push({
   down: migration_20260908_193000_create_saved_crm_views.down,
   name: '20260908_193000_create_saved_crm_views',
 });
+
+import * as migration_20260908_210000_create_invoice_media from './20260908_210000_create_invoice_media';
+migrations.push({
+  up: migration_20260908_210000_create_invoice_media.up,
+  down: migration_20260908_210000_create_invoice_media.down,
+  name: '20260908_210000_create_invoice_media',
+});
