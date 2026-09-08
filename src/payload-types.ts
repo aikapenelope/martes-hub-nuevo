@@ -209,6 +209,7 @@ export interface Config {
       'generate-lead-brief': TaskGenerateLeadBrief;
       'summarize-conversation': TaskSummarizeConversation;
       'sweep-unsummarized-conversations': TaskSweepUnsummarizedConversations;
+      'recalculate-lead-scores': TaskRecalculateLeadScores;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -1806,6 +1807,7 @@ export interface PayloadJob {
           | 'generate-lead-brief'
           | 'summarize-conversation'
           | 'sweep-unsummarized-conversations'
+          | 'recalculate-lead-scores'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -1854,6 +1856,7 @@ export interface PayloadJob {
         | 'generate-lead-brief'
         | 'summarize-conversation'
         | 'sweep-unsummarized-conversations'
+        | 'recalculate-lead-scores'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -3306,6 +3309,19 @@ export interface TaskSweepUnsummarizedConversations {
   output: {
     queued?: number | null;
     skipped?: number | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskRecalculate-lead-scores".
+ */
+export interface TaskRecalculateLeadScores {
+  input?: unknown;
+  output: {
+    scored?: number | null;
+    updated?: number | null;
+    promoted?: number | null;
+    summary?: string | null;
   };
 }
 /**

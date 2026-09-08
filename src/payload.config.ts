@@ -63,6 +63,7 @@ import { generateLeadBriefTask } from './jobs/generateLeadBrief'
 import { syncGcalTask } from './jobs/syncGcal'
 import { summarizeConversationTask } from './jobs/summarizeConversation'
 import { sweepConversationsTask } from './jobs/sweepConversations'
+import { recalculateLeadScoresTask } from './jobs/leadScoring'
 import { Appointments } from './collections/Appointments'
 import type { User } from './payload-types'
 import { adminOnly } from './access'
@@ -380,6 +381,7 @@ export default buildConfig({
       generateLeadBriefTask,
       summarizeConversationTask,
       sweepConversationsTask,
+      recalculateLeadScoresTask,
     ],
   },
   editor: lexicalEditor(),
