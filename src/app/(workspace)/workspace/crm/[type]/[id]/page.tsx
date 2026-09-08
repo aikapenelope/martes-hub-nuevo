@@ -31,6 +31,7 @@ import {
   updateLeadAction,
 } from '@/lib/crm-actions'
 import { cancelSequenceEnrollmentAction, enrollLeadInSequenceAction } from '@/lib/sequence-actions'
+import { findAllPages } from '@/lib/lead-scoring'
 import { getCrmRecord, type CrmView } from '@/lib/crm-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
@@ -170,18 +171,24 @@ export default async function CrmRecordPage({
   const companyRecord = isCompany ? detail.company! : null
 
   if (isLead) {
-    const [sequencesRes, enrollmentsRes] = await Promise.all([
-      context.payload.find({
-        collection: 'sequences',
-        where: {
-          and: [{ tenant: { equals: context.tenantId } }, { active: { equals: true } }],
-        },
-        limit: 50,
-        depth: 0,
-        sort: 'name',
-        overrideAccess: false,
-        user: context.user,
-      }),
+    // Paginado completo — un límite fijo dejaría secuencias fuera del selector
+    // (hallazgo Devin #104-4).
+    const [sequencesDocs, enrollmentsRes] = await Promise.all([
+      findAllPages((page) =>
+        context.payload.find({
+          collection: 'sequences',
+          where: {
+            and: [{ tenant: { equals: context.tenantId } }, { active: { equals: true } }],
+          },
+          limit: 500,
+          page,
+          depth: 0,
+          sort: 'name',
+          select: { name: true },
+          overrideAccess: false,
+          user: context.user,
+        }),
+      ),
       context.payload.find({
         collection: 'sequence-enrollments',
         where: { and: [{ tenant: { equals: context.tenantId } }, { lead: { equals: id } }] },
@@ -192,7 +199,7 @@ export default async function CrmRecordPage({
         user: context.user,
       }),
     ])
-    activeSequences = sequencesRes.docs.map((s) => ({ id: s.id, name: s.name }))
+    activeSequences = sequencesDocs.map((s) => ({ id: s.id, name: s.name }))
     leadEnrollments = enrollmentsRes.docs.map((e) => ({
       id: e.id,
       status: e.status,

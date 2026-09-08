@@ -56,6 +56,25 @@ export function repliedSince(lastInboundAt: string | null | undefined, sinceIso:
   return inboundMs > Date.parse(sinceIso)
 }
 
+/**
+ * Validación server-side del campo days (hallazgo Devin #104-1):
+ * admin.condition solo controla visibilidad en el admin — la validación
+ * corre siempre, así que 'required' fijo bloquearía el guardado de pasos
+ * email/tarea. El campo se valida aquí según el tipo del paso.
+ */
+export function validateSequenceStepDays(value: unknown, stepType: unknown): true | string {
+  if (stepType !== 'esperar') return true
+  const raw = value
+  if (raw === undefined || raw === null || raw === '') {
+    return 'Los pasos esperar requieren un número de días (1-90)'
+  }
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 1 || n > 90 || Math.floor(n) !== n) {
+    return 'Los días deben ser un entero entre 1 y 90'
+  }
+  return true
+}
+
 export interface DispatchTenantSequencesResult {
   processed: number
   emailsSent: number
@@ -280,75 +299,125 @@ export async function dispatchTenantSequences({
         continue
       }
 
-      // Ejecutar el paso (waitDays === 0).
+      // Ejecutar el paso (waitDays === 0). Ejecución idempotente (hallazgo
+      // Devin #104-2): si la escritura de avance falla tras el efecto, la
+      // próxima pasada re-procesa el paso — los guardas de dedupe (email-log /
+      // tasks) hacen que ese reintento sea no-op, sin duplicar el email ni la
+      // tarea al lead.
       const step = steps[peek.actionIndex]!
+      const nombre = firstName(lead.fullName)
       if (step.type === 'email') {
         // Sin email válido: se omite el paso (avanza); queda trazado como
         // inscripción que no pudo enviar, sin bloquear el resto de la cadena.
         if (!lead.email) {
           result.emailsFailed++
         } else {
-          const subject = (step.subject ?? sequence.name).slice(0, 200)
-          const html = renderEmailHtml({
-            title: subject,
-            bodyHtml: (step.bodyHtml ?? '').replaceAll('{{nombre}}', firstName(lead.fullName)),
+          const subject = (step.subject ?? sequence.name).replaceAll('{{nombre}}', nombre).slice(0, 200)
+          // Dedupe idempotente: un log de éxito de ESTA inscripción con el
+          // mismo asunto significa que el efecto ya ocurrió (avance perdido).
+          const dupRes = await payload.find({
+            collection: 'email-log',
+            limit: 1,
+            depth: 0,
+            where: {
+              and: [
+                tenantWhere,
+                { lead: { equals: leadId } },
+                { source: { equals: 'sequence' } },
+                { subject: { equals: subject } },
+                { status: { in: ['sent', 'delivered'] } },
+                { createdAt: { greater_than_equal: enrollment.createdAt } },
+              ],
+            },
+            overrideAccess: true,
           })
-          try {
-            const sent = (await payload.sendEmail({
-              to: lead.email,
-              subject,
-              html,
-            })) as { id?: string } | null | undefined
-            await payload.create({
-              collection: 'email-log',
-              data: {
+          if (dupRes.docs[0]) {
+            // Ya enviado en una pasada anterior cuyo avance se perdió.
+          } else {
+            const html = renderEmailHtml({
+              title: subject,
+              bodyHtml: (step.bodyHtml ?? '').replaceAll('{{nombre}}', nombre),
+            })
+            let sentId: string | undefined
+            let sentOk = true
+            try {
+              const sent = (await payload.sendEmail({
                 to: lead.email,
                 subject,
-                status: 'sent',
-                source: 'sequence',
-                providerMessageId: sent?.id,
-                lead: leadId,
-                tenant: tenantId,
-              },
-              overrideAccess: true,
-            })
-            result.emailsSent++
-          } catch {
-            await payload.create({
-              collection: 'email-log',
-              data: {
-                to: lead.email,
-                subject,
-                status: 'failed',
-                source: 'sequence',
-                error: 'Fallo enviando paso de secuencia',
-                lead: leadId,
-                tenant: tenantId,
-              },
-              overrideAccess: true,
-            })
-            result.emailsFailed++
+                html,
+              })) as { id?: string } | null | undefined
+              sentId = sent?.id
+            } catch {
+              sentOk = false
+            }
+            // Log best-effort: si falla la escritura del log NO descontamos el
+            // envío ya realizado — se registra el fallo y la inscripción
+            // avanza igual (el reintento natural sería un doble envío).
+            try {
+              await payload.create({
+                collection: 'email-log',
+                data: {
+                  to: lead.email,
+                  subject,
+                  status: sentOk ? 'sent' : 'failed',
+                  source: 'sequence',
+                  ...(sentOk ? { providerMessageId: sentId } : { error: 'Fallo enviando paso de secuencia' }),
+                  lead: leadId,
+                  tenant: tenantId,
+                },
+                overrideAccess: true,
+              })
+            } catch (logErr) {
+              payload.logger.error({
+                msg: 'dispatch-sequences: no se pudo escribir email-log tras el envío',
+                enrollmentId: enrollment.id,
+                leadId,
+                logErr,
+              })
+            }
+            if (sentOk) result.emailsSent++
+            else result.emailsFailed++
           }
         }
       } else if (step.type === 'tarea') {
         const assigneeId =
           typeof lead.assignedTo === 'object' ? (lead.assignedTo?.id ?? null) : (lead.assignedTo ?? null)
         const dueDays = Math.max(0, Math.floor(Number(step.taskDueInDays ?? 3)))
-        await payload.create({
+        const title = (step.taskTitle ?? `Seguimiento de secuencia: ${lead.fullName}`)
+          .replaceAll('{{nombre}}', nombre)
+          .slice(0, 180)
+        // Dedupe idempotente: misma tarea de secuencia para el lead → ya creada.
+        const dupRes = await payload.find({
           collection: 'tasks',
-          data: {
-            tenant: tenantId,
-            title: (step.taskTitle ?? `Seguimiento de secuencia: ${lead.fullName}`).slice(0, 180),
-            status: 'pendiente',
-            priority: 'media',
-            dueDate: new Date(nowMs + dueDays * DAY_MS).toISOString(),
-            lead: leadId,
-            ...(assigneeId != null ? { assignedTo: assigneeId } : {}),
-            source: 'sequence',
+          limit: 1,
+          depth: 0,
+          where: {
+            and: [
+              tenantWhere,
+              { lead: { equals: leadId } },
+              { source: { equals: 'sequence' } },
+              { title: { equals: title } },
+            ],
           },
           overrideAccess: true,
         })
-        result.tasksCreated++
+        if (!dupRes.docs[0]) {
+          await payload.create({
+            collection: 'tasks',
+            data: {
+              tenant: tenantId,
+              title,
+              status: 'pendiente',
+              priority: 'media',
+              dueDate: new Date(nowMs + dueDays * DAY_MS).toISOString(),
+              lead: leadId,
+              ...(assigneeId != null ? { assignedTo: assigneeId } : {}),
+              source: 'sequence',
+            },
+            overrideAccess: true,
+          })
+          result.tasksCreated++
+        }
       }
 
       // Avanzar: consumir esperas posteriores y agendar el próximo ejecutable.

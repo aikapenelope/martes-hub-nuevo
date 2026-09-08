@@ -5,6 +5,7 @@ import {
   dispatchTenantSequences,
   peekNextAction,
   repliedSince,
+  validateSequenceStepDays,
   type SequenceStep,
 } from '@/lib/sequences'
 import { dispatchSequencesTask } from '@/jobs/dispatchSequences'
@@ -48,6 +49,23 @@ describe('peekNextAction — máquina de pasos', () => {
   })
 })
 
+describe('validateSequenceStepDays — validación server-side por tipo', () => {
+  it('exige entero 1-90 solo para pasos esperar', () => {
+    expect(validateSequenceStepDays(5, 'esperar')).toBe(true)
+    expect(validateSequenceStepDays(90, 'esperar')).toBe(true)
+    expect(validateSequenceStepDays(undefined, 'esperar')).toMatch(/días/)
+    expect(validateSequenceStepDays('', 'esperar')).toMatch(/días/)
+    expect(validateSequenceStepDays(0, 'esperar')).not.toBe(true)
+    expect(validateSequenceStepDays(91, 'esperar')).not.toBe(true)
+    expect(validateSequenceStepDays(2.5, 'esperar')).not.toBe(true)
+  })
+
+  it('no exige days en pasos email/tarea (admin.condition solo oculta el input)', () => {
+    expect(validateSequenceStepDays(undefined, 'email')).toBe(true)
+    expect(validateSequenceStepDays(undefined, 'tarea')).toBe(true)
+  })
+})
+
 describe('repliedSince — detección de respuesta', () => {
   it('inbound posterior a la inscripción cuenta como respuesta', () => {
     expect(repliedSince(iso(2 * DAY_MS), daysAgoIso(1))).toBe(true)
@@ -81,6 +99,8 @@ interface MockOpts {
   enrollmentsPages?: PageResult[]
   conversationsPages?: PageResult[]
   emailMessagesPages?: PageResult[]
+  emailLogDocs?: Record<string, unknown>[]
+  tasksDocs?: Record<string, unknown>[]
   sequencesDocs?: Record<string, unknown>[]
   leadsDocs?: Record<string, unknown>[]
 }
@@ -96,6 +116,8 @@ function buildMockPayload(opts: MockOpts = {}): Mocks {
     if (collection === 'sequence-enrollments') return Promise.resolve(pagesFor(opts.enrollmentsPages))
     if (collection === 'conversations') return Promise.resolve(pagesFor(opts.conversationsPages))
     if (collection === 'email-messages') return Promise.resolve(pagesFor(opts.emailMessagesPages))
+    if (collection === 'email-log') return Promise.resolve({ docs: opts.emailLogDocs ?? [], hasNextPage: false })
+    if (collection === 'tasks') return Promise.resolve({ docs: opts.tasksDocs ?? [], hasNextPage: false })
     if (collection === 'sequences') return Promise.resolve({ docs: opts.sequencesDocs ?? [], hasNextPage: false })
     if (collection === 'leads') return Promise.resolve({ docs: opts.leadsDocs ?? [], hasNextPage: false })
     return Promise.resolve({ docs: [], hasNextPage: false })
@@ -150,9 +172,9 @@ describe('dispatchTenantSequences — barrido por inscripción', () => {
     const res = await dispatchTenantSequences({ payload: mocks.payload, tenantId: 1 })
 
     expect(res).toMatchObject({ processed: 1, emailsSent: 1, emailsFailed: 0, tasksCreated: 0, completed: 0 })
-    // Email enviado con personalización {{nombre}} y log source=sequence
+    // Email enviado con personalización {{nombre}} en asunto y cuerpo, log source=sequence
     expect(mocks.sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'ana@example.com', subject: 'Hola {{nombre}}' }),
+      expect.objectContaining({ to: 'ana@example.com', subject: 'Hola Ana' }),
     )
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -259,6 +281,45 @@ describe('dispatchTenantSequences — barrido por inscripción', () => {
       expect.objectContaining({
         data: expect.objectContaining({ status: 'cancelada' }),
       }),
+    )
+  })
+
+  it('no duplica el email si el log ya registra el envío de esta inscripción', async () => {
+    const mocks = buildMockPayload({
+      enrollmentsPages: [{ docs: [enrollment()], hasNextPage: false }],
+      sequencesDocs: [SEQUENCE],
+      leadsDocs: [LEAD],
+      emailLogDocs: [{ id: 90, subject: 'Hola Ana', status: 'sent' }],
+    })
+
+    const res = await dispatchTenantSequences({ payload: mocks.payload, tenantId: 1 })
+
+    // Reintento idempotente: no reenvía, pero SÍ avanza la inscripción.
+    expect(res).toMatchObject({ processed: 1, emailsSent: 0, emailsFailed: 0 })
+    expect(mocks.sendEmail).not.toHaveBeenCalled()
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'sequence-enrollments',
+        id: 11,
+        data: expect.objectContaining({ currentStep: 2 }),
+      }),
+    )
+  })
+
+  it('no duplica la tarea si ya existe para el lead', async () => {
+    const taskStep: SequenceStep = { type: 'tarea', taskTitle: 'Llamar a Ana', taskDueInDays: 2 }
+    const mocks = buildMockPayload({
+      enrollmentsPages: [{ docs: [enrollment({ currentStep: 2 })], hasNextPage: false }],
+      sequencesDocs: [{ ...SEQUENCE, steps: [EMAIL_STEP, wait(3), taskStep] }],
+      leadsDocs: [LEAD],
+      tasksDocs: [{ id: 9, title: 'Llamar a Ana', source: 'sequence' }],
+    })
+
+    const res = await dispatchTenantSequences({ payload: mocks.payload, tenantId: 1 })
+
+    expect(res).toMatchObject({ processed: 1, tasksCreated: 0, completed: 1 })
+    expect(mocks.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'tasks' }),
     )
   })
 

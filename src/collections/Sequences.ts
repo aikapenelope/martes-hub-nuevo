@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { adminOnly, authenticated, editorsOnly } from '../access'
+import { validateSequenceStepDays } from '../lib/sequences'
 
 /**
  * Sequences de email: cadenas de pasos (email / tarea / esperar N días) que
@@ -84,10 +85,12 @@ export const Sequences: CollectionConfig = {
         {
           name: 'bodyHtml',
           type: 'textarea',
+          maxLength: 20000,
           label: 'Cuerpo del email (HTML simple)',
           admin: {
             condition: (_data, siblingData) => siblingData?.type === 'email',
-            description: 'Se envuelve con la plantilla de marca. Soporta {{nombre}}.',
+            description:
+              'Se envuelve con la plantilla de marca. Soporta {{nombre}}. El HTML se envía tal cual (mismo modelo de confianza que las campañas): lo escriben editores del tenant y sale bajo su dominio verificado.',
           },
         },
         {
@@ -113,10 +116,12 @@ export const Sequences: CollectionConfig = {
         {
           name: 'days',
           type: 'number',
-          min: 1,
-          max: 90,
-          required: true,
           label: 'Días de espera',
+          // Validación server-side según tipo (admin.condition solo oculta el
+          // input; required fijo bloquearía pasos email/tarea — hallazgo
+          // Devin #104-1).
+          validate: (value: unknown, { siblingData }: { siblingData?: Record<string, unknown> }) =>
+            validateSequenceStepDays(value, siblingData?.type),
           admin: {
             condition: (_data, siblingData) => siblingData?.type === 'esperar',
           },
