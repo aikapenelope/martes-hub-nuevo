@@ -12,7 +12,7 @@ import type { CollectionBeforeOperationHook } from 'payload'
  * Colecciones con upload: media y documents.
  */
 export const normalizeUploadBuffer: CollectionBeforeOperationHook = async ({ req }) => {
-  const file = req.file as { data?: unknown } | undefined
+  const file = req.file as { data?: unknown; name?: string } | undefined
   const data = file?.data
   if (!file || data === undefined || data === null) return
 
@@ -27,5 +27,20 @@ export const normalizeUploadBuffer: CollectionBeforeOperationHook = async ({ req
     } catch {
       // Si no es convertible, el pipeline de upload reporta su propio error.
     }
+  }
+
+  // Diagnóstico temporal issue #110: confirmar la naturaleza del buffer que
+  // llega a la validación (constructor, longitud, bytes mágicos).
+  try {
+    const bytes = file.data as Uint8Array
+    req.payload.logger.info({
+      msg: '[debug #110] upload normalizado',
+      file: file.name,
+      ctor: (file.data as object)?.constructor?.name,
+      len: bytes.length ?? null,
+      magic: bytes.length ? Buffer.from(bytes.subarray(0, 8)).toString('latin1') : '(vacío)',
+    })
+  } catch {
+    // El diagnóstico nunca debe romper el flujo de subida.
   }
 }
