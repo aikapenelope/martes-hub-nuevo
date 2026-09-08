@@ -1,9 +1,9 @@
 import { createElement } from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { HourlyHeatmap } from '@/components/workspace/HourlyHeatmap'
-import { getWorkspaceOverviewData, buildEmptyDayBuckets } from '@/lib/overview-data'
+import { getWorkspaceOverviewData, buildEmptyDayBuckets, zonedTimeToUtc } from '@/lib/overview-data'
 import type { HourBucket } from '@/components/workspace/overview/types'
 import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
@@ -275,6 +275,81 @@ describe('overview-data — derivación de hourBuckets en la zona horaria del te
         expect(newer - older).toBe(24 * 3600_000)
       }
     }
+  })
+
+  it('la frontera SQL coincide con la medianoche local del día más antiguo del grid', async () => {
+    const poolQuery = vi.fn().mockResolvedValue({ rows: [] })
+    const mockFind = (() => {
+      let settingsCalled = false
+      return (opts: { collection: string }) => {
+        if (opts.collection === 'company-settings' && !settingsCalled) {
+          settingsCalled = true
+          return Promise.resolve({ docs: [{ timezone: 'America/Caracas' }] })
+        }
+        return Promise.resolve({ docs: [], totalDocs: 0 })
+      }
+    })()
+    const mockPayload = {
+      find: mockFind,
+      count: () => Promise.resolve({ totalDocs: 0 }),
+      db: { pool: { query: poolQuery } },
+    } as unknown as Payload
+
+    const result = await getWorkspaceOverviewData({
+      payload: mockPayload,
+      user: mockUser,
+      tenantId: 10,
+    })
+
+    // El parámetro de frontera del SQL de interacciones = medianoche local
+    // (Caracas) del día más antiguo de dayBuckets → query y grid cubren
+    // EXACTAMENTE los mismos días calendario
+    const oldestDay = result.dayBuckets[0].dateStr
+    const expectedBoundary = zonedTimeToUtc(`${oldestDay}T00:00:00`, 'America/Caracas').toISOString()
+    const interactionCall = poolQuery.mock.calls.find((call) =>
+      String(call[0]).includes('UNION ALL'),
+    )
+    expect(interactionCall).toBeDefined()
+    const sqlParams = interactionCall![1] as unknown[]
+    expect(sqlParams[0]).toBe(10)
+    expect(sqlParams[1]).toBe('America/Caracas')
+    expect(sqlParams[2]).toBe(expectedBoundary)
+  })
+
+  it('messages legacy sin sentAt caen por createdAt y no se pierden (fallback)', async () => {
+    const mondayLocal = '2026-09-07T13:00:00.000Z' // lunes 09:00 Caracas
+    const mockFind = (() => {
+      let settingsCalled = false
+      return (opts: { collection: string; select?: Record<string, unknown> }) => {
+        if (opts.collection === 'company-settings' && !settingsCalled) {
+          settingsCalled = true
+          return Promise.resolve({ docs: [{ timezone: 'America/Caracas' }] })
+        }
+        if (opts.collection === 'messages') {
+          // Row legacy: sentAt null → el pickTs cae a createdAt
+          return Promise.resolve({
+            docs: [{ sentAt: null, createdAt: mondayLocal }],
+            totalDocs: 1,
+            hasNextPage: false,
+          })
+        }
+        return Promise.resolve({ docs: [], totalDocs: 0, hasNextPage: false })
+      }
+    })()
+    const mockPayload = {
+      find: mockFind,
+      count: () => Promise.resolve({ totalDocs: 0 }),
+      db: { pool: undefined },
+    } as unknown as Payload
+
+    const result = await getWorkspaceOverviewData({
+      payload: mockPayload,
+      user: mockUser,
+      tenantId: 10,
+    })
+
+    const monday9 = result.hourBuckets.find((b) => b.dow === 0 && b.hour === 9)
+    expect(monday9?.count).toBe(1)
   })
 })
 

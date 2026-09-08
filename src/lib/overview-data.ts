@@ -223,7 +223,6 @@ export async function getWorkspaceOverviewData({
 
   const now = new Date()
   const nowTime = now.getTime()
-  const yearAgo = daysAgoIso(364)
 
   // La zona horaria del tenant define los límites calendario (p. ej. el inicio de 'hoy').
   const timeZone = await resolveTenantTimezone(() =>
@@ -546,6 +545,10 @@ export async function getWorkspaceOverviewData({
   // (mismo criterio que resolveTimeRangeWindow; antes se agrupaba por fecha UTC).
   const dayBuckets = buildEmptyDayBuckets(timeZone, now)
   const bucketIndex = new Map(dayBuckets.map((b, i) => [b.dateStr, i]))
+  // Frontera de los heatmaps: medianoche local del día más antiguo del grid —
+  // el MISMO rango calendario de dayBuckets/hourBuckets/totalYearInteractions
+  // (no 364 días rodantes, que desalinea el día frontera)
+  const heatmapStartIso = zonedTimeToUtc(`${dayBuckets[0].dateStr}T00:00:00`, timeZone).toISOString()
 
     /**
      * Conteos de interacción (activities + messages + payments pagados) por día
@@ -585,6 +588,8 @@ export async function getWorkspaceOverviewData({
       if (db.pool && typeof db.pool.query === 'function') {
         // ISO weekday de Postgres (1=lun…7=dom) → índice 0-6; hora local 0-23.
         // GROUP BY en Postgres: conteos por grupo, nunca una fila por evento.
+        // messages por sent_at (envío real; COALESCE a created_at para rows
+        // legacy sin sentAt — nada se pierde silenciosamente).
         const res = await db.pool.query(
           `SELECT to_char(ts AT TIME ZONE $2, 'YYYY-MM-DD') AS day,
                   ((EXTRACT(ISODOW FROM ts AT TIME ZONE $2) - 1))::int AS dow,
@@ -593,12 +598,12 @@ export async function getWorkspaceOverviewData({
            FROM (
              SELECT occurred_at AS ts FROM activities WHERE tenant_id = $1 AND occurred_at >= $3
              UNION ALL
-             SELECT created_at AS ts FROM messages WHERE tenant_id = $1 AND created_at >= $3
+             SELECT COALESCE(sent_at, created_at) AS ts FROM messages WHERE tenant_id = $1 AND COALESCE(sent_at, created_at) >= $3
              UNION ALL
              SELECT paid_at AS ts FROM payments WHERE tenant_id = $1 AND status::text = 'pagado' AND paid_at >= $3
            ) events
            GROUP BY 1, 2, 3`,
-          [tenantId, timeZone, yearAgo],
+          [tenantId, timeZone, heatmapStartIso],
         )
         for (const row of res.rows) {
           add(String(row.day), Number(row.dow), Number(row.hour), Number(row.n))
@@ -611,12 +616,16 @@ export async function getWorkspaceOverviewData({
       const dayOnlyFmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
       const DOW_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
       const PAGE = 500
-      const sources: Array<{ collection: 'activities' | 'messages' | 'payments'; tsField: 'occurredAt' | 'createdAt' | 'paidAt' }> = [
+      const sources: Array<{
+        collection: 'activities' | 'messages' | 'payments'
+        tsField: 'occurredAt' | 'sentAt' | 'paidAt'
+        fallbackField?: 'createdAt'
+      }> = [
         { collection: 'activities', tsField: 'occurredAt' },
-        { collection: 'messages', tsField: 'createdAt' },
+        { collection: 'messages', tsField: 'sentAt', fallbackField: 'createdAt' },
         { collection: 'payments', tsField: 'paidAt' },
       ]
-      for (const { collection, tsField } of sources) {
+      for (const { collection, tsField, fallbackField } of sources) {
         let page = 1
         while (true) {
           const res = await q({
@@ -625,21 +634,27 @@ export async function getWorkspaceOverviewData({
             page,
             depth: 0,
             select: {
-              createdAt: tsField === 'createdAt',
+              createdAt: fallbackField === 'createdAt',
               occurredAt: tsField === 'occurredAt',
+              sentAt: tsField === 'sentAt',
               paidAt: tsField === 'paidAt',
             } as never,
             where: tenantWhere(
               tenantId,
               tsField === 'paidAt'
-                ? { status: { equals: 'pagado' }, paidAt: { greater_than_equal: yearAgo } }
+                ? { status: { equals: 'pagado' }, paidAt: { greater_than_equal: heatmapStartIso } }
                 : tsField === 'occurredAt'
-                  ? { occurredAt: { greater_than_equal: yearAgo } }
-                  : { createdAt: { greater_than_equal: yearAgo } },
+                  ? { occurredAt: { greater_than_equal: heatmapStartIso } }
+                  : {
+                      or: [
+                        { sentAt: { greater_than_equal: heatmapStartIso } },
+                        { and: [{ sentAt: { exists: false } }, { createdAt: { greater_than_equal: heatmapStartIso } }] },
+                      ],
+                    },
             ),
           })
           for (const doc of res.docs as unknown as Array<Record<string, string | null>>) {
-            const iso = doc[tsField] ?? null
+            const iso = (fallbackField ? doc[tsField] || doc[fallbackField] : doc[tsField]) ?? null
             if (!iso) continue
             const d = new Date(iso)
             const dayParts = dayHourFmt.format(d)
