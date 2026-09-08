@@ -1095,7 +1095,7 @@ export function OffersWorkspace({
 
             {/* Desglose de ítems */}
             {selectedQuote.items && selectedQuote.items.length > 0 && (
-              <div className="p-4 oled-card space-y-2">
+              <div className="p-3.5 oled-card space-y-2">
                 <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
                   Conceptos Cotizados
                 </span>

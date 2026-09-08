@@ -17,6 +17,20 @@ const RANGE_LABELS: Record<TimeRangeKey, string> = {
   ano: 'Cobrado en el Año',
 }
 
+/** Chip ▲/▼ de variación % del período vs el previo; oculto si no hay base de comparación. */
+function TrendChip({ pct }: { pct: number | null }) {
+  if (pct === null) return null
+  return (
+    <span
+      className={`text-xs font-mono font-bold flex items-center gap-0.5 ${pct >= 0 ? 'text-sky-400' : 'text-rose-400'}`}
+    >
+      {pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+      {pct >= 0 ? '+' : ''}
+      {pct.toFixed(1)}%
+    </span>
+  )
+}
+
 export function CockpitKpiGrid({
   metrics,
   revenueSeries,
@@ -34,8 +48,11 @@ export function CockpitKpiGrid({
     weightedPipelineTotal,
     totalLeadsActive,
     weightedProbabilityPct,
-    leadsNuevoCount,
     globalConversionRate,
+    leadsCreatedInPeriod,
+    conversionsInPeriod,
+    leadsNuevosTrendPct,
+    conversionTrendPct,
     overdueTasksCount,
     metaHealthPct,
     critical24hCount,
@@ -51,9 +68,9 @@ export function CockpitKpiGrid({
   const periodLabel = RANGE_LABELS[timeRange] ?? 'Cobrado en el Período'
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5">
       {/* Cobrado en el Período */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>{periodLabel}</span>
           <span className="p-1.5 bg-sky-950/80 text-sky-400 border border-sky-800/80">
@@ -62,19 +79,7 @@ export function CockpitKpiGrid({
         </div>
         <div className="flex items-baseline justify-between">
           <span className="text-3xl font-bold tracking-tight text-white">{currency.format(revenuePeriodTotal)}</span>
-          {revenueTrendPct !== null && (
-            <span
-              className={`text-xs font-mono font-bold flex items-center gap-0.5 ${revenueTrendPct >= 0 ? 'text-sky-400' : 'text-rose-400'}`}
-            >
-              {revenueTrendPct >= 0 ? (
-                <TrendingUp className="w-3.5 h-3.5" />
-              ) : (
-                <TrendingDown className="w-3.5 h-3.5" />
-              )}
-              {revenueTrendPct >= 0 ? '+' : ''}
-              {revenueTrendPct.toFixed(1)}%
-            </span>
-          )}
+          <TrendChip pct={revenueTrendPct} />
         </div>
         <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400">
           <span>
@@ -87,7 +92,7 @@ export function CockpitKpiGrid({
       </article>
 
       {/* Pipeline Ponderado */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>Pipeline Ponderado</span>
           <span className="p-1.5 bg-indigo-950/80 text-indigo-400 border border-indigo-800/80">
@@ -110,7 +115,7 @@ export function CockpitKpiGrid({
       </article>
 
       {/* Leads en Gestión */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>Leads en Gestión</span>
           <span className="p-1.5 bg-cyan-950/80 text-cyan-400 border border-cyan-800/80">
@@ -119,13 +124,29 @@ export function CockpitKpiGrid({
         </div>
         <div className="flex items-baseline justify-between">
           <span className="text-3xl font-bold tracking-tight text-white">{totalLeadsActive}</span>
-          <span className="text-xs font-mono font-bold text-cyan-400">+{leadsNuevoCount} nuevos</span>
+          <span className="flex items-center gap-1.5">
+            <span className="text-xs font-mono font-bold text-cyan-400">
+              {leadsCreatedInPeriod} nuevos en el período
+            </span>
+            <TrendChip pct={leadsNuevosTrendPct} />
+          </span>
         </div>
         <div className="space-y-1">
           <div className="flex justify-between text-[11px] font-mono text-zinc-400">
             <span>Conversión a cliente</span>
-            <span className="font-bold text-white">
-              {globalConversionRate !== null ? `${globalConversionRate.toFixed(1)}%` : '—'}
+            <span className="flex items-center gap-1.5">
+              <span className="font-bold text-white">
+                {globalConversionRate !== null ? `${globalConversionRate.toFixed(1)}%` : '—'}
+              </span>
+              <span className="text-zinc-500">· {conversionsInPeriod} conv.</span>
+              {conversionTrendPct !== null && (
+                <span
+                  className={`text-[10px] font-mono font-bold ${conversionTrendPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
+                >
+                  {conversionTrendPct >= 0 ? '+' : ''}
+                  {conversionTrendPct.toFixed(1)}%
+                </span>
+              )}
             </span>
           </div>
           <div className="h-1.5 w-full bg-zinc-900 overflow-hidden">
@@ -135,7 +156,7 @@ export function CockpitKpiGrid({
       </article>
 
       {/* Tareas Vencidas */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>Tareas Vencidas</span>
           <span className="p-1.5 bg-amber-950/80 text-amber-400 border border-amber-800/80">
@@ -154,7 +175,7 @@ export function CockpitKpiGrid({
       </article>
 
       {/* Por Cobrar */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>Por Cobrar</span>
           <span className="p-1.5 bg-amber-950/80 text-amber-400 border border-amber-800/80">
@@ -179,7 +200,7 @@ export function CockpitKpiGrid({
       </article>
 
       {/* Ventana WhatsApp 24H */}
-      <article className="p-4 oled-card space-y-2.5">
+      <article className="p-3.5 oled-card space-y-2">
         <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
           <span>Ventana WhatsApp 24H</span>
           <span className="p-1.5 bg-rose-950/80 text-rose-400 border border-rose-800/80">

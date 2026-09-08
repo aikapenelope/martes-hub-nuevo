@@ -73,6 +73,15 @@ export interface WorkspaceOverviewMetrics {
   leadsContactadoCount: number
   leadsCalificadoCount: number
 
+  /** Leads captados (createdAt) dentro del período seleccionado */
+  leadsCreatedInPeriod: number
+  /** Δ% de leads captados vs el período previo de igual duración */
+  leadsNuevosTrendPct: number | null
+  /** Leads convertidos (convertedAt) dentro del período seleccionado */
+  conversionsInPeriod: number
+  /** Δ% de conversiones vs el período previo de igual duración */
+  conversionTrendPct: number | null
+
   rateNewToContacted: number | null
   rateContactedToQualified: number | null
   rateQualifiedToWon: number | null

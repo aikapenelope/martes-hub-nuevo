@@ -542,6 +542,10 @@ export interface Lead {
    * Se llena automáticamente al convertir el lead
    */
   convertedClient?: (number | null) | Client;
+  /**
+   * Instante de la conversión — habilita deltas de conversión por ventana real
+   */
+  convertedAt?: string | null;
   touchpoints?: {
     docs?: (number | Activity)[];
     hasNextPage?: boolean;
@@ -2211,6 +2215,7 @@ export interface LeadsSelect<T extends boolean = true> {
   commercialNotes?: T;
   notes?: T;
   convertedClient?: T;
+  convertedAt?: T;
   touchpoints?: T;
   contenidoRelacionado?: T;
   tareas?: T;

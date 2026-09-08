@@ -266,6 +266,10 @@ export async function getWorkspaceOverviewData({
     pendingSeries,
     followups,
     systemHealth,
+    leadsCreatedPeriod,
+    leadsCreatedPrev,
+    conversionsPeriod,
+    conversionsPrev,
   ] = await Promise.all([
     c({
       collection: 'leads',
@@ -376,6 +380,34 @@ export async function getWorkspaceOverviewData({
     monthlyPendingSeries(payload, tenantId, 6),
     collectFollowupsToday({ payload, user, tenantId }),
     getIntegrationsHealth(payload, tenant, tenantId, user),
+    // Deltas por ventana real: leads captados (createdAt) y conversiones
+    // (convertedAt — instante persistido al convertir; las conversiones
+    // históricas sin instante no cuentan, y la creación directa de clientes
+    // sin lead no contamina la métrica)
+    c({
+      collection: 'leads',
+      where: tenantWhere(tenantId, {
+        createdAt: { greater_than_equal: periodStartIso, less_than: periodEndIso },
+      }),
+    }),
+    c({
+      collection: 'leads',
+      where: tenantWhere(tenantId, {
+        createdAt: { greater_than_equal: previousStartIso, less_than: previousEndIso },
+      }),
+    }),
+    c({
+      collection: 'leads',
+      where: tenantWhere(tenantId, {
+        convertedAt: { greater_than_equal: periodStartIso, less_than: periodEndIso },
+      }),
+    }),
+    c({
+      collection: 'leads',
+      where: tenantWhere(tenantId, {
+        convertedAt: { greater_than_equal: previousStartIso, less_than: previousEndIso },
+      }),
+    }),
   ])
 
   const payments = recentPaymentsRes.docs as Payment[]
@@ -409,6 +441,12 @@ export async function getWorkspaceOverviewData({
 
   // Tendencia período contra período previo
   const revenueTrendPct = pctChange(revenuePeriod.total, revenuePreviousPeriod.total)
+
+  // Deltas por ventana real: captación (leads creados) y conversión (leads con
+  // convertedAt en cada ventana — evento medible ligado al lead, no a la
+  // creación de clientes, que puede ser directa o de leads antiguos)
+  const leadsNuevosTrendPct = pctChange(leadsCreatedPeriod.totalDocs, leadsCreatedPrev.totalDocs)
+  const conversionTrendPct = pctChange(conversionsPeriod.totalDocs, conversionsPrev.totalDocs)
 
   // Cotizaciones activas y Ticket promedio
   const quotesActiveCount = activeQuotesCountRes.totalDocs
@@ -566,6 +604,11 @@ export async function getWorkspaceOverviewData({
     leadsNuevoCount: leadsNuevo.totalDocs,
     leadsContactadoCount: leadsContactado.totalDocs,
     leadsCalificadoCount: leadsCalificado.totalDocs,
+
+    leadsCreatedInPeriod: leadsCreatedPeriod.totalDocs,
+    conversionsInPeriod: conversionsPeriod.totalDocs,
+    leadsNuevosTrendPct,
+    conversionTrendPct,
 
     rateNewToContacted,
     rateContactedToQualified,

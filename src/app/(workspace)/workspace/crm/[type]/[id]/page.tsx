@@ -267,7 +267,7 @@ export default async function CrmRecordPage({
         </div>
       )}
 
-      <header className="flex flex-col justify-between gap-4 oled-card p-5 sm:flex-row sm:items-center bracket-accent">
+      <header className="flex flex-col justify-between gap-3.5 oled-card p-5 sm:flex-row sm:items-center bracket-accent">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center border border-zinc-700 bg-zinc-900 text-white">
             {isCompany ? (

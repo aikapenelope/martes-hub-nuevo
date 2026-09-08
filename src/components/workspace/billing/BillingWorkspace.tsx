@@ -1609,7 +1609,7 @@ export function BillingWorkspace({
                   </div>
 
                   {/* Datos del Cliente y Enlace CRM */}
-                  <div className="p-4 oled-card space-y-2 border border-zinc-800">
+                  <div className="p-3.5 oled-card space-y-2 border border-zinc-800">
                     <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
                       Cliente Vinculado
                     </span>
@@ -1638,7 +1638,7 @@ export function BillingWorkspace({
 
                   {/* Desglose de ítems */}
                   {q.items && q.items.length > 0 && (
-                    <div className="p-4 oled-card space-y-2 border border-zinc-800">
+                    <div className="p-3.5 oled-card space-y-2 border border-zinc-800">
                       <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
                         Líneas de Detalle ({q.items.length})
                       </span>
@@ -1758,7 +1758,7 @@ export function BillingWorkspace({
                   </div>
 
                   {/* Datos del Cliente y Enlace CRM */}
-                  <div className="p-4 oled-card space-y-2 border border-zinc-800">
+                  <div className="p-3.5 oled-card space-y-2 border border-zinc-800">
                     <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
                       Cliente Vinculado
                     </span>
@@ -1787,7 +1787,7 @@ export function BillingWorkspace({
 
                   {/* Desglose de ítems */}
                   {inv.items && inv.items.length > 0 && (
-                    <div className="p-4 oled-card space-y-2 border border-zinc-800">
+                    <div className="p-3.5 oled-card space-y-2 border border-zinc-800">
                       <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
                         Líneas de Detalle ({inv.items.length})
                       </span>

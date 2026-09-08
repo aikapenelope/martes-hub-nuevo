@@ -16,7 +16,7 @@ export function CockpitPipelinePriorities({
   onOpenLead?: (leadId: number) => void
 }) {
   return (
-    <div className="p-4 oled-card space-y-3.5">
+    <div className="p-3.5 oled-card space-y-3.5">
       <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800">
         <div>
           <h2 className="text-xs font-black text-white font-mono uppercase tracking-wider flex items-center gap-2">

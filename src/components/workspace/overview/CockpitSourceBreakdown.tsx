@@ -35,7 +35,7 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
   }))
 
   return (
-    <div className="p-4 oled-card space-y-3.5">
+    <div className="p-3.5 oled-card space-y-3.5">
       <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800">
         <div>
           <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-white flex items-center gap-2">

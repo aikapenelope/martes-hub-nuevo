@@ -33,21 +33,30 @@ function fmtMoney(n: number): string {
   return `$${Math.round(n)}`
 }
 
+/** Chip ▲/▼ de variación % (mes completo anterior vs su previo); oculto si no hay base de comparación. */
+function DeltaChip({ delta }: { delta: number | null }) {
+  if (delta === null) return null
+  return (
+    <span
+      title="Δ% del último mes completo vs el anterior"
+      className={`flex items-center gap-1 text-[10px] font-mono ${delta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+    >
+      {delta >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+      {delta >= 0 ? '+' : ''}
+      {Math.round(delta)}%
+    </span>
+  )
+}
+
 export function TrendStrip({ trends }: { trends: MonthlySeries }) {
   const monthLabels = trends.months.map((m) => MES_LABEL[m.slice(5)] ?? m.slice(5))
-  const delta = trends.cobradoDeltaPct
 
   return (
     <section className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="Tendencias de 6 meses">
       <OledCard>
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Cobrado · 6 meses</p>
-          {delta !== null && (
-            <span className={`flex items-center gap-1 text-[10px] font-mono ${delta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {delta >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-              {delta >= 0 ? '+' : ''}{Math.round(delta)}%
-            </span>
-          )}
+          <DeltaChip delta={trends.cobradoDeltaPct} />
         </div>
         <p className="mt-1 text-xl font-bold font-mono text-white">{fmtMoney(trends.cobrado[5] ?? 0)} <span className="text-[10px] font-normal text-zinc-600">este mes</span></p>
         <div className="mt-2">
@@ -59,7 +68,10 @@ export function TrendStrip({ trends }: { trends: MonthlySeries }) {
       </OledCard>
 
       <OledCard>
-        <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Leads nuevos · 6 meses</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Leads nuevos · 6 meses</p>
+          <DeltaChip delta={trends.leadsNuevosDeltaPct} />
+        </div>
         <p className="mt-1 text-xl font-bold font-mono text-white">{trends.leadsNuevos[5] ?? 0} <span className="text-[10px] font-normal text-zinc-600">este mes</span></p>
         <div className="mt-2">
           <SparkBars values={trends.leadsNuevos} accent="bg-sky-500/70" />
@@ -70,7 +82,10 @@ export function TrendStrip({ trends }: { trends: MonthlySeries }) {
       </OledCard>
 
       <OledCard>
-        <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Actividades · 6 meses</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Actividades · 6 meses</p>
+          <DeltaChip delta={trends.actividadesDeltaPct} />
+        </div>
         <p className="mt-1 text-xl font-bold font-mono text-white">{trends.actividades[5] ?? 0} <span className="text-[10px] font-normal text-zinc-600">este mes</span></p>
         <div className="mt-2">
           <SparkBars values={trends.actividades} accent="bg-amber-500/70" />

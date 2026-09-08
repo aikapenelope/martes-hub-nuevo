@@ -27,7 +27,7 @@ export function OledCard({
   return (
     <div
       onClick={onClick}
-      className={`oled-card p-4 ${bracketAccent ? 'bracket-accent' : ''} ${className}`}
+      className={`oled-card p-3.5 ${bracketAccent ? 'bracket-accent' : ''} ${className}`}
     >
       {children}
     </div>
@@ -155,7 +155,7 @@ export function KpiCard({
   }
 
   return (
-    <OledCard className="space-y-2.5">
+    <OledCard className="space-y-2">
       <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
         <span>{label}</span>
         <span className={`p-1.5 border ${accentCls[accent]}`}>

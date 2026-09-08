@@ -73,6 +73,11 @@ describe('Torre de Control Comercial — getWorkspaceOverviewData', () => {
     expect(result.metrics.totalLeadsActive).toBe(45)
     expect(result.metrics.totalConvertedClients).toBe(5)
     expect(result.metrics.overdueTasksCount).toBe(2)
+    // Ventanas iguales en el mock → delta captación 0 y conversiones 0
+    expect(result.metrics.leadsCreatedInPeriod).toBe(15)
+    expect(result.metrics.leadsNuevosTrendPct).toBe(0)
+    expect(result.metrics.conversionsInPeriod).toBe(15)
+    expect(result.metrics.conversionTrendPct).toBe(0)
 
     // Verificar que todas las llamadas a find incluyeron overrideAccess: false y user
     for (const call of mockFind.mock.calls) {
@@ -111,9 +116,67 @@ describe('Torre de Control Comercial — getWorkspaceOverviewData', () => {
     expect(result.metrics.rateQualifiedToWon).toBeNull()
     expect(result.metrics.revenueTrendPct).toBeNull()
     expect(result.metrics.revenueMonthTotal).toBe(0)
+    // Sin registros en ninguna ventana → deltas sin base de comparación
+    expect(result.metrics.leadsNuevosTrendPct).toBeNull()
+    expect(result.metrics.conversionTrendPct).toBeNull()
     expect(result.hotLeads).toEqual([])
     expect(result.sourceBreakdown).toEqual([])
     expect(result.operationalAlerts).toEqual([])
+  })
+
+  it('calcula deltas de captación y conversiones por ventana previa real', async () => {
+    const windowCalls: string[] = []
+    const mockFind = vi.fn().mockResolvedValue({ docs: [], totalDocs: 0 })
+    const mockCount = vi.fn().mockImplementation(({ collection, where }: { collection: string; where: unknown }) => {
+      const whereJson = JSON.stringify(where)
+      if (whereJson.includes('greater_than_equal')) {
+        // convertedAt = ventana de conversiones; createdAt = ventana de captación
+        windowCalls.push(whereJson.includes('convertedAt') ? `conv:${collection}` : `cap:${collection}`)
+      }
+      if (collection === 'leads') {
+        if (!whereJson.includes('greater_than_equal')) return Promise.resolve({ totalDocs: 0 })
+        if (whereJson.includes('convertedAt')) {
+          // Orden del Promise.all: primera ventana = período actual, segunda = previa
+          return windowCalls.filter((c) => c.startsWith('conv:')).length === 1
+            ? Promise.resolve({ totalDocs: 3 })
+            : Promise.resolve({ totalDocs: 1 })
+        }
+        return windowCalls.filter((c) => c.startsWith('cap:')).length === 1
+          ? Promise.resolve({ totalDocs: 12 })
+          : Promise.resolve({ totalDocs: 8 })
+      }
+      return Promise.resolve({ totalDocs: 0 })
+    })
+    const mockPayload = {
+      find: mockFind,
+      count: mockCount,
+      db: { pool: undefined },
+    } as unknown as Payload
+
+    const result = await getWorkspaceOverviewData({
+      payload: mockPayload,
+      user: mockUser,
+      tenantId: 10,
+    })
+
+    expect(result.metrics.leadsCreatedInPeriod).toBe(12)
+    // 12 vs 8 → +50%
+    expect(result.metrics.leadsNuevosTrendPct).toBeCloseTo(50, 1)
+    // Conversiones por convertedAt: 3 vs 1 → +200%
+    expect(result.metrics.conversionsInPeriod).toBe(3)
+    expect(result.metrics.conversionTrendPct).toBe(200)
+
+    // Las 4 consultas de ventana (2 captación + 2 conversión) también respetan RLS
+    const windowCountCalls = mockCount.mock.calls.filter((call) =>
+      JSON.stringify((call[0] as { where: unknown }).where).includes('greater_than_equal'),
+    )
+    expect(windowCountCalls.length).toBe(4)
+    for (const [params] of windowCountCalls) {
+      const queryParams = params as { overrideAccess: boolean; user: unknown; where: unknown }
+      expect(queryParams.overrideAccess).toBe(false)
+      expect(queryParams.user).toEqual(mockUser)
+      expect(queryParams.where).toBeDefined()
+    }
   })
 
   describe('Vistas de Enfoque (Operativa vs Ejecutiva)', () => {

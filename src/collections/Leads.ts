@@ -327,6 +327,16 @@ export const Leads: CollectionConfig = {
         description: 'Se llena automáticamente al convertir el lead',
       },
     },
+    {
+      name: 'convertedAt',
+      type: 'date',
+      label: 'Fecha de conversión',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+        description: 'Instante de la conversión — habilita deltas de conversión por ventana real',
+      },
+    },
     // Relaciones inversas (skill Payload: join field — sin duplicar datos):
     // touchpoints = actividades del lead; notas y tareas ya viven en sus
     // colecciones con relación `lead`, aquí se leen en la dirección contraria.
