@@ -187,7 +187,8 @@ export function MonoDonutChart({
 /**
  * Embudo Escalonado Monocromático (MonoFunnel):
  * Visualización del embudo de conversión con decaimiento visual proporcional,
- * líneas de avance y ratios de transición calculados.
+ * líneas de avance y ratios de transición dentro de píldora blanca sobre la
+ * barra (patrón dashboard-9: 100% → 53% → 23% → 8%).
  */
 export interface FunnelStage {
   label: string
@@ -210,6 +211,10 @@ export function MonoFunnel({
         const widthPct = Math.max(12, Math.min(100, (stage.count / max) * 100))
         const isFirst = idx === 0
         const isLast = idx === stages.length - 1
+        const hasRate = !isFirst && stage.conversionRate !== undefined && stage.conversionRate !== null
+        // La píldora viaja con la barra, anclada al extremo de su ancho proporcional,
+        // con clamp para que la píldora vacía (—) de una barra de 100% no salga del chart
+        const pillLeftPct = Math.min(widthPct + 2, 88)
 
         return (
           <div key={stage.label} className="p-2.5 oled-subcard space-y-1.5 border-zinc-900/80 hover:border-zinc-800 transition">
@@ -230,37 +235,43 @@ export function MonoFunnel({
               </div>
             </div>
 
-            {/* Barra escalonada estilo Monocharts */}
-            <div className="h-1.5 w-full bg-zinc-950 overflow-hidden flex">
-              <div
-                className={`h-full transition-all duration-700 ${
-                  stage.colorAccent
-                    ? ''
-                    : isFirst
-                    ? 'bg-zinc-600'
-                    : isLast
-                    ? 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'
-                    : 'bg-zinc-400'
-                }`}
-                style={{
-                  width: `${widthPct}%`,
-                  backgroundColor: stage.colorAccent,
-                }}
-              />
-            </div>
-
-            {/* Tasa de transición si no es la primera fase */}
-            {!isFirst && stage.conversionRate !== undefined && (
-              <div className="flex justify-end text-[10px] text-zinc-500">
-                {stage.conversionRate !== null ? (
-                  <span className="text-zinc-400 font-medium">
-                    <strong className="text-white font-bold">{stage.conversionRate.toFixed(0)}%</strong> de avance desde etapa previa
-                  </span>
-                ) : (
-                  <span className="text-zinc-600">sin suficientes datos</span>
-                )}
+            {/* Barra escalonada con píldora de tasa anclada a su extremo (dashboard-9) */}
+            <div className="relative">
+              <div className="h-1.5 w-full bg-zinc-950 overflow-hidden flex">
+                <div
+                  className={`h-full transition-all duration-700 ${
+                    stage.colorAccent
+                      ? ''
+                      : isFirst
+                      ? 'bg-zinc-600'
+                      : isLast
+                      ? 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'
+                      : 'bg-zinc-400'
+                  }`}
+                  style={{
+                    width: `${widthPct}%`,
+                    backgroundColor: stage.colorAccent,
+                  }}
+                />
               </div>
-            )}
+
+              {hasRate ? (
+                <span
+                  className="absolute -top-1 px-1.5 text-[9px] font-bold text-black bg-white leading-4 whitespace-nowrap"
+                  style={{ left: `${pillLeftPct}%` }}
+                  title={`${stage.conversionRate?.toFixed(0)}% de avance desde la etapa previa`}
+                >
+                  {stage.conversionRate?.toFixed(0)}%
+                </span>
+              ) : !isFirst && stage.conversionRate === null ? (
+                <span
+                  className="absolute -top-1 px-1.5 text-[9px] font-bold text-zinc-500 border border-zinc-800 bg-black leading-4 whitespace-nowrap"
+                  style={{ left: `${pillLeftPct}%` }}
+                >
+                  —
+                </span>
+              ) : null}
+            </div>
           </div>
         )
       })}

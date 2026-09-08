@@ -60,7 +60,7 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
             <Link
               key={item.source}
               href={`/workspace/crm?vista=leads&modo=tabla&fuente=${item.source}`}
-              className="block p-2.5 oled-subcard space-y-1.5 hover:border-zinc-700 transition"
+              className="block p-2.5 oled-subcard space-y-1.5 hover:border-zinc-700 transition group"
               title={`Ver leads captados por ${item.label}`}
             >
               <div className="flex items-center justify-between">
@@ -68,16 +68,23 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
                   <Icon className="w-3.5 h-3.5 text-sky-400" />
                   {item.label}
                 </span>
-                <span className="text-[11px] text-zinc-400">
-                  <strong className="text-white font-bold">{item.count}</strong> ({item.percentage}%)
+                <span className="text-[11px] text-zinc-400 flex items-center gap-1.5">
+                  <strong className="text-white font-bold">{item.count}</strong>
+                  <span className="text-zinc-600">{item.percentage}%</span>
+                  <span className="font-mono text-[11px] text-zinc-600 group-hover:text-zinc-300 transition" aria-hidden="true">&gt;</span>
                 </span>
               </div>
-              <div className="h-1.5 w-full bg-zinc-900 overflow-hidden">
-                <div
-                  className="h-full bg-white transition-all duration-500"
-                  style={{ width: `${Math.max(4, item.percentage)}%` }}
-                />
-              </div>
+              {/* Barra punteada (dashed) estilo dashboard-9 "Traffic sources" */}
+              <div
+                className="h-1.5 transition-all duration-500 group-hover:opacity-80"
+                role="img"
+                aria-label={`${item.count} de ${totalLeads} leads (${item.percentage}%)`}
+                style={{
+                  width: `${Math.max(6, item.percentage)}%`,
+                  backgroundImage:
+                    'repeating-linear-gradient(to right, #ffffff 0, #ffffff 6px, transparent 6px, transparent 10px)',
+                }}
+              />
             </Link>
           )
         })}

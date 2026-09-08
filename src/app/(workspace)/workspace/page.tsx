@@ -130,12 +130,21 @@ export default async function WorkspacePage({
       {/* Cobranza de 8 semanas (chart segmentado: blanco = cobrado, gris = pendiente) */}
       {cashflow && <WeeklyCashflowCard data={cashflow} />}
 
-      {/* Accesos rápidos */}
+      {/* Accesos rápidos (patrón dashboard-9: chevron a la derecha de cada fila) */}
       <section className="grid grid-cols-2 gap-2.5 lg:grid-cols-4" aria-label="Acciones rápidas">
         {QUICK_ACTIONS.map((action) => (
-          <Link key={action.href} href={action.href} className="oled-card p-3.5 transition hover:border-zinc-600">
-            <p className="text-xs font-bold text-white">{action.title}</p>
-            <p className="mt-1 text-[11px] text-zinc-500">{action.desc}</p>
+          <Link
+            key={action.href}
+            href={action.href}
+            className="oled-card p-3.5 transition hover:border-zinc-600 flex items-center justify-between gap-2 group"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white">{action.title}</p>
+              <p className="mt-1 text-[11px] text-zinc-500 truncate">{action.desc}</p>
+            </div>
+            <span className="font-mono text-sm text-zinc-600 group-hover:text-zinc-300 transition shrink-0" aria-hidden="true">
+              &gt;
+            </span>
           </Link>
         ))}
       </section>
