@@ -3,12 +3,10 @@ import 'server-only'
 import type { Payload, Where } from 'payload'
 import { collectFollowupsToday, type FollowUpItem } from './followups-today'
 import type {
-  Activity,
   Conversation,
   ConversationSummary,
   EmailLog,
   Lead,
-  Message,
   Payment,
   User,
 } from '@/payload-types'
@@ -179,13 +177,23 @@ export function resolveTimeRangeWindow(
 }
 
 /** 364 días (52 semanas × 7) de más antiguo a más reciente, en blanco para agregar conteos reales.
- * Las fechas calendario son locales al tenant (mismo criterio que resolveTimeRangeWindow). */
-function buildEmptyDayBuckets(timeZone: string): DayBucket[] {
-  const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
-  return Array.from({ length: 364 }, (_, i) => ({
-    dateStr: dayFmt.format(new Date(Date.now() - (363 - i) * 24 * 3600_000)),
-    count: 0,
-  }))
+ * Aritmética de CALENDARIO local: (y, m, d) local de `now` y retroceso del campo día vía
+ * Date.UTC — los componentes UTC del resultado SON la fecha calendario local (formatear el
+ * instante con la zona del tenant correría cada clave un día en zonas UTC-negativas, y en
+ * DST los días duran 23/25h). Las claves coinciden con el formateo Intl de los eventos. */
+export function buildEmptyDayBuckets(timeZone: string, now: Date): DayBucket[] {
+  const todayParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now)
+  const [y, m, d] = todayParts.split('-').map(Number)
+  return Array.from({ length: 364 }, (_, i) => {
+    const dt = new Date(Date.UTC(y, m - 1, d - i))
+    const dateStr = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+    return { dateStr, count: 0 }
+  })
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -261,9 +269,6 @@ export async function getWorkspaceOverviewData({
     activeQuotesCountRes,
     activeQuotesAggRes,
     allLeadsRes,
-    yearActivities,
-    yearMessages,
-    yearPaidPayments,
     hotLeadsRes,
     paidSeries,
     pendingSeries,
@@ -350,30 +355,6 @@ export async function getWorkspaceOverviewData({
       limit: 500,
       depth: 0,
       where: tenantWhere(tenantId),
-    }),
-    q({
-      collection: 'activities',
-      limit: 3000,
-      depth: 0,
-      select: { createdAt: true },
-      where: tenantWhere(tenantId, { createdAt: { greater_than_equal: yearAgo } }),
-    }),
-    q({
-      collection: 'messages',
-      limit: 3000,
-      depth: 0,
-      select: { createdAt: true },
-      where: tenantWhere(tenantId, { createdAt: { greater_than_equal: yearAgo } }),
-    }),
-    q({
-      collection: 'payments',
-      limit: 3000,
-      depth: 0,
-      select: { createdAt: true },
-      where: tenantWhere(tenantId, {
-        status: { equals: 'pagado' },
-        paidAt: { greater_than_equal: yearAgo },
-      }),
     }),
     q({
       collection: 'leads',
@@ -562,44 +543,108 @@ export async function getWorkspaceOverviewData({
 
   // Matriz de actividad de 364 días — fechas calendario en la zona del tenant
   // (mismo criterio que resolveTimeRangeWindow; antes se agrupaba por fecha UTC).
-  const dayBuckets = buildEmptyDayBuckets(timeZone)
+  const dayBuckets = buildEmptyDayBuckets(timeZone, now)
   const bucketIndex = new Map(dayBuckets.map((b, i) => [b.dateStr, i]))
-  // Variante horaria (ítem 6 del sector UI): día de semana (0=lun…6=dom) × hora
-  // local del tenant, derivada de los mismos eventos reales del año — misma
-  // fuente que la matriz diaria, sin queries adicionales.
-  const dayHourFmt = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour12: false,
-    weekday: 'short',
-    hour: '2-digit',
-  })
-  const dayOnlyFmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
-  // weekday 'short' en en-US: Mon..Sun → índice 0..6
-  const DOW_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-  const hourCounts = new Map<string, number>()
-  const addToHourBuckets = (isoDate?: string | null) => {
-    if (!isoDate) return
-    const parts = dayHourFmt.format(new Date(isoDate))
-    const dow = DOW_ORDER.indexOf(parts.slice(0, 3))
-    const hour = Number.parseInt(parts.slice(-2), 10)
-    if (dow < 0 || Number.isNaN(hour)) return
-    const key = `${dow}-${hour === 24 ? 0 : hour}`
-    hourCounts.set(key, (hourCounts.get(key) ?? 0) + 1)
+
+  /**
+   * Conteos de interacción (activities + messages + payments pagados) por día
+   * local y por (día de semana, hora) local, para los heatmaps del resumen.
+   *
+   * Ruta primaria: UNA agregación SQL tenant-scoped (patrón db-aggregates) con
+   * UNION ALL de las tres fuentes — el GROUP BY lo hace Postgres con la zona
+   * del tenant como parámetro, sin límite de filas y con payments por paid_at
+   * (el instante que califica el registro, coherente con el filtro).
+   *
+   * Fallback (drivers sin pool SQL directo): paginación RLS hasta agotar
+   * resultados de las tres fuentes — sin cap de 3.000, y derivando dow/hora
+   * local con Intl del mismo instante que el día.
+   */
+  const fetchInteractionCounts = async (): Promise<{
+    dayCounts: Map<string, number>
+    hourCounts: Map<string, number>
+  }> => {
+    const dayCounts = new Map<string, number>()
+    const hourCounts = new Map<string, number>()
+    const db = payload.db as {
+      pool?: { query: (sql: string, params: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }> }
+    }
+
+    const add = (day: string, dow: number, hour: number) => {
+      dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1)
+      const key = `${dow}-${hour}`
+      hourCounts.set(key, (hourCounts.get(key) ?? 0) + 1)
+    }
+
+    if (db.pool && typeof db.pool.query === 'function') {
+      // ISO weekday de Postgres (1=lun…7=dom) → índice 0-6; hora local 0-23
+      const res = await db.pool.query(
+        `SELECT to_char(ts AT TIME ZONE $2, 'YYYY-MM-DD') AS day,
+                ((EXTRACT(ISODOW FROM ts AT TIME ZONE $2) - 1))::int AS dow,
+                EXTRACT(HOUR FROM ts AT TIME ZONE $2)::int AS hour
+         FROM (
+           SELECT created_at AS ts FROM activities WHERE tenant_id = $1 AND created_at >= $3
+           UNION ALL
+           SELECT created_at AS ts FROM messages WHERE tenant_id = $1 AND created_at >= $3
+           UNION ALL
+           SELECT paid_at AS ts FROM payments WHERE tenant_id = $1 AND status::text = 'pagado' AND paid_at >= $3
+         ) events`,
+        [tenantId, timeZone, yearAgo],
+      )
+      for (const row of res.rows) {
+        add(String(row.day), Number(row.dow), Number(row.hour))
+      }
+      return { dayCounts, hourCounts }
+    }
+
+    // Fallback paginado con RLS — sin límite artificial, hasta agotar páginas
+    const dayHourFmt = new Intl.DateTimeFormat('en-US', { timeZone, hour12: false, weekday: 'short', hour: '2-digit' })
+    const dayOnlyFmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
+    const DOW_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    const PAGE = 500
+    const sources: Array<{ collection: 'activities' | 'messages' | 'payments'; tsField: 'createdAt' | 'paidAt' }> = [
+      { collection: 'activities', tsField: 'createdAt' },
+      { collection: 'messages', tsField: 'createdAt' },
+      { collection: 'payments', tsField: 'paidAt' },
+    ]
+    for (const { collection, tsField } of sources) {
+      let page = 1
+      while (true) {
+        const res = await q({
+          collection,
+          limit: PAGE,
+          page,
+          depth: 0,
+          select: { createdAt: tsField === 'createdAt', paidAt: tsField === 'paidAt' } as never,
+          where: tenantWhere(
+            tenantId,
+            tsField === 'paidAt'
+              ? { status: { equals: 'pagado' }, paidAt: { greater_than_equal: yearAgo } }
+              : { createdAt: { greater_than_equal: yearAgo } },
+          ),
+        })
+        for (const doc of res.docs as unknown as Array<Record<string, string | null>>) {
+          const iso = doc[tsField === 'paidAt' ? 'paidAt' : 'createdAt'] ?? null
+          if (!iso) continue
+          const d = new Date(iso)
+          const dayParts = dayHourFmt.format(d)
+          const dow = DOW_ORDER.indexOf(dayParts.slice(0, 3))
+          const hourRaw = Number.parseInt(dayParts.slice(-2), 10)
+          if (dow < 0 || Number.isNaN(hourRaw)) continue
+          const hour = hourRaw === 24 ? 0 : hourRaw
+          add(dayOnlyFmt.format(d), dow, hour)
+        }
+        if (!res.hasNextPage || res.docs.length === 0) break
+        page++
+      }
+    }
+    return { dayCounts, hourCounts }
   }
-  const addToBucket = (isoDate?: string | null) => {
-    if (!isoDate) return
-    const idx = bucketIndex.get(dayOnlyFmt.format(new Date(isoDate)))
-    if (idx !== undefined) dayBuckets[idx].count++
-    addToHourBuckets(isoDate)
+
+  const { dayCounts: rawDay, hourCounts } = await fetchInteractionCounts()
+  for (const [day, count] of rawDay) {
+    const idx = bucketIndex.get(day)
+    if (idx !== undefined) dayBuckets[idx].count += count
   }
-  for (const a of yearActivities.docs as Activity[]) addToBucket(a.createdAt)
-  for (const m of yearMessages.docs as Message[]) addToBucket(m.createdAt)
-  for (const p of yearPaidPayments.docs as Payment[]) addToBucket(p.createdAt)
   const totalYearInteractions = dayBuckets.reduce((acc, b) => acc + b.count, 0)
 
   // Matriz horaria 7×24 (168 celdas), de lunes a domingo

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { HourlyHeatmap } from '@/components/workspace/HourlyHeatmap'
-import { getWorkspaceOverviewData } from '@/lib/overview-data'
+import { getWorkspaceOverviewData, buildEmptyDayBuckets } from '@/lib/overview-data'
 import type { HourBucket } from '@/components/workspace/overview/types'
 import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
@@ -62,8 +62,14 @@ describe('HourlyHeatmap — matriz 7×24 (ítem 6 del sector UI)', () => {
 
 describe('overview-data — derivación de hourBuckets en la zona horaria del tenant', () => {
   it('un evento en el borde UTC cae en el día y hora locales de Caracas', async () => {
-    // Martes 01:30 UTC = Lunes 21:30 en America/Caracas (UTC-4)
-    const tuesdayUtcEarly = '2026-09-08T01:30:00.000Z'
+    // Martes 01:30 UTC = Lunes 21:30 en America/Caracas (UTC-4).
+    // La agregación la hace Postgres (AT TIME ZONE $tz): el mock del pool
+    // devuelve la fila YA agrupada como la produciría el SQL real.
+    const poolQuery = (() => ({
+      rows: [
+        { day: '2026-09-07', dow: 0, hour: 21, n: 1 }, // lunes 21:30 local
+      ],
+    })) as unknown as () => Promise<{ rows: Array<Record<string, unknown>> }>
 
     const mockFind = (() => {
       let settingsCalled = false
@@ -72,18 +78,13 @@ describe('overview-data — derivación de hourBuckets en la zona horaria del te
           settingsCalled = true
           return Promise.resolve({ docs: [{ timezone: 'America/Caracas' }] })
         }
-        // Un solo evento real: la actividad del borde UTC (dentro del año)
-        if (opts.collection === 'activities') {
-          return Promise.resolve({ docs: [{ createdAt: tuesdayUtcEarly }], totalDocs: 1 })
-        }
         return Promise.resolve({ docs: [], totalDocs: 0 })
       }
     })()
-    const mockCount = () => Promise.resolve({ totalDocs: 0 })
     const mockPayload = {
       find: mockFind,
-      count: mockCount,
-      db: { pool: { query: viFnPoolQuery() } },
+      count: () => Promise.resolve({ totalDocs: 0 }),
+      db: { pool: { query: poolQuery } },
     } as unknown as Payload
 
     const result = await getWorkspaceOverviewData({
@@ -98,6 +99,109 @@ describe('overview-data — derivación de hourBuckets en la zona horaria del te
     // Y NO cayó en martes 1h (que sería la lectura UTC)
     const tuesday1 = result.hourBuckets.find((b) => b.dow === 1 && b.hour === 1)
     expect(tuesday1?.count).toBe(0)
+  })
+
+  it('agrupa los pagos por paidAt (no createdAt) y pagina el fallback sin cap', async () => {
+    // Pago creado hace 2 años pero PAGADO hace 2 horas — califica por paidAt
+    // (dentro del año y dentro del día local de hoy) y cae por hora local
+    const paidTwoHoursAgo = new Date(Date.now() - 2 * 3600_000).toISOString()
+    const createdLongAgo = '2024-01-10T10:00:00.000Z'
+    // 500 actividades en página 1 + hasNextPage, 100 en página 2 (600 en total)
+    const page1 = Array.from({ length: 500 }, (_, i) => ({
+      createdAt: new Date(Date.now() - i * 3600_000).toISOString(),
+    }))
+    const page2 = Array.from({ length: 100 }, (_, i) => ({
+      createdAt: new Date(Date.now() - (500 + i) * 3600_000).toISOString(),
+    }))
+
+    const mockFind = (() => {
+      let settingsCalled = false
+      return (opts: { collection: string; page?: number }) => {
+        if (opts.collection === 'company-settings' && !settingsCalled) {
+          settingsCalled = true
+          return Promise.resolve({ docs: [{ timezone: 'America/Caracas' }] })
+        }
+        if (opts.collection === 'activities') {
+          return opts.page === 1
+            ? Promise.resolve({ docs: page1, totalDocs: 600, hasNextPage: true })
+            : Promise.resolve({ docs: page2, totalDocs: 600, hasNextPage: false })
+        }
+        if (opts.collection === 'messages') {
+          return Promise.resolve({ docs: [], totalDocs: 0, hasNextPage: false })
+        }
+        if (opts.collection === 'payments') {
+          // El registro trae paidAt (el instante que califica) y createdAt viejo
+          return Promise.resolve({
+            docs: [{ paidAt: paidTwoHoursAgo, createdAt: createdLongAgo }],
+            totalDocs: 1,
+            hasNextPage: false,
+          })
+        }
+        return Promise.resolve({ docs: [], totalDocs: 0, hasNextPage: false })
+      }
+    })()
+    const mockCount = () => Promise.resolve({ totalDocs: 0 })
+    const mockPayload = {
+      find: mockFind,
+      count: mockCount,
+      db: { pool: undefined }, // fuerza el fallback paginado
+    } as unknown as Payload
+
+    const result = await getWorkspaceOverviewData({
+      payload: mockPayload,
+      user: mockUser,
+      tenantId: 10,
+    })
+
+    // Las 600 actividades (2 páginas) + 1 pago — sin cap de página única
+    expect(result.totalYearInteractions).toBe(601)
+    // El pago cae en SU día de pago (hoy local), no en su día de creación (hace 2 años)
+    const todayLocal = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Caracas',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(paidTwoHoursAgo))
+    expect(result.dayBuckets.find((b) => b.dateStr === todayLocal)?.count).toBeGreaterThanOrEqual(1)
+    // Y su hora local (paidAt − 4h de Caracas)
+    const paidHourLocal = Number(
+      new Intl.DateTimeFormat('en-US', { timeZone: 'America/Caracas', hour12: false, hour: '2-digit' })
+        .formatToParts(new Date(paidTwoHoursAgo))
+        .find((p) => p.type === 'hour')?.value ?? '0',
+    ) % 24
+    const paidDowLocal = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(
+      new Intl.DateTimeFormat('en-US', { timeZone: 'America/Caracas', weekday: 'short' }).format(
+        new Date(paidTwoHoursAgo),
+      ),
+    )
+    const bucket = result.hourBuckets.find((b) => b.dow === paidDowLocal && b.hour === paidHourLocal)
+    expect(bucket?.count).toBeGreaterThanOrEqual(1)
+  })
+
+  it('buildEmptyDayBuckets no duplica ni salta fechas en zonas con DST cerca de medianoche', () => {
+    // America/New_York: spring-forward 2026-03-08 02:00 EST→EDT y fall-back
+    // 2026-11-01 02:00 EDT→EST. `now` en los instantes delicados: medianoche
+    // local del día de transición (00:30 local).
+    const delicateInstants = [
+      new Date('2026-03-08T04:30:00.000Z'), // 2026-03-07 23:30 EST → hoy local = 03-07 (víspera)
+      new Date('2026-03-09T04:30:00.000Z'), // 2026-03-09 00:30 EDT → hoy local = 03-09 (día después)
+      new Date('2026-11-01T04:30:00.000Z'), // 2026-11-01 00:30 EDT → hoy local = 11-01 (transición)
+      new Date('2026-11-02T05:30:00.000Z'), // 2026-11-02 00:30 EST → hoy local = 11-02 (día después)
+    ]
+    for (const now of delicateInstants) {
+      const buckets = buildEmptyDayBuckets('America/New_York', now)
+      const dates = buckets.map((b) => b.dateStr)
+      // 364 fechas únicas, consecutivas (hoy → atrás), con la fecha de hoy presente
+      expect(new Set(dates).size).toBe(364)
+      expect(dates[0]).toBe(
+        new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now),
+      )
+      for (let i = 1; i < dates.length; i++) {
+        const newer = new Date(`${dates[i - 1]}T00:00:00Z`).getTime()
+        const older = new Date(`${dates[i]}T00:00:00Z`).getTime()
+        expect(newer - older).toBe(24 * 3600_000)
+      }
+    }
   })
 })
 
