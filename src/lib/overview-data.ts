@@ -570,17 +570,24 @@ export async function getWorkspaceOverviewData({
      * repo (paymentsAggregate en este archivo) — nunca de input del cliente.
      */
     const fetchInteractionCounts = async (): Promise<{
-      dayCounts: Map<string, number>
       hourCounts: Map<string, number>
     }> => {
-      const dayCounts = new Map<string, number>()
       const hourCounts = new Map<string, number>()
       const db = payload.db as {
         pool?: { query: (sql: string, params: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }> }
       }
 
+      /**
+       * Suma un grupo a dayBuckets + hourCounts SOLO si su día local pertenece
+       * al grid de 364 días. En zonas con DST que saltan medianoche, la
+       * frontera (medianoche local → instante UTC) puede resolver a la hora
+       * 23:00 del día anterior: esas filas quedan fuera de bucketIndex y se
+       * descartan aquí — sin inflar ni el día ni la hora.
+       */
       const add = (day: string, dow: number, hour: number, n: number) => {
-        dayCounts.set(day, (dayCounts.get(day) ?? 0) + n)
+        const idx = bucketIndex.get(day)
+        if (idx === undefined) return
+        dayBuckets[idx].count += n
         const key = `${dow}-${hour}`
         hourCounts.set(key, (hourCounts.get(key) ?? 0) + n)
       }
@@ -608,7 +615,7 @@ export async function getWorkspaceOverviewData({
         for (const row of res.rows) {
           add(String(row.day), Number(row.dow), Number(row.hour), Number(row.n))
         }
-        return { dayCounts, hourCounts }
+        return { hourCounts }
       }
 
       // Fallback paginado con RLS — sin límite artificial, hasta agotar páginas
@@ -668,14 +675,10 @@ export async function getWorkspaceOverviewData({
           page++
         }
       }
-      return { dayCounts, hourCounts }
+      return { hourCounts }
     }
 
-  const { dayCounts: rawDay, hourCounts } = await fetchInteractionCounts()
-  for (const [day, count] of rawDay) {
-    const idx = bucketIndex.get(day)
-    if (idx !== undefined) dayBuckets[idx].count += count
-  }
+  const { hourCounts } = await fetchInteractionCounts()
   const totalYearInteractions = dayBuckets.reduce((acc, b) => acc + b.count, 0)
 
   // Matriz horaria 7×24 (168 celdas), de lunes a domingo

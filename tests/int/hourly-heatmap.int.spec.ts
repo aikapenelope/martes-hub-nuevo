@@ -133,6 +133,64 @@ describe('overview-data — derivación de hourBuckets en la zona horaria del te
     expect(result.totalYearInteractions).toBe(7)
   })
 
+  it('una fila fuera del rango calendario del grid no infla hourBuckets (frontera DST)', async () => {
+    // Escenario DST que salta medianoche (America/Santiago: 24:00→01:00 el primer
+    // domingo de septiembre): la medianoche local del día más antiguo del grid
+    // resuelve al día ANTERIOR 23:00 — esa hora extra del SQL queda fuera del
+    // rango calendario del grid y NO debe sumarse a hourBuckets.
+    const timeZone = 'America/Santiago'
+    const todayLocal = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date())
+    const [y, m, d] = todayLocal.split('-').map(Number)
+    const calDay = (offset: number) => {
+      const dt = new Date(Date.UTC(y, m - 1, d - offset))
+      return {
+        dateStr: `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`,
+        dow: (dt.getUTCDay() + 6) % 7,
+      }
+    }
+    const oldest = calDay(363) // día más antiguo del grid
+    const extra = calDay(364) // el día ANTERIOR al más antiguo — fuera del grid
+    const poolQuery = (() => ({
+      rows: [
+        { day: oldest.dateStr, dow: oldest.dow, hour: 21, n: 2 }, // dentro del grid
+        { day: extra.dateStr, dow: extra.dow, hour: 23, n: 5 }, // hora extra frontera — fuera del grid
+      ],
+    })) as unknown as () => Promise<{ rows: Array<Record<string, unknown>> }>
+
+    const mockPayload = {
+      find: (() => {
+        let settingsCalled = false
+        return (opts: { collection: string }) => {
+          if (opts.collection === 'company-settings' && !settingsCalled) {
+            settingsCalled = true
+            return Promise.resolve({ docs: [{ timezone: timeZone }] })
+          }
+          return Promise.resolve({ docs: [], totalDocs: 0 })
+        }
+      })(),
+      count: () => Promise.resolve({ totalDocs: 0 }),
+      db: { pool: { query: poolQuery } },
+    } as unknown as Payload
+
+    const result = await getWorkspaceOverviewData({
+      payload: mockPayload,
+      user: mockUser,
+      tenantId: 10,
+    })
+
+    // Dentro del grid: el día más antiguo cuenta sus 2 eventos
+    expect(result.hourBuckets.find((b) => b.dow === oldest.dow && b.hour === 21)?.count).toBe(2)
+    // Fuera del grid: la hora extra frontera descartada — ni hourBuckets, ni dayBuckets, ni el total
+    expect(result.hourBuckets.find((b) => b.dow === extra.dow && b.hour === 23)?.count ?? 0).toBe(0)
+    expect(result.dayBuckets.find((b) => b.dateStr === extra.dateStr)?.count ?? 0).toBe(0)
+    expect(result.totalYearInteractions).toBe(2)
+  })
+
   it('activities se agrupa por occurredAt (fallback): la actividad tardía cae en su día real', async () => {
     // Actividad creada el martes pero ocurrida el lunes 09:00 local
     const occurredMonday = '2026-09-07T13:00:00.000Z' // lunes 09:00 Caracas
