@@ -1,10 +1,22 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import type { PayloadRequest } from 'payload'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
-type TriageResult = { ok: true; updated: number } | { ok: false; error: string }
+/**
+ * Resultado por ID (hallazgo Devin #105-1): la UI solo oculta los leads
+ * CONFIRMADOS; los que fallaron siguen visibles y se reportan aparte.
+ * `ok: false` implica que NADA se aplicó (error global o falló todo el lote).
+ */
+type TriageResult = {
+  ok: boolean
+  updated: number
+  updatedIds: number[]
+  failedIds: number[]
+  error?: string
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -39,27 +51,44 @@ async function scopedLeadIds(leadIds: number[]): Promise<{
   return { ids: res.docs.map((doc) => doc.id) }
 }
 
+function emptyResult(): TriageResult {
+  return { ok: true, updated: 0, updatedIds: [], failedIds: [] }
+}
+
 /** "E": marca los leads como contactados hoy (último contacto = ahora). */
 export async function markLeadsContactedTodayAction(leadIds: number[]): Promise<TriageResult> {
   const scoped = await scopedLeadIds(leadIds)
-  if (scoped.error) return { ok: false, error: scoped.error }
+  if (scoped.error) return { ...emptyResult(), ok: false, error: scoped.error }
   const context = await getWorkspaceContext()
   const now = new Date().toISOString()
 
-  let updated = 0
+  const result = emptyResult()
   for (const id of scoped.ids) {
+    // Atomicidad por lead (hallazgo Devin #105-1): la escritura del lead y su
+    // actividad de timeline se confirman juntas — mismo patrón de transacción
+    // que markLeadContactedAction (outreach-actions). Un fallo a mitad hace
+    // rollback de ambas y el lead queda en failedIds, no en ocultos.
+    const transactionReq = {
+      payload: context.payload,
+      user: context.user,
+    } as unknown as PayloadRequest
+    const transactionID = await context.payload.db.beginTransaction()
+    if (transactionID) transactionReq.transactionID = transactionID
+
     try {
       await context.payload.update({
         collection: 'leads',
         id,
         overrideAccess: false,
         user: context.user,
+        req: transactionReq,
         data: { lastContactedAt: now },
       })
       await context.payload.create({
         collection: 'activities',
         overrideAccess: false,
         user: context.user,
+        req: transactionReq,
         data: {
           tenant: context.tenantId,
           type: 'nota',
@@ -69,27 +98,41 @@ export async function markLeadsContactedTodayAction(leadIds: number[]): Promise<
           performedBy: context.user.id,
         },
       })
-      updated++
+      if (transactionID) await context.payload.db.commitTransaction(transactionID)
+      result.updatedIds.push(id)
     } catch (err) {
+      if (transactionID) {
+        try {
+          await context.payload.db.rollbackTransaction(transactionID)
+        } catch {
+          // El rollback es best-effort: el error original es el relevante.
+        }
+      }
       // Un lead que falla (borrado en carrera, etc.) no aborta el lote.
       context.payload.logger.error({ msg: 'triage: fallo marcando contacto', leadId: id, err })
+      result.failedIds.push(id)
     }
   }
 
+  if (result.updatedIds.length === 0 && result.failedIds.length > 0) {
+    return { ...result, ok: false, error: 'Ningún lead pudo actualizarse' }
+  }
+
+  result.updated = result.updatedIds.length
   revalidatePath('/workspace/hoy')
   revalidatePath('/workspace/crm')
-  return { ok: true, updated }
+  return result
 }
 
 /** "S": pospone los leads N días (1, 3 o 7) vía fechaProximaLlamada. */
 export async function snoozeLeadsAction(leadIds: number[], days: number): Promise<TriageResult> {
   const safeDays = [1, 3, 7].includes(days) ? days : 1
   const scoped = await scopedLeadIds(leadIds)
-  if (scoped.error) return { ok: false, error: scoped.error }
+  if (scoped.error) return { ...emptyResult(), ok: false, error: scoped.error }
   const context = await getWorkspaceContext()
   const until = new Date(Date.now() + safeDays * DAY_MS).toISOString()
 
-  let updated = 0
+  const result = emptyResult()
   for (const id of scoped.ids) {
     try {
       await context.payload.update({
@@ -99,12 +142,18 @@ export async function snoozeLeadsAction(leadIds: number[], days: number): Promis
         user: context.user,
         data: { fechaProximaLlamada: until },
       })
-      updated++
+      result.updatedIds.push(id)
     } catch (err) {
       context.payload.logger.error({ msg: 'triage: fallo posponiendo lead', leadId: id, err })
+      result.failedIds.push(id)
     }
   }
 
+  if (result.updatedIds.length === 0 && result.failedIds.length > 0) {
+    return { ...result, ok: false, error: 'Ningún lead pudo posponerse' }
+  }
+
+  result.updated = result.updatedIds.length
   revalidatePath('/workspace/hoy')
-  return { ok: true, updated }
+  return result
 }

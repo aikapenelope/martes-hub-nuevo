@@ -47,13 +47,6 @@ export function FollowupsTriage({
   const rows = useMemo(() => items.filter((item) => !hidden.has(`${item.kind}:${item.id}`)), [items, hidden])
   const clampedCursor = Math.min(cursor, Math.max(rows.length - 1, 0))
 
-  const leadIdsToAct = useCallback((): number[] => {
-    const keys = selected.size > 0 ? [...selected] : rows[clampedCursor] ? [`${rows[clampedCursor]!.kind}:${rows[clampedCursor]!.id}`] : []
-    return keys
-      .filter((key) => key.startsWith('lead:'))
-      .map((key) => Number(key.slice('lead:'.length)))
-  }, [selected, rows, clampedCursor])
-
   const hideKeys = useCallback((keys: string[]) => {
     setHidden((prev) => {
       const next = new Set(prev)
@@ -68,21 +61,36 @@ export function FollowupsTriage({
   }, [])
 
   const runAction = useCallback(
-    (action: (ids: number[]) => Promise<{ ok: boolean; updated?: number; error?: string }>, keys: string[], done: string) => {
+    (
+      action: (ids: number[]) => Promise<{ ok: boolean; updated?: number; updatedIds?: number[]; failedIds?: number[]; error?: string }>,
+      keys: string[],
+      done: string,
+    ) => {
       startTransition(async () => {
-        const targetIds = keys.filter((k) => k.startsWith('lead:')).map((k) => Number(k.slice('lead:'.length)))
+        const leadKeys = keys.filter((k) => k.startsWith('lead:'))
+        const targetIds = leadKeys.map((k) => Number(k.slice('lead:'.length)))
         if (targetIds.length === 0) {
           setFeedback('Seleccioná al menos un lead (los clientes no tienen triage)')
           return
         }
         const res = await action(targetIds)
-        if (res.ok) {
-          hideKeys(keys)
-          setFeedback(done.replace('{n}', String(res.updated ?? targetIds.length)))
-          router.refresh()
+        // Solo se ocultan los leads CONFIRMADOS (hallazgo Devin #105-1/#105-3):
+        // los que fallaron siguen visibles y los clientes seleccionados
+        // permanecen en la cola — el triage no los toca.
+        const confirmed = res.updatedIds ?? []
+        if (confirmed.length > 0) hideKeys(confirmed.map((id) => `lead:${id}`))
+        if (res.failedIds && res.failedIds.length > 0) {
+          setFeedback(
+            confirmed.length > 0
+              ? `${done.replace('{n}', String(confirmed.length))} · ${res.failedIds.length} fallaron`
+              : (res.error ?? `No se pudo aplicar a ${res.failedIds.length} lead(s)`),
+          )
+        } else if (res.ok) {
+          setFeedback(done.replace('{n}', String(confirmed.length)))
         } else {
           setFeedback(res.error ?? 'No se pudo aplicar la acción')
         }
+        router.refresh()
       })
     },
     [hideKeys, router],
@@ -120,7 +128,9 @@ export function FollowupsTriage({
           break
         case 'e':
         case 'E': {
-          if (!canEdit || snoozeOpen) return
+          // Guard de pending (hallazgo Devin #105-4): un E repetido mientras
+          // vuela la acción duplicaba actividades de contacto en el timeline.
+          if (!canEdit || snoozeOpen || pending) return
           event.preventDefault()
           const keys = selected.size > 0 ? [...selected] : cursorItem ? [`${cursorItem.kind}:${cursorItem.id}`] : []
           const leadKeys = keys.filter((k) => k.startsWith('lead:'))
@@ -128,7 +138,7 @@ export function FollowupsTriage({
             setFeedback('Seleccioná al menos un lead (los clientes no tienen triage)')
             return
           }
-          runAction(markLeadsContactedTodayAction, keys, '{n} lead(s) marcados como contactados')
+          runAction(markLeadsContactedTodayAction, leadKeys, '{n} lead(s) marcados como contactados')
           break
         }
         case 's':
@@ -140,7 +150,7 @@ export function FollowupsTriage({
         case '1':
         case '3':
         case '7': {
-          if (!canEdit || !snoozeOpen) return
+          if (!canEdit || !snoozeOpen || pending) return
           event.preventDefault()
           const keys = selected.size > 0 ? [...selected] : cursorItem ? [`${cursorItem.kind}:${cursorItem.id}`] : []
           setSnoozeOpen(false)
@@ -166,7 +176,7 @@ export function FollowupsTriage({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [rows, clampedCursor, selected, canEdit, drawerLeadId, snoozeOpen, runAction])
+  }, [rows, clampedCursor, selected, canEdit, drawerLeadId, snoozeOpen, pending, runAction])
 
   // El cursor siempre apunta a una fila visible.
   useEffect(() => {
@@ -292,7 +302,10 @@ export function FollowupsTriage({
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation()
+                        // Hallazgo Devin #105-2: los clientes navegan a su
+                        // ficha CRM (el drawer in-page es solo de leads).
                         if (isLead) setDrawerLeadId(item.id)
+                        else router.push(item.crmUrl)
                       }}
                       className="underline hover:text-white"
                     >
@@ -317,8 +330,9 @@ export function FollowupsTriage({
                   onClick={(event) => {
                     event.stopPropagation()
                     if (isLead) setDrawerLeadId(item.id)
+                    else router.push(item.crmUrl)
                   }}
-                  title="Abrir ficha sin salir de Hoy"
+                  title={isLead ? 'Abrir ficha sin salir de Hoy' : 'Abrir ficha en el CRM'}
                   className="inline-flex items-center gap-1 border border-zinc-700 bg-zinc-900 px-2.5 py-2 font-mono text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
