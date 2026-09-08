@@ -2,6 +2,9 @@
 
 import React, { useMemo, useState } from 'react'
 
+import { HourlyHeatmap } from './HourlyHeatmap'
+import type { HourBucket } from './overview/types'
+
 interface HeatmapDay {
   dateStr: string
   count: number
@@ -10,6 +13,8 @@ interface HeatmapDay {
 interface ActivityHeatmapProps {
   /** 364 días reales (52 semanas × 7 días), de más antiguo a más reciente. */
   daysData: HeatmapDay[]
+  /** 168 celdas (7 días × 24 horas) — variante "por hora" (ítem 6 del sector UI). */
+  hourBuckets: HourBucket[]
   totalInteractions: number
 }
 
@@ -29,8 +34,9 @@ function levelFor(count: number, max: number): 0 | 1 | 2 | 3 | 4 {
  * `page.tsx`). No genera datos sintéticos: si no hay actividad registrada
  * en un día, la celda queda en nivel 0 — nunca se inventa una cifra.
  */
-export function ActivityHeatmap({ daysData, totalInteractions }: ActivityHeatmapProps) {
+export function ActivityHeatmap({ daysData, hourBuckets, totalInteractions }: ActivityHeatmapProps) {
   const [hovered, setHovered] = useState<HeatmapDay | null>(null)
+  const [view, setView] = useState<'year' | 'hours'>('year')
   const maxCount = useMemo(() => Math.max(...daysData.map((d) => d.count), 1), [daysData])
 
   const weeks = useMemo(() => {
@@ -55,15 +61,42 @@ export function ActivityHeatmap({ daysData, totalInteractions }: ActivityHeatmap
             Actividades, mensajes y pagos registrados por día del tenant activo
           </p>
         </div>
-        <span className="text-xs font-mono text-zinc-400">
-          <strong className="text-white">{totalInteractions}</strong> interacciones en el período
-        </span>
+        <div className="flex items-center gap-3">
+          {/* Toggle 52 semanas / por hora (patrón dashboard-9) */}
+          <nav aria-label="Vista de la matriz de actividad" className="flex items-center gap-1">
+            {(
+              [
+                { key: 'year', label: '52 Semanas' },
+                { key: 'hours', label: 'Por Hora' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setView(opt.key)}
+                aria-current={view === opt.key ? 'true' : undefined}
+                className={`px-2 py-0.5 text-[10px] font-mono uppercase transition ${
+                  view === opt.key
+                    ? 'bg-white text-black font-bold'
+                    : 'border border-zinc-800 text-zinc-400 hover:text-white'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </nav>
+          <span className="text-xs font-mono text-zinc-400">
+            <strong className="text-white">{totalInteractions}</strong> interacciones en el período
+          </span>
+        </div>
       </div>
 
       {totalInteractions === 0 ? (
         <div className="py-8 text-center text-xs text-zinc-500 font-mono">
           Sin actividad registrada todavía en este período.
         </div>
+      ) : view === 'hours' ? (
+        <HourlyHeatmap hourBuckets={hourBuckets} totalInteractions={totalInteractions} />
       ) : (
         <div className="overflow-x-auto pb-1">
           <div className="flex gap-[3px]" style={{ minWidth: weeks.length * 13 }}>
@@ -91,7 +124,7 @@ export function ActivityHeatmap({ daysData, totalInteractions }: ActivityHeatmap
       <div className="flex items-center justify-between text-[11px] font-mono text-zinc-500 pt-1">
         <span>
           {hovered
-            ? `${hovered.count} interacción${hovered.count !== 1 ? 'es' : ''} · ${hovered.dateStr}`
+            ? `${hovered.count} ${hovered.count !== 1 ? 'interacciones' : 'interacción'} · ${hovered.dateStr}`
             : 'Pasa el cursor sobre una celda para ver el detalle'}
         </span>
         <span className="flex items-center gap-1">

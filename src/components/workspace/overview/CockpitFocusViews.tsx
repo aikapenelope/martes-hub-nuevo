@@ -347,6 +347,7 @@ export function CockpitFocusViews({
         return (
           <ActivityHeatmap
             daysData={data.dayBuckets}
+            hourBuckets={data.hourBuckets}
             totalInteractions={data.totalYearInteractions}
           />
         )

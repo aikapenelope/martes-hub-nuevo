@@ -9,6 +9,13 @@ export interface DayBucket {
   count: number
 }
 
+/** Celda de actividad por día de semana (0=lun…6=dom) × hora (0-23). */
+export interface HourBucket {
+  dow: number
+  hour: number
+  count: number
+}
+
 export interface ChannelSourceMetric {
   source: string
   label: string
@@ -91,6 +98,8 @@ export interface WorkspaceOverviewData {
   metrics: WorkspaceOverviewMetrics
   hotLeads: Lead[]
   dayBuckets: DayBucket[]
+  /** Actividad por día de semana × hora (variante del heatmap anual). */
+  hourBuckets: HourBucket[]
   totalYearInteractions: number
   recentPayments: Payment[]
   recentConversations: Conversation[]
