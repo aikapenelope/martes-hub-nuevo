@@ -150,15 +150,31 @@ export async function getConversionReport({
   const db = payload.db as { pool?: Pool }
 
   // Nombres de agentes para el desglose (una sola consulta chiquita).
+  // Scoping por tenant (hallazgo Devin #108 SEC-1): sin filtro de tenant y
+  // con overrideAccess la resolución cruzaba tenants y exponía nombres de
+  // agentes ajenos. Mismo or-pattern que crm-actions (incluye admins
+  // globales, que son staff de la casa) + access control de Users.
   const users = await findAllPages((page) =>
     payload.find({
       collection: 'users',
-      where: { and: [{ roles: { in: ['admin', 'agente'] } }, { active: { equals: true } }] },
+      where: {
+        and: [
+          { roles: { in: ['admin', 'agente'] } },
+          { active: { equals: true } },
+          {
+            or: [
+              { 'tenants.tenant': { equals: tenantId } },
+              { roles: { contains: 'admin' } },
+            ],
+          },
+        ],
+      },
       limit: 200,
       page,
       depth: 0,
       select: { firstName: true, lastName: true, email: true },
-      overrideAccess: true,
+      overrideAccess: false,
+      user,
     }),
   )
   const agentNames = new Map<number, string>(
@@ -175,7 +191,10 @@ export async function getConversionReport({
     try {
       const [sourceRes, agentRes] = await Promise.all([
         db.pool.query(SQL_GROUP_BY(`COALESCE(source, 'manual')`), [tenantId, STAGE_REACHED_CONTACT]),
-        db.pool.query(SQL_GROUP_BY(`COALESCE(assigned_to::text, 'sin_asignar')`), [tenantId, STAGE_REACHED_CONTACT]),
+        // La FK de Payload genera la columna assigned_to_id (hallazgo Devin
+        // #108-2: agrupar por assigned_to inexistente rechazaba el SQL y
+        // degradaba AMBOS reportes al fallback en memoria).
+        db.pool.query(SQL_GROUP_BY(`COALESCE(assigned_to_id::text, 'sin_asignar')`), [tenantId, STAGE_REACHED_CONTACT]),
       ])
       bySource = rowsFromSql(sourceRes.rows as unknown as RawGroupRow[], (key) => SOURCE_LABELS[key] ?? key)
       byAgent = rowsFromSql(agentRes.rows as unknown as RawGroupRow[], (key) => {

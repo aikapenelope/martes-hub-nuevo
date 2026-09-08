@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { aggregateConversionRows, SOURCE_LABELS, type ConversionLeadRow } from '@/lib/conversion-reports'
+import { aggregateConversionRows, getConversionReport, SOURCE_LABELS, type ConversionLeadRow } from '@/lib/conversion-reports'
+import type { Payload } from 'payload'
 
 const lead = (overrides: Partial<ConversionLeadRow>): ConversionLeadRow => ({
   source: 'whatsapp',
@@ -81,5 +82,62 @@ describe('aggregateConversionRows — embudo entrada→contactado→calificado�
       (key) => SOURCE_LABELS[key] ?? key,
     )
     expect(rows.map((r) => r.key)).toEqual(['manual', 'referido'])
+  })
+})
+
+describe('getConversionReport — regresiones de los hallazgos Devin #108', () => {
+  const user = { id: 1, email: 'admin@martes.local', roles: ['admin'] } as never
+
+  function mockPayloadFactory() {
+    const queries: string[] = []
+    const mockFind = vi.fn().mockImplementation((params: { collection: string }) => {
+      if (params.collection === 'users') return Promise.resolve({ docs: [], totalDocs: 0 })
+      return Promise.resolve({ docs: [], totalDocs: 0 })
+    })
+    const mockQuery = vi.fn().mockImplementation((sql: string) => {
+      queries.push(sql)
+      return Promise.resolve({ rows: [] })
+    })
+    const payload = {
+      find: mockFind,
+      db: { pool: { query: mockQuery } },
+    } as unknown as Payload
+    return { payload, mockFind, mockQuery, queries }
+  }
+
+  it('SEC-1: la resolución de nombres de agentes está scopeada al tenant y respeta access control', async () => {
+    const { payload, mockFind } = mockPayloadFactory()
+
+    await getConversionReport({ payload, user, tenantId: 10 })
+
+    const usersCall = mockFind.mock.calls.find((call) => (call[0] as { collection: string }).collection === 'users')
+    expect(usersCall).toBeDefined()
+    const params = usersCall![0] as {
+      where?: { and?: Array<Record<string, unknown>> }
+      overrideAccess?: boolean
+      user?: unknown
+    }
+    expect(params.overrideAccess).toBe(false)
+    expect(params.user).toEqual(user)
+    const tenantScope = params.where?.and?.find((clause) => 'or' in clause) as
+      | { or?: Array<Record<string, unknown>> }
+      | undefined
+    expect(tenantScope?.or).toBeDefined()
+    expect(JSON.stringify(tenantScope?.or)).toContain('tenants.tenant')
+  })
+
+  it('BUG-2: el GROUP BY por agente usa la columna real assigned_to_id (no assigned_to)', async () => {
+    const { payload, mockQuery } = mockPayloadFactory()
+
+    await getConversionReport({ payload, user, tenantId: 10 })
+
+    // Dos queries por pool: por origen y por agente.
+    expect(mockQuery).toHaveBeenCalledTimes(2)
+    const sqls = mockQuery.mock.calls.map((call) => call[0] as string)
+    const agentSql = sqls.find((sql) => sql.includes('assigned_to_id'))
+    expect(agentSql).toBeDefined()
+    expect(agentSql).toContain("COALESCE(assigned_to_id::text, 'sin_asignar')")
+    // Ninguna query referencia la columna inexistente.
+    expect(sqls.some((sql) => /assigned_to::text/.test(sql))).toBe(false)
   })
 })
