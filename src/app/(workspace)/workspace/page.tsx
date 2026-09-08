@@ -136,12 +136,9 @@ export default async function WorkspacePage({
           <Link
             key={action.href}
             href={action.href}
-            className="oled-card p-3.5 transition hover:border-zinc-600 flex items-center justify-between gap-2 group"
+            className="oled-card px-3 py-2.5 transition hover:border-zinc-600 flex items-center justify-between gap-2 group"
           >
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-white">{action.title}</p>
-              <p className="mt-1 text-[11px] text-zinc-500 truncate">{action.desc}</p>
-            </div>
+            <p className="text-xs font-bold text-white truncate">{action.title}</p>
             <span className="font-mono text-sm text-zinc-600 group-hover:text-zinc-300 transition shrink-0" aria-hidden="true">
               &gt;
             </span>

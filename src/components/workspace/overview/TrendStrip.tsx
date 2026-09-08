@@ -4,19 +4,14 @@ import { OledCard } from '@/components/workspace/oled'
 import type { MonthlySeries } from '@/lib/trend-widgets'
 
 /**
- * Mini-sparklines del Resumen (estilo dashboard, dentro del sistema OLED):
- * 3 series de 6 meses en SVG puro — sin librería de charts.
+ * Mini-tendencias del Resumen en UNA sola barra (3 series de 6 meses, SVG puro):
+ * compactación del patrón dashboard-9 — menos cards, misma información.
  */
-
-const MES_LABEL: Record<string, string> = {
-  '01': 'ene', '02': 'feb', '03': 'mar', '04': 'abr', '05': 'may', '06': 'jun',
-  '07': 'jul', '08': 'ago', '09': 'sep', '10': 'oct', '11': 'nov', '12': 'dic',
-}
 
 function SparkBars({ values, accent }: { values: number[]; accent: string }) {
   const max = Math.max(...values, 1)
   return (
-    <div className="flex h-10 items-end gap-1" aria-hidden="true">
+    <div className="flex h-8 items-end gap-1" aria-hidden="true">
       {values.map((v, i) => (
         <span
           key={i}
@@ -33,7 +28,7 @@ function fmtMoney(n: number): string {
   return `$${Math.round(n)}`
 }
 
-/** Chip ▲/▼ de variación % (mes completo anterior vs su previo); oculto si no hay base de comparación. */
+/** Chip ▲/▼ de variación % (mes completo anterior vs su previo); oculto sin base. */
 function DeltaChip({ delta }: { delta: number | null }) {
   if (delta === null) return null
   return (
@@ -48,52 +43,56 @@ function DeltaChip({ delta }: { delta: number | null }) {
   )
 }
 
-export function TrendStrip({ trends }: { trends: MonthlySeries }) {
-  const monthLabels = trends.months.map((m) => MES_LABEL[m.slice(5)] ?? m.slice(5))
+interface TrendStatProps {
+  label: string
+  value: string
+  delta: number | null
+  values: number[]
+  accent: string
+}
 
+function TrendStat({ label, value, delta, values, accent }: TrendStatProps) {
   return (
-    <section className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="Tendencias de 6 meses">
-      <OledCard>
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Cobrado · 6 meses</p>
-          <DeltaChip delta={trends.cobradoDeltaPct} />
-        </div>
-        <p className="mt-1 text-xl font-bold font-mono text-white">{fmtMoney(trends.cobrado[5] ?? 0)} <span className="text-[10px] font-normal text-zinc-600">este mes</span></p>
-        <div className="mt-2">
-          <SparkBars values={trends.cobrado} accent="bg-emerald-500/70" />
-        </div>
-        <div className="mt-1 flex justify-between text-[8px] font-mono text-zinc-600">
-          {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
-        </div>
-      </OledCard>
+    <div className="px-4 py-3 space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">{label}</p>
+        <DeltaChip delta={delta} />
+      </div>
+      <p className="text-lg font-bold font-mono text-white leading-none">
+        {value} <span className="text-[10px] font-normal text-zinc-600">este mes</span>
+      </p>
+      <SparkBars values={values} accent={accent} />
+      <p className="sr-only">Serie de 6 meses: {values.join(', ')}</p>
+    </div>
+  )
+}
 
-      <OledCard>
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Leads nuevos · 6 meses</p>
-          <DeltaChip delta={trends.leadsNuevosDeltaPct} />
-        </div>
-        <p className="mt-1 text-xl font-bold font-mono text-white">{trends.leadsNuevos[5] ?? 0} <span className="text-[10px] font-normal text-zinc-600">este mes</span></p>
-        <div className="mt-2">
-          <SparkBars values={trends.leadsNuevos} accent="bg-sky-500/70" />
-        </div>
-        <div className="mt-1 flex justify-between text-[8px] font-mono text-zinc-600">
-          {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
-        </div>
-      </OledCard>
-
-      <OledCard>
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Actividades · 6 meses</p>
-          <DeltaChip delta={trends.actividadesDeltaPct} />
-        </div>
-        <p className="mt-1 text-xl font-bold font-mono text-white">{trends.actividades[5] ?? 0} <span className="text-[10px] font-normal text-zinc-600">este mes</span></p>
-        <div className="mt-2">
-          <SparkBars values={trends.actividades} accent="bg-amber-500/70" />
-        </div>
-        <div className="mt-1 flex justify-between text-[8px] font-mono text-zinc-600">
-          {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
-        </div>
-      </OledCard>
-    </section>
+export function TrendStrip({ trends }: { trends: MonthlySeries }) {
+  return (
+    <OledCard className="!p-0 overflow-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-zinc-800/80">
+        <TrendStat
+          label="Cobrado · 6 meses"
+          value={fmtMoney(trends.cobrado[5] ?? 0)}
+          delta={trends.cobradoDeltaPct}
+          values={trends.cobrado}
+          accent="bg-emerald-500/70"
+        />
+        <TrendStat
+          label="Leads nuevos · 6 meses"
+          value={String(trends.leadsNuevos[5] ?? 0)}
+          delta={trends.leadsNuevosDeltaPct}
+          values={trends.leadsNuevos}
+          accent="bg-sky-500/70"
+        />
+        <TrendStat
+          label="Actividades · 6 meses"
+          value={String(trends.actividades[5] ?? 0)}
+          delta={trends.actividadesDeltaPct}
+          values={trends.actividades}
+          accent="bg-amber-500/70"
+        />
+      </div>
+    </OledCard>
   )
 }

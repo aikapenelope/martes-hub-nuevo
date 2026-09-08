@@ -22,12 +22,65 @@ function TrendChip({ pct }: { pct: number | null }) {
   if (pct === null) return null
   return (
     <span
-      className={`text-xs font-mono font-bold flex items-center gap-0.5 ${pct >= 0 ? 'text-sky-400' : 'text-rose-400'}`}
+      className={`text-[10px] font-mono font-bold flex items-center gap-0.5 ${pct >= 0 ? 'text-sky-400' : 'text-rose-400'}`}
     >
-      {pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+      {pct >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
       {pct >= 0 ? '+' : ''}
       {pct.toFixed(1)}%
     </span>
+  )
+}
+
+/** Card KPI compacta y uniforme: label+icono / valor+chip / detalle. Misma altura en la fila. */
+function Kpi({
+  label,
+  icon: Icon,
+  accent,
+  value,
+  trend,
+  detail,
+  footer,
+}: {
+  label: string
+  icon: typeof BadgeDollarSign
+  accent: 'sky' | 'indigo' | 'cyan' | 'amber' | 'rose'
+  value: React.ReactNode
+  trend?: React.ReactNode
+  detail?: React.ReactNode
+  footer?: React.ReactNode
+}) {
+  const accentCls: Record<string, string> = {
+    sky: 'bg-sky-950/80 text-sky-400 border-sky-800/80',
+    indigo: 'bg-indigo-950/80 text-indigo-400 border-indigo-800/80',
+    cyan: 'bg-cyan-950/80 text-cyan-400 border-cyan-800/80',
+    amber: 'bg-amber-950/80 text-amber-400 border-amber-800/80',
+    rose: 'bg-rose-950/80 text-rose-400 border-rose-800/80',
+  }
+  return (
+    <article className="p-3 oled-card flex flex-col gap-2 min-h-[104px]">
+      <div className="flex items-center justify-between text-zinc-500 text-[10px] font-mono uppercase tracking-wider">
+        <span className="truncate">{label}</span>
+        <span className={`p-1 ${accentCls[accent]} shrink-0`}>
+          <Icon className="w-3.5 h-3.5" />
+        </span>
+      </div>
+      <div className="flex items-baseline justify-between gap-1.5">
+        <span className="text-2xl font-bold tracking-tight text-white leading-none">{value}</span>
+        {trend}
+      </div>
+      <div className="mt-auto text-[10px] font-mono text-zinc-500 leading-relaxed">
+        {detail}
+        {footer}
+      </div>
+    </article>
+  )
+}
+
+function MiniBar({ pct, cls }: { pct: number; cls: string }) {
+  return (
+    <div className="h-1 w-full bg-zinc-900 overflow-hidden">
+      <div className={`h-full ${cls}`} style={{ width: `${Math.min(100, pct)}%` }} />
+    </div>
   )
 }
 
@@ -48,11 +101,11 @@ export function CockpitKpiGrid({
     weightedPipelineTotal,
     totalLeadsActive,
     weightedProbabilityPct,
-    globalConversionRate,
     leadsCreatedInPeriod,
     conversionsInPeriod,
     leadsNuevosTrendPct,
     conversionTrendPct,
+    globalConversionRate,
     overdueTasksCount,
     metaHealthPct,
     critical24hCount,
@@ -68,163 +121,115 @@ export function CockpitKpiGrid({
   const periodLabel = RANGE_LABELS[timeRange] ?? 'Cobrado en el Período'
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5">
-      {/* Cobrado en el Período */}
-      <article className="p-3.5 oled-card space-y-2">
-        <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
-          <span>{periodLabel}</span>
-          <span className="p-1.5 bg-sky-950/80 text-sky-400 border border-sky-800/80">
-            <BadgeDollarSign className="w-4 h-4" />
-          </span>
-        </div>
-        <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-bold tracking-tight text-white">{currency.format(revenuePeriodTotal)}</span>
-          <TrendChip pct={revenueTrendPct} />
-        </div>
-        <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400">
-          <span>
+    <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 items-stretch">
+      <Kpi
+        label={periodLabel}
+        icon={BadgeDollarSign}
+        accent="sky"
+        value={currency.format(revenuePeriodTotal)}
+        trend={<TrendChip pct={revenueTrendPct} />}
+        detail={
+          <>
             {revenuePeriodCount} pago{revenuePeriodCount !== 1 ? 's' : ''}
-            {averageTicket > 0 && ` · Ticket prom: ${currency.format(averageTicket)}`}
-            {revenueTrendPct === null && revenuePeriodCount === 0 && ' · sin período anterior'}
-          </span>
-          {revenueSeries && revenueSeries.length > 1 && <Sparkline data={revenueSeries} />}
-        </div>
-      </article>
-
-      {/* Pipeline Ponderado */}
-      <article className="p-3.5 oled-card space-y-2">
-        <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
-          <span>Pipeline Ponderado</span>
-          <span className="p-1.5 bg-indigo-950/80 text-indigo-400 border border-indigo-800/80">
-            <PieChart className="w-4 h-4" />
-          </span>
-        </div>
-        <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-bold tracking-tight text-white">{currency.format(weightedPipelineTotal)}</span>
-          <span className="text-xs font-mono font-bold text-indigo-400">{totalLeadsActive} tratos</span>
-        </div>
-        <div className="space-y-1">
-          <div className="flex justify-between text-[11px] font-mono text-zinc-400">
-            <span>Probabilidad ponderada (modelo por etapa)</span>
-            <span className="font-bold text-indigo-400">{weightedProbabilityPct.toFixed(1)}%</span>
-          </div>
-          <div className="h-1.5 w-full bg-zinc-900 overflow-hidden">
-            <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, weightedProbabilityPct)}%` }} />
-          </div>
-        </div>
-      </article>
-
-      {/* Leads en Gestión */}
-      <article className="p-3.5 oled-card space-y-2">
-        <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
-          <span>Leads en Gestión</span>
-          <span className="p-1.5 bg-cyan-950/80 text-cyan-400 border border-cyan-800/80">
-            <Users className="w-4 h-4" />
-          </span>
-        </div>
-        <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-bold tracking-tight text-white">{totalLeadsActive}</span>
-          <span className="flex items-center gap-1.5">
-            <span className="text-xs font-mono font-bold text-cyan-400">
-              {leadsCreatedInPeriod} nuevos en el período
+            {averageTicket > 0 && ` · ${currency.format(averageTicket)} c/u`}
+          </>
+        }
+        footer={
+          revenueSeries && revenueSeries.length > 1 ? (
+            <span className="block mt-1">
+              <Sparkline data={revenueSeries} />
             </span>
-            <TrendChip pct={leadsNuevosTrendPct} />
-          </span>
-        </div>
-        <div className="space-y-1">
-          <div className="flex justify-between text-[11px] font-mono text-zinc-400">
-            <span>Conversión a cliente</span>
-            <span className="flex items-center gap-1.5">
-              <span className="font-bold text-white">
-                {globalConversionRate !== null ? `${globalConversionRate.toFixed(1)}%` : '—'}
+          ) : null
+        }
+      />
+
+      <Kpi
+        label="Pipeline Ponderado"
+        icon={PieChart}
+        accent="indigo"
+        value={currency.format(weightedPipelineTotal)}
+        detail={
+          <>
+            <span className="flex justify-between text-zinc-500">
+              <span>{totalLeadsActive} tratos · prob.</span>
+              <span className="font-bold text-indigo-400">{weightedProbabilityPct.toFixed(0)}%</span>
+            </span>
+            <MiniBar pct={weightedProbabilityPct} cls="bg-indigo-500" />
+          </>
+        }
+      />
+
+      <Kpi
+        label="Leads en Gestión"
+        icon={Users}
+        accent="cyan"
+        value={totalLeadsActive}
+        trend={<TrendChip pct={leadsNuevosTrendPct} />}
+        detail={
+          <>
+            <span className="flex justify-between text-zinc-500">
+              <span>{leadsCreatedInPeriod} nuevos · conv.</span>
+              <span className="font-bold text-white">{globalConversionRate !== null ? `${globalConversionRate.toFixed(0)}%` : '—'}</span>
+            </span>
+            <MiniBar pct={globalConversionRate ?? 0} cls="bg-cyan-400" />
+          </>
+        }
+        footer={conversionTrendPct !== null ? <span className="text-[10px]">conv. del período <strong className={conversionTrendPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{conversionTrendPct >= 0 ? '+' : ''}{conversionTrendPct.toFixed(0)}%</strong> · {conversionsInPeriod} conv.</span> : null}
+      />
+
+      <Kpi
+        label="Tareas Vencidas"
+        icon={Zap}
+        accent="amber"
+        value={overdueTasksCount}
+        detail={
+          <>
+            {overdueTasksCount > 0 ? 'Requieren atención inmediata' : 'Todo al día'}
+            <br />
+            <Link href="/workspace/tasks" className="text-amber-400 hover:underline font-bold">
+              Ver tareas →
+            </Link>
+          </>
+        }
+      />
+
+      <Kpi
+        label="Por Cobrar"
+        icon={Wallet}
+        accent="amber"
+        value={currency.format(revenuePendingTotal)}
+        detail={
+          <>
+            {revenuePendingCount} pendiente{revenuePendingCount !== 1 ? 's' : ''}
+            {overduePaymentsCount > 0 && (
+              <span className="text-amber-400 font-bold"> · {overduePaymentsCount} vencido{overduePaymentsCount !== 1 ? 's' : ''}</span>
+            )}
+            <br />
+            <Link href="/workspace/billing" className="text-amber-400 hover:underline font-bold">
+              Facturación →
+            </Link>
+            {quotesActiveTotal > 0 && <span className="text-zinc-600"> · {quotesActiveCount} cotiz.</span>}
+          </>
+        }
+      />
+
+      <Kpi
+        label="Ventana WhatsApp 24H"
+        icon={ShieldAlert}
+        accent="rose"
+        value={`${metaHealthPct.toFixed(0)}%`}
+        detail={
+          <>
+            <span className="flex justify-between text-zinc-500">
+              <span>{openConvCount} activas</span>
+              <span className={critical24hCount > 0 ? 'font-bold text-rose-400' : 'font-bold text-zinc-400'}>
+                {critical24hCount > 0 ? `${critical24hCount} por vencer` : 'saludable'}
               </span>
-              <span className="text-zinc-500">· {conversionsInPeriod} conv.</span>
-              {conversionTrendPct !== null && (
-                <span
-                  className={`text-[10px] font-mono font-bold ${conversionTrendPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
-                >
-                  {conversionTrendPct >= 0 ? '+' : ''}
-                  {conversionTrendPct.toFixed(1)}%
-                </span>
-              )}
             </span>
-          </div>
-          <div className="h-1.5 w-full bg-zinc-900 overflow-hidden">
-            <div className="h-full bg-cyan-400" style={{ width: `${Math.min(100, globalConversionRate ?? 0)}%` }} />
-          </div>
-        </div>
-      </article>
-
-      {/* Tareas Vencidas */}
-      <article className="p-3.5 oled-card space-y-2">
-        <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
-          <span>Tareas Vencidas</span>
-          <span className="p-1.5 bg-amber-950/80 text-amber-400 border border-amber-800/80">
-            <Zap className="w-4 h-4" />
-          </span>
-        </div>
-        <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-bold tracking-tight text-white">{overdueTasksCount}</span>
-          <Link href="/workspace/tasks" className="text-xs font-mono font-bold text-amber-400 hover:underline">
-            Ver tareas →
-          </Link>
-        </div>
-        <div className="text-[11px] font-mono text-zinc-400">
-          {overdueTasksCount > 0 ? 'Requieren atención inmediata' : 'Todo al día'}
-        </div>
-      </article>
-
-      {/* Por Cobrar */}
-      <article className="p-3.5 oled-card space-y-2">
-        <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
-          <span>Por Cobrar</span>
-          <span className="p-1.5 bg-amber-950/80 text-amber-400 border border-amber-800/80">
-            <Wallet className="w-4 h-4" />
-          </span>
-        </div>
-        <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-bold tracking-tight text-white">{currency.format(revenuePendingTotal)}</span>
-          <Link href="/workspace/billing" className="text-xs font-mono font-bold text-amber-400 hover:underline">
-            Facturación →
-          </Link>
-        </div>
-        <div className="text-[11px] font-mono text-zinc-400">
-          {revenuePendingCount} cobro{revenuePendingCount !== 1 ? 's' : ''} pendiente{revenuePendingCount !== 1 ? 's' : ''}
-          {quotesActiveTotal > 0 && (
-            <span className="text-zinc-300"> · {quotesActiveCount} cotiz. ({currency.format(quotesActiveTotal)})</span>
-          )}
-          {overduePaymentsCount > 0 && (
-            <span className="text-amber-400 font-bold"> · {overduePaymentsCount} vencido{overduePaymentsCount !== 1 ? 's' : ''}</span>
-          )}
-        </div>
-      </article>
-
-      {/* Ventana WhatsApp 24H */}
-      <article className="p-3.5 oled-card space-y-2">
-        <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase tracking-wider">
-          <span>Ventana WhatsApp 24H</span>
-          <span className="p-1.5 bg-rose-950/80 text-rose-400 border border-rose-800/80">
-            <ShieldAlert className="w-4 h-4" />
-          </span>
-        </div>
-        <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-bold tracking-tight text-white">{metaHealthPct.toFixed(1)}%</span>
-          <span className="text-xs font-mono font-bold text-rose-400">
-            {critical24hCount > 0 ? `${critical24hCount} por vencer` : '0 críticas'}
-          </span>
-        </div>
-        <div className="space-y-1">
-          <div className="flex justify-between text-[11px] font-mono text-zinc-400">
-            <span>{openConvCount} activas en inbox</span>
-            <span className="font-bold text-white font-mono">
-              {critical24hCount > 0 ? 'Acción requerida' : 'Saludable'}
-            </span>
-          </div>
-          <div className="h-1.5 w-full bg-zinc-900 overflow-hidden">
-            <div className="h-full bg-rose-500" style={{ width: `${metaHealthPct}%` }} />
-          </div>
-        </div>
-      </article>
+            <MiniBar pct={metaHealthPct} cls="bg-rose-500" />
+          </>
+        }
+      />
     </section>
   )
 }
