@@ -11,7 +11,7 @@ import {
   type SequenceStep,
 } from '@/lib/sequences'
 import { dispatchSequencesTask } from '@/jobs/dispatchSequences'
-import { safeInternalRedirect } from '@/lib/sequence-actions'
+import { safeInternalRedirect } from '@/lib/internal-redirect'
 
 const NOW = Date.parse('2026-09-08T12:00:00.000Z')
 const DAY_MS = 24 * 60 * 60 * 1000
