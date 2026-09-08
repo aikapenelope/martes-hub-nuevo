@@ -113,6 +113,9 @@ describe('CRM 360 Pipeline Lifecycle & In-Situ Conversion', { timeout: 35000 }, 
           ? updatedLead.convertedClient.id
           : updatedLead.convertedClient
       expect(convertedClientId).toBe(result.clientId)
+      // Instante de conversión persistido (deltas por ventana real)
+      expect(updatedLead.convertedAt).toBeTypeOf('string')
+      expect(Number.isNaN(Date.parse(updatedLead.convertedAt as string))).toBe(false)
 
       // Verificar que se crearon las actividades duales de trazabilidad
       const activities = await payload.find({
@@ -159,6 +162,65 @@ describe('CRM 360 Pipeline Lifecycle & In-Situ Conversion', { timeout: 35000 }, 
       if (!res2.ok) return
 
       expect(res2.clientId).toBe(res1.clientId)
+      // La idempotencia también conserva el instante original de conversión
+      const leadAfter = (await payload.findByID({
+        collection: 'leads',
+        id: lead.id,
+        overrideAccess: true,
+      })) as Lead
+      expect(leadAfter.convertedAt).toBeTypeOf('string')
+    })
+
+    it('la creación directa de cliente sincroniza el lead con convertedAt (hook Clients)', async () => {
+      const phone = `58414${Math.floor(1000000 + Math.random() * 9000000)}`
+      const lead = (await payload.create({
+        collection: 'leads',
+        overrideAccess: true,
+        data: {
+          fullName: 'Lead Sync Hook ' + Date.now(),
+          phone,
+          status: 'contactado',
+          source: 'manual',
+          tenant: tenant1.id,
+        },
+      })) as Lead
+
+      // Crear cliente con el mismo teléfono dispara el hook de sincronización
+      const client = await payload.create({
+        collection: 'clients',
+        overrideAccess: true,
+        context: { tenantId: tenant1.id },
+        data: {
+          tenant: tenant1.id,
+          name: 'Cliente Sync Hook ' + Date.now(),
+          phone,
+          stage: 'nuevo',
+        },
+      })
+
+      const syncedLead = (await payload.findByID({
+        collection: 'leads',
+        id: lead.id,
+        overrideAccess: true,
+      })) as Lead
+      expect(syncedLead.status).toBe('calificado')
+      expect(syncedLead.convertedClient).toBeDefined()
+      expect(syncedLead.convertedAt).toBeTypeOf('string')
+      expect(Number.isNaN(Date.parse(syncedLead.convertedAt as string))).toBe(false)
+
+      // Idempotencia: actualizar el cliente no re-escribe convertedAt
+      await payload.update({
+        collection: 'clients',
+        id: client.id,
+        overrideAccess: true,
+        data: { name: 'Cliente Sync Hook Renombrado' },
+      })
+      const leadAfter = (await payload.findByID({
+        collection: 'leads',
+        id: lead.id,
+        overrideAccess: true,
+      })) as Lead
+      expect(leadAfter.convertedAt).toBe(syncedLead.convertedAt)
     })
 
     it('bloquea la conversión si el usuario no tiene permisos de edición (canEdit: false)', async () => {

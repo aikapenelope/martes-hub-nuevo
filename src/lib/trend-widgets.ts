@@ -3,10 +3,14 @@ import 'server-only'
 import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
 
+import { resolveTenantTimezone, zonedTimeToUtc } from './overview-data'
+
 /**
  * Tendencias mensuales (6 meses) para las mini-series del Resumen.
  * Mismo patrón de SQL directo tenant-scoped que db-aggregates: agregaciones
  * que Payload no agrupa por mes sin traer todas las filas a memoria.
+ * Las claves de mes y el grouping SQL usan la zona horaria configurada del
+ * tenant (validada y pasada como parámetro, nunca interpolada al SQL).
  */
 
 export interface MonthlySeries {
@@ -22,10 +26,10 @@ export interface MonthlySeries {
   actividadesDeltaPct: number | null
 }
 
-/** 'YYYY-MM' del mes actual visto desde America/Caracas (mismo criterio que db-aggregates: el SQL agrupa con esa timezone). */
-function caracasYearMonth(now = new Date()): { y: number; m: number } {
+/** 'YYYY-MM' del mes actual visto desde la zona horaria del tenant. */
+function tenantYearMonth(timeZone: string, now = new Date()): { y: number; m: number } {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Caracas',
+    timeZone,
     year: 'numeric',
     month: '2-digit',
   }).format(now)
@@ -33,9 +37,9 @@ function caracasYearMonth(now = new Date()): { y: number; m: number } {
   return { y, m }
 }
 
-function lastSixMonthKeys(now = new Date()): string[] {
-  // Aritmética de meses en UTC sobre (año, mes de Caracas): tz-independiente.
-  const { y, m } = caracasYearMonth(now)
+function lastSixMonthKeys(timeZone: string, now = new Date()): string[] {
+  // Aritmética de meses en UTC sobre (año, mes del tenant): tz-independiente.
+  const { y, m } = tenantYearMonth(timeZone, now)
   const keys: string[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(Date.UTC(y, m - 1 - i, 1))
@@ -56,34 +60,48 @@ export async function getMonthlyTrends({
   const db = payload.db as { pool?: { query: (sql: string, params: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }> } }
   if (!db.pool || typeof db.pool.query !== 'function') return null
 
-  const months = lastSixMonthKeys()
-  const since = `${months[0]}-01`
+  // Zona horaria configurada del tenant (fallback interno a Caracas); misma
+  // resolución RLS que overview-data. El tz viaja como PARÁMETRO del SQL.
+  const timeZone = await resolveTenantTimezone(() =>
+    payload.find({
+      collection: 'company-settings',
+      limit: 1,
+      depth: 0,
+      where: { tenant: { equals: tenantId } },
+      overrideAccess: false,
+      user,
+    }),
+  )
+
+  const months = lastSixMonthKeys(timeZone)
+  // Medianoche local del primer día del primer mes, convertida a instante UTC
+  const since = zonedTimeToUtc(`${months[0]}-01T00:00:00`, timeZone).toISOString()
 
   try {
     const [paidRes, leadsRes, activitiesRes] = await Promise.all([
       db.pool.query(
-        `SELECT to_char(date_trunc('month', paid_at AT TIME ZONE 'America/Caracas'), 'YYYY-MM') AS m,
+        `SELECT to_char(date_trunc('month', paid_at AT TIME ZONE $2), 'YYYY-MM') AS m,
                 COALESCE(SUM(amount), 0)::float8 AS total
          FROM payments
-         WHERE tenant_id = $1 AND status::text = 'pagado' AND paid_at >= $2
+         WHERE tenant_id = $1 AND status::text = 'pagado' AND paid_at >= $3
          GROUP BY 1`,
-        [tenantId, `${since}T00:00:00-04:00`],
+        [tenantId, timeZone, since],
       ),
       db.pool.query(
-        `SELECT to_char(date_trunc('month', created_at AT TIME ZONE 'America/Caracas'), 'YYYY-MM') AS m,
+        `SELECT to_char(date_trunc('month', created_at AT TIME ZONE $2), 'YYYY-MM') AS m,
                 COUNT(*)::int AS n
          FROM leads
-         WHERE tenant_id = $1 AND created_at >= $2
+         WHERE tenant_id = $1 AND created_at >= $3
          GROUP BY 1`,
-        [tenantId, `${since}T00:00:00-04:00`],
+        [tenantId, timeZone, since],
       ),
       db.pool.query(
-        `SELECT to_char(date_trunc('month', occurred_at AT TIME ZONE 'America/Caracas'), 'YYYY-MM') AS m,
+        `SELECT to_char(date_trunc('month', occurred_at AT TIME ZONE $2), 'YYYY-MM') AS m,
                 COUNT(*)::int AS n
          FROM activities
-         WHERE tenant_id = $1 AND occurred_at >= $2
+         WHERE tenant_id = $1 AND occurred_at >= $3
          GROUP BY 1`,
-        [tenantId, `${since}T00:00:00-04:00`],
+        [tenantId, timeZone, since],
       ),
     ])
 

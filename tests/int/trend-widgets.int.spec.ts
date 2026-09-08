@@ -1,12 +1,23 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Payload } from 'payload'
-import { getMonthlyTrends } from '@/lib/trend-widgets'
+import type { User } from '@/payload-types'
+import { getMonthlyTrends, type MonthlySeries } from '@/lib/trend-widgets'
+import { zonedTimeToUtc } from '@/lib/overview-data'
+
+const mockUser = {
+  id: 1,
+  collection: 'users',
+  email: 'admin@martes.local',
+  roles: ['admin'],
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+} as unknown as User
 
 describe('trend-widgets — getMonthlyTrends (deltas mensuales)', () => {
-  /** Mismos 6 keys 'YYYY-MM' que lastSixMonthKeys (mes actual de Caracas, 5 hacia atrás). */
-  function sixMonthKeys(now = new Date()): string[] {
+  /** Mismos 6 keys 'YYYY-MM' que lastSixMonthKeys para una tz dada. */
+  function sixMonthKeys(timeZone: string, now = new Date()): string[] {
     const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Caracas',
+      timeZone,
       year: 'numeric',
       month: '2-digit',
     }).format(now)
@@ -19,17 +30,27 @@ describe('trend-widgets — getMonthlyTrends (deltas mensuales)', () => {
     return keys
   }
 
-  /** Serie de 6 meses donde el último (índice 5) es el mes PARCIAL en curso. */
-  function mockPayloadWithSeries(cobrado: number[], leadsNuevos: number[], actividades: number[]): Payload {
-    const months = sixMonthKeys()
+  /**
+   * Serie de 6 meses donde el último (índice 5) es el mes PARCIAL en curso.
+   * `timezone` en company-settings controla las claves que debe usar la lib.
+   */
+  function mockPayloadWithSeries(
+    cobrado: number[],
+    leadsNuevos: number[],
+    actividades: number[],
+    { timezone }: { timezone?: string } = {},
+  ): Payload {
+    const keys = sixMonthKeys(timezone ?? 'America/Caracas')
     const toRows = (series: number[], valueKey: string) =>
-      months.map((m, i) => ({ m, [valueKey]: series[i] }))
+      keys.map((m, i) => ({ m, [valueKey]: series[i] }))
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: toRows(cobrado, 'total') })
       .mockResolvedValueOnce({ rows: toRows(leadsNuevos, 'n') })
       .mockResolvedValueOnce({ rows: toRows(actividades, 'n') })
+    const find = vi.fn().mockResolvedValue({ docs: timezone ? [{ timezone }] : [] })
     return {
+      find,
       db: { pool: { query } },
     } as unknown as Payload
   }
@@ -41,7 +62,7 @@ describe('trend-widgets — getMonthlyTrends (deltas mensuales)', () => {
       [0, 0, 0, 0, 0, 0],
     )
 
-    const trends = await getMonthlyTrends({ payload, tenantId: 10 })
+    const trends = await getMonthlyTrends({ payload, tenantId: 10, user: mockUser, })
 
     expect(trends).not.toBeNull()
     // meses[3]=10 vs meses[4]=50 → +400% (sin el fix sería el parcial 3 vs 50 → -94%)
@@ -52,9 +73,44 @@ describe('trend-widgets — getMonthlyTrends (deltas mensuales)', () => {
     expect(trends?.actividadesDeltaPct).toBeNull()
   })
 
+  it('resuelve la zona horaria del tenant con RLS y la pasa como parámetro del SQL', async () => {
+    const timezone = 'America/Bogota'
+    const payload = mockPayloadWithSeries(
+      [1, 1, 1, 1, 1, 1],
+      [1, 1, 1, 1, 1, 1],
+      [1, 1, 1, 1, 1, 1],
+      { timezone },
+    )
+    const find = (payload as unknown as { find: ReturnType<typeof vi.fn> }).find
+    const query = (payload as unknown as { db: { pool: { query: ReturnType<typeof vi.fn> } } }).db.pool.query
+
+    const trends: MonthlySeries | null = await getMonthlyTrends({
+      payload,
+      tenantId: 10,
+      user: mockUser,
+    })
+
+    expect(trends).not.toBeNull()
+    // RLS en la lectura de company-settings
+    const findParams = find.mock.calls[0][0] as { overrideAccess: boolean; user: unknown; where: unknown }
+    expect(findParams.overrideAccess).toBe(false)
+    expect(findParams.user).toEqual(mockUser)
+    expect(findParams.where).toBeDefined()
+
+    // El tz del tenant viaja como PARÁMETRO (nunca interpolado) y el límite
+    // inferior es la medianoche local del primer mes convertida a UTC —
+    // eventos alrededor del límite UTC de mes agrupan en el mes del tenant.
+    const keys = sixMonthKeys(timezone)
+    const expectedSince = zonedTimeToUtc(`${keys[0]}-01T00:00:00`, timezone).toISOString()
+    const params = query.mock.calls[0][1] as unknown[]
+    expect(params[1]).toBe(timezone)
+    expect(params[2]).toBe(expectedSince)
+  })
+
   it('devuelve null cuando falta el pool SQL (drivers sin acceso directo)', async () => {
     const payload = { db: { pool: undefined } } as unknown as Payload
     const trends = await getMonthlyTrends({ payload, tenantId: 10 })
     expect(trends).toBeNull()
   })
 })
+

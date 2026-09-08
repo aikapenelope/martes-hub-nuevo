@@ -59,6 +59,7 @@ export const Clients: CollectionConfig = {
               data: {
                 status: 'calificado',
                 convertedClient: doc.id,
+                convertedAt: new Date().toISOString(),
               },
               context: {
                 ...req.context,

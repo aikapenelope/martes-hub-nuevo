@@ -555,6 +555,7 @@ export async function convertLeadInSituAction(leadId: number): Promise<ActionRes
       data: {
         status: 'calificado',
         convertedClient: client.id,
+        convertedAt: new Date().toISOString(),
       },
     })
 
