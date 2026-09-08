@@ -1,6 +1,6 @@
 import { createElement } from 'react'
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
 
 import { MonoFunnel, type FunnelStage } from '@/components/workspace/monocharts'
 import { CockpitSourceBreakdown } from '@/components/workspace/overview/CockpitSourceBreakdown'
@@ -10,6 +10,8 @@ import type { ChannelSourceMetric } from '@/components/workspace/overview/types'
  * Tandas 3-4 del sector UI (patrón dashboard-9 adaptado a OLED):
  * píldoras de % en el embudo y barras punteadas en desgloses.
  */
+
+afterEach(cleanup)
 
 describe('MonoFunnel — píldora de tasa (tanda 3)', () => {
   const stages: FunnelStage[] = [
@@ -40,6 +42,25 @@ describe('MonoFunnel — píldora de tasa (tanda 3)', () => {
       }),
     )
     expect(screen.getByText('—')).toBeDefined()
+  })
+
+  it('la píldora vacía de la barra más ancha no sale del chart (clamp)', () => {
+    // La etapa con conversiónRate null es aquí la más ancha (100%) — su píldora
+    // debe quedar dentro del chart, no en left: 102%
+    const { container } = render(
+      createElement(MonoFunnel, {
+        stages: [
+          { label: 'Cotización', count: 3 },
+          { label: 'Sin datos', count: 5, conversionRate: null },
+          { label: 'Ganados', count: 1, conversionRate: 20 },
+        ],
+      }),
+    )
+    const emptyPill = screen.getByText('—')
+    const style = emptyPill.getAttribute('style') ?? ''
+    expect(style).toContain('left: 88%')
+    // sanity: dentro del contenedor del chart
+    expect(container.contains(emptyPill)).toBe(true)
   })
 
   it('conserva el conteo y el importe por etapa', () => {

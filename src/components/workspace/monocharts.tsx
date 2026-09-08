@@ -212,10 +212,9 @@ export function MonoFunnel({
         const isFirst = idx === 0
         const isLast = idx === stages.length - 1
         const hasRate = !isFirst && stage.conversionRate !== undefined && stage.conversionRate !== null
-        // La píldora viaja con la barra, anclada al extremo de su ancho proporcional
-        const pillLeftPct = hasRate
-          ? Math.min(widthPct + 2, 88)
-          : widthPct + 2
+        // La píldora viaja con la barra, anclada al extremo de su ancho proporcional,
+        // con clamp para que la píldora vacía (—) de una barra de 100% no salga del chart
+        const pillLeftPct = Math.min(widthPct + 2, 88)
 
         return (
           <div key={stage.label} className="p-2.5 oled-subcard space-y-1.5 border-zinc-900/80 hover:border-zinc-800 transition">
