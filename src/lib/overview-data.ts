@@ -28,6 +28,7 @@ import type {
   ChannelSourceMetric,
   CockpitOperationalAlert,
   DayBucket,
+  HourBucket,
   MonthlyCashflowPoint,
   TimeRangeKey,
   WorkspaceOverviewData,
@@ -177,10 +178,12 @@ export function resolveTimeRangeWindow(
   }
 }
 
-/** 364 días (52 semanas × 7) de más antiguo a más reciente, en blanco para agregar conteos reales. */
-function buildEmptyDayBuckets(): DayBucket[] {
+/** 364 días (52 semanas × 7) de más antiguo a más reciente, en blanco para agregar conteos reales.
+ * Las fechas calendario son locales al tenant (mismo criterio que resolveTimeRangeWindow). */
+function buildEmptyDayBuckets(timeZone: string): DayBucket[] {
+  const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
   return Array.from({ length: 364 }, (_, i) => ({
-    dateStr: new Date(Date.now() - (363 - i) * 24 * 3600_000).toISOString().slice(0, 10),
+    dateStr: dayFmt.format(new Date(Date.now() - (363 - i) * 24 * 3600_000)),
     count: 0,
   }))
 }
@@ -352,18 +355,21 @@ export async function getWorkspaceOverviewData({
       collection: 'activities',
       limit: 3000,
       depth: 0,
+      select: { createdAt: true },
       where: tenantWhere(tenantId, { createdAt: { greater_than_equal: yearAgo } }),
     }),
     q({
       collection: 'messages',
       limit: 3000,
       depth: 0,
+      select: { createdAt: true },
       where: tenantWhere(tenantId, { createdAt: { greater_than_equal: yearAgo } }),
     }),
     q({
       collection: 'payments',
       limit: 3000,
       depth: 0,
+      select: { createdAt: true },
       where: tenantWhere(tenantId, {
         status: { equals: 'pagado' },
         paidAt: { greater_than_equal: yearAgo },
@@ -554,18 +560,54 @@ export async function getWorkspaceOverviewData({
     },
   )
 
-  // Matriz de actividad de 364 días
-  const dayBuckets = buildEmptyDayBuckets()
+  // Matriz de actividad de 364 días — fechas calendario en la zona del tenant
+  // (mismo criterio que resolveTimeRangeWindow; antes se agrupaba por fecha UTC).
+  const dayBuckets = buildEmptyDayBuckets(timeZone)
   const bucketIndex = new Map(dayBuckets.map((b, i) => [b.dateStr, i]))
+  // Variante horaria (ítem 6 del sector UI): día de semana (0=lun…6=dom) × hora
+  // local del tenant, derivada de los mismos eventos reales del año — misma
+  // fuente que la matriz diaria, sin queries adicionales.
+  const dayHourFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    weekday: 'short',
+    hour: '2-digit',
+  })
+  const dayOnlyFmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  // weekday 'short' en en-US: Mon..Sun → índice 0..6
+  const DOW_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const hourCounts = new Map<string, number>()
+  const addToHourBuckets = (isoDate?: string | null) => {
+    if (!isoDate) return
+    const parts = dayHourFmt.format(new Date(isoDate))
+    const dow = DOW_ORDER.indexOf(parts.slice(0, 3))
+    const hour = Number.parseInt(parts.slice(-2), 10)
+    if (dow < 0 || Number.isNaN(hour)) return
+    const key = `${dow}-${hour === 24 ? 0 : hour}`
+    hourCounts.set(key, (hourCounts.get(key) ?? 0) + 1)
+  }
   const addToBucket = (isoDate?: string | null) => {
     if (!isoDate) return
-    const idx = bucketIndex.get(isoDate.slice(0, 10))
+    const idx = bucketIndex.get(dayOnlyFmt.format(new Date(isoDate)))
     if (idx !== undefined) dayBuckets[idx].count++
+    addToHourBuckets(isoDate)
   }
   for (const a of yearActivities.docs as Activity[]) addToBucket(a.createdAt)
   for (const m of yearMessages.docs as Message[]) addToBucket(m.createdAt)
   for (const p of yearPaidPayments.docs as Payment[]) addToBucket(p.createdAt)
   const totalYearInteractions = dayBuckets.reduce((acc, b) => acc + b.count, 0)
+
+  // Matriz horaria 7×24 (168 celdas), de lunes a domingo
+  const hourBuckets: HourBucket[] = Array.from({ length: 168 }, (_, i) => ({
+    dow: Math.floor(i / 24),
+    hour: i % 24,
+    count: hourCounts.get(`${Math.floor(i / 24)}-${i % 24}`) ?? 0,
+  }))
 
   const metrics: WorkspaceOverviewMetrics = {
     totalLeadsActive,
@@ -619,6 +661,7 @@ export async function getWorkspaceOverviewData({
     metrics,
     hotLeads,
     dayBuckets,
+    hourBuckets,
     totalYearInteractions,
     recentPayments: payments,
     recentConversations: convList,
