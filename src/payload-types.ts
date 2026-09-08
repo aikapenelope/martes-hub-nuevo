@@ -95,6 +95,7 @@ export interface Config {
     tasks: Task;
     'conversation-summaries': ConversationSummary;
     'conversation-notes': ConversationNote;
+    'saved-crm-views': SavedCrmView;
     sequences: Sequence;
     'sequence-enrollments': SequenceEnrollment;
     'social-accounts': SocialAccount;
@@ -166,6 +167,7 @@ export interface Config {
     tasks: TasksSelect<false> | TasksSelect<true>;
     'conversation-summaries': ConversationSummariesSelect<false> | ConversationSummariesSelect<true>;
     'conversation-notes': ConversationNotesSelect<false> | ConversationNotesSelect<true>;
+    'saved-crm-views': SavedCrmViewsSelect<false> | SavedCrmViewsSelect<true>;
     sequences: SequencesSelect<false> | SequencesSelect<true>;
     'sequence-enrollments': SequenceEnrollmentsSelect<false> | SequenceEnrollmentsSelect<true>;
     'social-accounts': SocialAccountsSelect<false> | SocialAccountsSelect<true>;
@@ -1243,6 +1245,32 @@ export interface ConversationNote {
   createdAt: string;
 }
 /**
+ * Filtros guardados del CRM, privados por usuario.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "saved-crm-views".
+ */
+export interface SavedCrmView {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  name: string;
+  createdBy: number | User;
+  vista: 'leads' | 'clientes' | 'empresas';
+  modo?: ('pipeline' | 'tabla') | null;
+  q?: string | null;
+  /**
+   * estado de lead o etapa de cliente según la vista; vacío = todos.
+   */
+  estado?: string | null;
+  fuente?: string | null;
+  /**
+   * 'me', 'todos' o id numérico de usuario.
+   */
+  agente?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Cadenas de nurturing por email para leads (pasos: email, tarea, esperar N días).
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2074,6 +2102,10 @@ export interface PayloadLockedDocument {
         value: number | ConversationNote;
       } | null)
     | ({
+        relationTo: 'saved-crm-views';
+        value: number | SavedCrmView;
+      } | null)
+    | ({
         relationTo: 'sequences';
         value: number | Sequence;
       } | null)
@@ -2724,6 +2756,23 @@ export interface ConversationNotesSelect<T extends boolean = true> {
   conversation?: T;
   body?: T;
   author?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "saved-crm-views_select".
+ */
+export interface SavedCrmViewsSelect<T extends boolean = true> {
+  tenant?: T;
+  name?: T;
+  createdBy?: T;
+  vista?: T;
+  modo?: T;
+  q?: T;
+  estado?: T;
+  fuente?: T;
+  agente?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3510,6 +3559,7 @@ export interface TaskCreateCollectionExport {
       | 'tasks'
       | 'conversation-summaries'
       | 'conversation-notes'
+      | 'saved-crm-views'
       | 'sequences'
       | 'sequence-enrollments'
       | 'social-accounts'

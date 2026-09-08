@@ -44,6 +44,7 @@ import { FormSubmissions } from './collections/FormSubmissions'
 import { Tasks } from './collections/Tasks'
 import { ConversationSummaries } from './collections/ConversationSummaries'
 import { ConversationNotes } from './collections/ConversationNotes'
+import { SavedCrmViews } from './collections/SavedCrmViews'
 import { Sequences } from './collections/Sequences'
 import { SequenceEnrollments } from './collections/SequenceEnrollments'
 import { SocialAccounts } from './collections/SocialAccounts'
@@ -117,6 +118,7 @@ export default buildConfig({
     Tasks,
     ConversationSummaries,
     ConversationNotes,
+    SavedCrmViews,
     Sequences,
     SequenceEnrollments,
     SocialAccounts,
@@ -208,6 +210,7 @@ export default buildConfig({
         sequences: {},
         'sequence-enrollments': {},
         'conversation-summaries': {},
+        'saved-crm-views': {},
         'conversation-notes': {},
         'social-accounts': {},
         'social-posts': {},
