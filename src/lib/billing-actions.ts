@@ -549,6 +549,7 @@ export async function convertQuoteToInvoiceAction(params: {
       }
     }
   } catch (err: unknown) {
+    console.error('[convertQuoteToInvoiceAction] error real:', err)
     const message = err instanceof Error ? err.message : 'Error al convertir cotización a factura'
     return { ok: false, error: message }
   }
@@ -596,6 +597,7 @@ export async function updateQuoteStatusAction(params: {
     revalidatePath('/workspace/offers')
     return { ok: true }
   } catch (err: unknown) {
+    console.error('[updateQuoteStatusAction] error real:', err)
     return { ok: false, error: err instanceof Error ? err.message : 'Error al actualizar cotización' }
   }
 }

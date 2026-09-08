@@ -94,10 +94,7 @@ jobs:
       # storage. Con R2 conectado (env de arriba), borra los dos --exclude de
       # abajo y la suite queda completa. El resto corre ya entera.
       - name: Run integration tests
-        run: >-
-          pnpm vitest run --config ./vitest.config.mts
-          --exclude 'tests/int/billing-lifecycle.int.spec.ts'
-          --exclude 'tests/int/offers-billing-cashboard.int.spec.ts'
+        run: pnpm test:int
 
       - name: Summary
         if: always()
