@@ -245,7 +245,7 @@ describe('scoreTenantLeads — barrido tenant-scoped', () => {
       summariesPages: [{ docs: [{ lead: 7, sentiment: 'positivo' }], hasNextPage: false }],
     })
 
-    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1 })
+    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1, now: NOW })
 
     // 30 (inbound) + 25 (positivo) + 5 (nuevo) = 60 → caliente/media
     expect(res).toEqual({ scored: 1, updated: 1, promoted: 1 })
@@ -277,7 +277,7 @@ describe('scoreTenantLeads — barrido tenant-scoped', () => {
     }
     const mocks = buildMockPayload(lead)
 
-    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1 })
+    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1, now: NOW })
 
     expect(res).toEqual({ scored: 1, updated: 0, promoted: 0 })
     expect(mocks.update).not.toHaveBeenCalled()
@@ -300,7 +300,7 @@ describe('scoreTenantLeads — barrido tenant-scoped', () => {
     }
     const mocks = buildMockPayload(lead)
 
-    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1 })
+    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1, now: NOW })
 
     // 10 (contactado) − 10·⌊(10−3)/2⌋ = 10 − 30 → piso 0
     expect(res).toEqual({ scored: 1, updated: 1, promoted: 0 })
@@ -327,7 +327,7 @@ describe('scoreTenantLeads — barrido tenant-scoped', () => {
       ],
     })
 
-    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1 })
+    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1, now: NOW })
 
     // El inbound y el sentimiento del lead 7 viven en la página 2 — si no se
     // paginara, el lead se evaluaría frio por señales incompletas.
@@ -365,7 +365,7 @@ describe('scoreTenantLeads — barrido tenant-scoped', () => {
       summariesPages: [{ docs: [{ lead: 10, sentiment: 'positivo' }], hasNextPage: false }],
     })
 
-    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1 })
+    const res = await scoreTenantLeads({ payload: mocks.payload, tenantId: 1, now: NOW })
 
     // 30 (inbound) + 25 (positivo) + 10 (contactado) = 65 → sigue caliente/media
     expect(res).toEqual({ scored: 1, updated: 0, promoted: 0 })
@@ -409,14 +409,22 @@ describe('recalculate-lead-scores — handler del job', () => {
     type TaskArgs = Parameters<
       Extract<typeof recalculateLeadScoresTask.handler, (...args: never[]) => unknown>
     >[0]
-    const result = (await recalculateLeadScoresTask.handler({
-      req: { payload: mocks.payload },
-    } as unknown as TaskArgs)) as {
-      output: { scored: number; updated: number; promoted: number; summary: string }
-    }
+    // El handler llama a scoreTenantLeads con Date.now(): se congela el reloj
+    // del sistema para que el NOW de los fixtures siga siendo válido cualquier
+    // día que corra la suite (sin esto, los tests rompen al pasar 24h).
+    vi.useFakeTimers({ now: NOW })
+    try {
+      const result = (await recalculateLeadScoresTask.handler({
+        req: { payload: mocks.payload },
+      } as unknown as TaskArgs)) as {
+        output: { scored: number; updated: number; promoted: number; summary: string }
+      }
 
-    expect(result.output).toMatchObject({ scored: 1, updated: 1, promoted: 1 })
-    expect(result.output.summary).toContain('Evaluados: 1')
+      expect(result.output).toMatchObject({ scored: 1, updated: 1, promoted: 1 })
+      expect(result.output.summary).toContain('Evaluados: 1')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('procesa tenants de páginas posteriores (hasNextPage true)', async () => {
@@ -437,17 +445,22 @@ describe('recalculate-lead-scores — handler del job', () => {
     type TaskArgs = Parameters<
       Extract<typeof recalculateLeadScoresTask.handler, (...args: never[]) => unknown>
     >[0]
-    const result = (await recalculateLeadScoresTask.handler({
-      req: { payload: mocks.payload },
-    } as unknown as TaskArgs)) as {
-      output: { scored: number; updated: number; promoted: number }
-    }
+    vi.useFakeTimers({ now: NOW })
+    try {
+      const result = (await recalculateLeadScoresTask.handler({
+        req: { payload: mocks.payload },
+      } as unknown as TaskArgs)) as {
+        output: { scored: number; updated: number; promoted: number }
+      }
 
-    // El lead se evalúa una vez por tenant — 2 tenants = 2 promociones.
-    expect(result.output).toMatchObject({ scored: 2, updated: 2, promoted: 2 })
-    expect(mocks.find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'tenants', page: 2 }))
-    expect(mocks.queue).toHaveBeenCalledWith(
-      expect.objectContaining({ task: 'generate-lead-brief', input: { leadId: 7, tenantId: 2 } }),
-    )
+      // El lead se evalúa una vez por tenant — 2 tenants = 2 promociones.
+      expect(result.output).toMatchObject({ scored: 2, updated: 2, promoted: 2 })
+      expect(mocks.find).toHaveBeenCalledWith(expect.objectContaining({ collection: 'tenants', page: 2 }))
+      expect(mocks.queue).toHaveBeenCalledWith(
+        expect.objectContaining({ task: 'generate-lead-brief', input: { leadId: 7, tenantId: 2 } }),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
