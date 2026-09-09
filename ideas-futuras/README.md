@@ -12,6 +12,7 @@ al estado real del repo** y un checklist para ejecutar el sprint.
 | 03 | [Inteligencia de conversaciones](./03-inteligencia-conversaciones.md) | Página propia `/workspace/conversaciones` (sidebar, no tab del CRM) que concentra sentimiento, necesidades, antigüedad y temperatura por cliente/lead, con reactivación por IA y deep link `wa.me`. ~60% del motor ya existe repartido en 5 sitios. |
 | 02 | [Conciliación de pagos desde WhatsApp](./02-conciliacion-pagos-whatsapp.md) | Captura de comprobante entrante → extracción con modelo de visión → `payments` en `por_confirmar` → botón único de confirmación en Billing. La imagen no se duplica: se referencia al mensaje. Doc pendiente de actualizar con sección de Consideraciones (como los demás) cuando llegue su turno. |
 | 05 | [Conversiones y próximas acciones](./05-conversiones-y-proximas-acciones.md) | **Investigación — por decidir modelo.** Página de conversiones (modelos PostHog funnels vs HubSpot attribution, con links) + tarjetas de próxima acción con IA (estilo Einstein Next Best Action / HubSpot Prospecting Agent): a quién contactar, por qué ahora y qué escribirle. |
+| 06 | [Todas las conexiones vía Composio](./06-integraciones-via-composio.md) | **Auditoría y replanteo.** Gmail y Google Calendar migran de env vars globales (un buzón/calendario por deployment) a conexión por login del tenant — multi-tenant real con el mismo mecanismo del 01. TikTok sí existe en Composio (publish + stats) pero sin managed OAuth: fase posterior. Incluye qué NO migra (OpenBSP, Tally, Resend, infra). |
 
 ## Estado
 
@@ -28,6 +29,9 @@ Priorizado. Orden de construcción acordado:
 4. **02 Conciliación** — concilia contra los cobros que la renovación genera.
 5. **05 Conversiones + próximas acciones** — investigación hecha; falta elegir
    modelo (A embudo / B atribución / mezcla) antes de cerrar el diseño.
+6. **06 Gmail y GCal por conexión** — migra los espejos existentes al mecanismo
+   del 01 (fases 2b/2c del plan); TikTok queda para fase 4 (requiere app
+   propia de TikTok).
 
 ## Contexto compartido de los diseños
 

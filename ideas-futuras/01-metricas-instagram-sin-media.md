@@ -134,13 +134,19 @@ tenant de Martes (tu key va en env var como valor por defecto de tu tenant).
 
 ### 1. Conexión por tenant con BYO-key (SDK)
 
-**Colección nueva `tenant-integrations`** (tenant-scoped, `adminOnly`, sin
-drafts), **una fila por integración** para soportar varios toolkits con el
-mismo mecanismo: `{ provider: 'composio', toolkit: 'instagram' | 'gmail' |
-'googlecalendar' | 'googlesheets' | ..., apiKeyCifrado, authConfigId,
-estado: ok/invalida }` — la key del proyecto Composio del tenant, **cifrada
-AES-GCM** (`src/lib/crypto.ts` nuevo, key en env `INTEGRATIONS_ENC_KEY`).
-Tu tenant de Martes usa el valor de `COMPOSIO_API_KEY` (env) como default.
+**Dos colecciones nuevas** (fix de review: la key del proyecto tiene UNA
+ubicación autoritativa por tenant; el estado de cada toolkit va separado):
+
+- **`tenant-integrations`** — **1 fila por tenant** (unique en tenant):
+  `{ provider: 'composio', apiKeyCifrado, estado: ok/invalida }`. La única
+  fuente de la key del proyecto Composio del tenant — cifrada AES-GCM
+  (`src/lib/crypto.ts` nuevo, key en env `INTEGRATIONS_ENC_KEY`). Rotar la
+  key = actualizar esta fila. Tu tenant de Martes usa `COMPOSIO_API_KEY`
+  (env) como default.
+- **`tenant-connections`** — 1 fila por (tenant, toolkit), índice único:
+  `{ toolkit: 'instagram' | 'gmail' | 'googlecalendar' | ..., authConfigId,
+  connectedAccountId, estado: conectando/ok/error_token/error_api,
+  lastSyncAt, config propia (ej. calendarId del tenant) }`.
 
 **Todo se configura programáticamente — el tenant nunca abre el dashboard de
 Composio salvo para crear su cuenta y copiar su API key una vez.** Al pegar
@@ -153,15 +159,21 @@ hace *get-or-create* del auth config gestionado con el SDK
 **Flujo de conexión de cada toolkit** (Ajustes o `/workspace/social`):
 
 1. `createConnectionAction(toolkit)` → `getComposioForTenant(tenantId)` (key
-   cifrada → init SDK con `toolkitVersions` fijado) →
+   cifrada de `tenant-integrations` → init SDK con `toolkitVersions` fijado)
+   → auth config gestionado del toolkit →
    `connectedAccounts.link('martes-hub:{tenantId}', authConfigId,
    { callbackUrl: '/workspace/social' })` → el botón abre `redirectUrl`.
 2. El usuario **loguea en el servicio real** — Instagram, Google, el que sea —
    en la página hosted de Composio. Las credenciales jamás pasan por Martes
    Hub ni por ningún modelo.
-3. Al volver (callback o "Verificar"): listar connected accounts del userId →
-   upsert (`social-accounts` para Instagram; tablas espejo que ya existen para
-   Gmail/GCal cuando se activen) → estado `ok`.
+3. **Verificación con filtro por el auth config esperado** (fix de review:
+   varios toolkits comparten el mismo userId — listar todas las cuentas del
+   userId puede traer conexiones de otros toolkits): la verificación lista
+   los connected accounts del userId y selecciona **solo** el que coincide
+   con el `authConfigId` + `toolkit` pedidos (llevados desde
+   `createConnectionAction` hasta el callback) → upsert en su destino
+   (`social-accounts` para Instagram; `email-messages`/`appointments` para
+   Gmail/GCal) → estado `ok`.
 
 ### 1b. Hub de conexiones en Ajustes (el "donde diga X, se loguea en X")
 
@@ -255,16 +267,18 @@ COMPOSIO_API_KEY=       # SOLO el proyecto del tenant Martes (default del propio
 
 **Fase 1 — Integración base (2–3 días)**
 - `pnpm add @composio/core` (server-only) + `src/lib/crypto.ts` (AES-GCM).
-- Colección `tenant-integrations` (una fila por toolkit, key cifrada) +
-  migración; **Hub de conexiones en Ajustes**: API key del tenant + tarjetas
-  por toolkit (Instagram activo; Gmail/GCal/Sheets/Docs "próximamente") +
-  tarjeta de consumo (usage API).
+- Colecciones `tenant-integrations` (1 fila por tenant: solo la key cifrada)
+  y `tenant-connections` (1 fila por tenant+toolkit) + migraciones; **Hub de
+  conexiones en Ajustes**: API key del tenant + tarjetas por toolkit
+  (Instagram activo; Gmail/GCal/Sheets/Docs "próximamente") + tarjeta de
+  consumo (usage API).
 - `src/integrations/composio/client.ts`: `getComposioForTenant(tenantId)` —
   key de `tenant-integrations` o env para Martes; init con
   `toolkitVersions: { instagram: <fijada> }`; get-or-create de auth configs
   gestionados.
-- Conexión de Instagram (link + callback + upsert `social-accounts` con
-  `composioConnectedAccountId`/`externalUserId`/`syncStatus`) y desconexión.
+- Conexión de Instagram (link + callback con filtro por auth config + upsert
+  `social-accounts` con `composioConnectedAccountId`/`externalUserId`/
+  `syncStatus`) y desconexión.
 
 **Fase 2 — Publicar (3–4 días)**
 - Extender `SocialPostCreateDialog` (ya tiene caption + cuenta + programar +
