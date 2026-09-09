@@ -89,9 +89,18 @@ interface EmailSource {
 async function collectSources(payload: Payload): Promise<EmailSource[]> {
   const sources: EmailSource[] = []
 
+  // SOLO conexiones de la empresa: espejar un Gmail personal en el mirror
+  // compartido del tenant expondría correo privado a todos los usuarios
+  // (review Devin). El sync personal por usuario llega con atribución propia.
   const connections = await payload.find({
     collection: 'tenant-connections',
-    where: { and: [{ toolkit: { equals: 'gmail' } }, { estado: { equals: 'ok' } }] },
+    where: {
+      and: [
+        { toolkit: { equals: 'gmail' } },
+        { estado: { equals: 'ok' } },
+        { scope: { equals: 'empresa' } },
+      ],
+    },
     limit: 100,
     depth: 1,
     overrideAccess: true,

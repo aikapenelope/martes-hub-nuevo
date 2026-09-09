@@ -36,7 +36,14 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
     WHEN duplicate_object THEN null;
   END $$;
 
-  CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_social_account_metrics_id_idx" ON "payload_locked_documents_rels" USING btree ("social_account_metrics_id");`)
+  CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_social_account_metrics_id_idx" ON "payload_locked_documents_rels" USING btree ("social_account_metrics_id");
+
+  -- Unicidad de citas consciente de la fuente (review Devin): empresa y
+  -- personales pueden usar calendarId 'primary' — (tenant, gcal_event_id) ya
+  -- no identifica una cita. Filas legacy (source NULL) quedan fuera del
+  -- unique (NULLS DISTINCT) y siguen actualizándose por el camino legacy.
+  DROP INDEX IF EXISTS "appointments_tenant_gcal_event_id_idx";
+  CREATE UNIQUE INDEX IF NOT EXISTS "appointments_tenant_source_gcal_event_id_idx" ON "appointments" USING btree ("tenant_id", "source_connection_id", "gcal_event_id");`)
 }
 
 export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
@@ -45,5 +52,8 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP INDEX IF EXISTS "payload_locked_documents_rels_social_account_metrics_id_idx";
   ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "social_account_metrics_id";
 
-  DROP TABLE IF EXISTS "social_account_metrics";`)
+  DROP TABLE IF EXISTS "social_account_metrics";
+
+  DROP INDEX IF EXISTS "appointments_tenant_source_gcal_event_id_idx";
+  CREATE UNIQUE INDEX IF NOT EXISTS "appointments_tenant_gcal_event_id_idx" ON "appointments" USING btree ("tenant_id", "gcal_event_id");`)
 }

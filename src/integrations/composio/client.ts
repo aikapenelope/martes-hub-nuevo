@@ -47,8 +47,10 @@ export async function getComposioForTenant(
   )
   if (!tenant) return null
 
-  const defaultTenantSlug = process.env.WORKSPACE_DEFAULT_TENANT || 'martes'
-  const isDefaultTenant = tenant.slug === defaultTenantSlug
+  // Consistente con workspace-context (que nunca hardcodea slugs): la key del
+  // operador SOLO aplica si WORKSPACE_DEFAULT_TENANT está explícito y coincide.
+  const defaultTenantSlug = process.env.WORKSPACE_DEFAULT_TENANT
+  const isDefaultTenant = Boolean(defaultTenantSlug) && tenant.slug === defaultTenantSlug
 
   // 1) La fila del tenant gana: key asignada por el operador (cuota propia).
   const rows = await payload.find({

@@ -283,14 +283,18 @@ export async function verifyConnectionAction(
       return { ok: false, error: 'Aún no completaste el login — abre el enlace y autoriza el servicio' }
     }
 
+    // Atómico desde la perspectiva de la UI (review Devin): la conexión NO se
+    // marca 'ok' hasta que la identidad IG y el espejo tuvieron éxito. Cualquier
+    // fallo restaura 'conectando' con el error — siempre reintentable.
     await context.payload.update({
       collection: 'tenant-connections',
       id: row.id,
-      data: { connectedAccountId: account.id, estado: 'ok', ultimoError: null, connectedBy: context.user.id },
+      data: { connectedAccountId: account.id, estado: 'conectando', ultimoError: null, connectedBy: context.user.id },
       overrideAccess: true,
     })
 
-    if (toolkit === 'instagram') {
+    try {
+      if (toolkit === 'instagram') {
       // Identidad IG REAL (no el connected account de Composio) — la consulta
       // GET_USER_INFO resuelve 'me' para la conexión recién autorizada.
       const { executeTool } = await import('@/integrations/composio/client')
@@ -374,32 +378,51 @@ export async function verifyConnectionAction(
           })
         }
       } catch (mirrorError) {
-        // El login es válido (conexión ok) pero el espejo falló: volver a
-        // 'conectando' para que el botón de verificación siga disponible.
-        await context.payload.update({
-          collection: 'tenant-connections',
-          id: row.id,
-          data: {
-            estado: 'conectando',
-            ultimoError: `Conectado en Composio pero el espejo falló: ${
-              mirrorError instanceof Error ? mirrorError.message : 'error desconocido'
-            }`,
-          },
-          overrideAccess: true,
-        })
+        await restorePending(context, row.id, mirrorError)
         return {
           ok: false,
           error: safeError(mirrorError, 'La conexión quedó verificada pero el registro interno falló — reintenta'),
         }
       }
-    }
+      }
 
-    revalidatePath(SETTINGS_PATH)
-    revalidatePath('/workspace/social')
-    return { ok: true, estado: 'ok' }
+      // Todo tuvo éxito recién AHORA: la conexión queda verificada.
+      await context.payload.update({
+        collection: 'tenant-connections',
+        id: row.id,
+        data: { estado: 'ok', ultimoError: null, connectedBy: context.user.id },
+        overrideAccess: true,
+      })
+
+      revalidatePath(SETTINGS_PATH)
+      revalidatePath('/workspace/social')
+      return { ok: true, estado: 'ok' }
+    } catch (verifyError) {
+      await restorePending(context, row.id, verifyError)
+      return { ok: false, error: safeError(verifyError, 'Error al verificar la conexión') }
+    }
   } catch (error) {
     return { ok: false, error: safeError(error, 'Error al verificar la conexión') }
   }
+}
+
+/** Restaura una conexión a 'conectando' con el error — siempre reintentable. */
+async function restorePending(
+  context: Awaited<ReturnType<typeof getWorkspaceContext>>,
+  connectionId: number,
+  error: unknown,
+): Promise<void> {
+  await context.payload
+    .update({
+      collection: 'tenant-connections',
+      id: connectionId,
+      data: {
+        estado: 'conectando',
+        ultimoError: `Verificación incompleta: ${error instanceof Error ? error.message : 'error desconocido'}`,
+      },
+      overrideAccess: true,
+    })
+    .catch(() => undefined)
 }
 
 /** Prueba la conexión: confirma que el connected account sigue ACTIVO en Composio. */

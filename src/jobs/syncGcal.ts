@@ -80,7 +80,8 @@ export const syncGcalTask: TaskConfig = {
 interface GcalSource {
   label: string
   tenantId: number
-  connectionId: number
+  /** null = camino legacy por env (pre-Composio): citas sin conexión origen. */
+  connectionId: number | null
   calendarId: string
   organizerAddress: string
   timezone: string
@@ -92,9 +93,18 @@ interface GcalSource {
 async function collectSources(payload: Payload): Promise<GcalSource[]> {
   const sources: GcalSource[] = []
 
+  // SOLO conexiones de la empresa: el calendario personal de un usuario no se
+  // espeja al calendario compartido del tenant (misma razón de privacidad que
+  // sync-email). El sync personal llega con la fase de atribución por usuario.
   const connections = await payload.find({
     collection: 'tenant-connections',
-    where: { and: [{ toolkit: { equals: 'googlecalendar' } }, { estado: { equals: 'ok' } }] },
+    where: {
+      and: [
+        { toolkit: { equals: 'googlecalendar' } },
+        { estado: { equals: 'ok' } },
+        { scope: { equals: 'empresa' } },
+      ],
+    },
     limit: 100,
     depth: 1,
     overrideAccess: true,
@@ -153,7 +163,7 @@ async function collectSources(payload: Payload): Promise<GcalSource[]> {
       sources.push({
         label: `legacy env (${tenantSlug}) [${calendarId}]`,
         tenantId: tenant.id,
-        connectionId: 0,
+        connectionId: null,
         calendarId,
         organizerAddress,
         timezone: process.env.GCAL_TIMEZONE ?? 'America/Caracas',
@@ -190,7 +200,9 @@ async function mirrorSource(payload: Payload, source: GcalSource, events: GcalEv
       where: {
         and: [
           { tenant: { equals: source.tenantId } },
-          { sourceConnection: { equals: source.connectionId } },
+          source.connectionId
+            ? { sourceConnection: { equals: source.connectionId } }
+            : { sourceConnection: { exists: false } },
           { start: { greater_than_equal: timeMin } },
           { start: { less_than_equal: timeMax } },
           { status: { not_equals: 'cancelled' } },
@@ -236,7 +248,9 @@ async function mirrorSource(payload: Payload, source: GcalSource, events: GcalEv
     where: {
       and: [
         { tenant: { equals: source.tenantId } },
-        { sourceConnection: { equals: source.connectionId } },
+        source.connectionId
+          ? { sourceConnection: { equals: source.connectionId } }
+          : { sourceConnection: { exists: false } },
         { gcalEventId: { in: events.map((event) => event.id) } },
       ],
     },
@@ -307,7 +321,7 @@ async function mirrorSource(payload: Payload, source: GcalSource, events: GcalEv
       attendees: attendeeEmails.length > 0 ? attendeeEmails.join(', ') : null,
       description: event.description ?? null,
       gcalEventId: event.id,
-      sourceConnection: source.connectionId,
+      ...(source.connectionId ? { sourceConnection: source.connectionId } : {}),
       calendarId: source.calendarId,
       htmlLink: event.htmlLink ?? null,
       client: clientId ?? null,
@@ -339,7 +353,9 @@ async function mirrorSource(payload: Payload, source: GcalSource, events: GcalEv
             where: {
               and: [
                 { tenant: { equals: source.tenantId } },
-                { sourceConnection: { equals: source.connectionId } },
+                source.connectionId
+                  ? { sourceConnection: { equals: source.connectionId } }
+                  : { sourceConnection: { exists: false } },
                 { gcalEventId: { equals: event.id } },
               ],
             },

@@ -62,8 +62,9 @@ function insightValue(insightsResult: unknown, metric: string): number {
   if (!Array.isArray(list)) return 0
   const found = list.find(
     (entry) => typeof entry === 'object' && entry !== null && (entry as { name?: string }).name === metric,
-  ) as { values?: { value?: number }[] } | undefined
-  const value = found?.values?.[0]?.value
+  ) as { values?: { value?: number }[]; total_value?: { value?: number } } | undefined
+  // metric_type=total_value devuelve { total_value: { value } }; time_series devuelve values[].
+  const value = found?.total_value?.value ?? found?.values?.[0]?.value
   return typeof value === 'number' ? value : 0
 }
 
