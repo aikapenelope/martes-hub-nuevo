@@ -34,13 +34,17 @@ humano es el requisito; la auto-renovación con flag por membresía es fase 2).
   ▼
 Server action renewMembershipAction(membershipId)
   1. getWorkspaceContext + assertEditor (patrón billing-actions)
-  2. Reclamo atómico de la membresía (update condicional — ver
-     Consideraciones) para que un doble clic no cree dos cobros
-  3. Crea payments { pendiente, amount = monthlyPrice,
+  2. Fast path: si ya existe payments con renewalKey del período →
+     devolver ese cobro (doble clic secuencial; cero writes)
+  3. Reclamo atómico: update memberships WHERE renewalDate = valorViejo.
+     0 docs = otro proceso ya renovó → buscar por renewalKey (consulta
+     fresca) y devolver el payment del ganador — el perdedor NUNCA
+     llega al INSERT, así que no hay transacción abortada que consultar
+  4. Ganador: crea payments { pendiente, amount = monthlyPrice,
      dueDate = renewalDate actual, concept = "Renovación {plan}",
-     client, membership }
-  4. Adelanta renewalDate +1 mes y devuelve status = 'activa'
-     — todo en la misma transacción (req pasado a ambas operaciones)
+     client, membership, renewalKey } + adelanta renewalDate +1 mes
+     y devuelve status = 'activa' — todo en la misma transacción
+     (req pasado a ambas operaciones)
   ▼
 El sistema existente hace el resto, sin código nuevo:
   payment-reminders marca vencido y avisa ·
@@ -70,22 +74,30 @@ planes anuales — hoy todo es mensual (`monthlyPrice`).
 ## Consideraciones al construir (Payload + estado del repo)
 
 - **Idempotencia/concurrencia (el riesgo real)**: un doble clic o dos peticiones
-  concurrentes no deben crear dos cobros. Un `update` sobre `memberships` no
-  puede consultar atómicamente la ausencia de un payment (otra colección), así
-  que la protección vive en la **base de datos**, con dos capas:
-  1. **Clave única `renewalKey` en `payments`** (tenant + membership + periodo
-     renovado): el `create` del perdedor rebota con conflicto único 23505 → se
-     captura (mismo mecanismo `isUniqueConflict` de `syncEmail`) y se devuelve
-     el payment ganador buscándolo por `renewalKey` — idempotencia amable, no
-     error. La BD garantiza un solo cobro por período pase lo que pase.
+  concurrentes no deben crear dos cobros, y el perdedor debe recibir el cobro
+  del ganador (no un error). Un `update` sobre `memberships` no puede consultar
+  atómicamente la ausencia de un payment (otra colección), y **capturar el
+  23505 para seguir consultando por el mismo `req` no es opción**: un unique
+  violation aborta la transacción de Postgres y ninguna query posterior corre
+  por ese `req`. Por eso el orden de operaciones hace que el perdedor jamás
+  llegue al INSERT:
+  1. **Fast path por `renewalKey`**: buscar el payment del período
+     (`{tenantId}:{membershipId}:{periodo}`) antes de escribir; si existe,
+     devolverlo. Cubre el doble clic secuencial sin tocar la BD en escritura.
   2. **Reclamo condicional de la membresía** (patrón
      `convertQuoteToInvoiceAction`, `billing-actions.ts:398`):
-     `payload.update` con `where` que solo acepte
-     `renewalDate = valorViejo` — el UPDATE de Postgres es atómico por fila:
-     el perdedor bloquea, reevalúa la condición tras el commit del ganador y
-     matchea 0 docs, así que `renewalDate` nunca se adelanta dos veces en el
-     mismo período. También sirve de segundo candado si el payment se crea
-     antes de adelantar la fecha.
+     `payload.update` con `where` `renewalDate = valorViejo`. El UPDATE de
+     Postgres es atómico por fila: el perdedor bloquea sobre la fila, reevalúa
+     la condición tras el commit del ganador y matchea 0 docs. Como ambos
+     writes del ganador van en una transacción, cuando el perdedor sale del
+     bloqueo el payment del ganador **ya está commiteado**: una consulta fresca
+     (fuera de la transacción del perdedor, que nunca hizo writes) por
+     `renewalKey` lo encuentra y se devuelve como resultado exitoso.
+  3. **`renewalKey` con índice único = respaldo fail-closed**: si algún camino
+     imprevisto llegara a intentar el INSERT duplicado, la BD aborta y la
+     acción responde con error controlado — jamás dos cobros. No se "atrapa"
+     el 23505 para continuar: la garantía real es el orden 1→2, el índice
+     único es la última línea de defensa.
 - **Atomicidad**: `create` del payment + `update` de la membresía en la misma
   transacción — pasar `req` a ambas operaciones anidadas (pitfall clásico de
   Payload: operación anidada sin `req` corre en transacción aparte).
@@ -123,10 +135,11 @@ planes anuales — hoy todo es mensual (`monthlyPrice`).
       atómico con `req`
 - [ ] Botón "Renovar" en la fila de `/workspace/memberships` (+ estado
       "renovada" con feedback y `revalidatePath`)
-- [ ] Manejo de 23505 en `renewalKey`: devolver el payment ya creado
-      (idempotencia amable, patrón `syncEmail`)
+- [ ] Manejo del perdedor: fast path por `renewalKey` + reclamo 0 docs →
+      consulta fresca del payment del ganador (sin tocar la transacción
+      abortada); el índice único queda como respaldo fail-closed
 - [ ] Test de integración: renovar → cobro creado, fecha adelantada, doble
-      clic/concurrencia → un solo cobro (mismo `renewalKey`), tenant
-      incorrecto → rechazado
+      clic/concurrencia → el perdedor recibe el payment del ganador (un solo
+      cobro, sin error), tenant incorrecto → rechazado
 - [ ] Fase 2 (no ahora): flag `autoRenew` + job diario de auto-renovación
       (TaskConfig con schedule, misma doble capa de idempotencia)

@@ -155,11 +155,14 @@ export interface ScoreTenantLeadsResult {
 export async function scoreTenantLeads({
   payload,
   tenantId,
+  now,
 }: {
   payload: Payload
   tenantId: number
+  /** Marca de tiempo de referencia del scoring; default Date.now() (inyectable para tests). */
+  now?: number
 }): Promise<ScoreTenantLeadsResult> {
-  const now = Date.now()
+  const nowMs = now ?? Date.now()
   const tenantWhere = { tenant: { equals: tenantId } }
 
   // Señal inbound por lead: conversación más reciente (mismo mapeo que
@@ -269,7 +272,7 @@ export async function scoreTenantLeads({
           visitadoPresencialmente: Boolean(lead.visitadoPresencialmente),
           sentiment: sentimentByLeadId.get(lead.id) ?? null,
         },
-        now,
+        nowMs,
       )
 
       const changed = lead.nivelInteres !== result.nivelInteres || lead.prioridad !== result.prioridad
