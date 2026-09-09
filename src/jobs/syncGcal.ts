@@ -386,3 +386,24 @@ async function mirrorSource(payload: Payload, source: GcalSource, events: GcalEv
   source.lastSynced = synced
   return `[${source.label}] ${synced} eventos espejados${reconciled > 0 ? ` (${reconciled} obsoletos cancelados)` : ''} (${failed} fallidos) de ${events.length}`
 }
+
+/**
+ * Ejecuta el sync de calendario para UN tenant inmediatamente (botón
+ * "Sincronizar ahora"). Mismas fuentes y reconciliación que el job.
+ */
+export async function runGcalSyncForTenant(payload: Payload, tenantId: number): Promise<string> {
+  const sources = (await collectSources(payload)).filter((source) => source.tenantId === tenantId)
+  if (sources.length === 0) {
+    return 'Sin conexión Google Calendar de la empresa activa para este tenant (o sin key de Composio asignada)'
+  }
+  const results: string[] = []
+  for (const source of sources) {
+    try {
+      const events = await source.fetch()
+      results.push(await mirrorSource(payload, source, events))
+    } catch (err) {
+      results.push(`[${source.label}] error: ${err instanceof Error ? err.message : 'desconocido'}`)
+    }
+  }
+  return results.join(' · ')
+}

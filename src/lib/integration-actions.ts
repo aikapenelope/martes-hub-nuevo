@@ -539,3 +539,57 @@ export type TenantConnectionRow = {
   estado: string
   connectedAccountId: string | null
 }
+
+/**
+ * Sincroniza AHORA los datos de un toolkit conectado (empresa) sin esperar el
+ * cron: Gmail y Calendar espejan; Instagram trae posts + insights + métricas
+ * de cuenta. Mismos runners que los jobs — cero lógica duplicada.
+ */
+export async function syncNowAction(
+  toolkit: 'gmail' | 'googlecalendar' | 'instagram',
+): Promise<ActionResult<{ summary: string }>> {
+  try {
+    const context = await getWorkspaceContext()
+    if (!context.isAdmin) return { ok: false, error: 'Solo un admin puede sincronizar' }
+
+    const row = await findTenantConnection(context.tenantId, toolkit, 'empresa', context.user.id)
+    if (!row || row.estado !== 'ok') {
+      return { ok: false, error: 'Este servicio no está conectado' }
+    }
+
+    const session = await getComposioForTenant(context.payload, context.tenantId)
+    if (!session) return { ok: false, error: 'Este tenant no tiene API key de Composio asignada' }
+
+    const { runGmailSyncForTenant } = await import('../jobs/syncEmail')
+    const { runGcalSyncForTenant } = await import('../jobs/syncGcal')
+    const { syncInstagramConnection } = await import('../jobs/syncInstagramMetrics')
+
+    let summary: string
+    if (toolkit === 'gmail') {
+      summary = await runGmailSyncForTenant(context.payload, context.tenantId)
+    } else if (toolkit === 'googlecalendar') {
+      summary = await runGcalSyncForTenant(context.payload, context.tenantId)
+    } else {
+      const connectionDoc = await context.payload.findByID({
+        collection: 'tenant-connections',
+        id: row.id,
+        depth: 0,
+        overrideAccess: true,
+      })
+      const outcome = await syncInstagramConnection(
+        { payload: context.payload },
+        connectionDoc as unknown as Parameters<typeof syncInstagramConnection>[1],
+      )
+      if (!outcome.ok) return { ok: false, error: safeError(outcome.error ?? 'Error de Composio', 'Error de Composio') }
+      summary = `${outcome.posts} posts con métricas actualizadas`
+    }
+
+    revalidatePath(SETTINGS_PATH)
+    revalidatePath('/workspace/social')
+    revalidatePath('/workspace/inbox')
+    revalidatePath('/workspace/calendar')
+    return { ok: true, summary }
+  } catch (error) {
+    return { ok: false, error: safeError(error, 'Error al sincronizar') }
+  }
+}

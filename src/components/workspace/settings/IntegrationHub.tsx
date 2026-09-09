@@ -9,6 +9,7 @@ import {
   pingConnectionAction,
   saveComposioKeyAction,
   startConnectionAction,
+  syncNowAction,
   verifyConnectionAction,
   type ConnectionScope,
   type TenantConnectionRow,
@@ -26,13 +27,15 @@ interface ToolkitMeta {
   label: string
   hint: string
   enabled: boolean
+  /** Soporta "Sincronizar ahora" (espejo/métricas inmediatas). */
+  syncable?: boolean
 }
 
 /** Conexiones de la empresa: las conecta un admin, las usa todo el tenant. */
 const EMPRESA_TOOLKITS: ToolkitMeta[] = [
-  { slug: 'instagram', label: 'Instagram', hint: 'Publicar + métricas (Business/Creator)', enabled: true },
-  { slug: 'gmail', label: 'Gmail del negocio', hint: 'Buzón compartido (info@…)', enabled: true },
-  { slug: 'googlecalendar', label: 'Google Calendar del negocio', hint: 'Calendario de citas de la empresa', enabled: true },
+  { slug: 'instagram', label: 'Instagram', hint: 'Publicar + métricas (Business/Creator)', enabled: true, syncable: true },
+  { slug: 'gmail', label: 'Gmail del negocio', hint: 'Buzón compartido (info@…)', enabled: true, syncable: true },
+  { slug: 'googlecalendar', label: 'Google Calendar del negocio', hint: 'Calendario de citas de la empresa', enabled: true, syncable: true },
   { slug: 'tiktok', label: 'TikTok', hint: 'Próximamente — requiere app propia de TikTok', enabled: false },
 ]
 
@@ -129,6 +132,8 @@ export function IntegrationHub({
       } else if (result.redirectUrl) {
         window.location.assign(result.redirectUrl)
         return
+      } else if ('summary' in result && typeof result.summary === 'string') {
+        setMessage({ kind: 'ok', text: result.summary })
       } else {
         setMessage({ kind: 'ok', text: 'Listo' })
       }
@@ -223,6 +228,17 @@ export function IntegrationHub({
     }
     return (
       <>
+        {scope === 'empresa' && toolkit.syncable && (
+          <button
+            type="button"
+            className={btnPrimary}
+            disabled={busy !== null}
+            onClick={() => void run(key, () => syncNowAction(toolkit.slug as 'gmail' | 'googlecalendar' | 'instagram'))}
+          >
+            {busy === key ? <Loader2 className="w-3 h-3 animate-spin inline mr-1" /> : null}
+            Sincronizar
+          </button>
+        )}
         <button
           type="button"
           className={btnGhost}

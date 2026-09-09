@@ -332,3 +332,24 @@ async function mirrorSource(
 
   return `[${source.label}] ${details}${errors.length > 0 ? ` — ${errors.join(' | ')}` : ''}${skipped > 0 ? '' : ''}`
 }
+
+/**
+ * Ejecuta el sync de email para UN tenant inmediatamente (botón "Sincronizar
+ * ahora" del hub). Mismas fuentes y espejo que el job; sin tocar otros tenants.
+ */
+export async function runGmailSyncForTenant(payload: Payload, tenantId: number): Promise<string> {
+  const sources = (await collectSources(payload)).filter((source) => source.tenantId === tenantId)
+  if (sources.length === 0) {
+    return 'Sin conexión Gmail de la empresa activa para este tenant (o sin key de Composio asignada)'
+  }
+  const results: string[] = []
+  for (const source of sources) {
+    try {
+      const summaries = await source.fetch()
+      results.push(await mirrorSource(payload, source, summaries))
+    } catch (err) {
+      results.push(`[${source.label}] error: ${err instanceof Error ? err.message : 'desconocido'}`)
+    }
+  }
+  return results.join(' · ')
+}

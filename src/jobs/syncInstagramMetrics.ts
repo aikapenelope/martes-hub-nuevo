@@ -1,4 +1,4 @@
-import type { TaskConfig } from 'payload'
+import type { Payload, TaskConfig } from 'payload'
 
 import {
   executeTool,
@@ -102,229 +102,247 @@ export const syncInstagramMetricsTask: TaskConfig = {
     const errors: string[] = []
 
     for (const connection of connections.docs) {
-      const tenantId =
-        typeof connection.tenant === 'object' ? (connection.tenant?.id ?? null) : (connection.tenant ?? null)
-      if (!tenantId) continue
-      const connectedAccountId = connection.connectedAccountId ?? null
-
-      try {
-        const session = await getComposioForTenant(req.payload, tenantId)
-        if (!session) throw new Error('tenant sin API key de Composio')
-        const userId =
-          connection.scope === 'personal' && typeof connection.user === 'object' && connection.user?.id
-            ? composioUserUserId(tenantId, connection.user.id)
-            : composioTenantUserId(tenantId)
-
-        // 1. IG user id (GET_USER_INFO no pide argumentos: resuelve 'me').
-        const userInfo = await executeTool(session.composio, {
-          toolkit: 'instagram',
-          slug: 'INSTAGRAM_GET_USER_INFO',
-          userId,
-          args: {},
-        })
-        const igUserId = extractIgUserId(userInfo)
-        if (!igUserId) throw new Error('GET_USER_INFO no devolvió ig_user_id')
-
-        // Cuenta social espejo del tenant para esta conexión.
-        const accountRes = await req.payload.find({
-          collection: 'social-accounts',
-          where: {
-            and: [
-              { tenant: { equals: tenantId } },
-              { composioConnectedAccountId: { equals: connectedAccountId } },
-            ],
-          },
-          limit: 1,
-          depth: 0,
-          overrideAccess: true,
-        })
-        const socialAccountId = accountRes.docs[0]?.id ?? null
-        if (!socialAccountId) throw new Error('no hay fila social-accounts para esta conexión')
-        await req.payload.update({
-          collection: 'social-accounts',
-          id: socialAccountId,
-          data: { externalUserId: igUserId, syncStatus: 'ok', lastSyncAt: new Date().toISOString() },
-          overrideAccess: true,
-        })
-
-        // 2. Media de la cuenta → upsert de posts externos mínimos.
-        const media = await executeTool(session.composio, {
-          toolkit: 'instagram',
-          slug: 'INSTAGRAM_GET_IG_USER_MEDIA',
-          userId,
-          args: {
-            ig_user_id: igUserId,
-            limit: 50,
-            fields: 'id,caption,media_type,permalink,timestamp,like_count,comments_count',
-          },
-        })
-        const items = parseMediaItems(media)
-        const todayIso = new Date().toISOString().slice(0, 10)
-
-        for (const item of items) {
-          const existing = await req.payload.find({
-            collection: 'social-posts',
-            where: {
-              and: [
-                { tenant: { equals: tenantId } },
-                { platformPostId: { equals: item.id } },
-              ],
-            },
-            limit: 1,
-            depth: 0,
-            overrideAccess: true,
-          })
-          let postId: number
-          const doc = existing.docs[0]
-          if (doc) {
-            postId = doc.id
-          } else {
-            const created = await req.payload.create({
-              collection: 'social-posts',
-              data: {
-                tenant: tenantId,
-                caption: item.caption ?? '(post externo)',
-                account: socialAccountId,
-                status: 'publicado',
-                platformPostId: item.id,
-                permalink: item.permalink ?? undefined,
-                publishedAt: item.timestamp ?? undefined,
-              },
-              overrideAccess: true,
-            })
-            postId = created.id
-          }
-
-          // 3. Insights del post → upsert de post-metrics por (post, hoy).
-          const insights = await executeTool(session.composio, {
-            toolkit: 'instagram',
-            slug: 'INSTAGRAM_GET_IG_MEDIA_INSIGHTS',
-            userId,
-            args: { ig_media_id: item.id, metric: ['reach', 'saved', 'shares'] },
-          })
-          const reach = insightValue(insights, 'reach')
-          const saved = insightValue(insights, 'saved')
-          const shares = insightValue(insights, 'shares')
-
-          const existingMetric = await req.payload.find({
-            collection: 'post-metrics',
-            where: {
-              and: [
-                { post: { equals: postId } },
-                { recordedAt: { greater_than_equal: `${todayIso}T00:00:00.000Z` } },
-                { recordedAt: { less_than_equal: `${todayIso}T23:59:59.999Z` } },
-              ],
-            },
-            limit: 1,
-            depth: 0,
-            overrideAccess: true,
-          })
-          const metricData = {
-            tenant: tenantId,
-            post: postId,
-            recordedAt: new Date().toISOString(),
-            impressions: reach,
-            reach,
-            likes: item.likeCount ?? 0,
-            comments: item.commentsCount ?? 0,
-            shares,
-            saved,
-            rawMetrics: insights as Record<string, unknown>,
-          }
-          if (existingMetric.docs[0]) {
-            await req.payload.update({
-              collection: 'post-metrics',
-              id: existingMetric.docs[0].id,
-              data: metricData,
-              overrideAccess: true,
-            })
-          } else {
-            await req.payload.create({
-              collection: 'post-metrics',
-              data: metricData,
-              overrideAccess: true,
-            })
-          }
-          totalPosts += 1
-        }
-
-        // 4. Métricas de cuenta → fila diaria en social-account-metrics.
-        const userInsights = await executeTool(session.composio, {
-          toolkit: 'instagram',
-          slug: 'INSTAGRAM_GET_USER_INSIGHTS',
-          userId,
-          args: {
-            ig_user_id: igUserId,
-            metric: ['follower_count', 'profile_views', 'website_clicks', 'reach'],
-            period: 'day',
-            metric_type: 'total_value',
-          },
-        })
-        const existingAccountMetric = await req.payload.find({
-          collection: 'social-account-metrics',
-          where: {
-            and: [
-              { socialAccount: { equals: socialAccountId } },
-              { recordedAt: { greater_than_equal: `${todayIso}T00:00:00.000Z` } },
-              { recordedAt: { less_than_equal: `${todayIso}T23:59:59.999Z` } },
-            ],
-          },
-          limit: 1,
-          depth: 0,
-          overrideAccess: true,
-        })
-        const accountMetricData = {
-          tenant: tenantId,
-          socialAccount: socialAccountId,
-          recordedAt: new Date().toISOString(),
-          followerCount: insightValue(userInsights, 'follower_count'),
-          profileViews: insightValue(userInsights, 'profile_views'),
-          websiteClicks: insightValue(userInsights, 'website_clicks'),
-          reach: insightValue(userInsights, 'reach'),
-          rawMetrics: userInsights as Record<string, unknown>,
-        }
-        if (existingAccountMetric.docs[0]) {
-          await req.payload.update({
-            collection: 'social-account-metrics',
-            id: existingAccountMetric.docs[0].id,
-            data: accountMetricData,
-            overrideAccess: true,
-          })
-        } else {
-          await req.payload.create({
-            collection: 'social-account-metrics',
-            data: accountMetricData,
-            overrideAccess: true,
-          })
-        }
-
-        await req.payload.update({
-          collection: 'tenant-connections',
-          id: connection.id,
-          data: { lastSyncAt: new Date().toISOString() },
-          overrideAccess: true,
-        })
-
+      const outcome = await syncInstagramConnection(req, connection)
+      if (outcome.ok) {
         accountsOk += 1
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'error desconocido'
-        errors.push(message.slice(0, 200))
-        req.payload.logger.error({ msg: 'sync-instagram-metrics: cuenta falló', tenantId, err })
-        if (connectedAccountId) {
-          await req.payload.update({
-            collection: 'tenant-connections',
-            id: connection.id,
-            data: { estado: 'error_api', ultimoError: message.slice(0, 500) },
-            overrideAccess: true,
-          }).catch(() => undefined)
-        }
+        totalPosts += outcome.posts
+      } else {
+        errors.push(outcome.error ?? 'error desconocido')
       }
     }
-
-    const summary = `Cuentas OK: ${accountsOk}/${connections.docs.length} · posts con métricas: ${totalPosts}${errors.length > 0 ? ` · errores: ${errors.join(' | ')}` : ''}`
+    const summary = `Cuentas OK: ${accountsOk} · posts con métricas: ${totalPosts}${errors.length > 0 ? ` · errores: ${errors.join(' | ')}` : ''}`
     req.payload.logger.info({ msg: 'sync-instagram-metrics completado', summary })
     return {
       output: { accounts: accountsOk, posts: totalPosts, summary },
     }
   },
+}
+
+interface TenantConnectionDoc {
+  id: number
+  tenant?: number | { id?: number | null } | null
+  scope: string
+  user?: number | { id?: number | null } | null
+  connectedAccountId?: string | null
+}
+
+export interface InstagramSyncOutcome {
+  ok: boolean
+  posts: number
+  error?: string
+}
+
+/**
+ * Sincroniza UNA conexión Instagram inmediatamente (botón "Sincronizar ahora"
+ * del hub). Mismo flujo que el job diario; los errores actualizan la conexión
+ * (estado + error crudo) y se devuelven sanitizados al llamador.
+ */
+export async function syncInstagramConnection(
+  req: { payload: Payload },
+  connection: TenantConnectionDoc,
+): Promise<InstagramSyncOutcome> {
+  const tenantId = typeof connection.tenant === 'object' ? (connection.tenant?.id ?? null) : (connection.tenant ?? null)
+  if (!tenantId) return { ok: false, posts: 0, error: 'conexión sin tenant' }
+  const connectedAccountId = connection.connectedAccountId ?? null
+
+  try {
+    const session = await getComposioForTenant(req.payload, tenantId)
+    if (!session) throw new Error('tenant sin API key de Composio')
+    const userId =
+      connection.scope === 'personal' && typeof connection.user === 'object' && connection.user?.id
+        ? composioUserUserId(tenantId, connection.user.id)
+        : composioTenantUserId(tenantId)
+
+    const userInfo = await executeTool(session.composio, {
+      toolkit: 'instagram',
+      slug: 'INSTAGRAM_GET_USER_INFO',
+      userId,
+      args: {},
+    })
+    const igUserId = extractIgUserId(userInfo)
+    if (!igUserId) throw new Error('GET_USER_INFO no devolvió ig_user_id')
+
+    const accountRes = await req.payload.find({
+      collection: 'social-accounts',
+      where: {
+        and: [
+          { tenant: { equals: tenantId } },
+          { composioConnectedAccountId: { equals: connectedAccountId } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const socialAccountId = accountRes.docs[0]?.id ?? null
+    if (!socialAccountId) throw new Error('no hay fila social-accounts para esta conexión')
+    await req.payload.update({
+      collection: 'social-accounts',
+      id: socialAccountId,
+      data: { externalUserId: igUserId, syncStatus: 'ok', lastSyncAt: new Date().toISOString() },
+      overrideAccess: true,
+    })
+
+    const media = await executeTool(session.composio, {
+      toolkit: 'instagram',
+      slug: 'INSTAGRAM_GET_IG_USER_MEDIA',
+      userId,
+      args: {
+        ig_user_id: igUserId,
+        limit: 50,
+        fields: 'id,caption,media_type,permalink,timestamp,like_count,comments_count',
+      },
+    })
+    const items = parseMediaItems(media)
+    const todayIso = new Date().toISOString().slice(0, 10)
+
+    for (const item of items) {
+      const existing = await req.payload.find({
+        collection: 'social-posts',
+        where: { and: [{ tenant: { equals: tenantId } }, { platformPostId: { equals: item.id } }] },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+      let postId: number
+      const doc = existing.docs[0]
+      if (doc) {
+        postId = doc.id
+      } else {
+        const created = await req.payload.create({
+          collection: 'social-posts',
+          data: {
+            tenant: tenantId,
+            caption: item.caption ?? '(post externo)',
+            account: socialAccountId,
+            status: 'publicado',
+            platformPostId: item.id,
+            permalink: item.permalink ?? undefined,
+            publishedAt: item.timestamp ?? undefined,
+          },
+          overrideAccess: true,
+        })
+        postId = created.id
+      }
+
+      const insights = await executeTool(session.composio, {
+        toolkit: 'instagram',
+        slug: 'INSTAGRAM_GET_IG_MEDIA_INSIGHTS',
+        userId,
+        args: { ig_media_id: item.id, metric: ['reach', 'saved', 'shares'] },
+      })
+      const reach = insightValue(insights, 'reach')
+      const saved = insightValue(insights, 'saved')
+      const shares = insightValue(insights, 'shares')
+
+      const existingMetric = await req.payload.find({
+        collection: 'post-metrics',
+        where: {
+          and: [
+            { post: { equals: postId } },
+            { recordedAt: { greater_than_equal: `${todayIso}T00:00:00.000Z` } },
+            { recordedAt: { less_than_equal: `${todayIso}T23:59:59.999Z` } },
+          ],
+        },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+      const metricData = {
+        tenant: tenantId,
+        post: postId,
+        recordedAt: new Date().toISOString(),
+        impressions: reach,
+        reach,
+        likes: item.likeCount ?? 0,
+        comments: item.commentsCount ?? 0,
+        shares,
+        saved,
+        rawMetrics: insights as Record<string, unknown>,
+      }
+      if (existingMetric.docs[0]) {
+        await req.payload.update({
+          collection: 'post-metrics',
+          id: existingMetric.docs[0].id,
+          data: metricData,
+          overrideAccess: true,
+        })
+      } else {
+        await req.payload.create({
+          collection: 'post-metrics',
+          data: metricData,
+          overrideAccess: true,
+        })
+      }
+    }
+
+    const userInsights = await executeTool(session.composio, {
+      toolkit: 'instagram',
+      slug: 'INSTAGRAM_GET_USER_INSIGHTS',
+      userId,
+      args: {
+        ig_user_id: igUserId,
+        metric: ['follower_count', 'profile_views', 'website_clicks', 'reach'],
+        period: 'day',
+        metric_type: 'total_value',
+      },
+    })
+    const existingAccountMetric = await req.payload.find({
+      collection: 'social-account-metrics',
+      where: {
+        and: [
+          { socialAccount: { equals: socialAccountId } },
+          { recordedAt: { greater_than_equal: `${todayIso}T00:00:00.000Z` } },
+          { recordedAt: { less_than_equal: `${todayIso}T23:59:59.999Z` } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const accountMetricData = {
+      tenant: tenantId,
+      socialAccount: socialAccountId,
+      recordedAt: new Date().toISOString(),
+      followerCount: insightValue(userInsights, 'follower_count'),
+      profileViews: insightValue(userInsights, 'profile_views'),
+      websiteClicks: insightValue(userInsights, 'website_clicks'),
+      reach: insightValue(userInsights, 'reach'),
+      rawMetrics: userInsights as Record<string, unknown>,
+    }
+    if (existingAccountMetric.docs[0]) {
+      await req.payload.update({
+        collection: 'social-account-metrics',
+        id: existingAccountMetric.docs[0].id,
+        data: accountMetricData,
+        overrideAccess: true,
+      })
+    } else {
+      await req.payload.create({
+        collection: 'social-account-metrics',
+        data: accountMetricData,
+        overrideAccess: true,
+      })
+    }
+
+    await req.payload.update({
+      collection: 'tenant-connections',
+      id: connection.id,
+      data: { lastSyncAt: new Date().toISOString() },
+      overrideAccess: true,
+    })
+
+    return { ok: true, posts: items.length }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'error desconocido'
+    await req.payload
+      .update({
+        collection: 'tenant-connections',
+        id: connection.id,
+        data: { estado: 'error_api', ultimoError: message.slice(0, 500) },
+        overrideAccess: true,
+      })
+      .catch(() => undefined)
+    return { ok: false, posts: 0, error: message.slice(0, 300) }
+  }
 }
