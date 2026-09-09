@@ -118,9 +118,11 @@ Investigadas las tres formas (docs oficiales + API de organización de Composio)
 
 | Forma | UX del tenant | Cuota | Veredicto |
 |---|---|---|---|
-| **A. Central (elegida, por defecto)** | **Un botón "Conectar"**: se abre el login del servicio real (Instagram/Google) en un popup; nadie abre Composio ni maneja keys | Come la cuota del operador (~20K gratis; Pro $29 + $0.0002/llamada extra) | Es el patrón SaaS oficial de Composio (userId por usuario final). Con sync diario acotado, 20K aguanta el stage actual; a SaaS, el costo va al precio |
+| **Operador (SOLO tenant Martes)** — un botón "Conectar" con login del servicio real en popup; nadie abre Composio | Consume la cuota del operador | Exclusivo del tenant de Martes: los demás clientes requieren key propia asignada desde /admin — nadie consume cuota ajena (decisión 2026-09-09 noche) |
 | B. BYO-key manual | El tenant abre su cuenta Composio y pega su API key | Cuota propia — nadie agota la tuya | Se conserva como opción avanzada: la fila cifrada del tenant tiene precedencia sobre la central |
 | C. Auto-provisioning por Org API | Igual de fácil que A | La API `org/owner/project/new` crea proyectos + keys programáticamente (`should_create_api_key: true` devuelve la key; sin límite de proyectos), pero el billing es de la organización: mismo costo que A con más complejidad operativa | Futuro: si Composio factura por proyecto, este es el camino — el modelo de datos ya lo soporta |
+
+**Las tres llaves (no confundirlas)**: la **project key** de cada tenant ejecuta y factura a su cuenta (asignada desde /admin, cifrada); la **key del operador** en env aplica SOLO al tenant Martes — no es fallback universal; la **Org Key** de Composio es la "llave base" que crea proyectos y puede leer las API keys de la organización, pero es de administración: no ejecuta herramientas y el billing sigue siendo de la org.
 
 **Implementación** (PR #117): `getComposioForTenant` resuelve en dos niveles —
 fila cifrada del tenant (BYO) → key del operador (central). El hub conecta con
