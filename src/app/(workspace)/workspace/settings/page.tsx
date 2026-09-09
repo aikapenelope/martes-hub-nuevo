@@ -3,6 +3,7 @@ import 'server-only'
 import { CheckCircle2, Building, Shield, Bot, Sparkles } from 'lucide-react'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { updateCompanySettingsAction } from '@/lib/settings-actions'
+import { IntegrationHub } from '@/components/workspace/settings/IntegrationHub'
 import type { CompanySetting } from '@/payload-types'
 
 const inputCls =
@@ -44,6 +45,29 @@ export default async function SettingsPage({
   const aiAutoSummarize = settings?.aiAutoSummarize ?? true
 
   const isAdmin = Boolean(context.user.roles?.includes('admin'))
+
+  // Hub de conexiones Composio: key del proyecto (cifrada) + estado por toolkit.
+  const integrationsRes = await context.payload.find({
+    collection: 'tenant-integrations',
+    where: { tenant: { equals: context.tenantId } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const hasComposioKey = Boolean(integrationsRes.docs[0])
+  const connectionsRes = await context.payload.find({
+    collection: 'tenant-connections',
+    where: { tenant: { equals: context.tenantId } },
+    limit: 20,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const connectionRows = connectionsRes.docs.map((doc) => ({
+    id: doc.id,
+    toolkit: doc.toolkit,
+    estado: doc.estado,
+    connectedAccountId: doc.connectedAccountId ?? null,
+  }))
 
 
   return (
@@ -100,6 +124,9 @@ export default async function SettingsPage({
           <span className="text-[10px] text-zinc-500 font-mono">Dólares estadounidenses</span>
         </div>
       </section>
+
+      {/* Hub de conexiones Composio (Instagram, Gmail, GCal…) */}
+      <IntegrationHub isAdmin={isAdmin} hasApiKey={hasComposioKey} rows={connectionRows} />
 
       {/* Formulario de configuración */}
       <section className="oled-card p-6">

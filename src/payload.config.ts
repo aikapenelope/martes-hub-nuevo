@@ -49,6 +49,8 @@ import { SavedCrmViews } from './collections/SavedCrmViews'
 import { Sequences } from './collections/Sequences'
 import { SequenceEnrollments } from './collections/SequenceEnrollments'
 import { SocialAccounts } from './collections/SocialAccounts'
+import { TenantIntegrations } from './collections/TenantIntegrations'
+import { TenantConnections } from './collections/TenantConnections'
 import { SocialPosts } from './collections/SocialPosts'
 import { PostMetrics } from './collections/PostMetrics'
 import { invoicePdf, builtInTemplates } from 'payload-invoicepdf'
@@ -127,6 +129,8 @@ export default buildConfig({
     SocialPosts,
     PostMetrics,
     CompanySettings,
+    TenantIntegrations,
+    TenantConnections,
   ],
   plugins: [
     importExportPlugin({
@@ -216,6 +220,8 @@ export default buildConfig({
         'saved-crm-views': {},
         'conversation-notes': {},
         'social-accounts': {},
+        'tenant-integrations': {},
+        'tenant-connections': {},
         'social-posts': {},
         'post-metrics': {},
         'company-settings': { isGlobal: true },

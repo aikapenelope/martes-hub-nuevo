@@ -103,6 +103,8 @@ export interface Config {
     'social-posts': SocialPost;
     'post-metrics': PostMetric;
     'company-settings': CompanySetting;
+    'tenant-integrations': TenantIntegration;
+    'tenant-connections': TenantConnection;
     exports: Export;
     imports: Import;
     invoices: Invoice;
@@ -176,6 +178,8 @@ export interface Config {
     'social-posts': SocialPostsSelect<false> | SocialPostsSelect<true>;
     'post-metrics': PostMetricsSelect<false> | PostMetricsSelect<true>;
     'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
+    'tenant-integrations': TenantIntegrationsSelect<false> | TenantIntegrationsSelect<true>;
+    'tenant-connections': TenantConnectionsSelect<false> | TenantConnectionsSelect<true>;
     exports: ExportsSelect<false> | ExportsSelect<true>;
     imports: ImportsSelect<false> | ImportsSelect<true>;
     invoices: InvoicesSelect<false> | InvoicesSelect<true>;
@@ -1373,6 +1377,13 @@ export interface SocialAccount {
   platformAccountId: string;
   status: 'conectada' | 'desconectada' | 'expirada';
   profilePictureUrl?: string | null;
+  /**
+   * Referencia a la conexión del tenant en Composio — los tokens viven allá, nunca aquí.
+   */
+  composioConnectedAccountId?: string | null;
+  externalUserId?: string | null;
+  syncStatus?: ('sin_conectar' | 'ok' | 'error_token' | 'error_api') | null;
+  lastSyncAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1483,6 +1494,60 @@ export interface CompanySetting {
       titular?: string | null;
     };
   };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Credenciales de integraciones del tenant (Composio BYO-key). La API key se guarda cifrada.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenant-integrations".
+ */
+export interface TenantIntegration {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  provider: 'composio';
+  /**
+   * AES-256-GCM con INTEGRATIONS_ENC_KEY. Nunca se muestra en claro.
+   */
+  apiKeyCifrado: string;
+  estado: 'ok' | 'invalida';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Conexiones por servicio (login del tenant vía Composio).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenant-connections".
+ */
+export interface TenantConnection {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  toolkit: 'instagram' | 'tiktok' | 'gmail' | 'googlecalendar' | 'googlesheets' | 'googledocs';
+  /**
+   * Auth config gestionado de Composio para este toolkit.
+   */
+  authConfigId?: string | null;
+  connectedAccountId?: string | null;
+  estado: 'conectando' | 'ok' | 'error_token' | 'error_api' | 'desconectado';
+  /**
+   * Error crudo de Composio — sin fallback, se muestra en la UI.
+   */
+  ultimoError?: string | null;
+  /**
+   * Ej.: { "calendarId": "…", "mailbox": "…" } según el toolkit.
+   */
+  config?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  lastSyncAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2156,6 +2221,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'company-settings';
         value: number | CompanySetting;
+      } | null)
+    | ({
+        relationTo: 'tenant-integrations';
+        value: number | TenantIntegration;
+      } | null)
+    | ({
+        relationTo: 'tenant-connections';
+        value: number | TenantConnection;
       } | null)
     | ({
         relationTo: 'invoices';
@@ -2873,6 +2946,10 @@ export interface SocialAccountsSelect<T extends boolean = true> {
   platformAccountId?: T;
   status?: T;
   profilePictureUrl?: T;
+  composioConnectedAccountId?: T;
+  externalUserId?: T;
+  syncStatus?: T;
+  lastSyncAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2966,6 +3043,34 @@ export interface CompanySettingsSelect<T extends boolean = true> {
               titular?: T;
             };
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenant-integrations_select".
+ */
+export interface TenantIntegrationsSelect<T extends boolean = true> {
+  tenant?: T;
+  provider?: T;
+  apiKeyCifrado?: T;
+  estado?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenant-connections_select".
+ */
+export interface TenantConnectionsSelect<T extends boolean = true> {
+  tenant?: T;
+  toolkit?: T;
+  authConfigId?: T;
+  connectedAccountId?: T;
+  estado?: T;
+  ultimoError?: T;
+  config?: T;
+  lastSyncAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3614,6 +3719,8 @@ export interface TaskCreateCollectionExport {
       | 'social-posts'
       | 'post-metrics'
       | 'company-settings'
+      | 'tenant-integrations'
+      | 'tenant-connections'
       | 'exports'
       | 'imports';
     drafts?: ('yes' | 'no') | null;

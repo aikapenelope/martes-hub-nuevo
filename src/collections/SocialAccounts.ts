@@ -69,5 +69,45 @@ export const SocialAccounts: CollectionConfig = {
       type: 'text',
       label: 'Foto de perfil / Avatar',
     },
+    {
+      name: 'composioConnectedAccountId',
+      type: 'text',
+      label: 'Connected account de Composio (conn_…)',
+      admin: {
+        description: 'Referencia a la conexión del tenant en Composio — los tokens viven allá, nunca aquí.',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'externalUserId',
+      type: 'text',
+      label: 'ID externo (IG user id)',
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'syncStatus',
+      type: 'select',
+      label: 'Estado de sync',
+      defaultValue: 'sin_conectar',
+      options: [
+        { label: 'Sin conectar', value: 'sin_conectar' },
+        { label: 'OK', value: 'ok' },
+        { label: 'Error de token', value: 'error_token' },
+        { label: 'Error de API', value: 'error_api' },
+      ],
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'lastSyncAt',
+      type: 'date',
+      label: 'Último sync',
+      admin: {
+        position: 'sidebar',
+      },
+    },
   ],
 }

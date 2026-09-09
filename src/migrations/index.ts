@@ -244,4 +244,9 @@ migrations.push({
   up: migration_20260909_030000_backfill_invoice_media.up,
   down: migration_20260909_030000_backfill_invoice_media.down,
   name: '20260909_030000_backfill_invoice_media',
+});import * as migration_20260909_200000_composio_tenant_integrations from './20260909_200000_composio_tenant_integrations';
+migrations.push({
+  up: migration_20260909_200000_composio_tenant_integrations.up,
+  down: migration_20260909_200000_composio_tenant_integrations.down,
+  name: '20260909_200000_composio_tenant_integrations',
 });
