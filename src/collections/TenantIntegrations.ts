@@ -74,6 +74,12 @@ export const TenantIntegrations: CollectionConfig = {
       required: true,
       label: 'API key (cifrada)',
       hidden: true,
+      // Nunca sale por REST/GraphQL (el plaintext jamás viaja). El único lector
+      // es el cliente Composio vía Local API con overrideAccess: true — el
+      // override bypasea el field access legítimamente (docs de Payload).
+      access: {
+        read: () => false,
+      },
     },
     {
       name: 'estado',

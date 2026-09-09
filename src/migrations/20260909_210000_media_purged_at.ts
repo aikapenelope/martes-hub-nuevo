@@ -17,11 +17,15 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
 
   -- Estado 'publicando' del claim atómico de publicación (review Devin):
   -- sin esto, el update del claim falla en producción por enum desactualizado.
-  ALTER TYPE "public"."enum_social_posts_status" ADD VALUE IF NOT EXISTS 'publicando';`)
+  ALTER TYPE "public"."enum_social_posts_status" ADD VALUE IF NOT EXISTS 'publicando';
+
+  -- UNA fila de integración por tenant (doble create en /admin no duplica).
+  CREATE UNIQUE INDEX IF NOT EXISTS "tenant_integrations_tenant_key" ON "tenant_integrations" USING btree ("tenant_id");`)
 }
 
 export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
   await db.execute(sql`
+  DROP INDEX IF EXISTS "tenant_integrations_tenant_key";
   ALTER TABLE "media" DROP COLUMN IF EXISTS "purged_at";
   -- 'publicando' no se puede remover de un enum en Postgres: el down es no-op
   -- deliberado (el valor residual es inofensivo).`)
