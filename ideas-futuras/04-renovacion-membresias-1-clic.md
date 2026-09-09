@@ -53,11 +53,12 @@ cliente conciliará contra este cobro pendiente.
 
 ## Modelo de datos
 
-### `payments` — un campo nuevo
+### `payments` — dos campos nuevos
 
 | Campo | Tipo | Nota |
 |---|---|---|
 | `membership` | relationship → memberships (opcional) | trazabilidad: hoy un cobro no sabe que viene de una membresía |
+| `renewalKey` | text, **índice único** | clave de idempotencia protegida por la BD: `{tenantId}:{membershipId}:{periodo}` donde `periodo` es el mes de la `renewalDate` que se renueva (ej. `4:2026-09`). Dos creates concurrentes: la BD rechaza el segundo con 23505 |
 
 ### `memberships` — nada nuevo en v1
 
@@ -68,12 +69,23 @@ planes anuales — hoy todo es mensual (`monthlyPrice`).
 
 ## Consideraciones al construir (Payload + estado del repo)
 
-- **Idempotencia/concurrencia (el riesgo real)**: un doble clic no debe crear
-  dos cobros. Usar el patrón de reclamo condicional de
-  `convertQuoteToInvoiceAction` (`billing-actions.ts:398`): un
-  `payload.update` con `where` que solo acepte la membresía en estado
-  renovable **y sin cobro de renovación pendiente**; si el reclamo falla,
-  buscar y devolver el cobro ya creado (idempotencia amable, no error).
+- **Idempotencia/concurrencia (el riesgo real)**: un doble clic o dos peticiones
+  concurrentes no deben crear dos cobros. Un `update` sobre `memberships` no
+  puede consultar atómicamente la ausencia de un payment (otra colección), así
+  que la protección vive en la **base de datos**, con dos capas:
+  1. **Clave única `renewalKey` en `payments`** (tenant + membership + periodo
+     renovado): el `create` del perdedor rebota con conflicto único 23505 → se
+     captura (mismo mecanismo `isUniqueConflict` de `syncEmail`) y se devuelve
+     el payment ganador buscándolo por `renewalKey` — idempotencia amable, no
+     error. La BD garantiza un solo cobro por período pase lo que pase.
+  2. **Reclamo condicional de la membresía** (patrón
+     `convertQuoteToInvoiceAction`, `billing-actions.ts:398`):
+     `payload.update` con `where` que solo acepte
+     `renewalDate = valorViejo` — el UPDATE de Postgres es atómico por fila:
+     el perdedor bloquea, reevalúa la condición tras el commit del ganador y
+     matchea 0 docs, así que `renewalDate` nunca se adelanta dos veces en el
+     mismo período. También sirve de segundo candado si el payment se crea
+     antes de adelantar la fecha.
 - **Atomicidad**: `create` del payment + `update` de la membresía en la misma
   transacción — pasar `req` a ambas operaciones anidadas (pitfall clásico de
   Payload: operación anidada sin `req` corre en transacción aparte).
@@ -104,14 +116,17 @@ planes anuales — hoy todo es mensual (`monthlyPrice`).
 
 ## Checklist de implementación
 
-- [ ] Migración: campo `membership` en `payments` (relationship opcional)
+- [ ] Migración: campos `membership` + `renewalKey` (unique) en `payments`
 - [ ] `renewMembershipAction` en `src/lib/membership-actions.ts`:
-      reclamo condicional + payment pendiente + adelantar `renewalDate`
-      (+ regla de fin de mes testeada), atómico con `req`
+      reclamo condicional (`renewalDate = valorViejo`) + payment pendiente con
+      `renewalKey` + adelantar `renewalDate` (+ regla de fin de mes testeada),
+      atómico con `req`
 - [ ] Botón "Renovar" en la fila de `/workspace/memberships` (+ estado
       "renovada" con feedback y `revalidatePath`)
-- [ ] Filtro/buscar cobro de renovación ya existente para idempotencia amable
+- [ ] Manejo de 23505 en `renewalKey`: devolver el payment ya creado
+      (idempotencia amable, patrón `syncEmail`)
 - [ ] Test de integración: renovar → cobro creado, fecha adelantada, doble
-      clic → un solo cobro, tenant incorrecto → rechazado
+      clic/concurrencia → un solo cobro (mismo `renewalKey`), tenant
+      incorrecto → rechazado
 - [ ] Fase 2 (no ahora): flag `autoRenew` + job diario de auto-renovación
-      (TaskConfig con schedule, mismo reclamo atómico)
+      (TaskConfig con schedule, misma doble capa de idempotencia)

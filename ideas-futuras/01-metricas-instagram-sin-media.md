@@ -101,10 +101,14 @@ constraint 23505 y saltar — ver `isUniqueConflict` en `syncEmail.ts`).
    `isGmailSyncConfigured`).
 2. Para cada `social-accounts` con platform=instagram y connected account:
    `INSTAGRAM_GET_IG_USER_CONTENT`.
-3. Por cada post nuevo: upsert de `social-posts` mínimo (estado `publicado`,
-   `platformPostId`, `permalink`, fecha, `socialAccount`) — refleja TODA la
-   actividad de la cuenta, no solo lo planeado aquí. Clave de búsqueda:
-   `platformPostId` (con índice único si no existe aún).
+3. Por cada post nuevo: upsert de `social-posts` mínimo — respetando el
+   esquema real de la colección: `caption` es **required** (viene del campo
+   caption de `INSTAGRAM_GET_IG_USER_CONTENT`; si Instagram no lo devuelve,
+   fallback determinista `"(post externo)"`), `account` (relationship →
+   `social-accounts`, required — nombre real del campo), `status: 'publicado'`,
+   `platformPostId`, `permalink` y `publishedAt`. Así el dashboard refleja
+   TODA la actividad de la cuenta, no solo lo planeado aquí. Clave de
+   búsqueda: `platformPostId` (con índice único si no existe aún).
 4. Por cada post: `INSTAGRAM_GET_IG_MEDIA_INSIGHTS` → upsert en `post-metrics`
    con clave única (`post` + `recordedAt` = fecha del sync) — el re-run nunca
    duplica. La respuesta cruda va a `rawMetrics` (campo json que ya existe).
@@ -176,7 +180,8 @@ COMPOSIO_API_KEY=          # única llave necesaria en v1
 - [ ] `createInstagramConnectionAction` + hosted auth de Composio + desconexión
 - [ ] Cliente delgado `src/integrations/composio/client.ts` (execute por slug, tipado de las 3 herramientas)
 - [ ] Job `sync-instagram-metrics` (TaskConfig + schedule, registrado en `payload.config.ts` jobs.tasks)
-- [ ] Upsert idempotente de `post-metrics` + auto-creación de `social-posts` externos mínimos
+- [ ] Upsert idempotente de `post-metrics` + auto-creación de `social-posts`
+      externos mínimos (`caption` requerido con fallback + `account`)
 - [ ] `social-account-metrics` (o JSONB diario) + widget de salud social
 - [ ] Estados vacíos + botón "Conectar Instagram" + tabla top-posts en `/workspace/social`
 - [ ] Test de integración del job (fixture del payload de Composio)

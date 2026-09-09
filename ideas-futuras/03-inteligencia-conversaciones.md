@@ -78,8 +78,13 @@ labels, asignado).
 3. Panel editable en la tarjeta: texto propuesto (editable) + botón
    **"Abrir WhatsApp"** → `https://wa.me/<telefono>?text=<urlencode>`
    (patrón click-to-chat que ya usa "Hoy").
-4. Al abrir, registra activity (canal: whatsapp, tipo: retomar) y la tarjeta
-   recalcula su alerta.
+4. Al abrir, registra activity (canal: whatsapp, tipo: retomar) — **solo
+   timeline, la alerta NO se limpia**: la señal "sin respuesta" de
+   `computeWindowState` deriva de `conversations.lastInboundAt` /
+   `lastMessageAt`, y abrir el enlace no prueba que se haya enviado un
+   mensaje. La tarjeta sigue marcada hasta que el espejo de OpenBSP reciba un
+   outbound real (el usuario efectivamente escribió por WhatsApp) — esa es la
+   única señal verificable; no se inventa un cierre anticipado.
 5. **Fallback determinista**: sin IA configurada, usa plantillas de
    `message-templates` con variables (nombre, empresa, monto pendiente).
 
@@ -88,7 +93,8 @@ labels, asignado).
 El mismo motor que detecta "X días sin respuesta" propone en la tarjeta:
 "¿Crear seguimiento para mañana?" → un clic crea la tarea en Hoy con cliente y
 contexto precargados. Así el loop completo es: detectar → proponer → un clic →
-recordatorio → wa.me → actividad → el sentimiento se actualiza solo cuando el
+recordatorio → wa.me → actividad (timeline) → la alerta se limpia sola cuando
+el espejo registra el outbound real, y el sentimiento se actualiza cuando el
 cliente responde.
 
 ## Reglas de producto
