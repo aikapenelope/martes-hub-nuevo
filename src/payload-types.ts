@@ -105,6 +105,7 @@ export interface Config {
     'company-settings': CompanySetting;
     'tenant-integrations': TenantIntegration;
     'tenant-connections': TenantConnection;
+    'social-account-metrics': SocialAccountMetric;
     exports: Export;
     imports: Import;
     invoices: Invoice;
@@ -180,6 +181,7 @@ export interface Config {
     'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
     'tenant-integrations': TenantIntegrationsSelect<false> | TenantIntegrationsSelect<true>;
     'tenant-connections': TenantConnectionsSelect<false> | TenantConnectionsSelect<true>;
+    'social-account-metrics': SocialAccountMetricsSelect<false> | SocialAccountMetricsSelect<true>;
     exports: ExportsSelect<false> | ExportsSelect<true>;
     imports: ImportsSelect<false> | ImportsSelect<true>;
     invoices: InvoicesSelect<false> | InvoicesSelect<true>;
@@ -224,6 +226,7 @@ export interface Config {
       'recalculate-lead-scores': TaskRecalculateLeadScores;
       'dispatch-sequences': TaskDispatchSequences;
       'purge-expired-social-media': TaskPurgeExpiredSocialMedia;
+      'sync-instagram-metrics': TaskSyncInstagramMetrics;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -1575,6 +1578,31 @@ export interface TenantConnection {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "social-account-metrics".
+ */
+export interface SocialAccountMetric {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  socialAccount: number | SocialAccount;
+  recordedAt: string;
+  followerCount?: number | null;
+  profileViews?: number | null;
+  websiteClicks?: number | null;
+  reach?: number | null;
+  rawMetrics?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "exports".
  */
 export interface Export {
@@ -2029,6 +2057,7 @@ export interface PayloadJob {
           | 'recalculate-lead-scores'
           | 'dispatch-sequences'
           | 'purge-expired-social-media'
+          | 'sync-instagram-metrics'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -2080,6 +2109,7 @@ export interface PayloadJob {
         | 'recalculate-lead-scores'
         | 'dispatch-sequences'
         | 'purge-expired-social-media'
+        | 'sync-instagram-metrics'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -2253,6 +2283,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'tenant-connections';
         value: number | TenantConnection;
+      } | null)
+    | ({
+        relationTo: 'social-account-metrics';
+        value: number | SocialAccountMetric;
       } | null)
     | ({
         relationTo: 'invoices';
@@ -3119,6 +3153,22 @@ export interface TenantConnectionsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "social-account-metrics_select".
+ */
+export interface SocialAccountMetricsSelect<T extends boolean = true> {
+  tenant?: T;
+  socialAccount?: T;
+  recordedAt?: T;
+  followerCount?: T;
+  profileViews?: T;
+  websiteClicks?: T;
+  reach?: T;
+  rawMetrics?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "exports_select".
  */
 export interface ExportsSelect<T extends boolean = true> {
@@ -3730,6 +3780,18 @@ export interface TaskPurgeExpiredSocialMedia {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSync-instagram-metrics".
+ */
+export interface TaskSyncInstagramMetrics {
+  input?: unknown;
+  output: {
+    accounts?: number | null;
+    posts?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "TaskCreateCollectionExport".
  */
 export interface TaskCreateCollectionExport {
@@ -3775,6 +3837,7 @@ export interface TaskCreateCollectionExport {
       | 'company-settings'
       | 'tenant-integrations'
       | 'tenant-connections'
+      | 'social-account-metrics'
       | 'exports'
       | 'imports';
     drafts?: ('yes' | 'no') | null;

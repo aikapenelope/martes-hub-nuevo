@@ -1,5 +1,3 @@
-import 'server-only'
-
 import { Composio } from '@composio/core'
 import type { Payload } from 'payload'
 
@@ -12,7 +10,13 @@ import {
 } from './shared'
 
 /**
- * Cliente Composio BYO-key: la API key del proyecto del tenant vive cifrada
+ * Cliente Composio BYO-key.
+ *
+ * NOTA: este archivo NO debe importar 'server-only': forma parte del grafo de
+ * imports de payload.config.ts (vía jobs/…), y ese módulo lanza fuera de Next
+ * (generate:types / migrate) — misma convención que `lead-scoring.ts`. Solo se
+ * usa desde servidor por diseño (server actions + jobs): la key nunca llega al
+ * cliente porque solo este módulo la descifra. la API key del proyecto del tenant vive cifrada
  * en `tenant-integrations` (1 fila por tenant) y NUNCA se expone fuera de
  * este módulo.
  *

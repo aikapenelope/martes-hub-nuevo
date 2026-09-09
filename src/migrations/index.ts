@@ -256,3 +256,9 @@ migrations.push({
   down: migration_20260909_210000_media_purged_at.down,
   name: '20260909_210000_media_purged_at',
 });
+import * as migration_20260909_220000_social_account_metrics from './20260909_220000_social_account_metrics';
+migrations.push({
+  up: migration_20260909_220000_social_account_metrics.up,
+  down: migration_20260909_220000_social_account_metrics.down,
+  name: '20260909_220000_social_account_metrics',
+});
