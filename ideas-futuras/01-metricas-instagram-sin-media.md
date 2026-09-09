@@ -1,187 +1,176 @@
-# 01 · Métricas de Instagram sin guardar media
+# 01 · Social Hub: publicar directo, media temporal y espejo de Insights
 
-> Idea: conectar el sistema a Instagram para traer métricas con un job diario —
-> sin guardar imágenes, viable para SaaS. **Reescrito (2026-09-09): el
-> transporte de v1 es Composio en modo determinista (sin LLM), no la Graph API
-> directa.** Mismo modelo de datos que el diseño original; cambia el transporte
-> y desaparece el App Review del camino crítico.
+> **v3 (2026-09-09 tarde) — DECISIÓN CAMBIADA por el usuario.** Antes era
+> "métricas sin guardar media". Ahora: **publicar desde Martes Hub** (composer
+> tipo Metricool: imagen + caption → directo a Instagram), la imagen es
+> **temporal (se borra a las 48h)** y solo queda una miniatura en el historial,
+> y la sección de métricas es un **espejo de Instagram Insights / Business
+> Suite**. El transporte sigue siendo **Composio determinista (sin LLM) con
+> managed OAuth** — sin app de Meta propia ni App Review.
 
 ## Problema
 
-El modelo actual de social delega publicación y métricas en un agente MCP
-externo (Metricool/Composio) y usa `media` para los adjuntos. Para SaaS eso no
-escala: almacenar las imágenes de cada tenant cuesta storage real (R2/S3), y el
-agente externo es una pieza que alguien tiene que conectar y mantener.
+El modelo actual de social solo planifica: nadie escribe `post-metrics` (los 3
+KPIs de `/workspace/social` leen una tabla vacía — `getSocialMetricsSummary` es
+solo lectura y su comentario asume un agente que no existe), no hay ningún job
+de social en `src/jobs/`, y publicar exige salir del sistema a la app de
+Instagram a mano.
 
-**Estado real verificado en el repo (2026-09-09):** hoy nadie escribe en
-`post-metrics`. `/workspace/social` muestra los 3 KPIs (alcance/impresiones/
-interacciones) vía `getSocialMetricsSummary`, pero esa función es solo lectura
-y su comentario asume que "un agente MCP conectado los escribe" — agente que no
-existe. En `src/jobs/` no hay ningún job de social ni llamadas a Meta. La
-verificación era correcta: hay que construir el productor de datos.
+## Decisión cerrada (v3)
 
-## Decisión cerrada
+1. **Publicar directo desde el sistema**: composer tipo Metricool — se sube la
+   imagen, se escribe el caption, botón **Publicar** (o programar para más
+   tarde). La publicación usa la Content Publishing API de Instagram a través
+   de Composio: crear contenedor (`image_url` pública + `caption`) → publicar.
+2. **Media temporal de 48h**: la imagen vive en S3/R2 solo durante la ventana
+   de publicación — Instagram **copia la imagen a su propio CDN** al publicar,
+   así que borrar la nuestra no afecta el post. Un job TTL elimina el original
+   a las 48h; solo queda una **miniatura pequeña** para el historial. Storage
+   constante, viable para SaaS.
+3. **Historial simple**: lista de lo publicado — miniatura + descripción +
+   fecha + permalink + métricas de la última medición. Nada más.
+4. **Espejo de Instagram Insights**: la sección de métricas replica el layout
+   de la app de Instagram/Business Suite — tarjetas de cuenta (alcance,
+   impresiones, interacciones, seguidores) y grid de posts con sus insights
+   por post. Mismo vocabulario visual que ya conoce el usuario.
+5. **Login sencillo con Composio**: Connect Link de hosted auth — el usuario
+   aprieta "Conectar Instagram", se loguea una vez, y Composio lleva OAuth,
+   tokens y refresh. Requisito: cuenta IG **Business/Creator** (gratis).
 
-1. **Cero media nueva**: en `publicado` no se copia ninguna imagen; solo
-   `platformPostId` + `permalink` (ya existen como campos en `social-posts`).
-   Los thumbnails de Instagram NO se guardan: los CDN de Meta (`scontent`)
-   expiran. En la UI, icono por tipo de post + link al permalink.
-2. **Métricas deterministas, sin LLM**: job diario propio que consulta
-   Instagram **a través de Composio en modo herramientas** (ejecución directa
-   por SDK/REST, sin agente ni LLM en el camino — igual de determinista que
-   llamar a la Graph API, pero sin app de Meta propia ni OAuth propio).
-3. **Publicar queda fuera del sistema**: aquí se planifica y cada post lleva
-   su link. El MCP de Metricool queda como uso humano opcional (pedir
-   reportes a Claude), no como pipeline.
+## Corroboración: Composio sí permite publicar (verificado 2026-09-09)
 
-## Por qué Composio y no la Graph API (aún)
+El toolkit de Instagram de Composio tiene **36 acciones**, entre ellas todo el
+ciclo de publicación y métricas ([docs.composio.dev/toolkits/instagram](https://docs.composio.dev/toolkits/instagram)):
 
-**No existe una API de Meta Business Suite** — Business Suite es solo la
-interfaz; lo que la alimenta es la Graph API. Usarla directo exige: crear app
-en developers.facebook.com, OAuth propio, tokens que expiran, y **App Review**
-de Meta para que la use alguien más allá de ti.
+| Acción | Para qué |
+|---|---|
+| `INSTAGRAM_POST_IG_USER_MEDIA` | Crear el contenedor de media (inputs: `image_url` **pública**, `caption`, `video_url`) |
+| `INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH` | Publicar el contenedor (el paso 2 del flujo oficial) |
+| `INSTAGRAM_CREATE_CAROUSEL_CONTAINER` | Carruseles (fase 2) |
+| `INSTAGRAM_GET_IG_USER_CONTENT_PUBLISHING_LIMIT` | Cuota de la API: 25 publicaciones / 24h — el composer la muestra |
+| `INSTAGRAM_GET_IG_MEDIA_INSIGHTS` / `INSTAGRAM_GET_USER_INSIGHTS` / `INSTAGRAM_GET_IG_USER_MEDIA` | Métricas por post y de cuenta (job diario) |
+| `INSTAGRAM_GET_USER_INFO` | Datos de la cuenta conectada |
 
-Composio elimina las tres fricciones para v1:
+**Managed OAuth**: Composio mantiene la app de OAuth, el usuario la autoriza
+mediante un **Connect Link** (hosted authentication), y Composio guarda y refresca
+los tokens
+([docs.composio.dev/toolkits/managed-auth](https://docs.composio.dev/toolkits/managed-auth))
+— por eso no hace falta app de Meta ni App Review.
 
-| | Graph API directa | Composio (herramientas, sin LLM) |
-|---|---|---|
-| App de Meta propia | Requerida + App Review | No: Composio presta su app; el usuario solo aprieta "Conectar" |
-| OAuth y refresco de tokens | Propio | Lo lleva Composio (connected accounts) |
-| Ejecución | REST propio | `composio.tools.execute()` / `POST /api/v3.1/tools/execute/{slug}` — determinista |
-| Migración a SaaS | — | Se registra la Meta app propia como credencial custom en Composio; el código no cambia |
-
-Herramientas del toolkit de Instagram que usa el job (slugs vigentes en los
-docs de Composio — ojo: "Get User Media" está deprecado, la vigente es
-`INSTAGRAM_GET_IG_USER_CONTENT`):
-
-- `INSTAGRAM_GET_IG_USER_CONTENT` — media de la cuenta (id, permalink,
-  timestamp, tipo, like/comment counts).
-- `INSTAGRAM_GET_IG_MEDIA_INSIGHTS` — métricas por post (reach, saved,
-  shares/reposts, views).
-- `INSTAGRAM_GET_USER_INSIGHTS` — métricas de cuenta (seguidores, profile
-  views, website clicks).
-
-Referencias: docs.composio.dev/toolkits/instagram ·
-composio.dev/toolkits/instagram ·
-developers.facebook.com/documentation/instagram-platform (para la fase SaaS).
-
-Requisito único: la cuenta IG debe ser **Business/Creator** (gratis, se cambia
-en la app de Instagram). Stories queda fuera de v1: sus insights expiran a 24h.
+**Único riesgo a validar con un spike de 1 día** (antes de construir la UI
+completa): el FAQ del toolkit indica que *algunas* herramientas pueden fallar
+con la app gestionada (mencionan reply-to-comment). Validar en un script que
+`POST_IG_USER_MEDIA` + `PUBLISH` + insights funcionan con el managed app. Si
+`instagram_content_publish` no estuviera en su scope, el fallback es registrar
+la app propia como auth config custom en Composio (solo cambian las llaves; el
+código no).
 
 ## Diseño
 
-### 1. Conexión por tenant (`social-accounts` pasa de referencia a conexión)
+### 1. Conexión por tenant (igual que v2)
 
-**No se guardan tokens en la BD** — los tiene Composio (corrección sobre el
-diseño anterior: los OAuth de Google de este repo viven en env vars, no en BD,
-así que no había criterio de cifrado que copiar; con Composio el punto es
-moot). Campos nuevos sobre los que ya existen (`accountName`, `platform`,
-`platformAccountId`, `status`, `profilePictureUrl`):
-
-| Campo | Tipo | Nota |
-|---|---|---|
-| `composioConnectedAccountId` | text | ID del connected account en Composio — la única llave que el sistema necesita |
-| `externalUserId` | text | IG user id (devuelto al conectar; puede completar `platformAccountId`) |
-| `lastSyncAt` | date | telemetría del job |
-| `syncStatus` | select | `ok / error_token / error_api / sin_conectar` |
-
-Flujo de conexión: server action `createInstagramConnectionAction` → pide a
-Composio un link de conexión (hosted auth) → el usuario se loguea una vez →
-callback/webhook de Composio (o polling en el primer sync) hace upsert de
-`social-accounts` con el `composioConnectedAccountId`. Botón "Conectar
+`social-accounts` gana `composioConnectedAccountId` (la única llave que el
+sistema guarda — los tokens viven en Composio), `externalUserId`,
+`lastSyncAt`, `syncStatus` (`ok / error_token / error_api / sin_conectar`).
+Server action `createInstagramConnectionAction` → pide a Composio el Connect
+Link → el usuario se loguea una vez → upsert de la cuenta. Botón "Conectar
 Instagram" en `/workspace/social` con estado vacío.
 
-### 2. Job diario `sync-instagram-metrics`
+### 2. Composer de publicación (lo nuevo)
 
-Gemelo de `sync-email` / `sync-gcal`: `TaskConfig` con `schedule`, espejo de
-solo lectura, **idempotente** (misma técnica: detectar conflicto de unique
-constraint 23505 y saltar — ver `isUniqueConflict` en `syncEmail.ts`).
+UI tipo Metricool en `/workspace/social`: campo de imagen (upload a `media`
+con flag temporal), caption con contador, selector **Publicar ya / Programar**
+(fecha y hora), y el contador de la cuota (`CONTENT_PUBLISHING_LIMIT`).
 
-1. Early return si no está configurado (`isInstagramSyncConfigured()` — patrón
-   `isGmailSyncConfigured`).
-2. Para cada `social-accounts` con platform=instagram y connected account:
-   `INSTAGRAM_GET_IG_USER_CONTENT`.
-3. Por cada post nuevo: upsert de `social-posts` mínimo — respetando el
-   esquema real de la colección: `caption` es **required** (viene del campo
-   caption de `INSTAGRAM_GET_IG_USER_CONTENT`; si Instagram no lo devuelve,
-   fallback determinista `"(post externo)"`), `account` (relationship →
-   `social-accounts`, required — nombre real del campo), `status: 'publicado'`,
-   `platformPostId`, `permalink` y `publishedAt`. Así el dashboard refleja
-   TODA la actividad de la cuenta, no solo lo planeado aquí. Clave de
-   búsqueda: `platformPostId` (con índice único si no existe aún).
-4. Por cada post: `INSTAGRAM_GET_IG_MEDIA_INSIGHTS` → upsert en `post-metrics`
-   con clave única (`post` + `recordedAt` = fecha del sync) — el re-run nunca
-   duplica. La respuesta cruda va a `rawMetrics` (campo json que ya existe).
-5. `INSTAGRAM_GET_USER_INSIGHTS` → una fila diaria de métricas de cuenta:
-   `follower_count`, `profile_views`, `website_clicks` → colección ligera
-   `social-account-metrics` (o JSONB diario en `social-accounts` si se prefiere
-   no agregar colección).
-6. Rate limits: con job diario, los límites de Meta sobran por órdenes de
-   magnitud incluso con decenas de tenants.
+Flujo de `publishSocialPostAction` (publicar ya):
 
-### 3. UI (casi todo ya existe)
+1. Upload de la imagen → `media` (S3/R2 vía `@payloadcms/storage-s3` que el
+   repo ya tiene) + doc `social-posts` en estado `publicando` (reclamo
+   condicional: `update where status in ['borrador','programado']` — un doble
+   clic nunca publica dos veces).
+2. `INSTAGRAM_POST_IG_USER_MEDIA` con `image_url` pública del S3 + caption.
+3. `INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH` → `platformPostId` + `permalink` →
+   estado `publicado` (o `fallido` + `lastError`, campos que ya existen).
+4. Miniatura: Payload ya genera `imageSizes` al subir — la thumb del size
+   pequeño queda como la imagen del historial.
 
-- Los 3 KPIs y el detalle por post de `/workspace/social` **ya consumen
-  post-metrics** vía `getSocialMetricsSummary` — aparecen solos al poblar datos.
-- Estados vacíos con CTA: "Conecta tu cuenta de Instagram" → flujo del punto 1.
-- Tabla últimos 10 posts: fecha, tipo (icono), alcance, likes, comentarios,
-  guardados, ER%. Link al permalink.
-- Widget "Salud social" en Overview (sparkline 30 días de seguidores + ER%)
-  como refinamiento posterior.
+Publicación real no es transaccional: el estado va `borrador → publicando →
+publicado/fallido` y los errores quedan en `lastError` para reintento manual.
 
-### 4. Fase SaaS (pospuesto, no olvidado)
+### 3. Programación (fase inmediata, no bloquea v1)
 
-Cuando el sistema pase a SaaS real: registrar la app propia en
-developers.facebook.com (Business Login + App Review) y configurarla como
-credencial custom dentro de Composio — **el código no cambia; cambian las
-llaves**. Si algún día se quiere salir de Composio, el job ya encapsula las 3
-llamadas: se reescriben por llamadas Graph directas detrás de la misma
-interfaz.
+`scheduledAt` + job `publishScheduledSocialPosts` (gemelo de
+`sendScheduledCampaigns`): cada corrida toma posts `programado` vencidos, los
+pasa por el mismo flujo 1–3. Claim condicional por estado antes de llamar la
+API — nunca duplica.
+
+### 4. Job TTL: la imagen se borra a las 48h
+
+Job diario `purgeExpiredSocialMedia`: busca `media` temporales de posts ya
+`publicado` con más de 48h → borra el objeto original en S3 y marca el doc con
+`purgedAt` (borrado lógico — el doc no se elimina para no romper referencias;
+la miniatura vive en otro objeto pequeño). Cinturón y tirantes: regla de ciclo
+de vida en el bucket para el prefijo temporal (`/temp-social/`), por si el job
+falla. Como IG copió la imagen a su CDN, el post publicado no cambia.
+
+### 5. Job diario de métricas + espejo de Insights
+
+Igual que v2: `sync-instagram-metrics` (temprano en la mañana) →
+`GET_IG_USER_MEDIA` → upsert mínimo de posts externos (`caption` requerido
+con fallback `"(post externo)"`, `account`) → `GET_IG_MEDIA_INSIGHTS` por post
+→ upsert idempotente en `post-metrics` (índice único `post`+`recordedAt`) →
+`GET_USER_INSIGHTS` → fila diaria de cuenta.
+
+UI **espejo de Instagram Insights** en `/workspace/social`:
+
+- Fila superior de tarjetas de cuenta como la app de IG: **alcance,
+  impresiones, interacciones, seguidores** (30 días) — mismo vocabulario.
+- Grid de posts con miniatura + insights por post (alcance, likes,
+  comentarios, guardados, ER%) — visualmente el "Content you shared" de IG.
+- Debajo, el **historial simple**: lista plana (miniatura, caption, fecha,
+  permalink) de todo lo publicado desde el sistema, con su estado.
 
 ## Env vars nuevas
 
 ```
-COMPOSIO_API_KEY=          # única llave necesaria en v1
-# Fase SaaS: la Meta app propia se registra como credencial custom en Composio
+COMPOSIO_API_KEY=     # única llave nueva; S3_* ya existen en el repo
 ```
 
 ## Consideraciones al construir (Payload + estado del repo)
 
-- **Local API y access control**: el job corre como sistema con
-  `overrideAccess: true` (confiable — patrón `syncEmail`); las server actions
-  de conexión con `overrideAccess: false` + `user` — la Local API **bypassa
-  todo el access control** si no se pasa `overrideAccess: false` explícito.
-- **Idempotencia del upsert**: `PostMetrics.ts` hoy NO define índice único en
-  (`post`, `recordedAt`) — hace falta migración con el índice (o query-first)
-  y manejar el conflicto 23505 como ya hacen `syncEmail`/`syncGcal` con
-  `isUniqueConflict`. Sin esto, un re-run duplica filas.
-- **Tenant**: `post-metrics` ya está en el `multiTenantPlugin`
-  (`payload.config.ts:182`) — el campo `tenant` lo inyecta el plugin, no hay
-  que declararlo a mano; el job debe iterar cuentas por tenant (parte de
-  `social-accounts`, que ya es tenant-aware) y heredar el tenant al crear.
-- **Sin `versions.drafts`**: el repo deliberadamente no usa `_status` en las
-  colecciones con UI custom (comentario en `SocialPosts.ts`) — el estado va por
-  `select`. No activar drafts en `social-accounts` ni en la colección nueva.
-- **Atomicidad**: el upsert de post + métricas puede ir en la misma transacción
-  pasando `req` a las operaciones anidadas (patrón obligatorio del repo).
-- **Early return si no configurado**: el job debe devolver output informativo
-  cuando `COMPOSIO_API_KEY` no existe (patrón `isGmailSyncConfigured`), para
-  que el digest/monitoreo no acumule errores.
-- **Costo por acciones de Composio**: job diario × 3 llamadas × N tenants —
-  a escala SaaS son cientos de acciones/día; revisar plan de Composio antes de
-  comprometer el pipeline (otro motivo para que el job encapsule las llamadas).
-- **`rawMetrics` ya existe** en `PostMetrics` para la respuesta cruda — no
-  agregar campos nuevos para auditar la extracción.
+- **Spike primero**: script que valide managed OAuth + publish + insights con
+  una cuenta IG Business real antes de construir la UI (el FAQ advierte de
+  limitaciones posibles de la app gestionada).
+- **`image_url` pública**: el contenedor de IG exige una URL que sus servidores
+  puedan descargar — el bucket S3/R2 público (o URL firmada con vida ≥ 1h) del
+  storage plugin existente. Como IG copia la imagen, el TTL de 48h es seguro.
+- **Doble publicación**: el claim condicional por `status` (`borrador/
+  programado → publicando`) es obligatorio antes de llamar a Composio —
+  patrón `convertQuoteToInvoiceAction` (`billing-actions.ts:398`).
+- **Media purgada = borrado lógico**: `purgedAt` + delete del objeto S3, nunca
+  delete del doc `media` (rompería referencias y auditoría).
+- **Local API**: server actions con `overrideAccess: false` + `user` +
+  validación de tenant; jobs de sistema con `overrideAccess: true`
+  (early-return informativo si `COMPOSIO_API_KEY` falta — patrón
+  `isGmailSyncConfigured`).
+- **Idempotencia de métricas**: índice único (`post`, `recordedAt`) en
+  `post-metrics` + manejo 23505 (`isUniqueConflict` de `syncEmail`) — la
+  colección hoy no tiene índice, hace falta migración.
+- **Cuota 25/24h**: chequear `CONTENT_PUBLISHING_LIMIT` en el composer y en el
+  job de programación; la UI lo muestra para no sorprender.
+- **Sin `versions.drafts`**: estado por `select` (comentario en
+  `SocialPosts.ts`); el tenant lo inyecta `multiTenantPlugin`, no se declara a
+  mano.
 
 ## Checklist de implementación
 
-- [ ] Índice único en `post-metrics` (`post` + `recordedAt`) + índice único en `social-posts.platformPostId` (migración)
-- [ ] Campos nuevos en `social-accounts` (`composioConnectedAccountId`, `lastSyncAt`, `syncStatus`)
-- [ ] `createInstagramConnectionAction` + hosted auth de Composio + desconexión
-- [ ] Cliente delgado `src/integrations/composio/client.ts` (execute por slug, tipado de las 3 herramientas)
-- [ ] Job `sync-instagram-metrics` (TaskConfig + schedule, registrado en `payload.config.ts` jobs.tasks)
-- [ ] Upsert idempotente de `post-metrics` + auto-creación de `social-posts`
-      externos mínimos (`caption` requerido con fallback + `account`)
-- [ ] `social-account-metrics` (o JSONB diario) + widget de salud social
-- [ ] Estados vacíos + botón "Conectar Instagram" + tabla top-posts en `/workspace/social`
-- [ ] Test de integración del job (fixture del payload de Composio)
+- [ ] Spike Composio: managed OAuth → `POST_IG_USER_MEDIA` + `PUBLISH` + insights con cuenta real
+- [ ] Campos en `social-accounts` (`composioConnectedAccountId`, `lastSyncAt`, `syncStatus`) + Connect Link + desconexión
+- [ ] Cliente delgado `src/integrations/composio/client.ts` (execute por slug, tipado de las acciones usadas)
+- [ ] Composer de publicación (upload + caption + publicar ya/programar + cuota) + `publishSocialPostAction` con claim por estado
+- [ ] Job `purgeExpiredSocialMedia` (48h, borrado lógico + S3) + lifecycle rule del bucket
+- [ ] Índice único `post-metrics` (`post`+`recordedAt`) + `social-posts.platformPostId` (migración)
+- [ ] Job `sync-instagram-metrics` + upserts idempotentes + posts externos mínimos
+- [ ] UI espejo de Insights (tarjetas de cuenta + grid de posts) + historial con miniaturas
+- [ ] `publishScheduledSocialPosts` (programación, patrón `sendScheduledCampaigns`)
+- [ ] Tests: fixture del flujo publish (contenedor→publicar), TTL purge, sync de métricas
