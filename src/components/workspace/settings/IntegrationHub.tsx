@@ -296,8 +296,8 @@ export function IntegrationHub({
         un popup y queda cableado. Los tokens viven en Composio; el proyecto (y el consumo) es del
         tenant.
         {hasApiKey
-          ? ' Este tenant usa su propio proyecto Composio.'
-          : ' Este tenant usa el proyecto gestionado por la plataforma.'}
+          ? ' Este tenant usa su propio proyecto Composio (cuota propia).'
+          : ' ⚠ Este tenant aún no tiene API key de Composio asignada: habla con el operador de Martes Hub para que te la asigne desde /admin → Integraciones del Tenant. Mientras tanto no puedes conectar servicios.'}
       </p>
 
       {message && (
