@@ -22,6 +22,10 @@ import { getComposioForTenant } from '@/integrations/composio/client'
 beforeEach(() => {
   vi.resetModules()
   process.env.INTEGRATIONS_ENC_KEY = 'test-passphrase-spike'
+  // Aislamiento estricto de las pruebas de resolución de keys: CI no tiene
+  // estos valores en el entorno (el .env local sí).
+  delete process.env.COMPOSIO_API_KEY
+  delete process.env.WORKSPACE_DEFAULT_TENANT
 })
 
 describe('crypto — AES-256-GCM', () => {
@@ -103,13 +107,21 @@ describe('getComposioForTenant — key del operador SOLO para el tenant default'
   })
 
   it('tenant default (Martes): sin fila propia usa la key del operador', async () => {
+    process.env.WORKSPACE_DEFAULT_TENANT = 'martes'
     process.env.COMPOSIO_API_KEY = 'key_del_operador'
     const session = await getComposioForTenant(mockPayload([], 'martes'), 1)
     expect(session).not.toBeNull()
     expect(session!.source).toBe('operador')
   })
 
+  it('env WORKSPACE_DEFAULT_TENANT ausente: ningún tenant recibe la key del operador (sin slugs hardcodeados)', async () => {
+    process.env.COMPOSIO_API_KEY = 'key_del_operador'
+    const session = await getComposioForTenant(mockPayload([], 'martes'), 1)
+    expect(session).toBeNull()
+  })
+
   it('otro tenant sin key asignada NO consume la key del operador (devuelve null)', async () => {
+    process.env.WORKSPACE_DEFAULT_TENANT = 'martes'
     process.env.COMPOSIO_API_KEY = 'key_del_operador'
     const session = await getComposioForTenant(mockPayload([], 'cliente-foo'), 2)
     expect(session).toBeNull()
