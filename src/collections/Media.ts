@@ -17,6 +17,27 @@ export const Media: CollectionConfig = {
       type: 'text',
       required: true,
     },
+    {
+      name: 'purgedAt',
+      type: 'date',
+      label: 'Objeto original purgado (media temporal social)',
+      admin: {
+        description:
+          'Media temporal de publicaciones sociales: el job TTL borra el objeto grande a las 48h (IG ya copió la imagen); la miniatura queda como historial.',
+        hidden: true,
+      },
+    },
+    {
+      name: 'socialTemp',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Media temporal social',
+      admin: {
+        description:
+          'Solo el composer de publicaciones lo marca: el job TTL SOLO purga assets marcados — nunca media general del workspace.',
+        hidden: true,
+      },
+    },
   ],
   // Allowlist explícita (docs: /docs/upload/overview — "Restrict mimeTypes in
   // the file picker"). Los ejecutables/HTML ya vienen bloqueados por defecto,
@@ -27,6 +48,16 @@ export const Media: CollectionConfig = {
   // (PDF/txt/csv/Word/Excel — se descargan como attachment, nunca inline).
   // Video: adjuntos de publicaciones sociales.
   upload: {
+    // Miniaturas: toda imagen subida genera una versión pequeña que sobrevive
+    // a la purga del original (historial de publicaciones sociales — doc 01 v3).
+    imageSizes: [
+      {
+        name: 'thumbnail',
+        width: 320,
+        height: 320,
+        fit: 'cover',
+      },
+    ],
     mimeTypes: [
       'image/png',
       'image/jpeg',

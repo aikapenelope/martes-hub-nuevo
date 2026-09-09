@@ -24,7 +24,7 @@ export default async function SocialPage({
   const context = await getWorkspaceContext(params)
   const { payload, user, tenantId, canEdit, isAdmin } = context
 
-  const [accountsRes, postsRes, metrics] = await Promise.all([
+  const [accountsRes, postsRes, metrics, accountMetricsRes] = await Promise.all([
     payload.find({
       collection: 'social-accounts',
       where: { tenant: { equals: tenantId } },
@@ -43,6 +43,15 @@ export default async function SocialPage({
       user,
     }),
     getSocialMetricsSummary(payload, user, tenantId),
+    payload.find({
+      collection: 'social-account-metrics',
+      where: { tenant: { equals: tenantId } },
+      limit: 1,
+      depth: 0,
+      sort: '-recordedAt',
+      overrideAccess: false,
+      user,
+    }),
   ])
 
   const accounts = accountsRes.docs as SocialAccount[]
@@ -54,26 +63,25 @@ export default async function SocialPage({
   monday.setDate(now.getDate() - currentDayOfWeek)
   monday.setHours(0, 0, 0, 0)
 
-  const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-  const weekDays = dayNames.map((name, index) => {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + index)
-    const dIsoPrefix = d.toISOString().split('T')[0]
-    const dayPosts = posts.filter((p) => {
-      const ref = p.scheduledAt || p.publishedAt || p.createdAt
-      return ref && ref.startsWith(dIsoPrefix)
-    })
-    return {
-      name,
-      dayNum: d.getDate(),
-      isToday: d.toDateString() === now.toDateString(),
-      postsCount: dayPosts.length,
-    }
-  })
-
   const connectedAccountsCount = accounts.filter((a) => a.status === 'conectada').length
   const scheduledCount = posts.filter((p) => p.status === 'programado').length
   const publishedCount = posts.filter((p) => p.status === 'publicado').length
+
+  // Espejo de Instagram Insights: posts publicados con métricas, top por alcance.
+  const topPosts = posts
+    .filter((p) => p.status === 'publicado' && metrics.latestByPost.has(p.id))
+    .map((p) => ({ post: p, snap: metrics.latestByPost.get(p.id)! }))
+    .sort((a, b) => b.snap.reach - a.snap.reach)
+    .slice(0, 10)
+
+  const hasInstagram = accounts.some((a) => a.platform === 'instagram' && a.status === 'conectada')
+
+  function mediaThumb(post: SocialPost): string | null {
+    const media = Array.isArray(post.media) ? post.media[0] : null
+    if (!media || typeof media !== 'object') return null
+    const sizes = (media as { sizes?: Record<string, { url?: string | null }> | null }).sizes
+    return sizes?.thumbnail?.url ?? (media as { url?: string | null }).url ?? null
+  }
 
   return (
     <div className="space-y-4">
@@ -93,12 +101,103 @@ export default async function SocialPage({
 
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-4" aria-label="Indicadores sociales">
         <KpiCard label="Cuentas vinculadas" value={accounts.length} icon={Radio} accent="sky" note={`${connectedAccountsCount} activas y sincronizadas`} />
-        <KpiCard label="Posts programados" value={scheduledCount} icon={Clock} accent="amber" note="Listos para publicar vía MCP" />
+        <KpiCard label="Posts programados" value={scheduledCount} icon={Clock} accent="amber" note="Listos para publicar vía Composio" />
         <KpiCard label="Posts publicados" value={publishedCount} icon={CheckCircle2} accent="cyan" note="Publicados exitosamente" />
         <KpiCard label="Total histórico" value={posts.length} icon={Share2} accent="indigo" note="En el repositorio del tenant" />
       </section>
 
-      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3" aria-label="Desempeño real de publicaciones">
+      <section aria-label="Desempeño por post — espejo de Instagram Insights">
+        <OledCard>
+          <SectionHeader eyebrow="Espejo de Instagram Insights" title="Desempeño por publicación" action={<TrendingUp size={18} className="text-zinc-500" />} />
+          {!hasInstagram ? (
+            <div className="flex flex-col items-center gap-2 py-6 text-center text-xs text-zinc-500">
+              <AlertCircle size={22} />
+              <div>
+                Conecta la cuenta de Instagram del negocio en{' '}
+                <a href="/workspace/settings#conexiones" className="underline text-zinc-300">
+                  Ajustes → Conexiones
+                </a>{' '}
+                para ver alcance, guardados y más.
+              </div>
+            </div>
+          ) : topPosts.length === 0 ? (
+            <EmptyState>
+              Aún no hay métricas — el job diario trae alcance/interacciones de cada post publicado.
+            </EmptyState>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-[10px] uppercase tracking-wider font-mono text-zinc-500">
+                    <th className="py-2 pr-3">Post</th>
+                    <th className="py-2 pr-3">Alcance</th>
+                    <th className="py-2 pr-3">Me gusta</th>
+                    <th className="py-2 pr-3">Comentarios</th>
+                    <th className="py-2 pr-3">Guardados</th>
+                    <th className="py-2 pr-3">ER%</th>
+                    <th className="py-2">Link</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topPosts.map(({ post, snap }) => {
+                    const thumb = mediaThumb(post)
+                    const interactions = snap.likes + snap.comments + snap.saved + snap.shares
+                    const er = snap.reach > 0 ? ((interactions / snap.reach) * 100).toFixed(1) : '0.0'
+                    return (
+                      <tr key={post.id} className="border-b border-zinc-900 last:border-0 text-xs">
+                        <td className="py-2 pr-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {thumb ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={thumb} alt="" className="h-9 w-9 rounded-sm object-cover border border-zinc-800" />
+                            ) : (
+                              <div className="h-9 w-9 rounded-sm border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+                                <Share2 size={12} className="text-zinc-600" />
+                              </div>
+                            )}
+                            <span className="truncate max-w-56 text-zinc-300">
+                              {post.caption.slice(0, 60)}
+                              {post.caption.length > 60 ? '…' : ''}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2 pr-3 text-zinc-300 font-mono">{snap.reach.toLocaleString('es')}</td>
+                        <td className="py-2 pr-3 text-zinc-300 font-mono">{snap.likes.toLocaleString('es')}</td>
+                        <td className="py-2 pr-3 text-zinc-300 font-mono">{snap.comments.toLocaleString('es')}</td>
+                        <td className="py-2 pr-3 text-zinc-300 font-mono">{snap.saved.toLocaleString('es')}</td>
+                        <td className="py-2 pr-3 text-zinc-300 font-mono">{er}%</td>
+                        <td className="py-2">
+                          {post.permalink ? (
+                            <a href={post.permalink} target="_blank" rel="noopener noreferrer" className="text-sky-400 underline text-[11px]">
+                              Ver
+                            </a>
+                          ) : (
+                            <span className="text-zinc-600">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </OledCard>
+      </section>
+
+      <section className="grid grid-cols-2 gap-4 sm:grid-cols-4" aria-label="Desempeño real de publicaciones">
+        {(() => {
+          const latest = accountMetricsRes.docs[0] as { followerCount?: number | null; recordedAt?: string | null } | undefined
+          return (
+            <KpiCard
+              label="Seguidores"
+              value={(latest?.followerCount ?? 0).toLocaleString('es')}
+              icon={TrendingUp}
+              accent="indigo"
+              note={latest?.recordedAt ? `Último registro: ${dateFmt.format(new Date(latest.recordedAt))}` : 'Sin registro diario todavía'}
+            />
+          )
+        })()}
         <KpiCard
           label="Alcance total"
           value={metrics.totals.reach.toLocaleString('es')}
@@ -162,7 +261,9 @@ export default async function SocialPage({
             <div className="flex flex-col items-center gap-2 py-8 text-center text-xs text-zinc-500">
               <AlertCircle size={22} />
               <div>Sin cuentas sociales conectadas.</div>
-              {canEdit && isAdmin ? <SocialAccountCreateDialog variant="cta" /> : null}
+              <a href="/workspace/settings#conexiones" className="text-zinc-300 underline">
+                Conectar en Ajustes → Conexiones
+              </a>
             </div>
           ) : (
             <div className="flex flex-col gap-2">

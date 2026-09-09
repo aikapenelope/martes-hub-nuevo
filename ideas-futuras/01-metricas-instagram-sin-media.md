@@ -78,9 +78,12 @@ Instagram" en `/workspace/social` con estado vacío.
 
 ### 2. Composer de publicación (lo nuevo)
 
-UI tipo Metricool en `/workspace/social`: campo de imagen (upload a `media`
-con flag temporal), caption con contador, selector **Publicar ya / Programar**
-(fecha y hora), y el contador de la cuota (`CONTENT_PUBLISHING_LIMIT`).
+UI tipo Metricool en `/workspace/social` con **pestaña por plataforma** —
+Instagram en v1; **TikTok como segunda pestaña** (se activa cuando exista la
+app propia de TikTok, ver doc 06; el composer es el mismo: imagen + caption →
+publicar). Cada pestaña: campo de imagen (upload a `media` con flag temporal),
+caption con contador, selector **Publicar ya / Programar** (fecha y hora), y
+el contador de la cuota (`CONTENT_PUBLISHING_LIMIT` en IG).
 
 Flujo de `publishSocialPostAction` (publicar ya):
 
@@ -167,7 +170,7 @@ COMPOSIO_API_KEY=     # única llave nueva; S3_* ya existen en el repo
 - [ ] Spike Composio: managed OAuth → `POST_IG_USER_MEDIA` + `PUBLISH` + insights con cuenta real
 - [ ] Campos en `social-accounts` (`composioConnectedAccountId`, `lastSyncAt`, `syncStatus`) + Connect Link + desconexión
 - [ ] Cliente delgado `src/integrations/composio/client.ts` (execute por slug, tipado de las acciones usadas)
-- [ ] Composer de publicación (upload + caption + publicar ya/programar + cuota) + `publishSocialPostAction` con claim por estado
+- [ ] Composer de publicación (pestañas Instagram/TikTok; v1 solo IG) (upload + caption + publicar ya/programar + cuota) + `publishSocialPostAction` con claim por estado
 - [ ] Job `purgeExpiredSocialMedia` (48h, borrado lógico + S3) + lifecycle rule del bucket
 - [ ] Índice único `post-metrics` (`post`+`recordedAt`) + `social-posts.platformPostId` (migración)
 - [ ] Job `sync-instagram-metrics` + upserts idempotentes + posts externos mínimos

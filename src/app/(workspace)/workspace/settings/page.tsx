@@ -3,6 +3,8 @@ import 'server-only'
 import { CheckCircle2, Building, Shield, Bot, Sparkles } from 'lucide-react'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { updateCompanySettingsAction } from '@/lib/settings-actions'
+import { IntegrationHub } from '@/components/workspace/settings/IntegrationHub'
+import { getComposioForTenant } from '@/integrations/composio/client'
 import type { CompanySetting } from '@/payload-types'
 
 const inputCls =
@@ -44,6 +46,34 @@ export default async function SettingsPage({
   const aiAutoSummarize = settings?.aiAutoSummarize ?? true
 
   const isAdmin = Boolean(context.user.roles?.includes('admin'))
+
+  // Hub de conexiones Composio: key del proyecto (cifrada) + estado por toolkit.
+  const integrationsRes = await context.payload.find({
+    collection: 'tenant-integrations',
+    where: { tenant: { equals: context.tenantId } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  // Disponibilidad con las MISMAS reglas que getComposioForTenant (fila del
+  // tenant o key del operador) — sin exponer la key (review Devin).
+  const composioSession = await getComposioForTenant(context.payload, context.tenantId).catch(() => null)
+  const hasComposioKey = composioSession !== null
+  const connectionsRes = await context.payload.find({
+    collection: 'tenant-connections',
+    where: { tenant: { equals: context.tenantId } },
+    limit: 50,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const connectionRows = connectionsRes.docs.map((doc) => ({
+    id: doc.id,
+    toolkit: doc.toolkit,
+    scope: doc.scope,
+    userId: typeof doc.user === 'object' ? (doc.user?.id ?? null) : (doc.user ?? null),
+    estado: doc.estado,
+    connectedAccountId: doc.connectedAccountId ?? null,
+  }))
 
 
   return (
@@ -100,6 +130,14 @@ export default async function SettingsPage({
           <span className="text-[10px] text-zinc-500 font-mono">Dólares estadounidenses</span>
         </div>
       </section>
+
+      {/* Hub de conexiones Composio (empresa + personales) */}
+      <IntegrationHub
+        isAdmin={isAdmin}
+        hasApiKey={hasComposioKey}
+        currentUserId={context.user.id}
+        rows={connectionRows}
+      />
 
       {/* Formulario de configuración */}
       <section className="oled-card p-6">

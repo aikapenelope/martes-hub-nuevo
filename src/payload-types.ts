@@ -103,6 +103,9 @@ export interface Config {
     'social-posts': SocialPost;
     'post-metrics': PostMetric;
     'company-settings': CompanySetting;
+    'tenant-integrations': TenantIntegration;
+    'tenant-connections': TenantConnection;
+    'social-account-metrics': SocialAccountMetric;
     exports: Export;
     imports: Import;
     invoices: Invoice;
@@ -176,6 +179,9 @@ export interface Config {
     'social-posts': SocialPostsSelect<false> | SocialPostsSelect<true>;
     'post-metrics': PostMetricsSelect<false> | PostMetricsSelect<true>;
     'company-settings': CompanySettingsSelect<false> | CompanySettingsSelect<true>;
+    'tenant-integrations': TenantIntegrationsSelect<false> | TenantIntegrationsSelect<true>;
+    'tenant-connections': TenantConnectionsSelect<false> | TenantConnectionsSelect<true>;
+    'social-account-metrics': SocialAccountMetricsSelect<false> | SocialAccountMetricsSelect<true>;
     exports: ExportsSelect<false> | ExportsSelect<true>;
     imports: ImportsSelect<false> | ImportsSelect<true>;
     invoices: InvoicesSelect<false> | InvoicesSelect<true>;
@@ -219,6 +225,9 @@ export interface Config {
       'sweep-unsummarized-conversations': TaskSweepUnsummarizedConversations;
       'recalculate-lead-scores': TaskRecalculateLeadScores;
       'dispatch-sequences': TaskDispatchSequences;
+      'purge-expired-social-media': TaskPurgeExpiredSocialMedia;
+      'sync-instagram-metrics': TaskSyncInstagramMetrics;
+      'publish-scheduled-social-posts': TaskPublishScheduledSocialPosts;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -779,6 +788,10 @@ export interface Appointment {
    * Idempotencia: reintentos del sync no duplican
    */
   gcalEventId: string;
+  /**
+   * Identidad inequívoca de la fuente: empresa y personales pueden compartir calendarId — la reconciliación se scopea por conexión.
+   */
+  sourceConnection?: (number | null) | TenantConnection;
   calendarId?: string | null;
   /**
    * Link directo a Google Calendar
@@ -792,6 +805,48 @@ export interface Appointment {
    * Lo rellena el sync por matching de asistentes contra clients/leads
    */
   lead?: (number | null) | Lead;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Conexiones por servicio (login del tenant vía Composio), de la empresa o personales.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenant-connections".
+ */
+export interface TenantConnection {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  toolkit: 'instagram' | 'tiktok' | 'gmail' | 'googlecalendar' | 'googlesheets' | 'googledocs';
+  scope: 'empresa' | 'personal';
+  /**
+   * Dueño de la cuenta personal. Vacío en conexiones de la empresa.
+   */
+  user?: (number | null) | User;
+  /**
+   * Auth config gestionado de Composio para este toolkit.
+   */
+  authConfigId?: string | null;
+  connectedAccountId?: string | null;
+  connectedBy?: (number | null) | User;
+  estado: 'conectando' | 'ok' | 'error_token' | 'error_api' | 'desconectado';
+  /**
+   * Error crudo de Composio — sin fallback, se muestra en la UI.
+   */
+  ultimoError?: string | null;
+  /**
+   * Ej.: { "calendarId": "…", "mailbox": "…" } según el toolkit.
+   */
+  config?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  lastSyncAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -989,6 +1044,14 @@ export interface Media {
   id: number;
   tenant?: (number | null) | Tenant;
   alt: string;
+  /**
+   * Media temporal de publicaciones sociales: el job TTL borra el objeto grande a las 48h (IG ya copió la imagen); la miniatura queda como historial.
+   */
+  purgedAt?: string | null;
+  /**
+   * Solo el composer de publicaciones lo marca: el job TTL SOLO purga assets marcados — nunca media general del workspace.
+   */
+  socialTemp?: boolean | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -1000,6 +1063,16 @@ export interface Media {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
 }
 /**
  * PDFs generados por facturas y cotizaciones. Uso interno.
@@ -1373,6 +1446,13 @@ export interface SocialAccount {
   platformAccountId: string;
   status: 'conectada' | 'desconectada' | 'expirada';
   profilePictureUrl?: string | null;
+  /**
+   * Referencia a la conexión del tenant en Composio — los tokens viven allá, nunca aquí.
+   */
+  composioConnectedAccountId?: string | null;
+  externalUserId?: string | null;
+  syncStatus?: ('sin_conectar' | 'ok' | 'error_token' | 'error_api') | null;
+  lastSyncAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1386,7 +1466,7 @@ export interface SocialPost {
   caption: string;
   account: number | SocialAccount;
   media?: (number | Media)[] | null;
-  status: 'borrador' | 'programado' | 'publicado' | 'fallido';
+  status: 'borrador' | 'programado' | 'publicando' | 'publicado' | 'fallido';
   scheduledAt?: string | null;
   publishedAt?: string | null;
   platformPostId?: string | null;
@@ -1483,6 +1563,50 @@ export interface CompanySetting {
       titular?: string | null;
     };
   };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * API key del proyecto Composio del tenant (cifrada). El superadmin la asigna desde /admin; el estado por servicio vive en Conexiones del Tenant.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenant-integrations".
+ */
+export interface TenantIntegration {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  provider: 'composio';
+  /**
+   * Write-only: pegar la key del proyecto Composio del tenant. Al guardar se cifra y no vuelve a mostrarse.
+   */
+  apiKey?: string | null;
+  apiKeyCifrado: string;
+  estado: 'ok' | 'invalida';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "social-account-metrics".
+ */
+export interface SocialAccountMetric {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  socialAccount: number | SocialAccount;
+  recordedAt: string;
+  followerCount?: number | null;
+  profileViews?: number | null;
+  websiteClicks?: number | null;
+  reach?: number | null;
+  rawMetrics?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1941,6 +2065,9 @@ export interface PayloadJob {
           | 'sweep-unsummarized-conversations'
           | 'recalculate-lead-scores'
           | 'dispatch-sequences'
+          | 'purge-expired-social-media'
+          | 'sync-instagram-metrics'
+          | 'publish-scheduled-social-posts'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -1991,6 +2118,9 @@ export interface PayloadJob {
         | 'sweep-unsummarized-conversations'
         | 'recalculate-lead-scores'
         | 'dispatch-sequences'
+        | 'purge-expired-social-media'
+        | 'sync-instagram-metrics'
+        | 'publish-scheduled-social-posts'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -2156,6 +2286,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'company-settings';
         value: number | CompanySetting;
+      } | null)
+    | ({
+        relationTo: 'tenant-integrations';
+        value: number | TenantIntegration;
+      } | null)
+    | ({
+        relationTo: 'tenant-connections';
+        value: number | TenantConnection;
+      } | null)
+    | ({
+        relationTo: 'social-account-metrics';
+        value: number | SocialAccountMetric;
       } | null)
     | ({
         relationTo: 'invoices';
@@ -2411,6 +2553,7 @@ export interface AppointmentsSelect<T extends boolean = true> {
   attendees?: T;
   description?: T;
   gcalEventId?: T;
+  sourceConnection?: T;
   calendarId?: T;
   htmlLink?: T;
   client?: T;
@@ -2457,6 +2600,8 @@ export interface DocumentsSelect<T extends boolean = true> {
 export interface MediaSelect<T extends boolean = true> {
   tenant?: T;
   alt?: T;
+  purgedAt?: T;
+  socialTemp?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -2468,6 +2613,20 @@ export interface MediaSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+  sizes?:
+    | T
+    | {
+        thumbnail?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+      };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2873,6 +3032,10 @@ export interface SocialAccountsSelect<T extends boolean = true> {
   platformAccountId?: T;
   status?: T;
   profilePictureUrl?: T;
+  composioConnectedAccountId?: T;
+  externalUserId?: T;
+  syncStatus?: T;
+  lastSyncAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2966,6 +3129,54 @@ export interface CompanySettingsSelect<T extends boolean = true> {
               titular?: T;
             };
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenant-integrations_select".
+ */
+export interface TenantIntegrationsSelect<T extends boolean = true> {
+  tenant?: T;
+  provider?: T;
+  apiKey?: T;
+  apiKeyCifrado?: T;
+  estado?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenant-connections_select".
+ */
+export interface TenantConnectionsSelect<T extends boolean = true> {
+  tenant?: T;
+  toolkit?: T;
+  scope?: T;
+  user?: T;
+  authConfigId?: T;
+  connectedAccountId?: T;
+  connectedBy?: T;
+  estado?: T;
+  ultimoError?: T;
+  config?: T;
+  lastSyncAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "social-account-metrics_select".
+ */
+export interface SocialAccountMetricsSelect<T extends boolean = true> {
+  tenant?: T;
+  socialAccount?: T;
+  recordedAt?: T;
+  followerCount?: T;
+  profileViews?: T;
+  websiteClicks?: T;
+  reach?: T;
+  rawMetrics?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3571,6 +3782,41 @@ export interface TaskDispatchSequences {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskPurge-expired-social-media".
+ */
+export interface TaskPurgeExpiredSocialMedia {
+  input?: unknown;
+  output: {
+    purged?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSync-instagram-metrics".
+ */
+export interface TaskSyncInstagramMetrics {
+  input?: unknown;
+  output: {
+    accounts?: number | null;
+    posts?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskPublish-scheduled-social-posts".
+ */
+export interface TaskPublishScheduledSocialPosts {
+  input?: unknown;
+  output: {
+    published?: number | null;
+    failed?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "TaskCreateCollectionExport".
  */
 export interface TaskCreateCollectionExport {
@@ -3614,6 +3860,9 @@ export interface TaskCreateCollectionExport {
       | 'social-posts'
       | 'post-metrics'
       | 'company-settings'
+      | 'tenant-integrations'
+      | 'tenant-connections'
+      | 'social-account-metrics'
       | 'exports'
       | 'imports';
     drafts?: ('yes' | 'no') | null;

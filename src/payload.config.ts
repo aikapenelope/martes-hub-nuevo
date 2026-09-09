@@ -49,6 +49,9 @@ import { SavedCrmViews } from './collections/SavedCrmViews'
 import { Sequences } from './collections/Sequences'
 import { SequenceEnrollments } from './collections/SequenceEnrollments'
 import { SocialAccounts } from './collections/SocialAccounts'
+import { TenantIntegrations } from './collections/TenantIntegrations'
+import { TenantConnections } from './collections/TenantConnections'
+import { SocialAccountMetrics } from './collections/SocialAccountMetrics'
 import { SocialPosts } from './collections/SocialPosts'
 import { PostMetrics } from './collections/PostMetrics'
 import { invoicePdf, builtInTemplates } from 'payload-invoicepdf'
@@ -69,6 +72,9 @@ import { summarizeConversationTask } from './jobs/summarizeConversation'
 import { sweepConversationsTask } from './jobs/sweepConversations'
 import { recalculateLeadScoresTask } from './jobs/leadScoring'
 import { dispatchSequencesTask } from './jobs/dispatchSequences'
+import { purgeExpiredSocialMediaTask } from './jobs/purgeSocialMedia'
+import { syncInstagramMetricsTask } from './jobs/syncInstagramMetrics'
+import { publishScheduledSocialPostsTask } from './jobs/publishScheduledSocialPosts'
 import { Appointments } from './collections/Appointments'
 import type { User } from './payload-types'
 import { adminOnly } from './access'
@@ -127,6 +133,9 @@ export default buildConfig({
     SocialPosts,
     PostMetrics,
     CompanySettings,
+    TenantIntegrations,
+    TenantConnections,
+    SocialAccountMetrics,
   ],
   plugins: [
     importExportPlugin({
@@ -216,6 +225,9 @@ export default buildConfig({
         'saved-crm-views': {},
         'conversation-notes': {},
         'social-accounts': {},
+        'tenant-integrations': {},
+        'tenant-connections': {},
+        'social-account-metrics': {},
         'social-posts': {},
         'post-metrics': {},
         'company-settings': { isGlobal: true },
@@ -397,6 +409,9 @@ export default buildConfig({
       sweepConversationsTask,
       recalculateLeadScoresTask,
       dispatchSequencesTask,
+      purgeExpiredSocialMediaTask,
+      syncInstagramMetricsTask,
+      publishScheduledSocialPostsTask,
     ],
   },
   editor: lexicalEditor(),
