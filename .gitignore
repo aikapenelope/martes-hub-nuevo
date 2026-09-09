@@ -52,3 +52,8 @@ node_modules/
 .commandcode/
 .serena/
 .codegraph/
+
+# storage local de uploads en tests (sin S3_BUCKET)
+media/
+invoice-media/
+documents/

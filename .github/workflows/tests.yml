@@ -76,25 +76,11 @@ jobs:
           pnpm tsx scripts/seed-default-tenant.ts
           pnpm tsx scripts/seed-dev-user.ts
 
-      # billing-lifecycle y offers-billing-cashboard quedan excluidos hasta
-      # añadir los secrets de R2 (S3_*): sus tests dependen del pipeline
-      # factura→PDF→Media de payload-invoicepdf, que necesita el adaptador de
-      # storage. Con R2 conectado (env de arriba), borra los dos --exclude de
-      # abajo y la suite queda completa. El resto corre ya entera.
-      # billing-lifecycle y offers-billing-cashboard excluidos temporalmente:
-      # su pipeline factura→PDF→Media falla en ambiente limpio (Payload
-      # checkFileRestrictions no puede detectar el tipo del PDF generado en
-      # el runner) — jamás se había ejecutado fuera de producción. Seguimiento
-      # en issue dedicado; el resto de la suite corre completa.
-      # billing-lifecycle y offers-billing-cashboard siguen excluidos: el
-      # renderer de @react-pdf 4.8.1 produce en el runner un buffer que
-      # checkFileRestrictions no puede tipar (issue #110). Reincorporar al
-      # cerrar #110.
       - name: Run integration tests
-        run: >-
-          pnpm vitest run --config ./vitest.config.mts
-          --exclude 'tests/int/billing-lifecycle.int.spec.ts'
-          --exclude 'tests/int/offers-billing-cashboard.int.spec.ts'
+        # Suite completa: el pipeline factura→PDF→invoice-media quedó resuelto
+        # (issue #110) — los PDFs del plugin aterrizan en una colección sin
+        # allowlist de mimeTypes, así checkFileRestrictions no tipa el buffer.
+        run: pnpm test:int
 
       - name: Summary
         if: always()

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Payload } from 'payload'
 
 import { computeLeadScore, scoreTenantLeads } from '@/lib/lead-scoring'
@@ -225,6 +225,18 @@ const promoteLead = {
 }
 
 describe('scoreTenantLeads — barrido tenant-scoped', () => {
+  // Los mocks fijan fechas relativas a NOW; scoreTenantLeads usa Date.now()
+  // real. Sin reloj congelado, el mismo test pasa o falla según la hora del
+  // día en que corre (el inbound "12h atrás" envejece con el reloj real y
+  // cruza la ventana de 24h → deja de sumar +30 y el score baja de caliente).
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('escribe el recálculo y dispara hot-lead al promover a caliente', async () => {
     const mocks = buildMockPayload(promoteLead, {
       conversationsPages: [
@@ -373,6 +385,15 @@ describe('scoreTenantLeads — barrido tenant-scoped', () => {
 })
 
 describe('recalculate-lead-scores — handler del job', () => {
+  // Reloj congelado: ver nota del describe anterior.
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('itera tenants y agrega totales en el output', async () => {
     const mocks = buildMockPayload(promoteLead, {
       tenantsPages: [{ docs: [{ id: 1, name: 'Tenant Alpha' }], hasNextPage: false }],

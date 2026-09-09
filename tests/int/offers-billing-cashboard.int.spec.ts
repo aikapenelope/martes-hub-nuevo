@@ -45,6 +45,7 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
     client1 = (await payload.create({
       collection: 'clients',
       overrideAccess: true,
+      user,
       data: {
         name: 'Cliente Test Comercial ' + Date.now(),
         email: `cliente-${Date.now()}@test.com`,
@@ -91,6 +92,7 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
         sort: '-createdAt',
         limit: 1,
         overrideAccess: true,
+        user,
       })
 
       expect(quotesRes.docs.length).toBeGreaterThan(0)
@@ -106,6 +108,7 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
       const quote = (await payload.create({
         collection: 'quotes',
         overrideAccess: true,
+        user,
         data: {
           tenant: tenant1.id,
           status: 'draft',
@@ -135,6 +138,7 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
         collection: 'quotes',
         id: quote.id,
         overrideAccess: true,
+        user,
       })
       expect(updatedQuote.status).toBe('accepted')
 
@@ -150,6 +154,7 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
         sort: '-createdAt',
         limit: 1,
         overrideAccess: true,
+        user,
       })
       expect(paymentsRes.docs.length).toBeGreaterThan(0)
       const payment = paymentsRes.docs[0] as Payment
@@ -158,9 +163,13 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
     })
 
     it('rechaza convertir cotizaciones rechazadas o expiradas', async () => {
+      // El create SIN user no persiste bajo el RLS del multiTenantPlugin (la
+      // fila desaparece y el action la ve como Not Found) — el fixture crea
+      // la quote con el usuario del contexto, como el resto del spec.
       const rejectedQuote = (await payload.create({
         collection: 'quotes',
         overrideAccess: true,
+        user,
         data: {
           tenant: tenant1.id,
           status: 'rejected',
@@ -183,6 +192,7 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
       const payment = (await payload.create({
         collection: 'payments',
         overrideAccess: true,
+        user,
         data: {
           tenant: tenant1.id,
           client: client1.id,
@@ -206,6 +216,7 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
         collection: 'payments',
         id: payment.id,
         overrideAccess: true,
+        user,
       })
 
       expect(updated.status).toBe('pagado')
@@ -222,6 +233,7 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
       await payload.create({
         collection: 'payments',
         overrideAccess: true,
+        user,
         data: {
           tenant: tenant1.id,
           client: client1.id,
@@ -237,6 +249,7 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
       await payload.create({
         collection: 'quotes',
         overrideAccess: true,
+        user,
         data: {
           tenant: tenant1.id,
           status: 'sent',
