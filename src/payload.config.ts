@@ -74,6 +74,7 @@ import { recalculateLeadScoresTask } from './jobs/leadScoring'
 import { dispatchSequencesTask } from './jobs/dispatchSequences'
 import { purgeExpiredSocialMediaTask } from './jobs/purgeSocialMedia'
 import { syncInstagramMetricsTask } from './jobs/syncInstagramMetrics'
+import { publishScheduledSocialPostsTask } from './jobs/publishScheduledSocialPosts'
 import { Appointments } from './collections/Appointments'
 import type { User } from './payload-types'
 import { adminOnly } from './access'
@@ -410,6 +411,7 @@ export default buildConfig({
       dispatchSequencesTask,
       purgeExpiredSocialMediaTask,
       syncInstagramMetricsTask,
+      publishScheduledSocialPostsTask,
     ],
   },
   editor: lexicalEditor(),

@@ -24,7 +24,7 @@ export default async function SocialPage({
   const context = await getWorkspaceContext(params)
   const { payload, user, tenantId, canEdit, isAdmin } = context
 
-  const [accountsRes, postsRes, metrics] = await Promise.all([
+  const [accountsRes, postsRes, metrics, accountMetricsRes] = await Promise.all([
     payload.find({
       collection: 'social-accounts',
       where: { tenant: { equals: tenantId } },
@@ -43,6 +43,15 @@ export default async function SocialPage({
       user,
     }),
     getSocialMetricsSummary(payload, user, tenantId),
+    payload.find({
+      collection: 'social-account-metrics',
+      where: { tenant: { equals: tenantId } },
+      limit: 1,
+      depth: 0,
+      sort: '-recordedAt',
+      overrideAccess: false,
+      user,
+    }),
   ])
 
   const accounts = accountsRes.docs as SocialAccount[]
@@ -176,7 +185,19 @@ export default async function SocialPage({
         </OledCard>
       </section>
 
-      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3" aria-label="Desempeño real de publicaciones">
+      <section className="grid grid-cols-2 gap-4 sm:grid-cols-4" aria-label="Desempeño real de publicaciones">
+        {(() => {
+          const latest = accountMetricsRes.docs[0] as { followerCount?: number | null; recordedAt?: string | null } | undefined
+          return (
+            <KpiCard
+              label="Seguidores"
+              value={(latest?.followerCount ?? 0).toLocaleString('es')}
+              icon={TrendingUp}
+              accent="indigo"
+              note={latest?.recordedAt ? `Último registro: ${dateFmt.format(new Date(latest.recordedAt))}` : 'Sin registro diario todavía'}
+            />
+          )
+        })()}
         <KpiCard
           label="Alcance total"
           value={metrics.totals.reach.toLocaleString('es')}

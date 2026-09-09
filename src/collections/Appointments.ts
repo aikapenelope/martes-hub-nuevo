@@ -95,6 +95,19 @@ export const Appointments: CollectionConfig = {
       },
     },
     {
+      name: 'sourceConnection',
+      type: 'relationship',
+      relationTo: 'tenant-connections',
+      index: true,
+      label: 'Conexión origen (Composio)',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+        description:
+          'Identidad inequívoca de la fuente: empresa y personales pueden compartir calendarId — la reconciliación se scopea por conexión.',
+      },
+    },
+    {
       name: 'calendarId',
       type: 'text',
       label: 'Calendario origen',

@@ -3,10 +3,12 @@ import type { Payload } from 'payload'
 
 import { decryptSecret, encryptSecret } from '@/lib/crypto'
 import {
+  assertToolSuccess,
   extractCreationId,
   extractIgUserId,
   isPurgeDue,
   parseToolData,
+  sanitizeErrorForUi,
 } from '@/lib/social-publish'
 import {
   composioTenantUserId,
@@ -145,5 +147,27 @@ describe('social-publish — helpers del pipeline de publicación', () => {
     expect(isPurgeDue({ ...setup, postStatus: 'borrador' })).toBe(false)
     // Sin publishedAt
     expect(isPurgeDue({ ...setup, publishedAt: null })).toBe(false)
+  })
+})
+
+describe('assertToolSuccess — sobre de Composio', () => {
+  it('lanza con el error crudo cuando successful=false', () => {
+    expect(() => assertToolSuccess({ successful: false, error: 'OAuth token expired' }, 'publicación')).toThrow(
+      'Composio publicación falló: OAuth token expired',
+    )
+  })
+
+  it('no lanza cuando successful=true o ausente (compatibilidad)', () => {
+    expect(() => assertToolSuccess({ successful: true, data: '{}' }, 'x')).not.toThrow()
+    expect(() => assertToolSuccess({ data: '{}' }, 'x')).not.toThrow()
+  })
+})
+
+describe('sanitizeErrorForUi — el crudo queda en BD, la UI acota', () => {
+  it('colapsa saltos y acota a 200', () => {
+    const raw = 'Error\nnueva línea  '.padEnd(500, 'x')
+    const clean = sanitizeErrorForUi(raw)
+    expect(clean.length).toBeLessThanOrEqual(200)
+    expect(clean).not.toContain('\n')
   })
 })

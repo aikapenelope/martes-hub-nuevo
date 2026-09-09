@@ -27,6 +27,17 @@ export const Media: CollectionConfig = {
         hidden: true,
       },
     },
+    {
+      name: 'socialTemp',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Media temporal social',
+      admin: {
+        description:
+          'Solo el composer de publicaciones lo marca: el job TTL SOLO purga assets marcados — nunca media general del workspace.',
+        hidden: true,
+      },
+    },
   ],
   // Allowlist explícita (docs: /docs/upload/overview — "Restrict mimeTypes in
   // the file picker"). Los ejecutables/HTML ya vienen bloqueados por defecto,

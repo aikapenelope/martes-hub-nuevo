@@ -4,6 +4,7 @@ import { CheckCircle2, Building, Shield, Bot, Sparkles } from 'lucide-react'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { updateCompanySettingsAction } from '@/lib/settings-actions'
 import { IntegrationHub } from '@/components/workspace/settings/IntegrationHub'
+import { getComposioForTenant } from '@/integrations/composio/client'
 import type { CompanySetting } from '@/payload-types'
 
 const inputCls =
@@ -54,7 +55,10 @@ export default async function SettingsPage({
     depth: 0,
     overrideAccess: true,
   })
-  const hasComposioKey = Boolean(integrationsRes.docs[0])
+  // Disponibilidad con las MISMAS reglas que getComposioForTenant (fila del
+  // tenant o key del operador) — sin exponer la key (review Devin).
+  const composioSession = await getComposioForTenant(context.payload, context.tenantId).catch(() => null)
+  const hasComposioKey = composioSession !== null
   const connectionsRes = await context.payload.find({
     collection: 'tenant-connections',
     where: { tenant: { equals: context.tenantId } },

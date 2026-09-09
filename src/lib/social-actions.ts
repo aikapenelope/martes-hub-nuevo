@@ -2,8 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { executeTool, getComposioForTenant } from '@/integrations/composio/client'
-import { extractCreationId, extractIgUserId, parseToolData } from '@/lib/social-publish'
+import { runSocialPublish } from '@/lib/social-publish-exec'
+import { sanitizeErrorForUi } from '@/lib/social-publish'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 
 const MAX_NAME = 160
@@ -104,38 +104,53 @@ export async function createSocialPostAction(
           name: file.name || 'social.jpg',
           size: file.size,
         },
-        data: { alt: caption.slice(0, 200) },
+        // Marcador de media temporal social: el job TTL (48h) SOLO purga
+        // originales marcados así — nunca assets generales del workspace.
+        data: { alt: caption.slice(0, 200), socialTemp: true },
       })
       mediaId = media.id
     }
 
-    const post = await context.payload.create({
-      collection: 'social-posts',
-      overrideAccess: false,
-      user: context.user,
-      data: {
-        tenant: context.tenantId,
-        caption,
-        account: accountId,
-        status: scheduledAtRaw ? 'programado' : 'borrador',
-        scheduledAt: scheduledAtRaw ? new Date(scheduledAtRaw).toISOString() : undefined,
-        ...(mediaId ? { media: [mediaId] } : {}),
-      },
-    })
+    try {
+      const post = await context.payload.create({
+        collection: 'social-posts',
+        overrideAccess: false,
+        user: context.user,
+        data: {
+          tenant: context.tenantId,
+          caption,
+          account: accountId,
+          status: scheduledAtRaw ? 'programado' : 'borrador',
+          scheduledAt: scheduledAtRaw ? new Date(scheduledAtRaw).toISOString() : undefined,
+          ...(mediaId ? { media: [mediaId] } : {}),
+        },
+      })
 
-    revalidatePath('/workspace/social')
-    return { ok: true, postId: post.id, status: post.status }
+      revalidatePath('/workspace/social')
+      return { ok: true, postId: post.id, status: post.status }
+    } catch (postError) {
+      // Falló el post tras subir la imagen: borrar el media (el storage plugin
+      // elimina también el objeto S3/R2) para no dejar huérfanos.
+      if (mediaId) {
+        await context.payload
+          .delete({ collection: 'media', id: mediaId, overrideAccess: false, user: context.user })
+          .catch(() => undefined)
+      }
+      throw postError
+    }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Error al crear la publicación' }
+    return {
+      ok: false,
+      error: sanitizeErrorForUi(error instanceof Error ? error.message : 'Error al crear la publicación'),
+    }
   }
 }
 
 /**
- * Publica un post (borrador/programado) en Instagram vía Composio:
- * reclamo condicional por estado (un doble clic nunca publica dos veces) →
- * contenedor (`INSTAGRAM_POST_IG_USER_MEDIA`) → publish (auto-espera el
- * procesamiento) → `publicado` con `platformPostId`/permalink. Cualquier
- * error de Composio sube crudo al post (`fallido` + `lastError`) — sin fallback.
+ * Publica un post (borrador/programado) en Instagram vía Composio. Valida
+ * permisos/tenant y delega en `runSocialPublish` (compartido con el job de
+ * programados). A la UI solo llega el error sanitizado; el crudo queda en
+ * `social-posts.lastError` y en los logs del servidor.
  */
 export async function publishSocialPostAction(
   postId: number,
@@ -147,120 +162,25 @@ export async function publishSocialPostAction(
     const post = await context.payload.findByID({
       collection: 'social-posts',
       id: postId,
-      depth: 1,
+      depth: 0,
       overrideAccess: false,
       user: context.user,
     })
     if (!post) return { ok: false, error: 'Publicación no encontrada' }
     const postTenantId = typeof post.tenant === 'object' ? post.tenant?.id : post.tenant
-    if (postTenantId !== context.tenantId) return { ok: false, error: 'La publicación no pertenece al tenant activo' }
-
-    // Reclamo atómico por estado (patrón convertQuoteToInvoiceAction).
-    const claim = await context.payload.update({
-      collection: 'social-posts',
-      where: {
-        and: [
-          { id: { equals: postId } },
-          { tenant: { equals: context.tenantId } },
-          { status: { in: ['borrador', 'programado'] } },
-        ],
-      },
-      data: { status: 'publicando' as 'borrador' },
-      overrideAccess: false,
-      user: context.user,
-    })
-    if (!claim.docs || claim.docs.length === 0) {
-      return { ok: false, error: 'La publicación ya no está disponible para publicar' }
+    if (postTenantId !== context.tenantId) {
+      return { ok: false, error: 'La publicación no pertenece al tenant activo' }
     }
 
-    try {
-      const account = typeof post.account === 'object' ? post.account : null
-      const composioAccountId = account?.composioConnectedAccountId ?? null
-      if (!account || account.platform !== 'instagram' || !composioAccountId) {
-        throw new Error('La cuenta del post no es Instagram conectado vía Composio')
-      }
+    const result = await runSocialPublish(context.payload, { tenantId: context.tenantId, postId })
+    if (!result.ok) return { ok: false, error: sanitizeErrorForUi(result.error) }
 
-      const session = await getComposioForTenant(context.payload, context.tenantId)
-      if (!session) throw new Error('Este tenant no tiene API key de Composio asignada')
-
-      // La imagen del post: primera media vinculada con URL pública (S3/R2).
-      const mediaIds = Array.isArray(post.media) ? post.media : []
-      const mediaRef = mediaIds[0]
-      const mediaId = typeof mediaRef === 'object' ? (mediaRef?.id ?? null) : (mediaRef ?? null)
-      let imageUrl: string | null = null
-      if (mediaId) {
-        const mediaDoc = await context.payload.findByID({
-          collection: 'media',
-          id: mediaId,
-          depth: 0,
-          overrideAccess: true,
-        })
-        imageUrl = (mediaDoc as { url?: string | null }).url ?? null
-      }
-      if (!imageUrl) throw new Error('El post no tiene imagen con URL pública para publicar')
-
-      // IG user id: el guardado al conectar o, si falta, el que devuelve la API.
-      let igUserId = account.externalUserId ?? null
-      if (!igUserId) {
-        const info = await executeTool(session.composio, {
-          toolkit: 'instagram',
-          slug: 'INSTAGRAM_GET_USER_INFO',
-          userId: session.userId,
-          args: {},
-        })
-        igUserId = extractIgUserId(info)
-      }
-      if (!igUserId) throw new Error('No se pudo resolver el IG user id de la cuenta conectada')
-
-      const container = await executeTool(session.composio, {
-        toolkit: 'instagram',
-        slug: 'INSTAGRAM_POST_IG_USER_MEDIA',
-        userId: session.userId,
-        args: { ig_user_id: igUserId, image_url: imageUrl, caption: post.caption },
-      })
-      const creationId = extractCreationId(container)
-      if (!creationId) throw new Error(`Contenedor no creado: ${JSON.stringify(container).slice(0, 300)}`)
-
-      const published = await executeTool(session.composio, {
-        toolkit: 'instagram',
-        slug: 'INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH',
-        userId: session.userId,
-        args: { ig_user_id: igUserId, creation_id: creationId, max_wait_seconds: 120 },
-      })
-      const publishedParsed = parseToolData(published)
-      const platformPostId =
-        typeof publishedParsed.id === 'string' || typeof publishedParsed.id === 'number'
-          ? String(publishedParsed.id)
-          : creationId
-
-      await context.payload.update({
-        collection: 'social-posts',
-        id: postId,
-        data: {
-          status: 'publicado',
-          platformPostId,
-          permalink: typeof publishedParsed.permalink === 'string' ? publishedParsed.permalink : undefined,
-          publishedAt: new Date().toISOString(),
-          lastError: null,
-        },
-        overrideAccess: false,
-        user: context.user,
-      })
-
-      revalidatePath('/workspace/social')
-      return { ok: true, status: 'publicado', platformPostId }
-    } catch (publishError) {
-      const message = publishError instanceof Error ? publishError.message : 'Error desconocido de Composio'
-      await context.payload.update({
-        collection: 'social-posts',
-        id: postId,
-        data: { status: 'fallido', lastError: message },
-        overrideAccess: false,
-        user: context.user,
-      })
-      return { ok: false, error: message }
-    }
+    revalidatePath('/workspace/social')
+    return { ok: true, status: result.status, platformPostId: result.platformPostId }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Error al publicar' }
+    return {
+      ok: false,
+      error: sanitizeErrorForUi(error instanceof Error ? error.message : 'Error al publicar'),
+    }
   }
 }

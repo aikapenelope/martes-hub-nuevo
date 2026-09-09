@@ -1,6 +1,5 @@
 'use server'
 
-import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
 import { encryptSecret } from '@/lib/crypto'
@@ -34,11 +33,25 @@ function resolveScope(toolkit: string, scope: ConnectionScope): ConnectionScope 
   return scope
 }
 
-async function currentOrigin(): Promise<string> {
-  const headerList = await headers()
-  const host = headerList.get('host') ?? 'localhost:3000'
-  const protocol = host.startsWith('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https'
-  return `${protocol}://${host}`
+/**
+ * Origen allowlist para el callback de OAuth — NUNCA el header `Host` (un
+ * host forjado redirigiría el resultado del OAuth a un dominio ajeno).
+ * Producción: NEXT_PUBLIC_APP_URL o VERCEL_*; desarrollo: localhost.
+ */
+function allowedOrigin(): string {
+  const configured =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : undefined) ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
+  if (configured) return configured.replace(/\/$/, '')
+  if (process.env.NODE_ENV !== 'production') return 'http://localhost:3000'
+  return 'http://localhost:3000'
+}
+
+/** Error seguro para UI: quita saltos y acota — el crudo queda en BD/logs. */
+function safeError(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : fallback
+  return message.replace(/\s+/g, ' ').trim().slice(0, 200)
 }
 
 interface ConnectionRow {
@@ -131,10 +144,34 @@ export async function saveComposioKeyAction(apiKey: string): Promise<ActionResul
       })
     }
 
+    // Rotación de key = proyecto distinto: los connected accounts viejos viven
+    // en el proyecto anterior y quedan inválidos. Reset de TODAS las conexiones
+    // del tenant para que se reconecten contra el nuevo proyecto.
+    const staleConnections = await context.payload.find({
+      collection: 'tenant-connections',
+      where: { tenant: { equals: context.tenantId } },
+      limit: 100,
+      depth: 0,
+      overrideAccess: true,
+    })
+    for (const connection of staleConnections.docs) {
+      await context.payload.update({
+        collection: 'tenant-connections',
+        id: connection.id,
+        data: {
+          estado: 'desconectado',
+          connectedAccountId: null,
+          authConfigId: null,
+          ultimoError: 'La API key cambió — reconecta los servicios contra el nuevo proyecto',
+        },
+        overrideAccess: true,
+      })
+    }
+
     revalidatePath(SETTINGS_PATH)
     return { ok: true }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Error al guardar la API key' }
+    return { ok: false, error: safeError(error, 'Error al guardar la API key') }
   }
 }
 
@@ -170,7 +207,7 @@ export async function startConnectionAction(
     }
 
     const authConfigId = await getOrCreateManagedAuthConfig(session.composio, toolkit)
-    const origin = await currentOrigin()
+    const origin = allowedOrigin()
     const userId =
       scope === 'personal'
         ? `${session.userId}:u:${context.user.id}`
@@ -209,7 +246,7 @@ export async function startConnectionAction(
     revalidatePath(SETTINGS_PATH)
     return { ok: true, redirectUrl }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Error al iniciar la conexión' }
+    return { ok: false, error: safeError(error, 'Error al iniciar la conexión') }
   }
 }
 
@@ -223,6 +260,9 @@ export async function verifyConnectionAction(
     if (resolved === 'invalida') return { ok: false, error: `Alcance no válido para ${toolkit}` }
 
     const context = await getWorkspaceContext()
+    if (scope === 'empresa' && !context.isAdmin) {
+      return { ok: false, error: 'Las conexiones de la empresa requieren rol admin' }
+    }
     if (!context.canEdit) return { ok: false, error: 'No tienes permiso para verificar conexiones' }
 
     const row = await findTenantConnection(context.tenantId, toolkit, scope, context.user.id)
@@ -251,33 +291,106 @@ export async function verifyConnectionAction(
     })
 
     if (toolkit === 'instagram') {
-      const linked = await context.payload.find({
+      // Identidad IG REAL (no el connected account de Composio) — la consulta
+      // GET_USER_INFO resuelve 'me' para la conexión recién autorizada.
+      const { executeTool } = await import('@/integrations/composio/client')
+      const { assertToolSuccess, extractIgUserId } = await import('@/lib/social-publish')
+      const userInfo = await executeTool(session.composio, {
+        toolkit: 'instagram',
+        slug: 'INSTAGRAM_GET_USER_INFO',
+        userId,
+        args: {},
+      })
+      assertToolSuccess(userInfo, 'GET_USER_INFO')
+      const igUserId = extractIgUserId(userInfo)
+      if (!igUserId) throw new Error('GET_USER_INFO no devolvió el IG user id')
+
+      // Reconciliar el espejo existente por IDENTIDAD IG (un reconnect genera
+      // un connectedAccountId nuevo; la fila vieja marcada desconectada debe
+      // revivir y conservar su historial de posts — nunca crear duplicados).
+      const byIdentity = await context.payload.find({
         collection: 'social-accounts',
         where: {
           and: [
             { tenant: { equals: context.tenantId } },
-            { composioConnectedAccountId: { equals: account.id } },
+            { platform: { equals: 'instagram' } },
+            { externalUserId: { equals: igUserId } },
           ],
         },
         limit: 1,
         depth: 0,
         overrideAccess: true,
       })
-      if (!linked.docs[0]) {
-        await context.payload.create({
+
+      let mirrorId: number | null = byIdentity.docs[0]?.id ?? null
+
+      if (!mirrorId) {
+        // Sin identidad previa: adoptar la fila Composio-managed desconectada
+        // del tenant (reconexión de la misma cuenta antes de conocer su id).
+        const previous = await context.payload.find({
           collection: 'social-accounts',
+          where: {
+            and: [
+              { tenant: { equals: context.tenantId } },
+              { platform: { equals: 'instagram' } },
+              { composioConnectedAccountId: { exists: true } },
+              { status: { not_equals: 'conectada' } },
+            ],
+          },
+          limit: 1,
+          depth: 0,
+          overrideAccess: true,
+        })
+        mirrorId = previous.docs[0]?.id ?? null
+      }
+
+      const mirrorData = {
+        status: 'conectada' as const,
+        syncStatus: 'ok' as const,
+        composioConnectedAccountId: account.id,
+        externalUserId: igUserId,
+        platformAccountId: igUserId,
+        lastSyncAt: new Date().toISOString(),
+      }
+
+      try {
+        if (mirrorId) {
+          await context.payload.update({
+            collection: 'social-accounts',
+            id: mirrorId,
+            data: mirrorData,
+            overrideAccess: true,
+          })
+        } else {
+          await context.payload.create({
+            collection: 'social-accounts',
+            data: {
+              tenant: context.tenantId,
+              accountName: 'Instagram (conectado vía Composio)',
+              platform: 'instagram',
+              ...mirrorData,
+            },
+            overrideAccess: true,
+          })
+        }
+      } catch (mirrorError) {
+        // El login es válido (conexión ok) pero el espejo falló: volver a
+        // 'conectando' para que el botón de verificación siga disponible.
+        await context.payload.update({
+          collection: 'tenant-connections',
+          id: row.id,
           data: {
-            tenant: context.tenantId,
-            accountName: 'Instagram (conectado vía Composio)',
-            platform: 'instagram',
-            platformAccountId: account.id,
-            status: 'conectada',
-            syncStatus: 'ok',
-            composioConnectedAccountId: account.id,
-            lastSyncAt: new Date().toISOString(),
+            estado: 'conectando',
+            ultimoError: `Conectado en Composio pero el espejo falló: ${
+              mirrorError instanceof Error ? mirrorError.message : 'error desconocido'
+            }`,
           },
           overrideAccess: true,
         })
+        return {
+          ok: false,
+          error: safeError(mirrorError, 'La conexión quedó verificada pero el registro interno falló — reintenta'),
+        }
       }
     }
 
@@ -285,7 +398,7 @@ export async function verifyConnectionAction(
     revalidatePath('/workspace/social')
     return { ok: true, estado: 'ok' }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Error al verificar la conexión' }
+    return { ok: false, error: safeError(error, 'Error al verificar la conexión') }
   }
 }
 
@@ -299,6 +412,9 @@ export async function pingConnectionAction(
     if (resolved === 'invalida') return { ok: false, error: `Alcance no válido para ${toolkit}` }
 
     const context = await getWorkspaceContext()
+    if (scope === 'empresa' && !context.isAdmin) {
+      return { ok: false, error: 'Las conexiones de la empresa requieren rol admin' }
+    }
     if (!context.canEdit) return { ok: false, error: 'No tienes permiso para probar conexiones' }
 
     const row = await findTenantConnection(context.tenantId, toolkit, scope, context.user.id)
@@ -387,7 +503,7 @@ export async function disconnectConnectionAction(
     revalidatePath('/workspace/social')
     return { ok: true }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Error al desconectar' }
+    return { ok: false, error: safeError(error, 'Error al desconectar') }
   }
 }
 

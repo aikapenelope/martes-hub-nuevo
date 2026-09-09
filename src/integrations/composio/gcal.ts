@@ -59,35 +59,54 @@ export function normalizeGcalEvent(raw: unknown): GcalEventSummary | null {
   }
 }
 
-/** Trae los eventos de la ventana [timeMin, timeMax] del calendario de la conexión. */
+/**
+ * Trae TODOS los eventos de la ventana [timeMin, timeMax] del calendario de
+ * la conexión — paginado completo (nextPageToken): la reconciliación
+ * autoritativa del job es destructiva (cancela lo ausente), así que correrla
+ * sobre un resultado truncado borraría citas legítimas de páginas tardías.
+ */
 export async function fetchUpcomingEventsViaComposio(
   composio: Composio,
   options: { userId: string; calendarId: string; timeMin: string; timeMax: string },
 ): Promise<GcalEventSummary[]> {
-  const result = await executeTool<{ data?: string; successful?: boolean }>(composio, {
-    toolkit: 'googlecalendar',
-    slug: 'GOOGLECALENDAR_EVENTS_LIST',
-    userId: options.userId,
-    args: {
-      calendarId: options.calendarId,
-      timeMin: options.timeMin,
-      timeMax: options.timeMax,
-      showDeleted: true,
-      singleEvents: true,
-      maxResults: 500,
-    },
-  })
+  const events: GcalEventSummary[] = []
+  let pageToken: string | undefined
+  let pages = 0
 
-  let parsed: unknown = {}
-  try {
-    parsed = JSON.parse(result?.data ?? '{}')
-  } catch {
-    parsed = {}
-  }
-  const container = parsed as { items?: unknown[] }
-  const rawEvents = Array.isArray(container.items) ? container.items : []
+  do {
+    const result = await executeTool<{ data?: string; successful?: boolean }>(composio, {
+      toolkit: 'googlecalendar',
+      slug: 'GOOGLECALENDAR_EVENTS_LIST',
+      userId: options.userId,
+      args: {
+        calendarId: options.calendarId,
+        timeMin: options.timeMin,
+        timeMax: options.timeMax,
+        showDeleted: true,
+        singleEvents: true,
+        maxResults: 250,
+        ...(pageToken ? { pageToken } : {}),
+      },
+    })
 
-  return rawEvents
-    .map(normalizeGcalEvent)
-    .filter((event): event is GcalEventSummary => event !== null)
+    let parsed: unknown = {}
+    try {
+      parsed = JSON.parse(result?.data ?? '{}')
+    } catch {
+      parsed = {}
+    }
+    const container = parsed as { items?: unknown[]; nextPageToken?: unknown }
+    const rawEvents = Array.isArray(container.items) ? container.items : []
+
+    for (const raw of rawEvents) {
+      const event = normalizeGcalEvent(raw)
+      if (event) events.push(event)
+    }
+
+    pageToken = typeof container.nextPageToken === 'string' ? container.nextPageToken : undefined
+    pages += 1
+    if (pages >= 20) break // techo de seguridad contra paginación infinita
+  } while (pageToken)
+
+  return events
 }

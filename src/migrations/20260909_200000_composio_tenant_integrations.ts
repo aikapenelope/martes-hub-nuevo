@@ -80,10 +80,23 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   );
 
   CREATE INDEX IF NOT EXISTS "tenant_connections_tenant_idx" ON "tenant_connections" USING btree ("tenant_id");
-  CREATE UNIQUE INDEX IF NOT EXISTS "tenant_connections_tenant_scope_toolkit_user_key" ON "tenant_connections" USING btree ("tenant_id", "toolkit", "scope", "user_id");
+  -- Uniques parciales: Postgres trata NULL como distinto, así que un índice
+  -- compuesto no protege las filas de empresa (user_id NULL) — review Devin.
+  CREATE UNIQUE INDEX IF NOT EXISTS "tenant_connections_empresa_key" ON "tenant_connections" USING btree ("tenant_id", "toolkit") WHERE scope = 'empresa';
+  CREATE UNIQUE INDEX IF NOT EXISTS "tenant_connections_personal_key" ON "tenant_connections" USING btree ("tenant_id", "toolkit", "user_id") WHERE scope = 'personal';
   ALTER TABLE "tenant_connections" ADD CONSTRAINT "tenant_connections_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "tenant_connections" ADD CONSTRAINT "tenant_connections_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "tenant_connections" ADD CONSTRAINT "tenant_connections_connected_by_id_users_id_fk" FOREIGN KEY ("connected_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+
+  -- Identidad de fuente para appointments: empresa y personales pueden usar
+  -- calendarId 'primary' — la reconciliación se scopea por conexión (review Devin).
+  ALTER TABLE "appointments" ADD COLUMN IF NOT EXISTS "source_connection_id" integer;
+  CREATE INDEX IF NOT EXISTS "appointments_source_connection_idx" ON "appointments" USING btree ("source_connection_id");
+  DO $$ BEGIN
+    ALTER TABLE "appointments" ADD CONSTRAINT "appointments_source_connection_id_tenant_conne_fk" FOREIGN KEY ("source_connection_id") REFERENCES "public"."tenant_connections"("id") ON DELETE set null ON UPDATE no action;
+  EXCEPTION
+    WHEN duplicate_object THEN null;
+  END $$;
 
   ALTER TABLE "social_accounts" ADD COLUMN IF NOT EXISTS "composio_connected_account_id" varchar;
   ALTER TABLE "social_accounts" ADD COLUMN IF NOT EXISTS "external_user_id" varchar;
@@ -124,6 +137,11 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   ALTER TABLE "social_accounts" DROP COLUMN IF EXISTS "last_sync_at";
   DROP TYPE IF EXISTS "public"."enum_social_accounts_sync_status";
 
+  DROP INDEX IF EXISTS "appointments_source_connection_idx";
+  ALTER TABLE "appointments" DROP COLUMN IF EXISTS "source_connection_id";
+
+  DROP INDEX IF EXISTS "tenant_connections_empresa_key";
+  DROP INDEX IF EXISTS "tenant_connections_personal_key";
   DROP TABLE IF EXISTS "tenant_connections";
   DROP TABLE IF EXISTS "tenant_integrations";
 

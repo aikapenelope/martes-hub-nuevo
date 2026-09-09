@@ -227,6 +227,7 @@ export interface Config {
       'dispatch-sequences': TaskDispatchSequences;
       'purge-expired-social-media': TaskPurgeExpiredSocialMedia;
       'sync-instagram-metrics': TaskSyncInstagramMetrics;
+      'publish-scheduled-social-posts': TaskPublishScheduledSocialPosts;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -787,6 +788,10 @@ export interface Appointment {
    * Idempotencia: reintentos del sync no duplican
    */
   gcalEventId: string;
+  /**
+   * Identidad inequívoca de la fuente: empresa y personales pueden compartir calendarId — la reconciliación se scopea por conexión.
+   */
+  sourceConnection?: (number | null) | TenantConnection;
   calendarId?: string | null;
   /**
    * Link directo a Google Calendar
@@ -800,6 +805,48 @@ export interface Appointment {
    * Lo rellena el sync por matching de asistentes contra clients/leads
    */
   lead?: (number | null) | Lead;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Conexiones por servicio (login del tenant vía Composio), de la empresa o personales.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenant-connections".
+ */
+export interface TenantConnection {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  toolkit: 'instagram' | 'tiktok' | 'gmail' | 'googlecalendar' | 'googlesheets' | 'googledocs';
+  scope: 'empresa' | 'personal';
+  /**
+   * Dueño de la cuenta personal. Vacío en conexiones de la empresa.
+   */
+  user?: (number | null) | User;
+  /**
+   * Auth config gestionado de Composio para este toolkit.
+   */
+  authConfigId?: string | null;
+  connectedAccountId?: string | null;
+  connectedBy?: (number | null) | User;
+  estado: 'conectando' | 'ok' | 'error_token' | 'error_api' | 'desconectado';
+  /**
+   * Error crudo de Composio — sin fallback, se muestra en la UI.
+   */
+  ultimoError?: string | null;
+  /**
+   * Ej.: { "calendarId": "…", "mailbox": "…" } según el toolkit.
+   */
+  config?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  lastSyncAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1001,6 +1048,10 @@ export interface Media {
    * Media temporal de publicaciones sociales: el job TTL borra el objeto grande a las 48h (IG ya copió la imagen); la miniatura queda como historial.
    */
   purgedAt?: string | null;
+  /**
+   * Solo el composer de publicaciones lo marca: el job TTL SOLO purga assets marcados — nunca media general del workspace.
+   */
+  socialTemp?: boolean | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -1535,48 +1586,6 @@ export interface TenantIntegration {
   createdAt: string;
 }
 /**
- * Conexiones por servicio (login del tenant vía Composio), de la empresa o personales.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "tenant-connections".
- */
-export interface TenantConnection {
-  id: number;
-  tenant?: (number | null) | Tenant;
-  toolkit: 'instagram' | 'tiktok' | 'gmail' | 'googlecalendar' | 'googlesheets' | 'googledocs';
-  scope: 'empresa' | 'personal';
-  /**
-   * Dueño de la cuenta personal. Vacío en conexiones de la empresa.
-   */
-  user?: (number | null) | User;
-  /**
-   * Auth config gestionado de Composio para este toolkit.
-   */
-  authConfigId?: string | null;
-  connectedAccountId?: string | null;
-  connectedBy?: (number | null) | User;
-  estado: 'conectando' | 'ok' | 'error_token' | 'error_api' | 'desconectado';
-  /**
-   * Error crudo de Composio — sin fallback, se muestra en la UI.
-   */
-  ultimoError?: string | null;
-  /**
-   * Ej.: { "calendarId": "…", "mailbox": "…" } según el toolkit.
-   */
-  config?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  lastSyncAt?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "social-account-metrics".
  */
@@ -2058,6 +2067,7 @@ export interface PayloadJob {
           | 'dispatch-sequences'
           | 'purge-expired-social-media'
           | 'sync-instagram-metrics'
+          | 'publish-scheduled-social-posts'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -2110,6 +2120,7 @@ export interface PayloadJob {
         | 'dispatch-sequences'
         | 'purge-expired-social-media'
         | 'sync-instagram-metrics'
+        | 'publish-scheduled-social-posts'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -2542,6 +2553,7 @@ export interface AppointmentsSelect<T extends boolean = true> {
   attendees?: T;
   description?: T;
   gcalEventId?: T;
+  sourceConnection?: T;
   calendarId?: T;
   htmlLink?: T;
   client?: T;
@@ -2589,6 +2601,7 @@ export interface MediaSelect<T extends boolean = true> {
   tenant?: T;
   alt?: T;
   purgedAt?: T;
+  socialTemp?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -3787,6 +3800,18 @@ export interface TaskSyncInstagramMetrics {
   output: {
     accounts?: number | null;
     posts?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskPublish-scheduled-social-posts".
+ */
+export interface TaskPublishScheduledSocialPosts {
+  input?: unknown;
+  output: {
+    published?: number | null;
+    failed?: number | null;
     summary?: string | null;
   };
 }

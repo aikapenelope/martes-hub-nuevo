@@ -34,6 +34,26 @@ export function extractCreationId(containerResult: unknown): string | null {
   return typeof id === 'string' || typeof id === 'number' ? String(id) : null
 }
 
+/**
+ * Valida el sobre de una acción Composio ANTES de interpretar su data:
+ * `{ successful: false, error }` es un fallo del proveedor aunque venga con
+ * data. Lanza con el error crudo del proveedor — el llamador decide cómo
+ * persistirlo (BD completa, UI sanitizada).
+ */
+export function assertToolSuccess(result: unknown, label: string): void {
+  if (!result || typeof result !== 'object') throw new Error(`Composio ${label}: respuesta vacía`)
+  const envelope = result as { successful?: boolean; error?: unknown }
+  if (envelope.successful === false) {
+    const raw = typeof envelope.error === 'string' ? envelope.error : JSON.stringify(envelope.error ?? {})
+    throw new Error(`Composio ${label} falló: ${raw.slice(0, 500)}`)
+  }
+}
+
+/** Versión segura para UI: quita saltos y acota el mensaje (el crudo queda en BD/logs). */
+export function sanitizeErrorForUi(message: string, max = 200): string {
+  return message.replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
 /** TTL de la media temporal de publicaciones sociales (48h). */
 export const SOCIAL_MEDIA_TTL_MS = 48 * 60 * 60 * 1000
 

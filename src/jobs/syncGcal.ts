@@ -80,6 +80,7 @@ export const syncGcalTask: TaskConfig = {
 interface GcalSource {
   label: string
   tenantId: number
+  connectionId: number
   calendarId: string
   organizerAddress: string
   timezone: string
@@ -120,6 +121,7 @@ async function collectSources(payload: Payload): Promise<GcalSource[]> {
     sources.push({
       label: `tenant ${tenantId} [${calendarId}]${connection.scope === 'personal' ? ' (personal)' : ''}`,
       tenantId,
+      connectionId: connection.id,
       calendarId,
       organizerAddress,
       timezone,
@@ -151,6 +153,7 @@ async function collectSources(payload: Payload): Promise<GcalSource[]> {
       sources.push({
         label: `legacy env (${tenantSlug}) [${calendarId}]`,
         tenantId: tenant.id,
+        connectionId: 0,
         calendarId,
         organizerAddress,
         timezone: process.env.GCAL_TIMEZONE ?? 'America/Caracas',
@@ -187,9 +190,7 @@ async function mirrorSource(payload: Payload, source: GcalSource, events: GcalEv
       where: {
         and: [
           { tenant: { equals: source.tenantId } },
-          {
-            or: [{ calendarId: { equals: source.calendarId } }, { calendarId: { exists: false } }],
-          },
+          { sourceConnection: { equals: source.connectionId } },
           { start: { greater_than_equal: timeMin } },
           { start: { less_than_equal: timeMax } },
           { status: { not_equals: 'cancelled' } },
@@ -235,6 +236,7 @@ async function mirrorSource(payload: Payload, source: GcalSource, events: GcalEv
     where: {
       and: [
         { tenant: { equals: source.tenantId } },
+        { sourceConnection: { equals: source.connectionId } },
         { gcalEventId: { in: events.map((event) => event.id) } },
       ],
     },
@@ -305,6 +307,7 @@ async function mirrorSource(payload: Payload, source: GcalSource, events: GcalEv
       attendees: attendeeEmails.length > 0 ? attendeeEmails.join(', ') : null,
       description: event.description ?? null,
       gcalEventId: event.id,
+      sourceConnection: source.connectionId,
       calendarId: source.calendarId,
       htmlLink: event.htmlLink ?? null,
       client: clientId ?? null,
@@ -336,6 +339,7 @@ async function mirrorSource(payload: Payload, source: GcalSource, events: GcalEv
             where: {
               and: [
                 { tenant: { equals: source.tenantId } },
+                { sourceConnection: { equals: source.connectionId } },
                 { gcalEventId: { equals: event.id } },
               ],
             },
