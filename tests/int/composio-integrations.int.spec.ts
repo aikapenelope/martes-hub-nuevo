@@ -86,11 +86,11 @@ describe('composio/shared — userId y filtro de conexiones', () => {
   })
 })
 
-describe('getComposioForTenant — central por defecto, BYO opcional', () => {
-  function mockPayload(docs: Record<string, unknown>[]): Payload {
+describe('getComposioForTenant — key del operador SOLO para el tenant default', () => {
+  function mockPayload(docs: Record<string, unknown>[], slug = 'martes'): Payload {
     return {
       find: vi.fn().mockResolvedValue({ docs }),
-      findByID: vi.fn().mockResolvedValue({ id: 1, slug: 'martes' }),
+      findByID: vi.fn().mockResolvedValue({ id: 1, slug }),
     } as unknown as Payload
   }
 
@@ -102,16 +102,22 @@ describe('getComposioForTenant — central por defecto, BYO opcional', () => {
     expect(session!.source).toBe('tenant')
   })
 
-  it('modo central: sin fila propia, usa la key del operador (cualquier tenant)', async () => {
-    process.env.COMPOSIO_API_KEY = 'key_de_la_plataforma'
-    const session = await getComposioForTenant(mockPayload([]), 1)
+  it('tenant default (Martes): sin fila propia usa la key del operador', async () => {
+    process.env.COMPOSIO_API_KEY = 'key_del_operador'
+    const session = await getComposioForTenant(mockPayload([], 'martes'), 1)
     expect(session).not.toBeNull()
-    expect(session!.source).toBe('plataforma')
+    expect(session!.source).toBe('operador')
+  })
+
+  it('otro tenant sin key asignada NO consume la key del operador (devuelve null)', async () => {
+    process.env.COMPOSIO_API_KEY = 'key_del_operador'
+    const session = await getComposioForTenant(mockPayload([], 'cliente-foo'), 2)
+    expect(session).toBeNull()
   })
 
   it('devuelve null sin fila del tenant y sin key del operador (sin fallback a Meta)', async () => {
     delete process.env.COMPOSIO_API_KEY
-    const session = await getComposioForTenant(mockPayload([]), 1)
+    const session = await getComposioForTenant(mockPayload([], 'martes'), 1)
     expect(session).toBeNull()
   })
 })

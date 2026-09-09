@@ -10,29 +10,32 @@ import {
 } from './shared'
 
 /**
- * Cliente Composio BYO-key.
+ * Cliente Composio por tenant.
  *
  * NOTA: este archivo NO debe importar 'server-only': forma parte del grafo de
  * imports de payload.config.ts (vía jobs/…), y ese módulo lanza fuera de Next
  * (generate:types / migrate) — misma convención que `lead-scoring.ts`. Solo se
  * usa desde servidor por diseño (server actions + jobs): la key nunca llega al
- * cliente porque solo este módulo la descifra. la API key del proyecto del tenant vive cifrada
- * en `tenant-integrations` (1 fila por tenant) y NUNCA se expone fuera de
- * este módulo.
+ * cliente porque solo este módulo la descifra.
  *
- * **Modo de operación (decisión de producto):** por defecto el sistema corre
- * en modo CENTRAL — todos los tenants usan el proyecto Composio de la
- * plataforma (`COMPOSIO_API_KEY`) y conectan sus servicios con un solo botón
- * (login hosted); nadie abre Composio ni pega keys. Si un tenant quiere cuota
- * y conexiones propias, el admin pega SU api key en Ajustes y esa fila
- * (cifrada) toma precedencia sobre el default.
+ * **Modelo de keys (docs oficiales + decisión de producto):**
+ * - **Project key del tenant** (BYO): el operador crea la cuenta Composio del
+ *   cliente y pega SU key en /admin → tenant-integrations (cifrada). Todo el
+ *   consumo de ese tenant factura a SU cuenta — nadie toca cuota ajena.
+ * - **Key del operador** (`COMPOSIO_API_KEY`): SOLO aplica al tenant default
+ *   (Martes). No es fallback universal: si un tenant no tiene key asignada,
+ *   no puede conectar (la UI lo indica) — así nadie consume cuota ajena.
+ * - No confundir con la **Org Key** de Composio (administración: crea
+ *   proyectos y puede leer las API keys de la org — la "llave base" que lee
+ *   otras keys): sirve para aprovisionar/rotar desde código, pero el billing
+ *   sigue siendo de la organización — no es un fallback de ejecución.
  */
 
 export interface TenantComposioContext {
   composio: Composio
   userId: string
-  /** De dónde salió la key: 'tenant' (BYO) o 'plataforma' (proyecto central). */
-  source: 'tenant' | 'plataforma'
+  /** De dónde salió la key: 'tenant' (BYO) o 'operador' (solo tenant Martes). */
+  source: 'tenant' | 'operador'
 }
 
 export async function getComposioForTenant(
@@ -44,10 +47,10 @@ export async function getComposioForTenant(
   )
   if (!tenant) return null
 
-  let apiKey: string | null = null
-  let source: TenantComposioContext['source'] = 'plataforma'
+  const defaultTenantSlug = process.env.WORKSPACE_DEFAULT_TENANT || 'martes'
+  const isDefaultTenant = tenant.slug === defaultTenantSlug
 
-  // 1) La fila del tenant gana: BYO-key voluntaria (cuota y conexiones propias).
+  // 1) La fila del tenant gana: key asignada por el operador (cuota propia).
   const rows = await payload.find({
     collection: 'tenant-integrations',
     where: { tenant: { equals: tenantId } },
@@ -57,18 +60,20 @@ export async function getComposioForTenant(
   })
   const stored = rows.docs[0]
   if (stored?.apiKeyCifrado) {
-    apiKey = decryptSecret(stored.apiKeyCifrado)
-    source = 'tenant'
+    return { composio: new Composio({ apiKey: decryptSecret(stored.apiKeyCifrado) }), userId: composioTenantUserId(tenantId), source: 'tenant' }
   }
 
-  // 2) Modo central: el proyecto de la plataforma para quien no trajo el suyo
-  //    (o para el tenant Martes en deployments con WORKSPACE_DEFAULT_TENANT distinto).
-  if (!apiKey && process.env.COMPOSIO_API_KEY) {
-    apiKey = process.env.COMPOSIO_API_KEY
+  // 2) Sin key propia: SOLO el tenant default usa la key del operador.
+  //    Los demás tenants no conectan hasta que el operador les asigne la suya.
+  if (isDefaultTenant && process.env.COMPOSIO_API_KEY) {
+    return {
+      composio: new Composio({ apiKey: process.env.COMPOSIO_API_KEY }),
+      userId: composioTenantUserId(tenantId),
+      source: 'operador',
+    }
   }
 
-  if (!apiKey) return null
-  return { composio: new Composio({ apiKey }), userId: composioTenantUserId(tenantId), source }
+  return null
 }
 
 /** Get-or-create del auth config gestionado de un toolkit (Composio pone la app de OAuth). */
