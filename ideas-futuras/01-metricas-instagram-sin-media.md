@@ -102,6 +102,16 @@ Detalles del SDK que fijan el diseño:
 - **Solo servidor**: la key es secreta — el SDK se usa desde server actions y
   jobs, nunca desde el cliente (el repo ya marca `server-only` en libs sensibles).
 
+**Payload ↔ Composio (verificado 2026-09-09)**: **no existe integración
+oficial** entre ambos — ni plugin de Payload ni producto de Composio para
+Payload. Hay un experimento comunitario ("Payload Agentic Connections",
+Reddit r/PayloadCMS) que envuelve Vercel AI SDK + Composio, sin paquete npm
+establecido. No hace falta: Composio es agnóstico del framework (su patrón
+oficial de SaaS es SDK + connected accounts por usuario) y la integración
+correcta en este stack es la delgada que ya define este doc — colección
+`tenant-integrations` + cliente SDK + server actions, siguiendo los patrones
+de plugin/colección del repo.
+
 ## Modelo de cuota: ¿Composio central tuyo o uno por tenant?
 
 Datos verificados ([composio.dev/pricing](https://composio.dev/pricing)): el
@@ -125,28 +135,50 @@ tenant de Martes (tu key va en env var como valor por defecto de tu tenant).
 ### 1. Conexión por tenant con BYO-key (SDK)
 
 **Colección nueva `tenant-integrations`** (tenant-scoped, `adminOnly`, sin
-drafts): `{ provider: 'composio', apiKeyCifrado, instagramAuthConfigId,
+drafts), **una fila por integración** para soportar varios toolkits con el
+mismo mecanismo: `{ provider: 'composio', toolkit: 'instagram' | 'gmail' |
+'googlecalendar' | 'googlesheets' | ..., apiKeyCifrado, authConfigId,
 estado: ok/invalida }` — la key del proyecto Composio del tenant, **cifrada
 AES-GCM** (`src/lib/crypto.ts` nuevo, key en env `INTEGRATIONS_ENC_KEY`).
-Pantalla en Ajustes: pegar API key → validar contra la API de Composio →
-guardar cifrado. Tu tenant de Martes usa el valor de `COMPOSIO_API_KEY` (env)
-como default.
+Tu tenant de Martes usa el valor de `COMPOSIO_API_KEY` (env) como default.
 
-Flujo de conexión de Instagram (Ajustes o `/workspace/social`):
+**Todo se configura programáticamente — el tenant nunca abre el dashboard de
+Composio salvo para crear su cuenta y copiar su API key una vez.** Al pegar
+la key, el sistema valida contra la API y, para cada toolkit que se active,
+hace *get-or-create* del auth config gestionado con el SDK
+(`authConfigs.list({ toolkit })` → si no existe,
+`authConfigs.create(toolkit, { type: 'use_composio_managed_auth' })` →
+`ac_xxx`). Ni OAuth apps propias ni scopes manuales: Composio las lleva.
 
-1. `createInstagramConnectionAction` → `getComposioForTenant(tenantId)` (lee
-   la key cifrada, init SDK con `toolkitVersions` fijado) → resuelve el auth
-   config gestionado de Instagram del proyecto del tenant (`authConfigs`) →
+**Flujo de conexión de cada toolkit** (Ajustes o `/workspace/social`):
+
+1. `createConnectionAction(toolkit)` → `getComposioForTenant(tenantId)` (key
+   cifrada → init SDK con `toolkitVersions` fijado) →
    `connectedAccounts.link('martes-hub:{tenantId}', authConfigId,
    { callbackUrl: '/workspace/social' })` → el botón abre `redirectUrl`.
-2. El usuario **loguea en Instagram** (no en Composio) en la página hosted.
-3. Al volver (callback o "Verificar conexión"): listar connected accounts →
-   upsert de `social-accounts` con `composioConnectedAccountId`,
-   `externalUserId`, `syncStatus: 'ok'`.
+2. El usuario **loguea en el servicio real** — Instagram, Google, el que sea —
+   en la página hosted de Composio. Las credenciales jamás pasan por Martes
+   Hub ni por ningún modelo.
+3. Al volver (callback o "Verificar"): listar connected accounts del userId →
+   upsert (`social-accounts` para Instagram; tablas espejo que ya existen para
+   Gmail/GCal cuando se activen) → estado `ok`.
 
-`social-accounts` gana `composioConnectedAccountId` + `lastSyncAt` +
-`syncStatus` (`ok / error_token / error_api / sin_conectar`). Los errores de
-Composio se muestran crudos en la UI — sin fallback.
+### 1b. Hub de conexiones en Ajustes (el "donde diga X, se loguea en X")
+
+Pantalla **Conexiones** en `/workspace/settings` con una tarjeta por toolkit:
+
+- **Instagram** (v1 de este doc): Conectar / Conectado (nombre de la cuenta) /
+  error con el mensaje crudo de Composio. Botón desconectar.
+- **Gmail, Google Calendar, Google Sheets, Google Docs** (slugs `gmail`,
+  `googlecalendar`, `googlesheets`, `googledocs` — deshabilitadas con
+  "próximamente" en v1; el mecanismo es idéntico, se activan por fase).
+- Tarjeta de **consumo del tenant**: la API de usage de Composio
+  (`POST /api/v3.1/project/usage/summary`, entidad `tool_calls`) permite
+  mostrarle a cada quien cuántas llamadas lleva del mes sobre su cuota free —
+  transparencia total: quien quiera consumir, consume, y ve cuánto le queda.
+
+Cada conexión nueva es un botón que genera un Connect Link — cero configuración
+manual por integración: "todo está cableado para hacer las llamadas correctas".
 
 ### 2. Composer de publicación (lo nuevo)
 
@@ -223,13 +255,16 @@ COMPOSIO_API_KEY=       # SOLO el proyecto del tenant Martes (default del propio
 
 **Fase 1 — Integración base (2–3 días)**
 - `pnpm add @composio/core` (server-only) + `src/lib/crypto.ts` (AES-GCM).
-- Colección `tenant-integrations` + migración; pantalla en Ajustes (pegar y
-  validar API key, estado de conexión).
+- Colección `tenant-integrations` (una fila por toolkit, key cifrada) +
+  migración; **Hub de conexiones en Ajustes**: API key del tenant + tarjetas
+  por toolkit (Instagram activo; Gmail/GCal/Sheets/Docs "próximamente") +
+  tarjeta de consumo (usage API).
 - `src/integrations/composio/client.ts`: `getComposioForTenant(tenantId)` —
   key de `tenant-integrations` o env para Martes; init con
-  `toolkitVersions: { instagram: <fijada> }`.
-- Conexión de Instagram (link + callback + upsert `social-accounts`) y
-  desconexión.
+  `toolkitVersions: { instagram: <fijada> }`; get-or-create de auth configs
+  gestionados.
+- Conexión de Instagram (link + callback + upsert `social-accounts` con
+  `composioConnectedAccountId`/`externalUserId`/`syncStatus`) y desconexión.
 
 **Fase 2 — Publicar (3–4 días)**
 - Extender `SocialPostCreateDialog` (ya tiene caption + cuenta + programar +
