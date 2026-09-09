@@ -112,24 +112,23 @@ correcta en este stack es la delgada que ya define este doc — colección
 `tenant-integrations` + cliente SDK + server actions, siguiendo los patrones
 de plugin/colección del repo.
 
-## Modelo de cuota: ¿Composio central tuyo o uno por tenant?
+## Formas de conexión — decisión final: central por defecto + BYO opcional
 
-Datos verificados ([composio.dev/pricing](https://composio.dev/pricing)): el
-plan **Free** incluye ~20.000 tool calls/mes y **OAuth management incluido**
-(la app gestionada de Instagram no cuesta extra). La cuota pertenece al
-**proyecto** (la cuenta dueña de la API key), no a cada usuario final.
+Investigadas las tres formas (docs oficiales + API de organización de Composio):
 
-| | Central (tu proyecto) | **BYO-key (uno por tenant) — elegido** |
-|---|---|---|
-| Cuota | Todos los tenants comen tu 20K: sync diario ≈ 120 calls/mes/tenant + 2 por publicación. Con 10–15 tenants vas bien; a escala SaaS pagas Pro ($29 + $0.0002/call) y recargas el costo | Cada tenant gasta **su** cuota — nadie agota la tuya |
-| Onboarding | Cero fricción | El tenant abre su cuenta Composio (tú los ayudas, una vez) y pega su API key en Ajustes |
-| SaaS futuro | Hay que meter el costo de Composio en el precio y operar cuentas ajenas | **Cero migración**: su key, su cuenta, su cuota — el sistema ya organiza todo |
-| Gmail / GCal / Sheets después | Cada integración nueva la construyes tú con OAuth propio | **El mismo patrón de un campo sirve**: activan el toolkit en SU Composio y el sistema lo aprovecha — sin que tú registres apps |
-| Cambio radical | — | **No**: el init del SDK solo cambia de dónde sale la apiKey (`process.env` → campo cifrado del tenant) |
+| Forma | UX del tenant | Cuota | Veredicto |
+|---|---|---|---|
+| **A. Central (elegida, por defecto)** | **Un botón "Conectar"**: se abre el login del servicio real (Instagram/Google) en un popup; nadie abre Composio ni maneja keys | Come la cuota del operador (~20K gratis; Pro $29 + $0.0002/llamada extra) | Es el patrón SaaS oficial de Composio (userId por usuario final). Con sync diario acotado, 20K aguanta el stage actual; a SaaS, el costo va al precio |
+| B. BYO-key manual | El tenant abre su cuenta Composio y pega su API key | Cuota propia — nadie agota la tuya | Se conserva como opción avanzada: la fila cifrada del tenant tiene precedencia sobre la central |
+| C. Auto-provisioning por Org API | Igual de fácil que A | La API `org/owner/project/new` crea proyectos + keys programáticamente (`should_create_api_key: true` devuelve la key; sin límite de proyectos), pero el billing es de la organización: mismo costo que A con más complejidad operativa | Futuro: si Composio factura por proyecto, este es el camino — el modelo de datos ya lo soporta |
 
-**Decisión**: BYO-key como modelo único. Tu proyecto central queda para el
-tenant de Martes (tu key va en env var como valor por defecto de tu tenant).
+**Implementación** (PR #117): `getComposioForTenant` resuelve en dos niveles —
+fila cifrada del tenant (BYO) → key del operador (central). El hub conecta con
+un clic vía **popup** (patrón oficial de la skill: link hosted → callback page
+`/auth/composio/callback` → postMessage → auto-verificación). Guardrails de
+cuota central: sync diario (no horario) y 2 llamadas por publicación.
 
+## Diseño
 ## Diseño
 
 ### 1. Conexión por tenant con BYO-key (SDK)
