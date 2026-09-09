@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { parseCookies, ValidationError } from 'payload'
 
 import { adminOnly, authenticated, editorsOnly } from '../access'
 import { normalizeUploadBuffer } from '../hooks/normalize-upload-buffer'
@@ -11,10 +12,21 @@ import { normalizeUploadBuffer } from '../hooks/normalize-upload-buffer'
  * Por qué existe siendo separada de `media`: el `upload.mimeTypes` de media
  * activa en Payload 3.88 la detección de contenido (file-type) que se rompe
  * con buffers del Local API (issue #110 / payload#13309) y bloquea la
- * facturación. Aquí NO hay allowlist: la blocklist dura de Payload (ejecutables,
- * HTML/PHP) sigue aplicando, los archivos no-imagen se sirven como attachment
- * (sin XSS inline) y solo editores/admin crean. El resto de colecciones de
- * negocio conservan su allowlist intacta.
+ * facturación. Aquí NO hay allowlist de mimeTypes (la blocklist dura de
+ * Payload — ejecutables, HTML/PHP — sigue aplicando y se testea), pero la
+ * subida está acotada a PDFs por filename+mimetype declarado (hallazgo Devin
+ * #113: un editor no puede convertir la colección en hosting arbitrario) y
+ * los archivos se sirven como attachment (sin XSS inline).
+ *
+ * Tenant del archivo: SIEMPRE debe resolverse al tenant de la operación —
+ * la validación de la relación generatedPdfs/attachedPdf filtra por tenant
+ * (multiTenantPlugin) y un PDF en otro tenant es rechazado o, peor, legible
+ * por el tenant equivocado. Orden de resolución (hallazgos Devin #113):
+ * 1. req.context.tenantId — el estándar del repo en acciones user-facing.
+ * 2. Cookie `payload-tenant` del admin UI (tenant activo seleccionado).
+ * 3. Primer tenant del usuario autenticado.
+ * Sin resolución → ValidationError explícito: nunca un PDF sin tenant
+ * (antes: fallback a primer tenant global = leak potencial).
  */
 export const InvoiceMedia: CollectionConfig = {
   slug: 'invoice-media',
@@ -47,24 +59,55 @@ export const InvoiceMedia: CollectionConfig = {
     beforeValidate: [
       async ({ data, req }) => {
         if (!data) return data
+
+        const uploadFile = req.file as { name?: string; mimetype?: string } | undefined
+
+        // Updates sin archivo (p. ej. editar alt desde admin): nada que
+        // validar ni tenant que asignar.
+        if (!uploadFile) return data
+
+        // PDF-only por filename + mimetype declarado (hallazgo Devin #113):
+        // el contenido no es tipable (es la condición del fix #110), así que
+        // la restricción es sobre lo declarado — el plugin siempre sube
+        // `*.pdf` + `application/pdf`; cualquier otra cosa por la API de la
+        // colección se rechaza explícitamente.
+        const fileName = uploadFile.name ?? ''
+        const declaredMime = uploadFile.mimetype ?? ''
+        if (!fileName.toLowerCase().endsWith('.pdf') || !declaredMime.includes('application/pdf')) {
+          throw new ValidationError({
+            errors: [
+              {
+                message: 'invoice-media solo acepta PDFs de facturación generados por el sistema.',
+                path: 'file',
+              },
+            ],
+          })
+        }
+
         if (data.tenant) return data
 
-        // El plugin sube sin tenant explícito. La validación de la relación
-        // generatedPdfs (quotes/invoices) filtra por el tenant de la
-        // operación (multiTenantPlugin): si el PDF aterriza en OTRO tenant,
-        // el update de la quote lo rechaza como "invalid selection"
-        // (issue #110, hallazgo en BD real). Orden de resolución:
-        // 1. req.context.tenantId — el estándar del repo en acciones y tests
-        //    (billing-actions, crm-actions) lo propagan siempre.
-        // 2. Primer tenant del usuario que opera.
-        // 3. Primer tenant global (último recurso, mismo criterio que el
-        //    fallback de Media para uploads de plugins).
+        // 1. Contexto de la operación (estándar del repo en acciones).
         const contextTenantId = (req.context as { tenantId?: number } | undefined)?.tenantId
         if (Number.isInteger(contextTenantId) && (contextTenantId ?? 0) > 0) {
           data.tenant = contextTenantId
           return data
         }
 
+        // 2. Tenant activo del admin UI (cookie payload-tenant del plugin
+        // multi-tenant — misma lectura que getTenantFromCookie). Los headers
+        // pueden llegar como Headers (HTTP) o registro plano (Local API).
+        try {
+          const cookieHeader = req.headers as unknown as Record<string, string> | undefined
+          const cookieTenant = Number(parseCookies(new Headers(cookieHeader ?? {})).get('payload-tenant'))
+          if (Number.isInteger(cookieTenant) && cookieTenant > 0) {
+            data.tenant = cookieTenant
+            return data
+          }
+        } catch {
+          // Sin headers legibles (p. ej. Local API headless): seguir al paso 3.
+        }
+
+        // 3. Primer tenant del usuario autenticado.
         const userTenants = (req.user as { tenants?: { tenant: number | { id: number } }[] } | null | undefined)?.tenants
         const userTenantId = userTenants?.[0]?.tenant
         if (userTenantId != null) {
@@ -72,21 +115,18 @@ export const InvoiceMedia: CollectionConfig = {
           return data
         }
 
-        try {
-          const defaultTenant = await req.payload.find({
-            collection: 'tenants',
-            limit: 1,
-            depth: 0,
-            overrideAccess: true,
-          })
-          if (defaultTenant.docs.length > 0) {
-            data.tenant = defaultTenant.docs[0].id
-          }
-        } catch {
-          // Si no hay tenants o falla, el validador maneja el error.
-        }
-
-        return data
+        // Sin tenant resoluble: fallar explícito. Asignar un tenant arbitrario
+        // dejaría el PDF legible por ese tenant (leak) o rechazado por la
+        // validación de la relación (hallazgos Devin #113).
+        throw new ValidationError({
+          errors: [
+            {
+              message:
+                'No se pudo resolver el tenant del PDF: la operación debe llevar contexto de tenant (context.tenantId), cookie de admin o un usuario con membresía.',
+              path: 'tenant',
+            },
+          ],
+        })
       },
     ],
   },

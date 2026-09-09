@@ -238,3 +238,10 @@ migrations.push({
   down: migration_20260908_210000_create_invoice_media.down,
   name: '20260908_210000_create_invoice_media',
 });
+
+import * as migration_20260909_030000_backfill_invoice_media from './20260909_030000_backfill_invoice_media';
+migrations.push({
+  up: migration_20260909_030000_backfill_invoice_media.up,
+  down: migration_20260909_030000_backfill_invoice_media.down,
+  name: '20260909_030000_backfill_invoice_media',
+});

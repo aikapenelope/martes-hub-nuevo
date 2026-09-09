@@ -113,3 +113,100 @@ describe('invoice-media — resolución del issue #110', () => {
     ).rejects.toThrow()
   })
 })
+
+// ============================================================================
+// Hallazgos Devin PR #113 — endurecimiento de invoice-media
+// ============================================================================
+
+type BeforeValidateHook = (args: { data: unknown; req: unknown }) => Promise<unknown>
+
+const hook = InvoiceMedia.hooks?.beforeValidate?.[0] as BeforeValidateHook
+
+function uploadReq(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    file: { name: 'COT-2026-0001.pdf', mimetype: 'application/pdf', data: new Uint8Array(10), size: 10 },
+    context: {},
+    headers: {},
+    user: null,
+    payload: { logger: { error: vi.fn() } },
+    ...overrides,
+  }
+}
+
+describe('invoice-media — hallazgos Devin PR #113', () => {
+  // Payload envuelve el detalle en ValidationError.data.errors — el match
+  // confiable es sobre el mensaje del primer error.
+  async function hookError(args: { data: unknown; req: unknown }): Promise<string> {
+    try {
+      await hook(args)
+      return '(no lanzó)'
+    } catch (err) {
+      const data = (err as { data?: { errors?: { message?: string }[] } }).data
+      return data?.errors?.[0]?.message ?? (err as Error).message
+    }
+  }
+
+  it('🟥 #113-4: rechaza subidas no-PDF (filename o mimetype) — la colección no es hosting arbitrario', async () => {
+    expect(
+      await hookError({
+        data: { alt: 'x' },
+        req: uploadReq({ file: { name: 'foto.jpg', mimetype: 'image/jpeg', data: new Uint8Array(4), size: 4 } }),
+      }),
+    ).toMatch(/solo acepta PDFs/)
+    expect(
+      await hookError({
+        data: { alt: 'x' },
+        req: uploadReq({ file: { name: 'doc.pdf', mimetype: 'text/html', data: new Uint8Array(4), size: 4 } }),
+      }),
+    ).toMatch(/solo acepta PDFs/)
+  })
+
+  it('acepta el flujo del plugin: *.pdf + application/pdf (req con usuario del contexto)', async () => {
+    // Flujo real: las acciones del repo operan con usuario autenticado y
+    // context.tenantId — el hook resuelve y deja pasar el PDF.
+    const res = await hook({
+      data: { alt: 'x' },
+      req: uploadReq({ context: { tenantId: 3 }, user: { tenants: [{ tenant: 3 }] } }),
+    })
+    expect(res).toMatchObject({ alt: 'x', tenant: 3 })
+  })
+
+  it('🟨 #113-1: context.tenantId tiene la prioridad más alta', async () => {
+    const res = await hook({
+      data: { alt: 'x' },
+      req: uploadReq({
+        context: { tenantId: 7 },
+        headers: { cookie: 'payload-tenant=9' },
+        user: { tenants: [{ tenant: { id: 42 } }] },
+      }),
+    })
+    expect((res as { tenant: number }).tenant).toBe(7)
+  })
+
+  it('🟨 #113-1: sin context, usa la cookie payload-tenant del admin UI', async () => {
+    const res = await hook({
+      data: { alt: 'x' },
+      req: uploadReq({ headers: { cookie: 'payload-tenant=9' }, user: { tenants: [{ tenant: { id: 42 } }] } }),
+    })
+    expect((res as { tenant: number }).tenant).toBe(9)
+  })
+
+  it('🟨 #113-1: sin context ni cookie, cae al primer tenant del usuario', async () => {
+    const res = await hook({ data: { alt: 'x' }, req: uploadReq({ user: { tenants: [{ tenant: 42 }] } }) })
+    expect((res as { tenant: number }).tenant).toBe(42)
+  })
+
+  it('🟥 #113-5: sin tenant resoluble falla explícito — nunca un PDF sin tenant (leak)', async () => {
+    expect(await hookError({ data: { alt: 'x' }, req: uploadReq() })).toMatch(/tenant/)
+  })
+
+  it('data.tenant ya poblado pasa intacto (el plugin del flujo con tenant explícito no se toca)', async () => {
+    const res = await hook({ data: { alt: 'x', tenant: 3 }, req: uploadReq() })
+    expect((res as { tenant: number }).tenant).toBe(3)
+  })
+
+  it('updates sin archivo no disparan la validación PDF ni asignan tenant', async () => {
+    const res = await hook({ data: { alt: 'nuevo alt' }, req: uploadReq({ file: undefined }) })
+    expect(res).toMatchObject({ alt: 'nuevo alt' })
+  })
+})
