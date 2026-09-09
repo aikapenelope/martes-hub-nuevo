@@ -1,12 +1,12 @@
 # 01 · Social Hub: publicar directo, media temporal y espejo de Insights
 
-> **v3 (2026-09-09 tarde) — DECISIÓN CAMBIADA por el usuario.** Antes era
-> "métricas sin guardar media". Ahora: **publicar desde Martes Hub** (composer
-> tipo Metricool: imagen + caption → directo a Instagram), la imagen es
-> **temporal (se borra a las 48h)** y solo queda una miniatura en el historial,
-> y la sección de métricas es un **espejo de Instagram Insights / Business
-> Suite**. El transporte sigue siendo **Composio determinista (sin LLM) con
-> managed OAuth** — sin app de Meta propia ni App Review.
+> **v4 (2026-09-09 noche) — integra el SDK oficial de Composio y define el
+> modelo de cuota.** Sobre la v3 (publicar directo + media 48h + espejo de
+> Insights): el transporte es el SDK `@composio/core` (no REST crudo), y cada
+> **tenant aporta su propia cuenta Composio** (BYO-key) — la cuota free de
+> cada quien, sin agotar la del operador. Diseñado para SaaS: multi-tenant ya
+> existe, la key vive cifrada por tenant. **Sin fallback a la API de Meta**:
+> si Composio falla, la UI muestra el error y se espera a que mejore.
 
 ## Problema
 
@@ -60,21 +60,93 @@ los tokens
 **Único riesgo a validar con un spike de 1 día** (antes de construir la UI
 completa): el FAQ del toolkit indica que *algunas* herramientas pueden fallar
 con la app gestionada (mencionan reply-to-comment). Validar en un script que
-`POST_IG_USER_MEDIA` + `PUBLISH` + insights funcionan con el managed app. Si
-`instagram_content_publish` no estuviera en su scope, el fallback es registrar
-la app propia como auth config custom en Composio (solo cambian las llaves; el
-código no).
+`POST_IG_USER_MEDIA` + `PUBLISH` + insights funcionan con el managed app. Por
+decisión de producto **no hay fallback a la API de Meta**: si falla, la UI
+muestra el error de Composio tal cual y se espera a que mejore.
+
+## El SDK oficial (`@composio/core`) — verificado en docs y repo de Composio
+
+Corroboración de la premisa: **el SDK expone exactamente las mismas acciones
+que el MCP del agente, ejecutables directo sin LLM** — la doc oficial muestra
+"Execute without an LLM":
+
+```ts
+import { Composio } from '@composio/core'
+
+const composio = new Composio({ apiKey: tenantKey }) // server-side only
+
+// Conectar: link de autenticación hosted (el usuario loguea en Instagram,
+// no en Composio) — Composio guarda y refresca los tokens
+const link = await composio.connectedAccounts.link(userId, instagramAuthConfigId)
+// → link.redirectUrl (abrir en el navegador) → link.waitForConnection()
+
+// Ejecutar (determinista, sin agente): requiere toolkitVersions fijado
+const result = await composio.tools.execute('INSTAGRAM_POST_IG_USER_MEDIA', {
+  userId,
+  arguments: { image_url, caption },
+})
+```
+
+Detalles del SDK que fijan el diseño:
+
+- Paquete: **`@composio/core`** (TS v3). `tools.execute(slug, { userId,
+  arguments })` es la ejecución directa; hay que pasar `toolkitVersions: {
+  instagram: <versión fijada> }` en el init (o flag de skip) — lo fijamos
+  para que el job no cambie de comportamiento solo.
+- `userId` es un identificador **externo** nuestro: usaremos
+  `martes-hub:{tenantId}` — Composio scopea los connected accounts por userId,
+  así que cada tenant tiene su cuenta de Instagram separada dentro de su
+  proyecto.
+- Conexión: `composio.connectedAccounts.link(...)` devuelve `redirectUrl` +
+  `waitForConnection()`; soporta `callbackUrl` de vuelta al workspace.
+- **Solo servidor**: la key es secreta — el SDK se usa desde server actions y
+  jobs, nunca desde el cliente (el repo ya marca `server-only` en libs sensibles).
+
+## Modelo de cuota: ¿Composio central tuyo o uno por tenant?
+
+Datos verificados ([composio.dev/pricing](https://composio.dev/pricing)): el
+plan **Free** incluye ~20.000 tool calls/mes y **OAuth management incluido**
+(la app gestionada de Instagram no cuesta extra). La cuota pertenece al
+**proyecto** (la cuenta dueña de la API key), no a cada usuario final.
+
+| | Central (tu proyecto) | **BYO-key (uno por tenant) — elegido** |
+|---|---|---|
+| Cuota | Todos los tenants comen tu 20K: sync diario ≈ 120 calls/mes/tenant + 2 por publicación. Con 10–15 tenants vas bien; a escala SaaS pagas Pro ($29 + $0.0002/call) y recargas el costo | Cada tenant gasta **su** cuota — nadie agota la tuya |
+| Onboarding | Cero fricción | El tenant abre su cuenta Composio (tú los ayudas, una vez) y pega su API key en Ajustes |
+| SaaS futuro | Hay que meter el costo de Composio en el precio y operar cuentas ajenas | **Cero migración**: su key, su cuenta, su cuota — el sistema ya organiza todo |
+| Gmail / GCal / Sheets después | Cada integración nueva la construyes tú con OAuth propio | **El mismo patrón de un campo sirve**: activan el toolkit en SU Composio y el sistema lo aprovecha — sin que tú registres apps |
+| Cambio radical | — | **No**: el init del SDK solo cambia de dónde sale la apiKey (`process.env` → campo cifrado del tenant) |
+
+**Decisión**: BYO-key como modelo único. Tu proyecto central queda para el
+tenant de Martes (tu key va en env var como valor por defecto de tu tenant).
 
 ## Diseño
 
-### 1. Conexión por tenant (igual que v2)
+### 1. Conexión por tenant con BYO-key (SDK)
 
-`social-accounts` gana `composioConnectedAccountId` (la única llave que el
-sistema guarda — los tokens viven en Composio), `externalUserId`,
-`lastSyncAt`, `syncStatus` (`ok / error_token / error_api / sin_conectar`).
-Server action `createInstagramConnectionAction` → pide a Composio el Connect
-Link → el usuario se loguea una vez → upsert de la cuenta. Botón "Conectar
-Instagram" en `/workspace/social` con estado vacío.
+**Colección nueva `tenant-integrations`** (tenant-scoped, `adminOnly`, sin
+drafts): `{ provider: 'composio', apiKeyCifrado, instagramAuthConfigId,
+estado: ok/invalida }` — la key del proyecto Composio del tenant, **cifrada
+AES-GCM** (`src/lib/crypto.ts` nuevo, key en env `INTEGRATIONS_ENC_KEY`).
+Pantalla en Ajustes: pegar API key → validar contra la API de Composio →
+guardar cifrado. Tu tenant de Martes usa el valor de `COMPOSIO_API_KEY` (env)
+como default.
+
+Flujo de conexión de Instagram (Ajustes o `/workspace/social`):
+
+1. `createInstagramConnectionAction` → `getComposioForTenant(tenantId)` (lee
+   la key cifrada, init SDK con `toolkitVersions` fijado) → resuelve el auth
+   config gestionado de Instagram del proyecto del tenant (`authConfigs`) →
+   `connectedAccounts.link('martes-hub:{tenantId}', authConfigId,
+   { callbackUrl: '/workspace/social' })` → el botón abre `redirectUrl`.
+2. El usuario **loguea en Instagram** (no en Composio) en la página hosted.
+3. Al volver (callback o "Verificar conexión"): listar connected accounts →
+   upsert de `social-accounts` con `composioConnectedAccountId`,
+   `externalUserId`, `syncStatus: 'ok'`.
+
+`social-accounts` gana `composioConnectedAccountId` + `lastSyncAt` +
+`syncStatus` (`ok / error_token / error_api / sin_conectar`). Los errores de
+Composio se muestran crudos en la UI — sin fallback.
 
 ### 2. Composer de publicación (lo nuevo)
 
@@ -133,8 +205,54 @@ UI **espejo de Instagram Insights** en `/workspace/social`:
 ## Env vars nuevas
 
 ```
-COMPOSIO_API_KEY=     # única llave nueva; S3_* ya existen en el repo
+INTEGRATIONS_ENC_KEY=   # clave AES-GCM para cifrar keys de integraciones por tenant
+COMPOSIO_API_KEY=       # SOLO el proyecto del tenant Martes (default del propio tenant)
+# S3_* ya existen en el repo (storage plugin)
 ```
+
+## Plan de construcción (fases, con archivos)
+
+**Fase 0 — Spike de validación (1 día, bloquea lo demás)**
+- `scripts/spike-composio.ts` (tsx, fuera de Next): con una key real y una
+  cuenta IG Business de prueba — `connectedAccounts.link('spike', ...)` →
+  login manual → `GET_USER_INFO` → `POST_IG_USER_MEDIA` (image_url de
+  placeholder público) → `PUBLISH` → `GET_IG_MEDIA_INSIGHTS`.
+- Criterio: publish + insights funcionan con la app gestionada. Si falla,
+  se documenta el error exacto y se decide (esperar mejora de Composio es la
+  única vía — no hay fallback Meta).
+
+**Fase 1 — Integración base (2–3 días)**
+- `pnpm add @composio/core` (server-only) + `src/lib/crypto.ts` (AES-GCM).
+- Colección `tenant-integrations` + migración; pantalla en Ajustes (pegar y
+  validar API key, estado de conexión).
+- `src/integrations/composio/client.ts`: `getComposioForTenant(tenantId)` —
+  key de `tenant-integrations` o env para Martes; init con
+  `toolkitVersions: { instagram: <fijada> }`.
+- Conexión de Instagram (link + callback + upsert `social-accounts`) y
+  desconexión.
+
+**Fase 2 — Publicar (3–4 días)**
+- Extender `SocialPostCreateDialog` (ya tiene caption + cuenta + programar +
+  preview): añadir upload de imagen (patrón `MediaUploadDialog` del repo),
+  botón **Publicar ya** y contador de cuota.
+- `publishSocialPostAction` en `src/lib/social-actions.ts`: claim por estado
+  (`borrador/programado → publicando`) → contenedor → publish →
+  `publicado/fallido` + `lastError`. Miniatura = `imageSizes` de Payload.
+- Job `purgeExpiredSocialMedia` (48h): borra objeto S3 + `purgedAt`
+  (borrado lógico) + lifecycle rule del bucket para `/temp-social/`.
+- Job `publishScheduledSocialPosts` (patrón `sendScheduledCampaigns`).
+
+**Fase 3 — Métricas + espejo de Insights (3–4 días)**
+- Migraciones de índices únicos (`post-metrics.post+recordedAt`,
+  `social-posts.platformPostId`).
+- Job diario `sync-instagram-metrics` (idempotente, 23505-aware) con las 3
+  llamadas del SDK.
+- UI en `/workspace/social`: tarjetas de cuenta (alcance/impresiones/
+  interacciones/seguidores — vocabulario de IG Insights), grid de posts con
+  miniatura + insights, historial simple debajo.
+
+Estimación total: ~2 semanas. Cada fase deja algo usable (0: decisión go/no-go
+· 1: conectar · 2: publicar · 3: medir).
 
 ## Consideraciones al construir (Payload + estado del repo)
 
@@ -151,8 +269,12 @@ COMPOSIO_API_KEY=     # única llave nueva; S3_* ya existen en el repo
   delete del doc `media` (rompería referencias y auditoría).
 - **Local API**: server actions con `overrideAccess: false` + `user` +
   validación de tenant; jobs de sistema con `overrideAccess: true`
-  (early-return informativo si `COMPOSIO_API_KEY` falta — patrón
-  `isGmailSyncConfigured`).
+  (early-return informativo si el tenant no tiene key de Composio
+  configurada — patrón `isGmailSyncConfigured`).
+- **Key cifrada, nunca en la respuesta**: `apiKeyCifrado` se cifra en
+  beforeChange y solo se descifra en el servidor (`composio/client.ts`); el
+  campo no sale en selects de UI (el campo `tenant` lo inyecta
+  `multiTenantPlugin`, no se declara a mano).
 - **Idempotencia de métricas**: índice único (`post`, `recordedAt`) en
   `post-metrics` + manejo 23505 (`isUniqueConflict` de `syncEmail`) — la
   colección hoy no tiene índice, hace falta migración.
@@ -164,9 +286,11 @@ COMPOSIO_API_KEY=     # única llave nueva; S3_* ya existen en el repo
 
 ## Checklist de implementación
 
-- [ ] Spike Composio: managed OAuth → `POST_IG_USER_MEDIA` + `PUBLISH` + insights con cuenta real
-- [ ] Campos en `social-accounts` (`composioConnectedAccountId`, `lastSyncAt`, `syncStatus`) + Connect Link + desconexión
-- [ ] Cliente delgado `src/integrations/composio/client.ts` (execute por slug, tipado de las acciones usadas)
+- [ ] Spike Composio con el SDK (`scripts/spike-composio.ts`): managed OAuth → `POST_IG_USER_MEDIA` + `PUBLISH` + insights con cuenta real
+- [ ] `pnpm add @composio/core` + `src/lib/crypto.ts` (AES-GCM) + `INTEGRATIONS_ENC_KEY`
+- [ ] Colección `tenant-integrations` (key cifrada por tenant) + pantalla en Ajustes
+- [ ] Campos en `social-accounts` (`composioConnectedAccountId`, `lastSyncAt`, `syncStatus`) + conexión vía SDK (link/callback) + desconexión
+- [ ] `src/integrations/composio/client.ts` (`getComposioForTenant`, `toolkitVersions` fijado, execute por slug)
 - [ ] Composer de publicación (upload + caption + publicar ya/programar + cuota) + `publishSocialPostAction` con claim por estado
 - [ ] Job `purgeExpiredSocialMedia` (48h, borrado lógico + S3) + lifecycle rule del bucket
 - [ ] Índice único `post-metrics` (`post`+`recordedAt`) + `social-posts.platformPostId` (migración)
