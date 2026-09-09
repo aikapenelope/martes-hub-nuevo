@@ -24,10 +24,15 @@ labels, asignado).
 
 ## Ubicación
 
-- Tab/apartado **"Conversaciones"** (o "Pulso") dentro de CRM, que abre la
-  vista propia `/workspace/conversaciones`.
+- **Página propia `/workspace/conversaciones` con entrada en el sidebar**
+  (`WorkspaceSidebar.tsx`, entre Inbox y CRM) y badge de "sin responder".
+  Decisión (2026-09-09): NO como tab del CRM — el CRM es la ficha de datos por
+  entidad y sus vistas guardadas ya tienen su propio modelo de filtros; esta
+  vista es transversal (mezcla leads y clientes) y de análisis/activación, no
+  de edición. Un tab añadiría un segundo modelo de filtros al CRM.
 - Cada tarjeta deep-linka a la ficha 360 (`/workspace/crm/[type]/[id]`) y al
-  inbox (`/workspace/inbox?c=<id>` — deep link ya existente).
+  inbox (`/workspace/inbox?c=<id>` — deep link ya existente, ver
+  `inbox/page.tsx`).
 - Sin colecciones nuevas: capa de queries sobre lo que ya hay.
   `src/lib/conversation-intelligence-data.ts` siguiendo el patrón de
   `crm-data.ts` (queries con `select` y `depth: 0`, aggregations de
@@ -95,13 +100,59 @@ cliente responde.
 - Multi-tenant por herencia: las queries parten de `conversations` ya
   aisladas por tenant.
 
+## Consideraciones al construir (Payload + estado del repo)
+
+**Estado real verificado (2026-09-09):** la página no existe — no hay
+`/workspace/conversaciones`, ni entrada en `WorkspaceSidebar.tsx`, ni
+`conversation-intelligence-data.ts`. Lo que sí existe (~60% del motor, repartido):
+
+| Pieza | Dónde vive hoy |
+|---|---|
+| Detectar "escribió y no respondimos" | `computeWindowState()` en `src/lib/crm-pipeline-window.ts` — badge "Por responder" del inbox y kanban |
+| Temperatura caliente/templado/frío | `computeDealVelocity()` (mismo archivo, kanban) + `nivelInteres` persistido por `src/jobs/leadScoring.ts` |
+| Sentimiento + objeciones/próximos pasos | `conversation-summaries` (worker `summarizeConversation`, campos `objeciones`/`nextSteps`) + `LeadBriefCard` |
+| "X días sin respuesta" con SLA por etapa | `src/lib/followups-today.ts` (`LEAD_RULES`/`CLIENT_RULES` + `waLink` + `crmUrl`) |
+| wa.me + deep links | kanban, triage y `followups-today` |
+
+El trabajo es **ensamblar**, no reconstruir:
+
+- **Local API y access control**: toda query de la capa de datos con
+  `overrideAccess: false` + `user` + filtro de tenant — la Local API bypassa
+  el access control si falta `overrideAccess: false` (patrón `crm-data.ts`).
+- **Cómputo puro en lib**: temperatura derivada y agregación de sentimiento
+  como funciones puras sin `import 'server-only'` (patrón `crm-pipeline-window.ts`,
+  cuyos tests corren sin Postgres). No recalcular sentimiento: leer el de los
+  summaries ya persistidos por el worker.
+- **Las dos únicas escrituras** van como server actions con
+  `getWorkspaceContext()` + `assertEditor` + validación de tenant (patrón
+  `membership-actions`/`inbox-actions`):
+  - Crear seguimiento: `tasks` ya tiene `title/description/dueDate/client/
+    lead/assignedTo/source` para precargar la tarea con contexto.
+  - Registrar retomada: `activities` ya tiene `type/occurredAt/summary/client/
+    lead/performedBy`.
+- **Operaciones anidadas con `req`** (atomicidad) y `req.context` flag si
+  algún hook de `activities`/`tasks` pudiera re-dispararse (patrón
+  `skipLeadConversion` de `Clients.ts`).
+- **Sin `versions.drafts`** ni colecciones nuevas: cero cambios de esquema;
+  el estado es derivado, no almacenado.
+- **Deep links existentes**: `/workspace/inbox?c=<id>` (ya implementado) y
+  `/workspace/crm/[type]/[id]` — reusar, no inventar rutas.
+- **IA con fallback determinista**: `generateReengagementAction` usa
+  `ai-provider.ts` (config por tenant) y sin IA configurada cae a plantillas de
+  `message-templates` con variables — nunca bloquear el botón "Retomar" por IA.
+- **Kanban por temperatura**: reciclar los patrones de `CrmPipelineWorkspace`;
+  el badge del sidebar sigue el patrón del badge "Por responder" del Inbox.
+
 ## Checklist de implementación
 
 - [ ] `conversation-intelligence-data.ts`: queries de tarjeta (sentimiento
       agregado, lastInbound vs outbound, chips, temperatura)
 - [ ] Página `/workspace/conversaciones` + vistas lista/grid/kanban
-- [ ] Tab "Conversaciones" en CRM con deep links
-- [ ] `generateReengagementAction` + panel de variantes + wa.me + fallback
-- [ ] "Crear seguimiento" → tarea en Hoy precargada
+- [ ] Entrada en `WorkspaceSidebar.tsx` (entre Inbox y CRM) + badge "sin responder"
+- [ ] `generateReengagementAction` + panel de variantes + wa.me + fallback a
+      `message-templates`
+- [ ] "Crear seguimiento" → tarea en Hoy precargada (server action con
+      tenant + assertEditor)
 - [ ] Activity de retomada + badge de "sin respuesta" en Overview
-- [ ] Tests de las queries (fixture: conversaciones con summaries)
+- [ ] Tests de las queries y funciones puras (fixture: conversaciones con
+      summaries)
