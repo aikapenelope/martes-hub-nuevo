@@ -7,7 +7,6 @@ import { encryptSecret } from '@/lib/crypto'
 import {
   createConnectionLink,
   deleteConnectedAccount,
-  executeTool,
   getComposioForTenant,
   getOrCreateManagedAuthConfig,
   verifyConnection,
@@ -22,6 +21,19 @@ type ActionResult<T extends object = object> =
 const SETTINGS_PATH = '/workspace/settings'
 const CALLBACK_PATH = '/auth/composio/callback'
 
+/** Toolkits que admiten conexión personal (por usuario) además de la de la empresa. */
+const PERSONAL_TOOLKITS = new Set(['gmail', 'googlecalendar', 'googlesheets', 'googledocs'])
+
+export type ConnectionScope = 'empresa' | 'personal'
+
+function resolveScope(toolkit: string, scope: ConnectionScope): ConnectionScope | 'invalida' {
+  if (!isSupportedToolkit(toolkit)) return 'invalida'
+  if (scope === 'personal' && !PERSONAL_TOOLKITS.has(toolkit)) return 'invalida'
+  // Instagram (y TikTok) son siempre de la empresa: solo existe una cuenta del negocio.
+  if (scope === 'personal' && (toolkit === 'instagram' || toolkit === 'tiktok')) return 'invalida'
+  return scope
+}
+
 async function currentOrigin(): Promise<string> {
   const headerList = await headers()
   const host = headerList.get('host') ?? 'localhost:3000'
@@ -29,19 +41,34 @@ async function currentOrigin(): Promise<string> {
   return `${protocol}://${host}`
 }
 
-async function findTenantConnection(
-  payload: Awaited<ReturnType<typeof getWorkspaceContext>>['payload'],
-  tenantId: number,
-  toolkit: string,
-): Promise<{
+interface ConnectionRow {
   id: number
+  scope: ConnectionScope
+  userId: number | null
   authConfigId: string | null
   connectedAccountId: string | null
   estado: string
-} | null> {
-  const res = await payload.find({
+}
+
+async function findTenantConnection(
+  tenantId: number,
+  toolkit: string,
+  scope: ConnectionScope,
+  ownerId: number | null,
+): Promise<ConnectionRow | null> {
+  const context = await getWorkspaceContext()
+  const userCondition =
+    scope === 'personal' ? { user: { equals: ownerId ?? -1 } } : { user: { exists: false } }
+  const res = await context.payload.find({
     collection: 'tenant-connections',
-    where: { and: [{ tenant: { equals: tenantId } }, { toolkit: { equals: toolkit } }] },
+    where: {
+      and: [
+        { tenant: { equals: tenantId } },
+        { toolkit: { equals: toolkit as 'instagram' } },
+        { scope: { equals: scope } },
+        userCondition,
+      ],
+    },
     limit: 1,
     depth: 0,
     overrideAccess: true,
@@ -50,6 +77,8 @@ async function findTenantConnection(
   if (!doc) return null
   return {
     id: doc.id,
+    scope,
+    userId: typeof doc.user === 'object' ? (doc.user?.id ?? null) : (doc.user ?? null),
     authConfigId: doc.authConfigId ?? null,
     connectedAccountId: doc.connectedAccountId ?? null,
     estado: doc.estado,
@@ -58,8 +87,9 @@ async function findTenantConnection(
 
 /**
  * Guarda (o reemplaza) la API key del proyecto Composio del tenant, cifrada.
- * Valida la key contra la API de Composio antes de guardar — si falla, no se
- * persiste nada. Admin-only: la key da acceso a todo el proyecto del tenant.
+ * Valida la key contra la API de Composio antes de persistir. Admin-only.
+ * El superadmin también puede asignarla por tenant desde `/admin`
+ * (campo write-only `apiKey`, cifrado en beforeValidate).
  */
 export async function saveComposioKeyAction(apiKey: string): Promise<ActionResult> {
   try {
@@ -69,7 +99,6 @@ export async function saveComposioKeyAction(apiKey: string): Promise<ActionResul
     const context = await getWorkspaceContext()
     if (!context.isAdmin) return { ok: false, error: 'Solo un admin puede cambiar la conexión Composio' }
 
-    // Validación real contra Composio (llamada de gestión, no consume tool calls).
     const { Composio } = await import('@composio/core')
     try {
       const probe = new Composio({ apiKey: trimmed })
@@ -110,49 +139,69 @@ export async function saveComposioKeyAction(apiKey: string): Promise<ActionResul
 }
 
 /**
- * Inicia la conexión de un toolkit: get-or-create del auth config gestionado
- * y link hosted para que el tenant loguee en el servicio real. Devuelve el
- * redirectUrl — el cliente redirige. Sin key configurada, error claro.
+ * Inicia la conexión de un toolkit en un alcance: link hosted para que el
+ * usuario loguee en el servicio real.
+ * - `empresa`: solo admins (Instagram corporativo, correo/calendario del negocio).
+ * - `personal`: cada usuario conecta SU cuenta (su Gmail, su calendario).
+ * En ambos casos la key es la del proyecto Composio del tenant — el consumo
+ * factura al tenant.
  */
-export async function startConnectionAction(toolkit: string): Promise<ActionResult<{ redirectUrl: string }>> {
+export async function startConnectionAction(
+  toolkit: string,
+  scope: ConnectionScope = 'empresa',
+): Promise<ActionResult<{ redirectUrl: string }>> {
   try {
-    if (!isSupportedToolkit(toolkit)) return { ok: false, error: `Toolkit no soportado: ${toolkit}` }
+    const resolved = resolveScope(toolkit, scope)
+    if (resolved === 'invalida') return { ok: false, error: `Alcance no válido para ${toolkit}` }
 
     const context = await getWorkspaceContext()
-    if (!context.isAdmin) return { ok: false, error: 'Solo un admin puede conectar servicios' }
+    if (!context.canEdit) return { ok: false, error: 'No tienes permiso para conectar servicios' }
+    if (scope === 'empresa' && !context.isAdmin) {
+      return { ok: false, error: 'Las conexiones de la empresa requieren rol admin' }
+    }
 
     const session = await getComposioForTenant(context.payload, context.tenantId)
     if (!session) {
       return {
         ok: false,
         error:
-          'Composio no está configurado en el sistema (falta COMPOSIO_API_KEY del operador) y el tenant no aportó key propia',
+          'Composio no está configurado para este tenant (el operador debe asignar la API key) y no hay key del operador',
       }
     }
 
     const authConfigId = await getOrCreateManagedAuthConfig(session.composio, toolkit)
     const origin = await currentOrigin()
+    const userId =
+      scope === 'personal'
+        ? `${session.userId}:u:${context.user.id}`
+        : session.userId
     const { redirectUrl } = await createConnectionLink(session.composio, {
-      userId: session.userId,
+      userId,
       authConfigId,
       toolkit,
       callbackUrl: `${origin}${CALLBACK_PATH}`,
     })
 
-    // Fila determinista (tenant + toolkit): guarda el auth config esperado para
-    // que la verificación filtre por él — nunca "la primera cuenta de la lista".
-    const existing = await findTenantConnection(context.payload, context.tenantId, toolkit)
+    const existing = await findTenantConnection(context.tenantId, toolkit, scope, context.user.id)
     if (existing) {
       await context.payload.update({
         collection: 'tenant-connections',
         id: existing.id,
-        data: { authConfigId, estado: 'conectando', ultimoError: null },
+        data: { authConfigId, estado: 'conectando', ultimoError: null, connectedBy: context.user.id },
         overrideAccess: true,
       })
     } else {
       await context.payload.create({
         collection: 'tenant-connections',
-        data: { tenant: context.tenantId, toolkit, authConfigId, estado: 'conectando' },
+        data: {
+          tenant: context.tenantId,
+          toolkit: toolkit as 'instagram',
+          scope,
+          ...(scope === 'personal' ? { user: context.user.id } : {}),
+          connectedBy: context.user.id,
+          authConfigId,
+          estado: 'conectando',
+        },
         overrideAccess: true,
       })
     }
@@ -164,26 +213,28 @@ export async function startConnectionAction(toolkit: string): Promise<ActionResu
   }
 }
 
-/**
- * Verifica la conexión pendiente de un toolkit: filtra los connected accounts
- * por el authConfigId esperado y, si ya completó el login, marca `ok` y hace
- * upsert del espejo (social-accounts para Instagram).
- */
-export async function verifyConnectionAction(toolkit: string): Promise<ActionResult<{ estado: string }>> {
+/** Verifica la conexión pendiente (login ya completado) y marca `ok`. */
+export async function verifyConnectionAction(
+  toolkit: string,
+  scope: ConnectionScope = 'empresa',
+): Promise<ActionResult<{ estado: string }>> {
   try {
-    if (!isSupportedToolkit(toolkit)) return { ok: false, error: `Toolkit no soportado: ${toolkit}` }
+    const resolved = resolveScope(toolkit, scope)
+    if (resolved === 'invalida') return { ok: false, error: `Alcance no válido para ${toolkit}` }
 
     const context = await getWorkspaceContext()
-    if (!context.isAdmin) return { ok: false, error: 'Solo un admin puede verificar conexiones' }
+    if (!context.canEdit) return { ok: false, error: 'No tienes permiso para verificar conexiones' }
 
-    const row = await findTenantConnection(context.payload, context.tenantId, toolkit)
+    const row = await findTenantConnection(context.tenantId, toolkit, scope, context.user.id)
     if (!row?.authConfigId) return { ok: false, error: 'No hay una conexión iniciada para este servicio' }
 
     const session = await getComposioForTenant(context.payload, context.tenantId)
-    if (!session) return { ok: false, error: 'Falta la API key de Composio del tenant' }
+    if (!session) return { ok: false, error: 'Este tenant no tiene API key de Composio asignada' }
 
+    const userId =
+      scope === 'personal' ? `${session.userId}:u:${context.user.id}` : session.userId
     const account = await verifyConnection(session.composio, {
-      userId: session.userId,
+      userId,
       toolkit,
       authConfigId: row.authConfigId,
     })
@@ -195,7 +246,7 @@ export async function verifyConnectionAction(toolkit: string): Promise<ActionRes
     await context.payload.update({
       collection: 'tenant-connections',
       id: row.id,
-      data: { connectedAccountId: account.id, estado: 'ok', ultimoError: null },
+      data: { connectedAccountId: account.id, estado: 'ok', ultimoError: null, connectedBy: context.user.id },
       overrideAccess: true,
     })
 
@@ -238,16 +289,62 @@ export async function verifyConnectionAction(toolkit: string): Promise<ActionRes
   }
 }
 
-/** Desconecta un toolkit: revoca el connected account en Composio y marca la fila. */
-export async function disconnectConnectionAction(toolkit: string): Promise<ActionResult> {
+/** Prueba la conexión: confirma que el connected account sigue ACTIVO en Composio. */
+export async function pingConnectionAction(
+  toolkit: string,
+  scope: ConnectionScope = 'empresa',
+): Promise<ActionResult<{ estado: string }>> {
   try {
-    if (!isSupportedToolkit(toolkit)) return { ok: false, error: `Toolkit no soportado: ${toolkit}` }
+    const resolved = resolveScope(toolkit, scope)
+    if (resolved === 'invalida') return { ok: false, error: `Alcance no válido para ${toolkit}` }
 
     const context = await getWorkspaceContext()
-    if (!context.isAdmin) return { ok: false, error: 'Solo un admin puede desconectar servicios' }
+    if (!context.canEdit) return { ok: false, error: 'No tienes permiso para probar conexiones' }
 
-    const row = await findTenantConnection(context.payload, context.tenantId, toolkit)
+    const row = await findTenantConnection(context.tenantId, toolkit, scope, context.user.id)
+    if (!row || row.estado !== 'ok' || !row.connectedAccountId) {
+      return { ok: false, error: 'Este servicio no está conectado' }
+    }
+
+    const session = await getComposioForTenant(context.payload, context.tenantId)
+    if (!session) return { ok: false, error: 'Este tenant no tiene API key de Composio asignada' }
+
+    const account = await session.composio.connectedAccounts.get(row.connectedAccountId)
+    const status = account?.status ?? 'UNKNOWN'
+    if (status.toUpperCase() !== 'ACTIVE') {
+      await context.payload.update({
+        collection: 'tenant-connections',
+        id: row.id,
+        data: { estado: 'error_token', ultimoError: `Estado en Composio: ${status}` },
+        overrideAccess: true,
+      })
+      revalidatePath(SETTINGS_PATH)
+      return { ok: false, error: `La conexión ya no está activa (Composio: ${status})` }
+    }
+    return { ok: true, estado: status }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'error desconocido'
+    return { ok: false, error: message }
+  }
+}
+
+/** Desconecta: revoca el connected account en Composio y marca la fila local. */
+export async function disconnectConnectionAction(
+  toolkit: string,
+  scope: ConnectionScope = 'empresa',
+): Promise<ActionResult> {
+  try {
+    const resolved = resolveScope(toolkit, scope)
+    if (resolved === 'invalida') return { ok: false, error: `Alcance no válido para ${toolkit}` }
+
+    const context = await getWorkspaceContext()
+    if (!context.canEdit) return { ok: false, error: 'No tienes permiso para desconectar servicios' }
+
+    const row = await findTenantConnection(context.tenantId, toolkit, scope, context.user.id)
     if (!row) return { ok: false, error: 'No hay conexión para este servicio' }
+    if (row.scope === 'empresa' && !context.isAdmin) {
+      return { ok: false, error: 'Las conexiones de la empresa requieren rol admin' }
+    }
 
     if (row.connectedAccountId) {
       const session = await getComposioForTenant(context.payload, context.tenantId)
@@ -294,39 +391,12 @@ export async function disconnectConnectionAction(toolkit: string): Promise<Actio
   }
 }
 
-/**
- * Ping de verificación de credencial: ejecuta una acción de lectura barata del
- * toolkit conectado. Devuelve el error crudo de Composio — sin fallback.
- */
-export async function pingConnectionAction(toolkit: string): Promise<ActionResult<{ ok: true }>> {
-  try {
-    const context = await getWorkspaceContext()
-    if (!context.isAdmin) return { ok: false, error: 'Solo un admin puede probar conexiones' }
-
-    const row = await findTenantConnection(context.payload, context.tenantId, toolkit)
-    const connectedAccountId = row?.connectedAccountId
-    if (!row || row.estado !== 'ok' || !connectedAccountId) {
-      return { ok: false, error: 'Este servicio no está conectado' }
-    }
-
-    const session = await getComposioForTenant(context.payload, context.tenantId)
-    if (!session) return { ok: false, error: 'Falta la API key de Composio del tenant' }
-
-    const slug = toolkit === 'instagram' ? 'INSTAGRAM_GET_USER_INFO' : null
-    if (!slug) return { ok: true }
-
-    await executeTool(session.composio, { toolkit, slug, userId: session.userId, args: {} })
-    return { ok: true }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'error desconocido'
-    return { ok: false, error: message }
-  }
-}
-
 /** Tipos auxiliares reutilizados por el hub (filas del tenant activo). */
 export type TenantConnectionRow = {
   id: number
   toolkit: string
+  scope: 'empresa' | 'personal'
+  userId: number | null
   estado: string
   connectedAccountId: string | null
 }

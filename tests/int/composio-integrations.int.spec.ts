@@ -3,7 +3,8 @@ import type { Payload } from 'payload'
 
 import { decryptSecret, encryptSecret } from '@/lib/crypto'
 import {
-  composioUserId,
+  composioTenantUserId,
+  composioUserUserId,
   filterConnectedAccounts,
   type ComposioConnectedAccountRef,
 } from '@/integrations/composio/shared'
@@ -41,7 +42,11 @@ function isEncryptedFormat(value: string): boolean {
 
 describe('composio/shared — userId y filtro de conexiones', () => {
   it('userId aislado por tenant', () => {
-    expect(composioUserId(7)).toBe('martes-hub:7')
+    expect(composioTenantUserId(7)).toBe('martes-hub:7')
+  })
+
+  it('userId personal aislado por usuario dentro del tenant', () => {
+    expect(composioUserUserId(7, 42)).toBe('martes-hub:7:u:42')
   })
 
   const ig = (overrides: Partial<ComposioConnectedAccountRef>): ComposioConnectedAccountRef => ({

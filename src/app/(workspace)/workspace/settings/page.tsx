@@ -58,13 +58,15 @@ export default async function SettingsPage({
   const connectionsRes = await context.payload.find({
     collection: 'tenant-connections',
     where: { tenant: { equals: context.tenantId } },
-    limit: 20,
+    limit: 50,
     depth: 0,
     overrideAccess: true,
   })
   const connectionRows = connectionsRes.docs.map((doc) => ({
     id: doc.id,
     toolkit: doc.toolkit,
+    scope: doc.scope,
+    userId: typeof doc.user === 'object' ? (doc.user?.id ?? null) : (doc.user ?? null),
     estado: doc.estado,
     connectedAccountId: doc.connectedAccountId ?? null,
   }))
@@ -125,8 +127,13 @@ export default async function SettingsPage({
         </div>
       </section>
 
-      {/* Hub de conexiones Composio (Instagram, Gmail, GCal…) */}
-      <IntegrationHub isAdmin={isAdmin} hasApiKey={hasComposioKey} rows={connectionRows} />
+      {/* Hub de conexiones Composio (empresa + personales) */}
+      <IntegrationHub
+        isAdmin={isAdmin}
+        hasApiKey={hasComposioKey}
+        currentUserId={context.user.id}
+        rows={connectionRows}
+      />
 
       {/* Formulario de configuración */}
       <section className="oled-card p-6">

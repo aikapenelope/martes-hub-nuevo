@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, KeyRound, Link2, Loader2, PlugZap, XCircle } from 'lucide-react'
+import { Building, CheckCircle2, KeyRound, Link2, Loader2, PlugZap, User, XCircle } from 'lucide-react'
 
 import {
   disconnectConnectionAction,
@@ -10,6 +10,7 @@ import {
   saveComposioKeyAction,
   startConnectionAction,
   verifyConnectionAction,
+  type ConnectionScope,
   type TenantConnectionRow,
 } from '@/lib/integration-actions'
 
@@ -27,11 +28,20 @@ interface ToolkitMeta {
   enabled: boolean
 }
 
-const TOOLKITS: ToolkitMeta[] = [
+/** Conexiones de la empresa: las conecta un admin, las usa todo el tenant. */
+const EMPRESA_TOOLKITS: ToolkitMeta[] = [
   { slug: 'instagram', label: 'Instagram', hint: 'Publicar + métricas (Business/Creator)', enabled: true },
+  { slug: 'gmail', label: 'Gmail del negocio', hint: 'Buzón compartido (info@…)', enabled: true },
+  { slug: 'googlecalendar', label: 'Google Calendar del negocio', hint: 'Calendario de citas de la empresa', enabled: true },
   { slug: 'tiktok', label: 'TikTok', hint: 'Próximamente — requiere app propia de TikTok', enabled: false },
-  { slug: 'gmail', label: 'Gmail', hint: 'Próximamente — espejo de correo', enabled: false },
-  { slug: 'googlecalendar', label: 'Google Calendar', hint: 'Próximamente — espejo de citas', enabled: false },
+]
+
+/** Conexiones personales: cada usuario conecta su propia cuenta. */
+const PERSONAL_TOOLKITS: ToolkitMeta[] = [
+  { slug: 'gmail', label: 'Mi Gmail', hint: 'Tu buzón personal — solo tú', enabled: true },
+  { slug: 'googlecalendar', label: 'Mi Google Calendar', hint: 'Tu calendario personal — solo tú', enabled: true },
+  { slug: 'googlesheets', label: 'Google Sheets', hint: 'Próximamente', enabled: false },
+  { slug: 'googledocs', label: 'Google Docs', hint: 'Próximamente', enabled: false },
 ]
 
 const ESTADO_STYLES: Record<string, string> = {
@@ -88,29 +98,26 @@ function openAuthPopup(url: string, timeoutMs = 300000): Promise<'done' | 'close
 }
 
 /**
- * Hub de conexiones del tenant con Composio. **Modo central por defecto**:
- * el sistema usa el proyecto Composio de la plataforma y el usuario solo
- * aprieta "Conectar" y loguea en el servicio real (Instagram, Google…) en el
- * popup — nadie abre Composio ni maneja keys. Opcionalmente, un admin puede
- * pegar la key de SU proyecto (BYO) para cuota y conexiones propias.
+ * Hub de conexiones del tenant con Composio. El proyecto (key + cuota) es del
+ * tenant — lo asigna el superadmin o lo aporta el propio tenant. Dos alcances:
+ * - "De la empresa": cuentas compartidas del negocio (admin conecta, todos usan).
+ * - "Personales": cada usuario conecta su propia cuenta (su Gmail, su calendario).
  */
 export function IntegrationHub({
   isAdmin,
   hasApiKey,
+  currentUserId,
   rows,
 }: {
   isAdmin: boolean
   hasApiKey: boolean
+  currentUserId: number
   rows: TenantConnectionRow[]
 }) {
   const router = useRouter()
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
-
-  function rowFor(slug: string): TenantConnectionRow | undefined {
-    return rows.find((row) => row.toolkit === slug)
-  }
 
   async function run(key: string, fn: () => Promise<{ ok: boolean; error?: string; redirectUrl?: string }>) {
     setBusy(key)
@@ -134,18 +141,19 @@ export function IntegrationHub({
   }
 
   /** Conectar en un clic: link → popup de login del servicio → auto-verificar. */
-  async function handleConnect(slug: string) {
-    setBusy(slug)
+  async function handleConnect(slug: string, scope: ConnectionScope) {
+    const key = `${scope}:${slug}`
+    setBusy(key)
     setMessage(null)
     try {
-      const started = await startConnectionAction(slug)
+      const started = await startConnectionAction(slug, scope)
       if (!started.ok || !started.redirectUrl) {
         setMessage({ kind: 'error', text: started.ok ? 'Composio no devolvió link' : started.error })
         return
       }
       const outcome = await openAuthPopup(started.redirectUrl)
       if (outcome === 'done') {
-        const verified = await verifyConnectionAction(slug)
+        const verified = await verifyConnectionAction(slug, scope)
         setMessage(
           verified.ok
             ? { kind: 'ok', text: 'Servicio conectado.' }
@@ -177,6 +185,87 @@ export function IntegrationHub({
     return { ok: true }
   }
 
+  function connectionButtons(
+    toolkit: ToolkitMeta,
+    scope: ConnectionScope,
+    row: TenantConnectionRow | undefined,
+  ) {
+    const key = `${scope}:${toolkit.slug}`
+    if (!row || row.estado === 'desconectado' || row.estado === 'error_token') {
+      return (
+        <button
+          type="button"
+          className={btnPrimary}
+          disabled={busy !== null}
+          onClick={() => void handleConnect(toolkit.slug, scope)}
+        >
+          {busy === key ? (
+            <Loader2 className="w-3 h-3 animate-spin inline mr-1" />
+          ) : (
+            <Link2 size={12} className="inline mr-1" />
+          )}
+          Conectar
+        </button>
+      )
+    }
+    if (row.estado === 'conectando') {
+      return (
+        <button
+          type="button"
+          className={btnPrimary}
+          disabled={busy !== null}
+          onClick={() => void run(key, () => verifyConnectionAction(toolkit.slug, scope))}
+        >
+          <CheckCircle2 size={12} className="inline mr-1" />
+          Ya autoricé — verificar
+        </button>
+      )
+    }
+    return (
+      <>
+        <button
+          type="button"
+          className={btnGhost}
+          disabled={busy !== null}
+          onClick={() => void run(key, () => pingConnectionAction(toolkit.slug, scope))}
+        >
+          Probar
+        </button>
+        <button
+          type="button"
+          className={btnGhost}
+          disabled={busy !== null}
+          onClick={() => void run(key, () => disconnectConnectionAction(toolkit.slug, scope))}
+        >
+          Desconectar
+        </button>
+      </>
+    )
+  }
+
+  function card(toolkit: ToolkitMeta, scope: ConnectionScope, row: TenantConnectionRow | undefined) {
+    const badge = estadoBadge(row?.estado)
+    const canManage = scope === 'empresa' ? isAdmin : true
+    return (
+      <div key={`${scope}-${toolkit.slug}`} className="border border-zinc-800 bg-black/40 p-4 flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider font-mono text-white">
+            {toolkit.label}
+          </span>
+          <span className={`px-2 py-0.5 border text-[9px] font-mono uppercase tracking-wider ${badge.cls}`}>
+            {row?.estado === 'ok' ? 'conectado' : badge.label}
+          </span>
+        </div>
+        <span className="text-[10px] text-zinc-500 font-sans normal-case">{toolkit.hint}</span>
+        {canManage && toolkit.enabled && (
+          <div className="flex flex-wrap gap-2 mt-auto pt-1">
+            {connectionButtons(toolkit, scope, row)}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <section className="oled-card p-6" id="conexiones">
       <div className="flex items-center gap-2 pb-4 border-b border-zinc-800">
@@ -187,11 +276,12 @@ export function IntegrationHub({
       </div>
 
       <p className="mt-4 text-[11px] text-zinc-500 font-sans normal-case">
-        Conecta un servicio con un clic: se abre el login del servicio (Instagram, Google…) y
-        queda cableado. Los tokens viven en Composio; aquí solo queda la referencia.
+        Conecta un servicio con un clic: se abre el login del servicio real (Instagram, Google…) en
+        un popup y queda cableado. Los tokens viven en Composio; el proyecto (y el consumo) es del
+        tenant.
         {hasApiKey
-          ? ' Este tenant usa su propio proyecto Composio (cuota propia).'
-          : ' Conexión gestionada por la plataforma.'}
+          ? ' Este tenant usa su propio proyecto Composio.'
+          : ' Este tenant usa el proyecto gestionado por la plataforma.'}
       </p>
 
       {message && (
@@ -211,84 +301,46 @@ export function IntegrationHub({
         </div>
       )}
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {TOOLKITS.map((toolkit) => {
-          const row = rowFor(toolkit.slug)
-          const badge = estadoBadge(row?.estado)
-          return (
-            <div key={toolkit.slug} className="border border-zinc-800 bg-black/40 p-4 flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider font-mono text-white">
-                  {toolkit.label}
-                </span>
-                <span className={`px-2 py-0.5 border text-[9px] font-mono uppercase tracking-wider ${badge.cls}`}>
-                  {row?.estado === 'ok' ? 'conectado' : badge.label}
-                </span>
-              </div>
-              <span className="text-[10px] text-zinc-500 font-sans normal-case">{toolkit.hint}</span>
-              {isAdmin && toolkit.enabled && (
-                <div className="flex flex-wrap gap-2 mt-auto pt-1">
-                  {!row || row.estado === 'desconectado' || row.estado === 'error_token' ? (
-                    <button
-                      type="button"
-                      className={btnPrimary}
-                      disabled={busy !== null}
-                      onClick={() => void handleConnect(toolkit.slug)}
-                    >
-                      {busy === toolkit.slug ? (
-                        <Loader2 className="w-3 h-3 animate-spin inline mr-1" />
-                      ) : (
-                        <Link2 size={12} className="inline mr-1" />
-                      )}
-                      Conectar
-                    </button>
-                  ) : row.estado === 'conectando' ? (
-                    <button
-                      type="button"
-                      className={btnPrimary}
-                      disabled={busy !== null}
-                      onClick={() => void run(toolkit.slug, () => verifyConnectionAction(toolkit.slug))}
-                    >
-                      <CheckCircle2 size={12} className="inline mr-1" />
-                      Ya autoricé — verificar
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className={btnGhost}
-                        disabled={busy !== null}
-                        onClick={() => void run(toolkit.slug, () => pingConnectionAction(toolkit.slug))}
-                      >
-                        Probar
-                      </button>
-                      <button
-                        type="button"
-                        className={btnGhost}
-                        disabled={busy !== null}
-                        onClick={() => void run(toolkit.slug, () => disconnectConnectionAction(toolkit.slug))}
-                      >
-                        Desconectar
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
+      <div className="mt-5 flex items-center gap-2">
+        <Building className="w-3.5 h-3.5 text-zinc-400" />
+        <h3 className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+          De la empresa {isAdmin ? '' : '(gestionada por admins)'}
+        </h3>
+      </div>
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        {EMPRESA_TOOLKITS.map((toolkit) =>
+          card(
+            toolkit,
+            'empresa',
+            rows.find((row) => row.scope === 'empresa' && row.toolkit === toolkit.slug),
+          ),
+        )}
+      </div>
+
+      <div className="mt-5 flex items-center gap-2">
+        <User className="w-3.5 h-3.5 text-zinc-400" />
+        <h3 className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">Personales (solo tuyas)</h3>
+      </div>
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        {PERSONAL_TOOLKITS.map((toolkit) =>
+          card(
+            toolkit,
+            'personal',
+            rows.find((row) => row.scope === 'personal' && row.toolkit === toolkit.slug && row.userId === currentUserId),
+          ),
+        )}
       </div>
 
       {isAdmin && (
-        <div className="mt-4 border border-zinc-800 bg-black/40 p-4">
+        <div className="mt-5 border border-zinc-800 bg-black/40 p-4">
           <div className="flex items-center gap-2 mb-2">
             <KeyRound className="w-3.5 h-3.5 text-zinc-400" />
             <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
-              Opcional: usar tu propio proyecto Composio (BYO)
+              API key de este tenant (opcional — BYO)
             </span>
             {hasApiKey && (
               <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase text-emerald-400">
-                <CheckCircle2 size={12} /> activo (key cifrada)
+                <CheckCircle2 size={12} /> activa (cifrada)
               </span>
             )}
           </div>
@@ -297,7 +349,7 @@ export function IntegrationHub({
               type="password"
               value={apiKeyInput}
               onChange={(event) => setApiKeyInput(event.target.value)}
-              placeholder="API key de platform.composio.dev — solo si quieres cuota propia"
+              placeholder="API key de platform.composio.dev — solo si el tenant quiere cuota propia"
               className={inputCls}
             />
             <button
@@ -310,9 +362,9 @@ export function IntegrationHub({
             </button>
           </div>
           <p className="mt-2 text-[10px] text-zinc-600 font-sans normal-case">
-            Por defecto las conexiones usan el proyecto de la plataforma. Si pegas aquí tu propia
-            API key, este tenant consume TU cuota y sus conexiones viven en TU proyecto. Cifrado
-            con AES-256-GCM; no vuelve a mostrarse.
+            Por defecto las conexiones usan la cuota del proyecto asignado al tenant. Si se pega aquí
+            una key propia, este tenant consume SU cuota. El superadmin también puede asignarla por
+            tenant desde /admin → Integraciones del Tenant. Cifrada con AES-256-GCM; no vuelve a mostrarse.
           </p>
         </div>
       )}

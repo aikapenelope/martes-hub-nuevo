@@ -6,9 +6,21 @@
 
 export const COMPOSIO_USER_PREFIX = 'martes-hub'
 
-/** userId externo en Composio, aislado por tenant (patrón "prefixed DB id" de la doc oficial). */
-export function composioUserId(tenantId: number): string {
+/**
+ * userId externo en Composio, aislado por alcance (patrón "prefixed DB id" de
+ * la doc oficial):
+ * - Empresa (compartida): `martes-hub:{tenantId}` — la conecta un admin y la
+ *   usa todo el tenant.
+ * - Personal de un usuario: `martes-hub:{tenantId}:u:{userId}` — cada quien
+ *   conecta su propia cuenta y queda aislada de los demás.
+ * La key del proyecto (y por tanto el consumo) es del tenant en ambos casos.
+ */
+export function composioTenantUserId(tenantId: number): string {
   return `${COMPOSIO_USER_PREFIX}:${tenantId}`
+}
+
+export function composioUserUserId(tenantId: number, userId: number): string {
+  return `${COMPOSIO_USER_PREFIX}:${tenantId}:u:${userId}`
 }
 
 /** Toolkits con managed auth disponibles para el hub de conexiones (v1: Instagram). */

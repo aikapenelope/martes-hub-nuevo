@@ -1498,7 +1498,7 @@ export interface CompanySetting {
   createdAt: string;
 }
 /**
- * Credenciales de integraciones del tenant (Composio BYO-key). La API key se guarda cifrada.
+ * API key del proyecto Composio del tenant (cifrada). El superadmin la asigna desde /admin; el estado por servicio vive en Conexiones del Tenant.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "tenant-integrations".
@@ -1508,15 +1508,16 @@ export interface TenantIntegration {
   tenant?: (number | null) | Tenant;
   provider: 'composio';
   /**
-   * AES-256-GCM con INTEGRATIONS_ENC_KEY. Nunca se muestra en claro.
+   * Write-only: pegar la key del proyecto Composio del tenant. Al guardar se cifra y no vuelve a mostrarse.
    */
+  apiKey?: string | null;
   apiKeyCifrado: string;
   estado: 'ok' | 'invalida';
   updatedAt: string;
   createdAt: string;
 }
 /**
- * Conexiones por servicio (login del tenant vía Composio).
+ * Conexiones por servicio (login del tenant vía Composio), de la empresa o personales.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "tenant-connections".
@@ -1525,11 +1526,17 @@ export interface TenantConnection {
   id: number;
   tenant?: (number | null) | Tenant;
   toolkit: 'instagram' | 'tiktok' | 'gmail' | 'googlecalendar' | 'googlesheets' | 'googledocs';
+  scope: 'empresa' | 'personal';
+  /**
+   * Dueño de la cuenta personal. Vacío en conexiones de la empresa.
+   */
+  user?: (number | null) | User;
   /**
    * Auth config gestionado de Composio para este toolkit.
    */
   authConfigId?: string | null;
   connectedAccountId?: string | null;
+  connectedBy?: (number | null) | User;
   estado: 'conectando' | 'ok' | 'error_token' | 'error_api' | 'desconectado';
   /**
    * Error crudo de Composio — sin fallback, se muestra en la UI.
@@ -3053,6 +3060,7 @@ export interface CompanySettingsSelect<T extends boolean = true> {
 export interface TenantIntegrationsSelect<T extends boolean = true> {
   tenant?: T;
   provider?: T;
+  apiKey?: T;
   apiKeyCifrado?: T;
   estado?: T;
   updatedAt?: T;
@@ -3065,8 +3073,11 @@ export interface TenantIntegrationsSelect<T extends boolean = true> {
 export interface TenantConnectionsSelect<T extends boolean = true> {
   tenant?: T;
   toolkit?: T;
+  scope?: T;
+  user?: T;
   authConfigId?: T;
   connectedAccountId?: T;
+  connectedBy?: T;
   estado?: T;
   ultimoError?: T;
   config?: T;

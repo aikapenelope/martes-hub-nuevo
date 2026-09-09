@@ -6,7 +6,7 @@ import type { Payload } from 'payload'
 import { decryptSecret } from '@/lib/crypto'
 
 import {
-  composioUserId,
+  composioTenantUserId,
   filterConnectedAccounts,
   type ComposioConnectedAccountRef,
 } from './shared'
@@ -64,7 +64,7 @@ export async function getComposioForTenant(
   }
 
   if (!apiKey) return null
-  return { composio: new Composio({ apiKey }), userId: composioUserId(tenantId), source }
+  return { composio: new Composio({ apiKey }), userId: composioTenantUserId(tenantId), source }
 }
 
 /** Get-or-create del auth config gestionado de un toolkit (Composio pone la app de OAuth). */
