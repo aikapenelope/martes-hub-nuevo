@@ -158,9 +158,13 @@ describe('Ofertas, Cobranzas & Cashboard Lifecycle', { timeout: 60000 }, () => {
     })
 
     it('rechaza convertir cotizaciones rechazadas o expiradas', async () => {
+      // El create SIN user no persiste bajo el RLS del multiTenantPlugin (la
+      // fila desaparece y el action la ve como Not Found) — el fixture crea
+      // la quote con el usuario del contexto, como el resto del spec.
       const rejectedQuote = (await payload.create({
         collection: 'quotes',
         overrideAccess: true,
+        user,
         data: {
           tenant: tenant1.id,
           status: 'rejected',
