@@ -1,4 +1,4 @@
-import type { Payload, TaskConfig } from 'payload'
+import type { TaskConfig } from 'payload'
 import { DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3'
 
 /**
