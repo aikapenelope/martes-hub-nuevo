@@ -9,7 +9,6 @@ import {
 } from '@/integrations/composio/shared'
 import { getComposioForTenant } from '@/integrations/composio/client'
 
-const process_env = process.env
 
 beforeEach(() => {
   vi.resetModules()
@@ -74,7 +73,7 @@ describe('composio/shared — userId y filtro de conexiones', () => {
   })
 })
 
-describe('getComposioForTenant — BYO-key con fallback solo para el tenant default', () => {
+describe('getComposioForTenant — central por defecto, BYO opcional', () => {
   function mockPayload(docs: Record<string, unknown>[]): Payload {
     return {
       find: vi.fn().mockResolvedValue({ docs }),
@@ -82,23 +81,24 @@ describe('getComposioForTenant — BYO-key con fallback solo para el tenant defa
     } as unknown as Payload
   }
 
-  it('usa la key cifrada del tenant cuando existe', async () => {
+  it('BYO: la key cifrada del tenant tiene precedencia y reporta source tenant', async () => {
     const stored = encryptSecret('key_del_tenant')
     const session = await getComposioForTenant(mockPayload([{ apiKeyCifrado: stored }]), 1)
     expect(session).not.toBeNull()
     expect(session!.userId).toBe('martes-hub:1')
+    expect(session!.source).toBe('tenant')
   })
 
-  it('cae al env COMPOSIO_API_KEY solo para el tenant default', async () => {
-    process.env.COMPOSIO_API_KEY = 'key_de_martes'
+  it('modo central: sin fila propia, usa la key del operador (cualquier tenant)', async () => {
+    process.env.COMPOSIO_API_KEY = 'key_de_la_plataforma'
     const session = await getComposioForTenant(mockPayload([]), 1)
     expect(session).not.toBeNull()
+    expect(session!.source).toBe('plataforma')
   })
 
-  it('devuelve null sin fila y sin env (UI muestra el estado, sin fallback)', async () => {
+  it('devuelve null sin fila del tenant y sin key del operador (sin fallback a Meta)', async () => {
     delete process.env.COMPOSIO_API_KEY
     const session = await getComposioForTenant(mockPayload([]), 1)
     expect(session).toBeNull()
-    void process_env
   })
 })

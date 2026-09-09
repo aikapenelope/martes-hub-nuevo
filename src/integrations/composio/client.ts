@@ -14,16 +14,21 @@ import {
 /**
  * Cliente Composio BYO-key: la API key del proyecto del tenant vive cifrada
  * en `tenant-integrations` (1 fila por tenant) y NUNCA se expone fuera de
- * este módulo. El tenant de Martes cae al env `COMPOSIO_API_KEY` cuando no
- * tiene fila propia (patrón `isGmailSyncConfigured`: si no hay credencial,
- * devolvemos null y la UI lo muestra — sin fallback a la API de Meta).
+ * este módulo.
+ *
+ * **Modo de operación (decisión de producto):** por defecto el sistema corre
+ * en modo CENTRAL — todos los tenants usan el proyecto Composio de la
+ * plataforma (`COMPOSIO_API_KEY`) y conectan sus servicios con un solo botón
+ * (login hosted); nadie abre Composio ni pega keys. Si un tenant quiere cuota
+ * y conexiones propias, el admin pega SU api key en Ajustes y esa fila
+ * (cifrada) toma precedencia sobre el default.
  */
-
-const DEFAULT_TENANT_SLUG = process.env.WORKSPACE_DEFAULT_TENANT || 'martes'
 
 export interface TenantComposioContext {
   composio: Composio
   userId: string
+  /** De dónde salió la key: 'tenant' (BYO) o 'plataforma' (proyecto central). */
+  source: 'tenant' | 'plataforma'
 }
 
 export async function getComposioForTenant(
@@ -36,6 +41,9 @@ export async function getComposioForTenant(
   if (!tenant) return null
 
   let apiKey: string | null = null
+  let source: TenantComposioContext['source'] = 'plataforma'
+
+  // 1) La fila del tenant gana: BYO-key voluntaria (cuota y conexiones propias).
   const rows = await payload.find({
     collection: 'tenant-integrations',
     where: { tenant: { equals: tenantId } },
@@ -46,12 +54,17 @@ export async function getComposioForTenant(
   const stored = rows.docs[0]
   if (stored?.apiKeyCifrado) {
     apiKey = decryptSecret(stored.apiKeyCifrado)
-  } else if (tenant.slug === DEFAULT_TENANT_SLUG && process.env.COMPOSIO_API_KEY) {
+    source = 'tenant'
+  }
+
+  // 2) Modo central: el proyecto de la plataforma para quien no trajo el suyo
+  //    (o para el tenant Martes en deployments con WORKSPACE_DEFAULT_TENANT distinto).
+  if (!apiKey && process.env.COMPOSIO_API_KEY) {
     apiKey = process.env.COMPOSIO_API_KEY
   }
 
   if (!apiKey) return null
-  return { composio: new Composio({ apiKey }), userId: composioUserId(tenantId) }
+  return { composio: new Composio({ apiKey }), userId: composioUserId(tenantId), source }
 }
 
 /** Get-or-create del auth config gestionado de un toolkit (Composio pone la app de OAuth). */

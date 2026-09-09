@@ -49,11 +49,50 @@ function estadoBadge(estado?: string): { label: string; cls: string } {
 }
 
 /**
- * Hub de conexiones del tenant con Composio (BYO-key): la API key del
- * proyecto se guarda cifrada una vez; cada toolkit se conecta con login
- * hosted (el usuario loguea en el servicio real, nunca en Composio).
- * Los datos los trae el server component; tras cada acción se re-renderiza
- * vía router.refresh().
+ * Abre el link hosted de Composio en un popup y espera el cierre: la página
+ * de callback (`/auth/composio/callback`) avisa por postMessage al completar
+ * (patrón oficial de la skill de Composio).
+ */
+function openAuthPopup(url: string, timeoutMs = 300000): Promise<'done' | 'closed'> {
+  return new Promise((resolve) => {
+    const popup = window.open(url, 'composio-auth-popup', 'width=600,height=840')
+    if (!popup) {
+      resolve('closed')
+      return
+    }
+    popup.focus()
+
+    const cleanup = () => {
+      clearInterval(timer)
+      window.removeEventListener('message', onMessage)
+    }
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      if (event.data === 'composio-auth-done') {
+        cleanup()
+        resolve('done')
+      }
+    }
+    const timer = setInterval(() => {
+      if (popup.closed) {
+        cleanup()
+        resolve('closed')
+      }
+    }, 500)
+    window.addEventListener('message', onMessage)
+    setTimeout(() => {
+      cleanup()
+      resolve('closed')
+    }, timeoutMs)
+  })
+}
+
+/**
+ * Hub de conexiones del tenant con Composio. **Modo central por defecto**:
+ * el sistema usa el proyecto Composio de la plataforma y el usuario solo
+ * aprieta "Conectar" y loguea en el servicio real (Instagram, Google…) en el
+ * popup — nadie abre Composio ni maneja keys. Opcionalmente, un admin puede
+ * pegar la key de SU proyecto (BYO) para cuota y conexiones propias.
  */
 export function IntegrationHub({
   isAdmin,
@@ -81,10 +120,42 @@ export function IntegrationHub({
       if (!result.ok) {
         setMessage({ kind: 'error', text: result.error ?? 'Error' })
       } else if (result.redirectUrl) {
-        window.location.href = result.redirectUrl
+        window.location.assign(result.redirectUrl)
         return
       } else {
         setMessage({ kind: 'ok', text: 'Listo' })
+      }
+      router.refresh()
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Error inesperado' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** Conectar en un clic: link → popup de login del servicio → auto-verificar. */
+  async function handleConnect(slug: string) {
+    setBusy(slug)
+    setMessage(null)
+    try {
+      const started = await startConnectionAction(slug)
+      if (!started.ok || !started.redirectUrl) {
+        setMessage({ kind: 'error', text: started.ok ? 'Composio no devolvió link' : started.error })
+        return
+      }
+      const outcome = await openAuthPopup(started.redirectUrl)
+      if (outcome === 'done') {
+        const verified = await verifyConnectionAction(slug)
+        setMessage(
+          verified.ok
+            ? { kind: 'ok', text: 'Servicio conectado.' }
+            : { kind: 'error', text: verified.error ?? 'No se pudo verificar la conexión' },
+        )
+      } else {
+        setMessage({
+          kind: 'error',
+          text: 'Popup cerrado sin completar el login. Si ya autorizaste, usa "Ya autoricé — verificar".',
+        })
       }
       router.refresh()
     } catch (error) {
@@ -101,7 +172,7 @@ export function IntegrationHub({
       return { ok: false, error: result.error }
     }
     setApiKeyInput('')
-    setMessage({ kind: 'ok', text: 'API key guardada (cifrada). Ya puedes conectar servicios.' })
+    setMessage({ kind: 'ok', text: 'Listo: este tenant ahora usa su propio proyecto Composio (cuota propia).' })
     router.refresh()
     return { ok: true }
   }
@@ -111,50 +182,17 @@ export function IntegrationHub({
       <div className="flex items-center gap-2 pb-4 border-b border-zinc-800">
         <PlugZap className="w-4 h-4 text-white" />
         <h2 className="text-sm font-bold uppercase tracking-wider font-mono text-white">
-          Conexiones (Composio)
+          Conexiones
         </h2>
       </div>
 
       <p className="mt-4 text-[11px] text-zinc-500 font-sans normal-case">
-        Cada servicio se conecta con tu login (Instagram, Google…). Los tokens viven en Composio;
-        aquí solo queda la referencia.
+        Conecta un servicio con un clic: se abre el login del servicio (Instagram, Google…) y
+        queda cableado. Los tokens viven en Composio; aquí solo queda la referencia.
+        {hasApiKey
+          ? ' Este tenant usa su propio proyecto Composio (cuota propia).'
+          : ' Conexión gestionada por la plataforma.'}
       </p>
-
-      {isAdmin && (
-        <div className="mt-4 border border-zinc-800 bg-black/40 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <KeyRound className="w-3.5 h-3.5 text-zinc-400" />
-            <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
-              API key de tu proyecto Composio
-            </span>
-            {hasApiKey && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase text-emerald-400">
-                <CheckCircle2 size={12} /> guardada (cifrada)
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              value={apiKeyInput}
-              onChange={(event) => setApiKeyInput(event.target.value)}
-              placeholder={hasApiKey ? 'Dejar igual o pegar una nueva para rotar' : 'key de platform.composio.dev'}
-              className={inputCls}
-            />
-            <button
-              type="button"
-              className={btnPrimary}
-              disabled={busy === 'key' || !apiKeyInput.trim()}
-              onClick={() => void run('key', handleSaveKey)}
-            >
-              {busy === 'key' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Guardar'}
-            </button>
-          </div>
-          <p className="mt-2 text-[10px] text-zinc-600 font-sans normal-case">
-            Se cifra con AES-256-GCM y no vuelve a mostrarse. Créala en platform.composio.dev → API Keys.
-          </p>
-        </div>
-      )}
 
       {message && (
         <div
@@ -194,10 +232,15 @@ export function IntegrationHub({
                     <button
                       type="button"
                       className={btnPrimary}
-                      disabled={busy !== null || !hasApiKey}
-                      onClick={() => void run(toolkit.slug, () => startConnectionAction(toolkit.slug))}
+                      disabled={busy !== null}
+                      onClick={() => void handleConnect(toolkit.slug)}
                     >
-                      <Link2 size={12} className="inline mr-1" /> Conectar
+                      {busy === toolkit.slug ? (
+                        <Loader2 className="w-3 h-3 animate-spin inline mr-1" />
+                      ) : (
+                        <Link2 size={12} className="inline mr-1" />
+                      )}
+                      Conectar
                     </button>
                   ) : row.estado === 'conectando' ? (
                     <button
@@ -206,11 +249,7 @@ export function IntegrationHub({
                       disabled={busy !== null}
                       onClick={() => void run(toolkit.slug, () => verifyConnectionAction(toolkit.slug))}
                     >
-                      {busy === toolkit.slug ? (
-                        <Loader2 className="w-3 h-3 animate-spin inline mr-1" />
-                      ) : (
-                        <CheckCircle2 size={12} className="inline mr-1" />
-                      )}
+                      <CheckCircle2 size={12} className="inline mr-1" />
                       Ya autoricé — verificar
                     </button>
                   ) : (
@@ -239,6 +278,44 @@ export function IntegrationHub({
           )
         })}
       </div>
+
+      {isAdmin && (
+        <div className="mt-4 border border-zinc-800 bg-black/40 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <KeyRound className="w-3.5 h-3.5 text-zinc-400" />
+            <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+              Opcional: usar tu propio proyecto Composio (BYO)
+            </span>
+            {hasApiKey && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase text-emerald-400">
+                <CheckCircle2 size={12} /> activo (key cifrada)
+              </span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={apiKeyInput}
+              onChange={(event) => setApiKeyInput(event.target.value)}
+              placeholder="API key de platform.composio.dev — solo si quieres cuota propia"
+              className={inputCls}
+            />
+            <button
+              type="button"
+              className={btnPrimary}
+              disabled={busy === 'key' || !apiKeyInput.trim()}
+              onClick={() => void run('key', handleSaveKey)}
+            >
+              {busy === 'key' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Usar'}
+            </button>
+          </div>
+          <p className="mt-2 text-[10px] text-zinc-600 font-sans normal-case">
+            Por defecto las conexiones usan el proyecto de la plataforma. Si pegas aquí tu propia
+            API key, este tenant consume TU cuota y sus conexiones viven en TU proyecto. Cifrado
+            con AES-256-GCM; no vuelve a mostrarse.
+          </p>
+        </div>
+      )}
     </section>
   )
 }

@@ -20,6 +20,7 @@ type ActionResult<T extends object = object> =
   | { ok: false; error: string }
 
 const SETTINGS_PATH = '/workspace/settings'
+const CALLBACK_PATH = '/auth/composio/callback'
 
 async function currentOrigin(): Promise<string> {
   const headerList = await headers()
@@ -122,7 +123,11 @@ export async function startConnectionAction(toolkit: string): Promise<ActionResu
 
     const session = await getComposioForTenant(context.payload, context.tenantId)
     if (!session) {
-      return { ok: false, error: 'Primero configura la API key de tu proyecto Composio en Ajustes' }
+      return {
+        ok: false,
+        error:
+          'Composio no está configurado en el sistema (falta COMPOSIO_API_KEY del operador) y el tenant no aportó key propia',
+      }
     }
 
     const authConfigId = await getOrCreateManagedAuthConfig(session.composio, toolkit)
@@ -131,7 +136,7 @@ export async function startConnectionAction(toolkit: string): Promise<ActionResu
       userId: session.userId,
       authConfigId,
       toolkit,
-      callbackUrl: `${origin}${SETTINGS_PATH}`,
+      callbackUrl: `${origin}${CALLBACK_PATH}`,
     })
 
     // Fila determinista (tenant + toolkit): guarda el auth config esperado para
