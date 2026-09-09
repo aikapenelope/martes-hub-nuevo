@@ -128,6 +128,25 @@ un clic vía **popup** (patrón oficial de la skill: link hosted → callback pa
 `/auth/composio/callback` → postMessage → auto-verificación). Guardrails de
 cuota central: sync diario (no horario) y 2 llamadas por publicación.
 
+## Modelo de propiedad: quién asigna la key y de quién es cada conexión
+
+**La key la asigna el superadmin** (white-glove) — el tenant no abre Composio:
+
+1. El operador crea la cuenta/proyecto Composio del tenant y pega la API key
+   en `/admin → Integraciones del Tenant` (campo write-only `apiKey`, cifrado
+   AES-GCM en `beforeValidate`) o el admin del tenant la pega en Ajustes.
+2. Dentro del tenant, **dos alcances de conexión** (`tenant-connections.scope`):
+   - **`empresa`**: la cuenta compartida del negocio — Instagram corporativo,
+     correo info@, calendario de citas. La conecta un admin; la usan los jobs
+     (sync, publicación) y todos los usuarios.
+   - **`personal`**: cada usuario conecta SU Gmail / SU calendario (3 usuarios,
+     3 cuentas distintas si así se quiere). Aisladas por userId
+     (`martes-hub:{tenant}:u:{userId}`), atribuidas a su usuario.
+3. En ambos alcances **la key es la del proyecto del tenant**: todas las
+   llamadas y el cobro de Composio son responsabilidad del tenant.
+4. El modo central (key del operador) queda como default de arranque; la key
+   propia del tenant siempre tiene precedencia cuando existe.
+
 ## Diseño
 ## Diseño
 
