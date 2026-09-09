@@ -223,6 +223,7 @@ export interface Config {
       'sweep-unsummarized-conversations': TaskSweepUnsummarizedConversations;
       'recalculate-lead-scores': TaskRecalculateLeadScores;
       'dispatch-sequences': TaskDispatchSequences;
+      'purge-expired-social-media': TaskPurgeExpiredSocialMedia;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -993,6 +994,10 @@ export interface Media {
   id: number;
   tenant?: (number | null) | Tenant;
   alt: string;
+  /**
+   * Media temporal de publicaciones sociales: el job TTL borra el objeto grande a las 48h (IG ya copió la imagen); la miniatura queda como historial.
+   */
+  purgedAt?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -1004,6 +1009,16 @@ export interface Media {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
 }
 /**
  * PDFs generados por facturas y cotizaciones. Uso interno.
@@ -1397,7 +1412,7 @@ export interface SocialPost {
   caption: string;
   account: number | SocialAccount;
   media?: (number | Media)[] | null;
-  status: 'borrador' | 'programado' | 'publicado' | 'fallido';
+  status: 'borrador' | 'programado' | 'publicando' | 'publicado' | 'fallido';
   scheduledAt?: string | null;
   publishedAt?: string | null;
   platformPostId?: string | null;
@@ -2013,6 +2028,7 @@ export interface PayloadJob {
           | 'sweep-unsummarized-conversations'
           | 'recalculate-lead-scores'
           | 'dispatch-sequences'
+          | 'purge-expired-social-media'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -2063,6 +2079,7 @@ export interface PayloadJob {
         | 'sweep-unsummarized-conversations'
         | 'recalculate-lead-scores'
         | 'dispatch-sequences'
+        | 'purge-expired-social-media'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -2537,6 +2554,7 @@ export interface DocumentsSelect<T extends boolean = true> {
 export interface MediaSelect<T extends boolean = true> {
   tenant?: T;
   alt?: T;
+  purgedAt?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -2548,6 +2566,20 @@ export interface MediaSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+  sizes?:
+    | T
+    | {
+        thumbnail?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+      };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3682,6 +3714,17 @@ export interface TaskDispatchSequences {
     tasksCreated?: number | null;
     stopped?: number | null;
     completed?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskPurge-expired-social-media".
+ */
+export interface TaskPurgeExpiredSocialMedia {
+  input?: unknown;
+  output: {
+    purged?: number | null;
     summary?: string | null;
   };
 }

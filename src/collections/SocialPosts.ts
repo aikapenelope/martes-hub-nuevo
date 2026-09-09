@@ -56,6 +56,7 @@ export const SocialPosts: CollectionConfig = {
       options: [
         { label: 'Borrador', value: 'borrador' },
         { label: 'Programado', value: 'programado' },
+        { label: 'Publicando', value: 'publicando' },
         { label: 'Publicado', value: 'publicado' },
         { label: 'Fallido', value: 'fallido' },
       ],

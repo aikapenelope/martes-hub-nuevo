@@ -250,3 +250,9 @@ migrations.push({
   down: migration_20260909_200000_composio_tenant_integrations.down,
   name: '20260909_200000_composio_tenant_integrations',
 });
+import * as migration_20260909_210000_media_purged_at from './20260909_210000_media_purged_at';
+migrations.push({
+  up: migration_20260909_210000_media_purged_at.up,
+  down: migration_20260909_210000_media_purged_at.down,
+  name: '20260909_210000_media_purged_at',
+});

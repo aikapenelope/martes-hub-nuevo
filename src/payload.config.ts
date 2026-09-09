@@ -71,6 +71,7 @@ import { summarizeConversationTask } from './jobs/summarizeConversation'
 import { sweepConversationsTask } from './jobs/sweepConversations'
 import { recalculateLeadScoresTask } from './jobs/leadScoring'
 import { dispatchSequencesTask } from './jobs/dispatchSequences'
+import { purgeExpiredSocialMediaTask } from './jobs/purgeSocialMedia'
 import { Appointments } from './collections/Appointments'
 import type { User } from './payload-types'
 import { adminOnly } from './access'
@@ -403,6 +404,7 @@ export default buildConfig({
       sweepConversationsTask,
       recalculateLeadScoresTask,
       dispatchSequencesTask,
+      purgeExpiredSocialMediaTask,
     ],
   },
   editor: lexicalEditor(),

@@ -3,6 +3,12 @@ import type { Payload } from 'payload'
 
 import { decryptSecret, encryptSecret } from '@/lib/crypto'
 import {
+  extractCreationId,
+  extractIgUserId,
+  isPurgeDue,
+  parseToolData,
+} from '@/lib/social-publish'
+import {
   composioTenantUserId,
   composioUserUserId,
   filterConnectedAccounts,
@@ -105,5 +111,39 @@ describe('getComposioForTenant — central por defecto, BYO opcional', () => {
     delete process.env.COMPOSIO_API_KEY
     const session = await getComposioForTenant(mockPayload([]), 1)
     expect(session).toBeNull()
+  })
+})
+
+describe('social-publish — helpers del pipeline de publicación', () => {
+  it('parseToolData extrae el JSON string de la respuesta de Composio', () => {
+    expect(parseToolData({ data: '{"id":"1789"}' })).toEqual({ id: '1789' })
+    expect(parseToolData({ data: 'no-json' })).toEqual({})
+    expect(parseToolData(null)).toEqual({})
+  })
+
+  it('extrae ig_user_id y creation_id de las respuestas del flujo publish', () => {
+    expect(extractIgUserId({ data: '{"id":"17841400000000"}' })).toBe('17841400000000')
+    expect(extractCreationId({ data: '{"id":"179000000000"}' })).toBe('179000000000')
+    expect(extractIgUserId({ data: '{}' })).toBeNull()
+    expect(extractCreationId({ data: '{"error":"boom"}' })).toBeNull()
+  })
+
+  it('isPurgeDue: solo posts publicados con más de 48h sin purgar', () => {
+    const now = Date.parse('2026-09-10T12:00:00Z')
+    const setup = {
+      postStatus: 'publicado',
+      publishedAt: '2026-09-08T09:00:00Z', // 51h antes
+      purgedAt: null,
+      now,
+    }
+    expect(isPurgeDue(setup)).toBe(true)
+    // Dentro del TTL
+    expect(isPurgeDue({ ...setup, publishedAt: '2026-09-09T00:00:00Z' })).toBe(false)
+    // Ya purgada
+    expect(isPurgeDue({ ...setup, purgedAt: '2026-09-09T00:00:00Z' })).toBe(false)
+    // No publicado
+    expect(isPurgeDue({ ...setup, postStatus: 'borrador' })).toBe(false)
+    // Sin publishedAt
+    expect(isPurgeDue({ ...setup, publishedAt: null })).toBe(false)
   })
 })
