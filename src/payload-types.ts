@@ -228,6 +228,7 @@ export interface Config {
       'purge-expired-social-media': TaskPurgeExpiredSocialMedia;
       'sync-instagram-metrics': TaskSyncInstagramMetrics;
       'publish-scheduled-social-posts': TaskPublishScheduledSocialPosts;
+      'sync-tiktok-metrics': TaskSyncTiktokMetrics;
       createCollectionExport: TaskCreateCollectionExport;
       createCollectionImport: TaskCreateCollectionImport;
       inline: {
@@ -1439,7 +1440,7 @@ export interface SocialAccount {
   id: number;
   tenant?: (number | null) | Tenant;
   accountName: string;
-  platform: 'instagram' | 'facebook';
+  platform: 'instagram' | 'tiktok' | 'facebook';
   /**
    * Page ID, Instagram Business Account ID, o el identificador equivalente en tu gestor de redes (p. ej. Metricool)
    */
@@ -1484,6 +1485,10 @@ export interface PostMetric {
   tenant?: (number | null) | Tenant;
   post: number | SocialPost;
   recordedAt: string;
+  /**
+   * Día sin hora: clave del unique (tenant, post, día) — una fila de métricas por post y día.
+   */
+  recordedDay: string;
   impressions?: number | null;
   reach?: number | null;
   likes?: number | null;
@@ -2068,6 +2073,7 @@ export interface PayloadJob {
           | 'purge-expired-social-media'
           | 'sync-instagram-metrics'
           | 'publish-scheduled-social-posts'
+          | 'sync-tiktok-metrics'
           | 'createCollectionExport'
           | 'createCollectionImport';
         taskID: string;
@@ -2121,6 +2127,7 @@ export interface PayloadJob {
         | 'purge-expired-social-media'
         | 'sync-instagram-metrics'
         | 'publish-scheduled-social-posts'
+        | 'sync-tiktok-metrics'
         | 'createCollectionExport'
         | 'createCollectionImport'
       )
@@ -3065,6 +3072,7 @@ export interface PostMetricsSelect<T extends boolean = true> {
   tenant?: T;
   post?: T;
   recordedAt?: T;
+  recordedDay?: T;
   impressions?: T;
   reach?: T;
   likes?: T;
@@ -3812,6 +3820,18 @@ export interface TaskPublishScheduledSocialPosts {
   output: {
     published?: number | null;
     failed?: number | null;
+    summary?: string | null;
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSync-tiktok-metrics".
+ */
+export interface TaskSyncTiktokMetrics {
+  input?: unknown;
+  output: {
+    accounts?: number | null;
+    videos?: number | null;
     summary?: string | null;
   };
 }

@@ -26,6 +26,8 @@ interface ToolkitMeta {
   label: string
   hint: string
   enabled: boolean
+  /** Soporta "Sincronizar ahora" (espejo/métricas inmediatas). */
+  syncable?: boolean
 }
 
 /** Conexiones de la empresa: las conecta un admin, las usa todo el tenant. */
@@ -33,7 +35,7 @@ const EMPRESA_TOOLKITS: ToolkitMeta[] = [
   { slug: 'instagram', label: 'Instagram', hint: 'Publicar + métricas (Business/Creator)', enabled: true },
   { slug: 'gmail', label: 'Gmail del negocio', hint: 'Buzón compartido (info@…)', enabled: true },
   { slug: 'googlecalendar', label: 'Google Calendar del negocio', hint: 'Calendario de citas de la empresa', enabled: true },
-  { slug: 'tiktok', label: 'TikTok', hint: 'Próximamente — requiere app propia de TikTok', enabled: false },
+  { slug: 'tiktok', label: 'TikTok', hint: 'Requiere app propia registrada (TIKTOK_CLIENT_ID/SECRET)', enabled: true, syncable: true },
 ]
 
 /** Conexiones personales: cada usuario conecta su propia cuenta. */

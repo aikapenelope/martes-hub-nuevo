@@ -78,14 +78,48 @@ export async function getComposioForTenant(
   return null
 }
 
-/** Get-or-create del auth config gestionado de un toolkit (Composio pone la app de OAuth). */
+/**
+ * Get-or-create del auth config de un toolkit:
+ * - Managed (Instagram, Gmail, GCal…): Composio pone la app de OAuth.
+ * - Custom (TikTok — sin managed auth): usa NUESTRA app registrada en
+ *   developers.tiktok.com vía TIKTOK_CLIENT_ID/TIKTOK_CLIENT_SECRET (env del
+ *   operador; la misma app sirve para todos los tenants — el redirect es el
+ *   callback de Composio, docs: backend.composio.dev/api/v3/toolkits/auth/callback).
+ */
 export async function getOrCreateManagedAuthConfig(
   composio: Composio,
   toolkit: string,
 ): Promise<string> {
-  const existing = await composio.authConfigs.list({ toolkit, isComposioManaged: true })
+  const existing = await composio.authConfigs.list({ toolkit })
   const found = existing.items?.find((config) => config.toolkit?.slug === toolkit)
   if (found?.id) return found.id
+
+  if (toolkit === 'tiktok') {
+    const clientId = process.env.TIKTOK_CLIENT_ID
+    const clientSecret = process.env.TIKTOK_CLIENT_SECRET
+    if (!clientId || !clientSecret) {
+      throw new Error(
+        'TikTok requiere la app propia registrada: configura TIKTOK_CLIENT_ID y TIKTOK_CLIENT_SECRET (fase 4, doc ideas-futuras/06)',
+      )
+    }
+    const created = await composio.authConfigs.create(toolkit, {
+      type: 'use_custom_auth',
+      authScheme: 'OAUTH2',
+      name: 'Martes Hub TikTok',
+      credentials: {
+        client_id: clientId,
+        client_secret: clientSecret,
+        oauth_redirect_uri: 'https://backend.composio.dev/api/v3/toolkits/auth/callback',
+      },
+    })
+    const customId = created?.id
+    if (!customId) throw new Error('Composio no devolvió id de auth config para tiktok')
+    return customId
+  }
+
+  const managedExisting = await composio.authConfigs.list({ toolkit, isComposioManaged: true })
+  const managed = managedExisting.items?.find((config) => config.toolkit?.slug === toolkit)
+  if (managed?.id) return managed.id
 
   const created = await composio.authConfigs.create(toolkit, {
     type: 'use_composio_managed_auth',

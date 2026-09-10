@@ -294,6 +294,50 @@ export async function verifyConnectionAction(
     })
 
     try {
+      if (toolkit === 'tiktok') {
+        // TikTok: la identidad de negocio es el connected account (el adapter
+        // de stats no la requiere). Espejo igual que Instagram.
+        const byConn = await context.payload.find({
+          collection: 'social-accounts',
+          where: {
+            and: [
+              { tenant: { equals: context.tenantId } },
+              { platform: { equals: 'tiktok' } },
+              { composioConnectedAccountId: { equals: account.id } },
+            ],
+          },
+          limit: 1,
+          depth: 0,
+          overrideAccess: true,
+        })
+        const mirrorData = {
+          status: 'conectada' as const,
+          syncStatus: 'ok' as const,
+          composioConnectedAccountId: account.id,
+          platformAccountId: account.id,
+          lastSyncAt: new Date().toISOString(),
+        }
+        if (byConn.docs[0]) {
+          await context.payload.update({
+            collection: 'social-accounts',
+            id: byConn.docs[0].id,
+            data: mirrorData,
+            overrideAccess: true,
+          })
+        } else {
+          await context.payload.create({
+            collection: 'social-accounts',
+            data: {
+              tenant: context.tenantId,
+              accountName: 'TikTok (conectado vía Composio)',
+              platform: 'tiktok',
+              ...mirrorData,
+            },
+            overrideAccess: true,
+          })
+        }
+      }
+
       if (toolkit === 'instagram') {
       // Identidad IG REAL (no el connected account de Composio) — la consulta
       // GET_USER_INFO resuelve 'me' para la conexión recién autorizada.

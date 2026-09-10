@@ -75,6 +75,7 @@ import { dispatchSequencesTask } from './jobs/dispatchSequences'
 import { purgeExpiredSocialMediaTask } from './jobs/purgeSocialMedia'
 import { syncInstagramMetricsTask } from './jobs/syncInstagramMetrics'
 import { publishScheduledSocialPostsTask } from './jobs/publishScheduledSocialPosts'
+import { syncTikTokMetricsTask } from './jobs/syncTikTokMetrics'
 import { Appointments } from './collections/Appointments'
 import type { User } from './payload-types'
 import { adminOnly } from './access'
@@ -412,6 +413,7 @@ export default buildConfig({
       purgeExpiredSocialMediaTask,
       syncInstagramMetricsTask,
       publishScheduledSocialPostsTask,
+      syncTikTokMetricsTask,
     ],
   },
   editor: lexicalEditor(),

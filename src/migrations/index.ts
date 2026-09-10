@@ -262,3 +262,9 @@ migrations.push({
   down: migration_20260909_220000_social_account_metrics.down,
   name: '20260909_220000_social_account_metrics',
 });
+import * as migration_20260909_230000_tiktok_and_recorded_day from './20260909_230000_tiktok_and_recorded_day';
+migrations.push({
+  up: migration_20260909_230000_tiktok_and_recorded_day.up,
+  down: migration_20260909_230000_tiktok_and_recorded_day.down,
+  name: '20260909_230000_tiktok_and_recorded_day',
+});
