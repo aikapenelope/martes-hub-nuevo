@@ -18,11 +18,6 @@ import { parseToolData } from '../../lib/social-publish'
  * en producción.
  */
 
-interface ComposioSession {
-  composio: Composio
-  userId: string
-}
-
 export interface TikTokVideoStats {
   id: string
   title: string | null
