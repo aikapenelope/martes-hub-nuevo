@@ -59,6 +59,18 @@ async function main(): Promise<void> {
   const active = (listed.items ?? []).find((item) => item.id === account.id)
   console.log(`   verificado: ${active ? 'OK' : 'NO ENCONTRADO'}`)
 
+  if (process.argv[3] === '--schema') {
+    // Modo descubrimiento: imprime el input schema real de las acciones antes
+    // de codificarlas (regla de la skill: nunca adivinar args).
+    const tools = await composio.tools.get(userId, { toolkits: [toolkit], limit: 50 })
+    for (const tool of tools) {
+      const typed = tool as { slug?: string; inputSchema?: unknown; description?: string }
+      const input = JSON.stringify(typed.inputSchema ?? {}).slice(0, 600)
+      console.log(`— ${typed.slug ?? '(sin slug)'}\n  ${input}`)
+    }
+    return
+  }
+
   const info = await composio.toolkits.get(toolkit)
   const version = info.meta?.availableVersions?.[0]
   console.log(`   versión del toolkit: ${version ?? '(sin versiones publicadas)'}`)
