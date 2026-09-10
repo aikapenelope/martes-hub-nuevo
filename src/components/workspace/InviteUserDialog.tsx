@@ -1,76 +1,90 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Plus } from 'lucide-react'
 
 import { inviteUserAction } from '@/lib/team-actions'
-import { Drawer } from '@/components/workspace/overlays'
+import { Button } from '@/components/ui/button'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { FormCheckbox } from '@/components/workspace/form-checkbox'
 
-const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
-const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
+const labelCls = 'font-mono text-[11px] uppercase tracking-wider text-muted-foreground'
 
 /** Reemplaza crear un usuario desde `/admin/collections/users/create`. Solo admins (gateado por el caller). */
 export function InviteUserDialog() {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <>
-      <button
-        type="button"
-        className="px-4 py-2 bg-sky-400 hover:bg-sky-300 text-black font-black flex items-center gap-2 uppercase transition shadow-[0_0_16px_rgba(56,189,248,0.35)] text-xs font-mono"
-        onClick={() => setOpen(true)}
-      >
-        <Plus className="w-4 h-4" /> + Invitar
-      </button>
-
-      <Drawer open={open} onClose={() => setOpen(false)} title="Invitar Miembro al Equipo" size="md">
-
-        <form action={inviteUserAction} className="flex flex-col gap-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className={labelCls}>
-              Nombre
-              <input name="firstName" maxLength={100} className={inputCls} />
-            </label>
-            <label className={labelCls}>
-              Apellido
-              <input name="lastName" maxLength={100} className={inputCls} />
-            </label>
-          </div>
-          <label className={labelCls}>
-            Email
-            <input name="email" type="email" required className={inputCls} />
-          </label>
-          <label className={labelCls}>
-            Contraseña temporal (mín. 8 caracteres)
-            <input name="password" type="text" required minLength={8} className={inputCls} />
-          </label>
-          <fieldset className={labelCls}>
-            Roles
-            <div className="mt-1 flex flex-col gap-1.5 text-xs text-zinc-300">
-              <label className="flex items-center gap-2"><input type="checkbox" name="roles" value="admin" /> Admin — gestiona todo</label>
-              <label className="flex items-center gap-2"><input type="checkbox" name="roles" value="agente" defaultChecked /> Agente — opera CRM</label>
-              <label className="flex items-center gap-2"><input type="checkbox" name="roles" value="viewer" /> Viewer — solo lectura</label>
-            </div>
-          </fieldset>
-          <p className="text-[11px] text-zinc-500">
-            Comparte la contraseña temporal por un canal seguro. El nuevo usuario puede cambiarla
-            desde &quot;¿Olvidaste tu contraseña?&quot; en el login.
-          </p>
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono"
-            >
-              Cancelar
-            </button>
-            <button type="submit" className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono">
-              Crear usuario
-            </button>
-          </div>
-        </form>
-      </Drawer>
-    </>
-  )
+	return (
+		<Dialog>
+			<DialogTrigger asChild>
+				<Button size="sm">
+					<Plus /> Invitar
+				</Button>
+			</DialogTrigger>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Invitar Miembro al Equipo</DialogTitle>
+					<DialogDescription>
+						Comparte la contraseña temporal por un canal seguro. El nuevo usuario puede cambiarla desde
+						&quot;¿Olvidaste tu contraseña?&quot; en el login.
+					</DialogDescription>
+				</DialogHeader>
+				<form action={inviteUserAction} className="flex flex-col gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
+						<div className="space-y-1.5">
+							<Label htmlFor="invite-first-name" className={labelCls}>
+								Nombre
+							</Label>
+							<Input id="invite-first-name" name="firstName" maxLength={100} />
+						</div>
+						<div className="space-y-1.5">
+							<Label htmlFor="invite-last-name" className={labelCls}>
+								Apellido
+							</Label>
+							<Input id="invite-last-name" name="lastName" maxLength={100} />
+						</div>
+					</div>
+					<div className="space-y-1.5">
+						<Label htmlFor="invite-email" className={labelCls}>
+							Email
+						</Label>
+						<Input id="invite-email" name="email" type="email" required />
+					</div>
+					<div className="space-y-1.5">
+						<Label htmlFor="invite-password" className={labelCls}>
+							Contraseña temporal (mín. 8 caracteres)
+						</Label>
+						<Input id="invite-password" name="password" type="text" required minLength={8} />
+					</div>
+					<fieldset className="space-y-2">
+						<legend className={labelCls}>Roles</legend>
+						<div className="flex flex-col gap-2 text-xs">
+							<label htmlFor="invite-role-admin" className="flex cursor-pointer items-center gap-2">
+								<FormCheckbox id="invite-role-admin" name="roles" value="admin" />
+								Admin — gestiona todo
+							</label>
+							<label htmlFor="invite-role-agente" className="flex cursor-pointer items-center gap-2">
+								<FormCheckbox id="invite-role-agente" name="roles" value="agente" defaultChecked />
+								Agente — opera CRM
+							</label>
+							<label htmlFor="invite-role-viewer" className="flex cursor-pointer items-center gap-2">
+								<FormCheckbox id="invite-role-viewer" name="roles" value="viewer" />
+								Viewer — solo lectura
+							</label>
+						</div>
+					</fieldset>
+					<DialogFooter>
+						<Button type="submit">Crear usuario</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	)
 }
