@@ -7,14 +7,22 @@ import { Check, MessageCircle, ExternalLink, CalendarClock } from 'lucide-react'
 import type { FollowUpItem } from '@/lib/followups-today'
 import type { User } from '@/payload-types'
 import { markLeadsContactedTodayAction, snoozeLeadsAction } from '@/lib/hoy-triage-actions'
-import { Drawer } from '@/components/workspace/overlays'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { CrmLeadDrawer } from '@/components/workspace/CrmLeadDrawer'
 
 /**
  * Triage estilo Linear de la cola de seguimientos (ítem 3): j/k navegan,
  * x selecciona, E marca contactado (saca al lead de la cola), S pospone
- * 1/3/7 días, Enter abre la ficha en drawer in-page. Solo los leads tienen
- * acciones de triage; los clientes se muestran con su acceso directo.
+ * 1/3/7 días, Enter abre la ficha en sheet lateral in-page. Solo los leads
+ * tienen acciones de triage; los clientes se muestran con su acceso directo.
  */
 
 const SNOOZE_OPTIONS = [1, 3, 7] as const
@@ -96,7 +104,7 @@ export function FollowupsTriage({
     [hideKeys, router],
   )
 
-  // Atajos de teclado (se ignoran mientras el drawer está abierto o se
+  // Atajos de teclado (se ignoran mientras el sheet está abierto o se
   // escribe en un input).
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -185,10 +193,10 @@ export function FollowupsTriage({
 
   if (rows.length === 0) {
     return (
-      <div className="py-12 text-center text-zinc-500">
+      <div className="py-12 text-center text-muted-foreground">
         <Check className="mx-auto mb-2 h-8 w-8 text-emerald-500" />
-        <p className="text-sm font-medium text-white">Al día con todos los contactos</p>
-        <p className="mt-1 text-xs font-mono text-zinc-500">
+        <p className="text-sm font-medium text-foreground">Al día con todos los contactos</p>
+        <p className="mt-1 font-mono text-xs text-muted-foreground">
           Ningún lead o cliente ha sobrepasado su SLA de seguimiento sin respuesta.
         </p>
       </div>
@@ -198,7 +206,7 @@ export function FollowupsTriage({
   return (
     <div className="relative">
       {canEdit && (
-        <p className="mb-3 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+        <p className="mb-3 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
           j/k navega · x selecciona · E contactado · S posponer (1/3/7) · Enter ficha · Esc limpia
         </p>
       )}
@@ -212,25 +220,27 @@ export function FollowupsTriage({
         <div className="mb-3 flex items-center justify-between border border-emerald-900/60 bg-emerald-950/20 px-3 py-2 text-xs text-emerald-300">
           <span className="font-mono">{selected.size} seleccionado(s)</span>
           <div className="flex items-center gap-2">
-            <button
+            <Button
               type="button"
+              size="xs"
               disabled={pending}
               onClick={() => {
                 const keys = [...selected]
                 runAction(markLeadsContactedTodayAction, keys, '{n} lead(s) marcados como contactados')
               }}
-              className="border border-emerald-700 bg-emerald-900/40 px-2 py-1 font-mono text-[10px] uppercase text-emerald-200 transition hover:bg-emerald-900/70 disabled:opacity-50"
+              className="border border-emerald-700 bg-emerald-900/40 font-mono text-[10px] uppercase text-emerald-200 hover:bg-emerald-900/70"
             >
-              <Check className="mr-1 inline h-3 w-3" /> Contactado (E)
-            </button>
-            <button
+              <Check className="size-3" /> Contactado (E)
+            </Button>
+            <Button
               type="button"
+              size="xs"
               disabled={pending}
               onClick={() => setSnoozeOpen(true)}
-              className="border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-[10px] uppercase text-zinc-300 transition hover:bg-zinc-800 disabled:opacity-50"
+              className="border border-input bg-muted font-mono text-[10px] uppercase text-foreground/80 hover:bg-accent hover:text-foreground"
             >
-              <CalendarClock className="mr-1 inline h-3 w-3" /> Posponer (S)
-            </button>
+              <CalendarClock className="size-3" /> Posponer (S)
+            </Button>
           </div>
         </div>
       )}
@@ -249,20 +259,20 @@ export function FollowupsTriage({
                 else rowRefs.current.delete(index)
               }}
               className={`flex flex-col gap-2.5 border p-3 transition sm:flex-row sm:items-center sm:justify-between ${
-                isCursor ? 'border-white/60 bg-zinc-900' : 'border-zinc-800 bg-zinc-900/50'
+                isCursor ? 'border-foreground/60 bg-muted' : 'border-border bg-muted/50'
               } ${isSelected ? 'ring-1 ring-emerald-500/70' : ''}`}
               onClick={() => setCursor(index)}
             >
               <div className="flex min-w-0 items-start gap-2.5">
                 {canEdit && isLead && (
-                  <button
-                    type="button"
-                    role="checkbox"
-                    aria-checked={isSelected}
+                  <Checkbox
+                    checked={isSelected}
                     aria-label={`Seleccionar ${item.name}`}
                     onClick={(event) => {
                       event.stopPropagation()
                       setCursor(index)
+                    }}
+                    onCheckedChange={() => {
                       setSelected((prev) => {
                         const next = new Set(prev)
                         if (next.has(key)) next.delete(key)
@@ -270,14 +280,8 @@ export function FollowupsTriage({
                         return next
                       })
                     }}
-                    className={`mt-0.5 h-4 w-4 shrink-0 rounded border transition ${
-                      isSelected
-                        ? 'border-emerald-500 bg-emerald-950 text-emerald-300'
-                        : 'border-zinc-700 bg-black text-transparent hover:border-emerald-600 hover:text-emerald-300'
-                    }`}
-                  >
-                    <Check size={11} className="mx-auto" />
-                  </button>
+                    className="mt-0.5 hover:border-emerald-600 data-checked:border-emerald-500 data-checked:bg-emerald-950 data-checked:text-emerald-300"
+                  />
                 )}
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -290,27 +294,28 @@ export function FollowupsTriage({
                     >
                       {isLead ? 'Lead' : 'Cliente'}
                     </span>
-                    <strong className="text-sm text-white">{item.name}</strong>
-                    <span className="font-mono text-[10px] text-zinc-500">
+                    <strong className="text-sm text-foreground">{item.name}</strong>
+                    <span className="font-mono text-[10px] text-muted-foreground">
                       · {PIPELINE_LABELS[item.pipeline] ?? item.pipeline}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-zinc-300">{item.reason}</p>
-                  <div className="mt-1 flex items-center gap-3 font-mono text-[11px] text-zinc-500">
+                  <p className="mt-1 text-xs text-foreground/80">{item.reason}</p>
+                  <div className="mt-1 flex items-center gap-3 font-mono text-[11px] text-muted-foreground">
                     <span>Sin contacto hace {item.daysSince} días</span>
-                    <button
+                    <Button
                       type="button"
+                      variant="link"
                       onClick={(event) => {
                         event.stopPropagation()
                         // Hallazgo Devin #105-2: los clientes navegan a su
-                        // ficha CRM (el drawer in-page es solo de leads).
+                        // ficha CRM (el sheet in-page es solo de leads).
                         if (isLead) setDrawerLeadId(item.id)
                         else router.push(item.crmUrl)
                       }}
-                      className="underline hover:text-white"
+                      className="h-auto p-0 text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
                     >
                       Ficha
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -325,18 +330,19 @@ export function FollowupsTriage({
                   <MessageCircle className="h-3.5 w-3.5 fill-black" />
                   WhatsApp
                 </a>
-                <button
+                <Button
                   type="button"
+                  size="icon"
                   onClick={(event) => {
                     event.stopPropagation()
                     if (isLead) setDrawerLeadId(item.id)
                     else router.push(item.crmUrl)
                   }}
                   title={isLead ? 'Abrir ficha sin salir de Hoy' : 'Abrir ficha en el CRM'}
-                  className="inline-flex items-center gap-1 border border-zinc-700 bg-zinc-900 px-2.5 py-2 font-mono text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                  className="border border-input bg-muted font-mono text-xs text-foreground/80 hover:bg-accent hover:text-foreground"
                 >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </button>
+                  <ExternalLink className="size-3.5" />
+                </Button>
               </div>
             </li>
           )
@@ -344,45 +350,59 @@ export function FollowupsTriage({
       </ul>
 
       {snoozeOpen && canEdit && (
-        <div className="absolute right-0 top-16 z-20 border border-zinc-700 bg-zinc-950 p-3 shadow-2xl">
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+        <div className="absolute right-0 top-16 z-20 border border-border bg-background p-3 shadow-2xl">
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
             Posponer leads (1/3/7)
           </p>
           <div className="flex gap-2">
             {SNOOZE_OPTIONS.map((days) => (
-              <button
+              <Button
                 key={days}
                 type="button"
+                size="sm"
                 disabled={pending}
                 onClick={() => {
                   setSnoozeOpen(false)
                   const keys = selected.size > 0 ? [...selected] : rows[clampedCursor] ? [`${rows[clampedCursor]!.kind}:${rows[clampedCursor]!.id}`] : []
                   runAction((ids) => snoozeLeadsAction(ids, days), keys, '{n} lead(s) pospuestos')
                 }}
-                className="border border-zinc-700 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-white transition hover:bg-zinc-800 disabled:opacity-50"
+                className="border border-input bg-muted px-3 font-mono text-xs text-foreground hover:bg-accent hover:text-foreground"
               >
                 {days}d
-              </button>
+              </Button>
             ))}
           </div>
         </div>
       )}
 
-      <Drawer
+      <Sheet
         open={drawerLeadId !== null}
-        onClose={() => setDrawerLeadId(null)}
-        title="Ficha del lead"
-        size="2xl"
+        onOpenChange={(open) => {
+          if (!open) setDrawerLeadId(null)
+        }}
       >
-        {drawerLeadId !== null && (
-          <CrmLeadDrawer
-            leadId={drawerLeadId}
-            canEdit={canEdit}
-            assignees={assignees}
-            onUpdated={() => router.refresh()}
-          />
-        )}
-      </Drawer>
+        <SheetContent
+          side="right"
+          className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl"
+        >
+          <SheetHeader className="border-b border-border px-4 py-3">
+            <SheetTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Ficha del lead
+            </SheetTitle>
+            <SheetDescription className="sr-only">Ficha CRM 360° del lead</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-1 flex-col overflow-y-auto p-4">
+            {drawerLeadId !== null && (
+              <CrmLeadDrawer
+                leadId={drawerLeadId}
+                canEdit={canEdit}
+                assignees={assignees}
+                onUpdated={() => router.refresh()}
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
