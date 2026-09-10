@@ -9,12 +9,13 @@
  *  3. Panel Derecho: Ficha CRM 360° en vivo (Lead con conversión in-situ, Cliente con
  *     resumen financiero de facturación/cobros, vinculación de contactos in-situ,
  *     Copiloto IA con generación de resúmenes e inserción directa al chat, y notas privadas).
- *  4. Lateral Drawer: Apertura de nuevas conversaciones omnicanal sin modales centrados.
+ *  4. Lateral Drawer: Apertura de nuevas conversaciones sin modales centrados.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import {
   InboxConversationList,
   type ConvListItem,
@@ -341,20 +342,21 @@ export function InboxWorkspace({
               onBack={() => setMobileView('list')}
             />
           ) : (
-            <div className="flex h-full flex-col items-center justify-center border border-zinc-850 bg-zinc-950 p-6 text-center font-mono space-y-2">
-              <div className="w-10 h-10 border border-zinc-800 bg-zinc-900 flex items-center justify-center text-zinc-400">
+            <div className="flex h-full flex-col items-center justify-center space-y-2 border border-border bg-background p-6 text-center font-mono">
+              <div className="flex h-10 w-10 items-center justify-center border border-border bg-muted text-muted-foreground">
                 💬
               </div>
-              <p className="text-sm font-bold text-white">Consola Omnicanal Lista para Despachar</p>
-              <p className="text-xs text-zinc-500 max-w-sm">
+              <p className="text-sm font-bold text-foreground">Consola Omnicanal Lista para Despachar</p>
+              <p className="max-w-sm text-xs text-muted-foreground">
                 Selecciona una conversación del panel izquierdo o haz clic en{' '}
-                <button
+                <Button
                   type="button"
+                  variant="link"
                   onClick={() => setIsNewConvOpen(true)}
-                  className="text-white underline hover:text-emerald-400 font-bold"
+                  className="h-auto p-0 text-xs font-bold text-foreground underline hover:text-emerald-400"
                 >
                   + Nueva Conversación
-                </button>{' '}
+                </Button>{' '}
                 para abrir un hilo con un cliente o prospecto.
               </p>
             </div>
