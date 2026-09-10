@@ -34,38 +34,41 @@
   --oled-subcard-border-hover: #2e2e3d;
   --oled-accent-cyan: #38bdf8;
   --oled-accent-indigo: #818cf8;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Tokens shadcn calzados a la paleta OLED (fase 0 del plan de migración).
+   * El init vino en modo claro y pintaba el body BLANCO sobre la UI negra —
+   * fix del reporte del 2026-09-10. Los --oled-* quedan como fuente de verdad. */
+  --background: var(--oled-bg);
+  --foreground: #e4e4e7;
+  --card: var(--oled-card-bg);
+  --card-foreground: #e4e4e7;
+  --popover: var(--oled-subcard-bg);
+  --popover-foreground: #e4e4e7;
+  --primary: #ffffff;
+  --primary-foreground: #000000;
+  --secondary: #18181b;
+  --secondary-foreground: #e4e4e7;
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa;
+  --accent: #272732;
+  --accent-foreground: #ffffff;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --border: var(--oled-card-border);
+  --input: var(--oled-subcard-border);
+  --ring: var(--oled-accent-cyan);
+  --chart-1: var(--oled-accent-cyan);
+  --chart-2: var(--oled-accent-indigo);
+  --chart-3: #34d399;
+  --chart-4: #fbbf24;
+  --chart-5: #fb7185;
+  --radius: 0.125rem;
+  --sidebar: var(--oled-bg);
+  --sidebar-foreground: #e4e4e7;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: var(--oled-subcard-bg);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: var(--oled-card-border);
+  --sidebar-ring: var(--oled-accent-cyan);
 }
 
 /*
