@@ -8,8 +8,17 @@ import { AlertTriangle, CalendarClock, CircleDollarSign, RefreshCw } from 'lucid
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { MembershipCreateDialog } from '@/components/workspace/MembershipCreateDialog'
-import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
+import { EmptyState, KpiCard, PageHero, StatusBadge } from '@/components/workspace/oled'
 import { MembershipStatusSelect } from '@/components/workspace/MembershipStatusSelect'
+import { Card } from '@/components/ui/card'
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from '@/components/ui/table'
 import type { Client, Membership } from '@/payload-types'
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
@@ -77,34 +86,34 @@ export default async function MembershipsPage() {
         <KpiCard label="Total histórico" value={memberships.length} icon={RefreshCw} accent="indigo" note="Todas las membresías del tenant" />
       </section>
 
-      <OledCard className="!p-0">
+      <Card className="gap-0 overflow-hidden py-0">
         {memberships.length === 0 ? (
           <EmptyState>Sin membresías registradas para este tenant todavía.</EmptyState>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-zinc-800 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
-                  <th className="px-4 py-2.5 font-medium">Cliente</th>
-                  <th className="px-4 py-2.5 font-medium">Plan</th>
-                  <th className="px-4 py-2.5 font-medium">Mensual</th>
-                  <th className="px-4 py-2.5 font-medium">Renueva</th>
-                  <th className="px-4 py-2.5 font-medium">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <TableHead className="px-4 py-2.5">Cliente</TableHead>
+                  <TableHead className="px-4 py-2.5">Plan</TableHead>
+                  <TableHead className="px-4 py-2.5">Mensual</TableHead>
+                  <TableHead className="px-4 py-2.5">Renueva</TableHead>
+                  <TableHead className="px-4 py-2.5">Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {memberships.map((m) => {
                   const clientName = typeof m.client === 'object' && m.client ? (m.client as Client).name : `Cliente #${m.client}`
                   const renewalSoon = m.status === 'activa' && new Date(m.renewalDate).getTime() <= in7Days
                   return (
-                    <tr key={m.id} className="border-b border-zinc-900 hover:bg-zinc-900/40">
-                      <td className="px-4 py-3 text-white">{clientName}</td>
-                      <td className="px-4 py-3 text-zinc-400">{m.plan}</td>
-                      <td className="px-4 py-3 font-bold text-white">{usd.format(m.monthlyPrice)}</td>
-                      <td className={`px-4 py-3 ${renewalSoon ? 'text-amber-400 font-bold' : 'text-zinc-400'}`}>
+                    <TableRow key={m.id} className="border-b hover:bg-muted/40">
+                      <TableCell className="px-4 py-3 text-foreground">{clientName}</TableCell>
+                      <TableCell className="px-4 py-3 text-muted-foreground">{m.plan}</TableCell>
+                      <TableCell className="px-4 py-3 font-bold text-foreground">{usd.format(m.monthlyPrice)}</TableCell>
+                      <TableCell className={`px-4 py-3 ${renewalSoon ? 'font-bold text-amber-400' : 'text-muted-foreground'}`}>
                         {date.format(new Date(m.renewalDate))}
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
                         {canEdit ? (
                           <MembershipStatusSelect
                             membershipId={m.id}
@@ -114,15 +123,15 @@ export default async function MembershipsPage() {
                         ) : (
                           <StatusBadge tone={STATUS_TONE[m.status ?? 'activa']}>{m.status}</StatusBadge>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
-      </OledCard>
+      </Card>
     </div>
   )
 }
