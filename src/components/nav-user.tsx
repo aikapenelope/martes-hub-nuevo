@@ -54,7 +54,9 @@ export function NavUser({ user }: { user: ShellUser }) {
 				</DropdownMenuItem>
 				{user.isAdmin && (
 					<DropdownMenuItem asChild>
-						<Link href="/admin">
+						{/* Nueva pestaña como el link del sidebar legacy: el workspace
+						 * (filtros, kanban, scroll) no se pierde al entrar al panel. */}
+						<Link href="/admin" target="_blank" rel="noopener noreferrer">
 							<ShieldIcon />
 							Panel admin
 						</Link>

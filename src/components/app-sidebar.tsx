@@ -3,7 +3,6 @@
 import Link from "next/link";
 
 import { LogoIcon } from "@/components/logo";
-import { LatestChange } from "@/components/latest-change";
 import { NavGroup } from "@/components/nav-group";
 import { NavUser } from "@/components/nav-user";
 import { NAV_SECTIONS } from "@/components/workspace/nav-config";
@@ -41,7 +40,6 @@ export function AppSidebar({ user }: { user: ShellUser }) {
 				))}
 			</SidebarContent>
 			<SidebarFooter className="gap-0 p-0">
-				<LatestChange />
 				<div className="px-4 pt-3 pb-2 transition-opacity group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
 					<p className="text-nowrap text-[9px] text-muted-foreground">
 						© {new Date().getFullYear()} Martes Hub
