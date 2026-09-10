@@ -62,6 +62,7 @@ export function DashboardInvoices() {
 						<TableRow>
 							<TableHead className="ps-6">Customer</TableHead>
 							<TableHead>Invoice</TableHead>
+							<TableHead>Status</TableHead>
 							<TableHead className="pe-6 text-right tabular-nums">
 								Amount
 							</TableHead>
@@ -75,6 +76,9 @@ export function DashboardInvoices() {
 								</TableCell>
 								<TableCell className="text-muted-foreground tabular-nums">
 									#{inv.id}
+								</TableCell>
+								<TableCell className="text-muted-foreground">
+									{inv.status}
 								</TableCell>
 								<TableCell className="pe-6 text-right tabular-nums">
 									{inv.amount}
