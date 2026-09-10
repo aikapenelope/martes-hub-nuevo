@@ -13,6 +13,8 @@ al estado real del repo** y un checklist para ejecutar el sprint.
 | 02 | [Conciliación de pagos desde WhatsApp](./02-conciliacion-pagos-whatsapp.md) | Captura de comprobante entrante → extracción con modelo de visión → `payments` en `por_confirmar` → botón único de confirmación en Billing. La imagen no se duplica: se referencia al mensaje. Doc pendiente de actualizar con sección de Consideraciones (como los demás) cuando llegue su turno. |
 | 05 | [Conversiones y próximas acciones](./05-conversiones-y-proximas-acciones.md) | **Investigación — por decidir modelo.** Página de conversiones (modelos PostHog funnels vs HubSpot attribution, con links) + tarjetas de próxima acción con IA (estilo Einstein Next Best Action / HubSpot Prospecting Agent): a quién contactar, por qué ahora y qué escribirle. |
 
+| 07 | [Segundo WhatsApp por Composio](./07-segundo-whatsapp-composio.md) | **Documentado.** El primario queda en OpenBSP (un número, robusto); el segundo WhatsApp de negocio entra por el toolkit WHATSAPP de Composio (Cloud API, managed OAuth, trigger de entrantes) **cayendo en el mismo inbox** con la misma paridad: lead auto-creado, conversaciones, sentimiento, recordatorios, pagos. |
+
 ## Estado
 
 Priorizado. Orden de construcción acordado:
