@@ -345,7 +345,8 @@ export function TaskCreateDialog({
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" className="font-mono text-xs font-bold uppercase tracking-wider">
+              {/* type="button": sin él, Cancelar haría submit del form y crearía la tarea (review Devin). */}
+              <Button type="button" variant="outline" className="font-mono text-xs font-bold uppercase tracking-wider">
                 Cancelar
               </Button>
             </DialogClose>
