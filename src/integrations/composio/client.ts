@@ -81,10 +81,13 @@ export async function getComposioForTenant(
 /**
  * Get-or-create del auth config de un toolkit:
  * - Managed (Instagram, Gmail, GCal…): Composio pone la app de OAuth.
- * - Custom (TikTok — sin managed auth): usa NUESTRA app registrada en
- *   developers.tiktok.com vía TIKTOK_CLIENT_ID/TIKTOK_CLIENT_SECRET (env del
- *   operador; la misma app sirve para todos los tenants — el redirect es el
- *   callback de Composio, docs: backend.composio.dev/api/v3/toolkits/auth/callback).
+ * - Custom (TikTok — verificado 2026-09-09: "Composio-managed OAuth not
+ *   available" en docs.composio.dev/toolkits/tiktok): usa NUESTRA app
+ *   registrada en developers.tiktok.com vía TIKTOK_CLIENT_ID/TIKTOK_CLIENT_
+ *   SECRET (env del operador; la misma app sirve para todos los tenants — el
+ *   redirect es el callback de Composio).
+ * - A prueba de futuro: si Composio agrega managed OAuth para TikTok, el
+ *   primer `list({ toolkit })` lo encuentra y lo usa sin cambios de código.
  */
 export async function getOrCreateManagedAuthConfig(
   composio: Composio,

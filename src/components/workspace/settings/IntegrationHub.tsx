@@ -35,7 +35,7 @@ const EMPRESA_TOOLKITS: ToolkitMeta[] = [
   { slug: 'instagram', label: 'Instagram', hint: 'Publicar + métricas (Business/Creator)', enabled: true },
   { slug: 'gmail', label: 'Gmail del negocio', hint: 'Buzón compartido (info@…)', enabled: true },
   { slug: 'googlecalendar', label: 'Google Calendar del negocio', hint: 'Calendario de citas de la empresa', enabled: true },
-  { slug: 'tiktok', label: 'TikTok', hint: 'Requiere app propia registrada (TIKTOK_CLIENT_ID/SECRET)', enabled: true, syncable: true },
+  { slug: 'tiktok', label: 'TikTok', hint: 'Publicar + métricas — el operador registra la app de TikTok una vez (TIKTOK_CLIENT_ID/SECRET)', enabled: true, syncable: true },
 ]
 
 /** Conexiones personales: cada usuario conecta su propia cuenta. */
