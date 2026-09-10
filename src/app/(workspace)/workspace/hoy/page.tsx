@@ -2,15 +2,15 @@ import 'server-only'
 
 import Link from 'next/link'
 import {
-  AlertTriangle,
-  Calendar,
-  Check,
-  CheckCircle2,
-  CheckSquare,
-  CreditCard,
-  MessageCircle,
-  RefreshCw,
-  Sparkles,
+	AlertTriangle,
+	Calendar,
+	Check,
+	CheckCircle2,
+	CheckSquare,
+	CreditCard,
+	MessageCircle,
+	RefreshCw,
+	Sparkles,
 } from 'lucide-react'
 
 import { getUpcomingAgenda } from '@/lib/agenda-data'
@@ -18,476 +18,468 @@ import { collectFollowupsToday } from '@/lib/followups-today'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
 import { FollowupsTriage } from '@/components/workspace/hoy/FollowupsTriage'
+import { PageHeader } from '@/components/workspace/page-header'
 import { getAssignableUsers } from '@/lib/tasks-data'
 import { changeTaskStatusAction } from '@/lib/tasks-actions'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Client, Lead, Payment, Task } from '@/payload-types'
 
-const priorityCls: Record<string, string> = {
-  baja: 'bg-zinc-800 text-zinc-300 border border-zinc-700',
-  media: 'bg-zinc-800 text-zinc-200 border border-zinc-600',
-  alta: 'bg-amber-900/50 text-amber-300 border border-amber-800',
-  urgente: 'bg-red-900/50 text-red-400 border border-red-800',
+const priorityVariant: Record<string, 'outline' | 'warning' | 'destructive'> = {
+	baja: 'outline',
+	media: 'outline',
+	alta: 'warning',
+	urgente: 'destructive',
 }
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 
 export default async function HoyPage() {
-  const context = await getWorkspaceContext()
+	const context = await getWorkspaceContext()
 
-  // Obtener zona horaria configurada para el tenant activo
-  const settingsRes = await context.payload.find({
-    collection: 'company-settings',
-    where: { tenant: { equals: context.tenantId } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  })
-  const timeZone = settingsRes.docs[0]?.timezone || 'America/Caracas'
+	// Obtener zona horaria configurada para el tenant activo
+	const settingsRes = await context.payload.find({
+		collection: 'company-settings',
+		where: { tenant: { equals: context.tenantId } },
+		limit: 1,
+		depth: 0,
+		overrideAccess: true,
+	})
+	const timeZone = settingsRes.docs[0]?.timezone || 'America/Caracas'
 
-  const now = new Date()
-  let isoDateStr = ''
-  try {
-    isoDateStr = new Intl.DateTimeFormat('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(now)
-  } catch {
-    isoDateStr = now.toISOString().slice(0, 10)
-  }
+	const now = new Date()
+	let isoDateStr = ''
+	try {
+		isoDateStr = new Intl.DateTimeFormat('en-CA', {
+			timeZone,
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+		}).format(now)
+	} catch {
+		isoDateStr = now.toISOString().slice(0, 10)
+	}
 
-  const startOfToday = new Date(`${isoDateStr}T00:00:00Z`)
+	const startOfToday = new Date(`${isoDateStr}T00:00:00Z`)
 
-  const [
-    agendaItems,
-    followups,
-    overdueTasksRes,
-    overduePaymentsRes,
-    assignees,
-    clientsRes,
-    leadsRes,
-  ] = await Promise.all([
-    getUpcomingAgenda({
-      payload: context.payload,
-      tenantId: context.tenantId,
-      user: context.user,
-      days: 1,
-      since: startOfToday,
-    }),
-    collectFollowupsToday({
-      payload: context.payload,
-      user: context.user,
-      tenantId: context.tenantId,
-    }),
-    context.payload.find({
-      collection: 'tasks',
-      limit: 20,
-      sort: 'dueDate',
-      depth: 0,
-      overrideAccess: false,
-      user: context.user,
-      where: {
-        and: [
-          { tenant: { equals: context.tenantId } },
-          { dueDate: { less_than: startOfToday.toISOString() } },
-          { status: { not_in: ['completada', 'cancelada'] } },
-        ],
-      },
-    }),
-    context.payload.find({
-      collection: 'payments',
-      limit: 20,
-      sort: 'dueDate',
-      depth: 1,
-      overrideAccess: false,
-      user: context.user,
-      where: {
-        and: [
-          { tenant: { equals: context.tenantId } },
-          { dueDate: { less_than: startOfToday.toISOString() } },
-          { status: { in: ['pendiente', 'vencido'] } },
-        ],
-      },
-    }),
-    getAssignableUsers({
-      payload: context.payload,
-      user: context.user,
-      tenantId: context.tenantId,
-    }),
-    context.payload.find({
-      collection: 'clients',
-      depth: 0,
-      limit: 100,
-      sort: 'name',
-      where: { tenant: { equals: context.tenantId } },
-      select: { name: true },
-      overrideAccess: false,
-      user: context.user,
-    }),
-    context.payload.find({
-      collection: 'leads',
-      depth: 0,
-      limit: 100,
-      sort: 'fullName',
-      where: { tenant: { equals: context.tenantId } },
-      select: { fullName: true },
-      overrideAccess: false,
-      user: context.user,
-    }),
-  ])
+	const [
+		agendaItems,
+		followups,
+		overdueTasksRes,
+		overduePaymentsRes,
+		assignees,
+		clientsRes,
+		leadsRes,
+	] = await Promise.all([
+		getUpcomingAgenda({
+			payload: context.payload,
+			tenantId: context.tenantId,
+			user: context.user,
+			days: 1,
+			since: startOfToday,
+		}),
+		collectFollowupsToday({
+			payload: context.payload,
+			user: context.user,
+			tenantId: context.tenantId,
+		}),
+		context.payload.find({
+			collection: 'tasks',
+			limit: 20,
+			sort: 'dueDate',
+			depth: 0,
+			overrideAccess: false,
+			user: context.user,
+			where: {
+				and: [
+					{ tenant: { equals: context.tenantId } },
+					{ dueDate: { less_than: startOfToday.toISOString() } },
+					{ status: { not_in: ['completada', 'cancelada'] } },
+				],
+			},
+		}),
+		context.payload.find({
+			collection: 'payments',
+			limit: 20,
+			sort: 'dueDate',
+			depth: 1,
+			overrideAccess: false,
+			user: context.user,
+			where: {
+				and: [
+					{ tenant: { equals: context.tenantId } },
+					{ dueDate: { less_than: startOfToday.toISOString() } },
+					{ status: { in: ['pendiente', 'vencido'] } },
+				],
+			},
+		}),
+		getAssignableUsers({
+			payload: context.payload,
+			user: context.user,
+			tenantId: context.tenantId,
+		}),
+		context.payload.find({
+			collection: 'clients',
+			depth: 0,
+			limit: 100,
+			sort: 'name',
+			where: { tenant: { equals: context.tenantId } },
+			select: { name: true },
+			overrideAccess: false,
+			user: context.user,
+		}),
+		context.payload.find({
+			collection: 'leads',
+			depth: 0,
+			limit: 100,
+			sort: 'fullName',
+			where: { tenant: { equals: context.tenantId } },
+			select: { fullName: true },
+			overrideAccess: false,
+			user: context.user,
+		}),
+	])
 
-  const appointments = agendaItems.filter((i) => i.type === 'cita')
-  const tasks = agendaItems.filter((i) => i.type === 'task')
-  const payments = agendaItems.filter((i) => i.type === 'payment')
-  const overdueTasks = overdueTasksRes.docs as Task[]
-  const overduePayments = overduePaymentsRes.docs as Payment[]
-  // KPI de mora basado en totalDocs: las consultas de documentos vienen limitadas a 20
-  // para el preview visual, pero el total debe reflejar TODAS las tareas/cobros vencidos.
-  const totalOverdue = (overdueTasksRes.totalDocs ?? 0) + (overduePaymentsRes.totalDocs ?? 0)
-  const totalCommitments = appointments.length + tasks.length + payments.length
+	const appointments = agendaItems.filter((i) => i.type === 'cita')
+	const tasks = agendaItems.filter((i) => i.type === 'task')
+	const payments = agendaItems.filter((i) => i.type === 'payment')
+	const overdueTasks = overdueTasksRes.docs as Task[]
+	const overduePayments = overduePaymentsRes.docs as Payment[]
+	// KPI de mora basado en totalDocs: las consultas de documentos vienen limitadas a 20
+	// para el preview visual, pero el total debe reflejar TODAS las tareas/cobros vencidos.
+	const totalOverdue = (overdueTasksRes.totalDocs ?? 0) + (overduePaymentsRes.totalDocs ?? 0)
+	const totalCommitments = appointments.length + tasks.length + payments.length
 
-  let todayDateFormatted = ''
-  try {
-    todayDateFormatted = new Intl.DateTimeFormat('es', {
-      timeZone,
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    }).format(now)
-  } catch {
-    todayDateFormatted = new Intl.DateTimeFormat('es', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    }).format(now)
-  }
+	let todayDateFormatted = ''
+	try {
+		todayDateFormatted = new Intl.DateTimeFormat('es', {
+			timeZone,
+			weekday: 'long',
+			day: 'numeric',
+			month: 'long',
+			year: 'numeric',
+		}).format(now)
+	} catch {
+		todayDateFormatted = new Intl.DateTimeFormat('es', {
+			weekday: 'long',
+			day: 'numeric',
+			month: 'long',
+			year: 'numeric',
+		}).format(now)
+	}
 
-  return (
-    <div className="space-y-6">
-      {/* Hero Header */}
-      <section className="oled-card p-5 shadow-2xl">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-xs font-mono text-zinc-400 uppercase tracking-wider">
-              <span className="w-2 h-2 bg-emerald-400 inline-block animate-pulse" />
-              <span>Briefing Diario · {context.tenant.name}</span>
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white capitalize">
-              {todayDateFormatted}
-            </h1>
-            <p className="mt-1 text-xs text-zinc-400">
-              Centro de operaciones del día: compromisos agendados, tareas pendientes y seguimientos prioritarios.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {context.canEdit && (
-              <TaskCreateDialog
-                assignees={assignees}
-                clients={clientsRes.docs as Client[]}
-                leads={leadsRes.docs as Lead[]}
-                variant="primary"
-                redirectTo="/workspace/hoy"
-              />
-            )}
-            <Link
-              href="/workspace/hoy"
-              className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition inline-flex items-center gap-1.5 uppercase tracking-wider font-mono"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Actualizar
-            </Link>
-          </div>
-        </div>
-      </section>
+	const kpis = [
+		{ label: 'Citas hoy', value: appointments.length, icon: Calendar, iconCls: 'text-sky-400' },
+		{ label: 'Tareas hoy', value: tasks.length, icon: CheckSquare, iconCls: 'text-amber-400' },
+		{ label: 'Cobros hoy', value: payments.length, icon: CreditCard, iconCls: 'text-emerald-400' },
+		{ label: 'A contactar', value: followups.length, icon: MessageCircle, iconCls: 'text-[#25d366]' },
+	]
 
-      {/* KPI Cards Strip */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <div className="oled-card p-3.5">
-          <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
-            <Calendar className="w-4 h-4 text-sky-400" /> Citas hoy
-          </div>
-          <p className="mt-2 text-2xl font-bold font-mono text-white">{appointments.length}</p>
-        </div>
-        <div className="oled-card p-3.5">
-          <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
-            <CheckSquare className="w-4 h-4 text-amber-400" /> Tareas hoy
-          </div>
-          <p className="mt-2 text-2xl font-bold font-mono text-white">{tasks.length}</p>
-        </div>
-        <div className="oled-card p-3.5">
-          <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
-            <CreditCard className="w-4 h-4 text-emerald-400" /> Cobros hoy
-          </div>
-          <p className="mt-2 text-2xl font-bold font-mono text-white">{payments.length}</p>
-        </div>
-        <div className="oled-card p-3.5">
-          <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
-            <MessageCircle className="w-4 h-4 text-[#25d366]" /> A contactar
-          </div>
-          <p className="mt-2 text-2xl font-bold font-mono text-white">{followups.length}</p>
-        </div>
-        <div className="oled-card p-3.5">
-          <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
-            <AlertTriangle className={`w-4 h-4 ${totalOverdue > 0 ? 'text-red-400' : 'text-zinc-500'}`} /> Vencidas
-          </div>
-          <p className={`mt-2 text-2xl font-bold font-mono ${totalOverdue > 0 ? 'text-red-400' : 'text-zinc-400'}`}>
-            {totalOverdue}
-          </p>
-        </div>
-      </section>
+	return (
+		<div className="space-y-6">
+			<PageHeader
+				eyebrow={`Briefing Diario · ${context.tenant.name}`}
+				title={todayDateFormatted}
+				description="Centro de operaciones del día: compromisos agendados, tareas pendientes y seguimientos prioritarios."
+				actions={
+					<>
+						{context.canEdit && (
+							<TaskCreateDialog
+								assignees={assignees}
+								clients={clientsRes.docs as Client[]}
+								leads={leadsRes.docs as Lead[]}
+								variant="primary"
+								redirectTo="/workspace/hoy"
+							/>
+						)}
+						<Button variant="outline" size="sm" asChild>
+							<Link href="/workspace/hoy">
+								<RefreshCw /> Actualizar
+							</Link>
+						</Button>
+					</>
+				}
+			/>
 
-      {/* Alerta de Vencidas si existen compromisos atrasados */}
-      {totalOverdue > 0 && (
-        <section className="border border-red-900/60 bg-red-950/20 p-4 space-y-3">
-          <div className="flex items-center justify-between border-b border-red-900/40 pb-2">
-            <div className="flex items-center gap-2 text-red-300 text-xs font-bold font-mono uppercase tracking-wider">
-              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-              <span>Atención Prioritaria: Compromisos con Vencimiento Atrasado ({totalOverdue})</span>
-            </div>
-            <span className="text-[11px] font-mono text-red-400/80">Requieren acción inmediata</span>
-          </div>
+			{/* KPI Cards Strip */}
+			<section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+				{kpis.map((kpi) => (
+					<Card key={kpi.label} className="gap-0 py-3.5">
+						<CardContent className="px-3.5">
+							<div className="flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+								<kpi.icon className={`h-4 w-4 ${kpi.iconCls}`} /> {kpi.label}
+							</div>
+							<p className="mt-2 font-mono text-2xl font-bold text-foreground">{kpi.value}</p>
+						</CardContent>
+					</Card>
+				))}
+				<Card className="gap-0 py-3.5">
+					<CardContent className="px-3.5">
+						<div className="flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+							<AlertTriangle className={`h-4 w-4 ${totalOverdue > 0 ? 'text-red-400' : 'text-muted-foreground'}`} /> Vencidas
+						</div>
+						<p className={`mt-2 font-mono text-2xl font-bold ${totalOverdue > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
+							{totalOverdue}
+						</p>
+					</CardContent>
+				</Card>
+			</section>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {overdueTasks.map((t) => (
-              <div
-                key={`overdue-t-${t.id}`}
-                className="flex items-center justify-between gap-3 p-3 bg-zinc-950/80 border border-red-900/40 text-xs"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-mono px-1 py-0.2 text-red-400 bg-red-950 border border-red-800 uppercase">
-                      Tarea vencida
-                    </span>
-                    <span className={`text-[10px] font-mono px-1 py-0.2 ${priorityCls[t.priority] || ''}`}>
-                      {t.priority}
-                    </span>
-                  </div>
-                  <strong className="block text-white mt-1 truncate">{t.title}</strong>
-                  <span className="text-[10px] font-mono text-zinc-500">
-                    Límite: {t.dueDate?.slice(0, 10)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {context.canEdit && (
-                    <form action={changeTaskStatusAction}>
-                      <input type="hidden" name="id" value={t.id} />
-                      <input type="hidden" name="status" value="completada" />
-                      <button
-                        type="submit"
-                        title="Marcar como completada"
-                        className="p-1.5 bg-zinc-900 hover:bg-emerald-950 hover:text-emerald-300 border border-zinc-800 text-zinc-400 transition"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                      </button>
-                    </form>
-                  )}
-                  <Link
-                    href={`/workspace/tasks/${t.id}`}
-                    className="text-xs text-sky-400 hover:text-white font-mono underline"
-                  >
-                    Ver
-                  </Link>
-                </div>
-              </div>
-            ))}
+			{/* Alerta de Vencidas si existen compromisos atrasados */}
+			{totalOverdue > 0 && (
+				<section className="space-y-3 border border-red-900/60 bg-red-950/20 p-4">
+					<div className="flex items-center justify-between border-b border-red-900/40 pb-2">
+						<div className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-red-300">
+							<AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
+							<span>Atención Prioritaria: Compromisos con Vencimiento Atrasado ({totalOverdue})</span>
+						</div>
+						<span className="font-mono text-[11px] text-red-400/80">Requieren acción inmediata</span>
+					</div>
 
-            {overduePayments.map((p) => {
-              const clientObj = typeof p.client === 'object' && p.client ? (p.client as Client) : null
-              return (
-                <div
-                  key={`overdue-p-${p.id}`}
-                  className="flex items-center justify-between gap-3 p-3 bg-zinc-950/80 border border-red-900/40 text-xs"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-mono px-1 py-0.2 text-red-400 bg-red-950 border border-red-800 uppercase">
-                        Cobro vencido
-                      </span>
-                      <span className="text-[10px] font-mono text-emerald-400 font-bold">
-                        {usd.format(p.amount)}
-                      </span>
-                    </div>
-                    <strong className="block text-white mt-1 truncate">
-                      {clientObj?.name ?? 'Cliente'}
-                    </strong>
-                    <span className="text-[10px] font-mono text-zinc-500">
-                      Venció: {p.dueDate?.slice(0, 10)}
-                    </span>
-                  </div>
-                  <Link
-                    href="/workspace/billing"
-                    className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs font-mono uppercase font-bold shrink-0 transition"
-                  >
-                    Cobrar →
-                  </Link>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      )}
+					<div className="grid gap-3 sm:grid-cols-2">
+						{overdueTasks.map((t) => (
+							<div
+								key={`overdue-t-${t.id}`}
+								className="flex items-center justify-between gap-3 border border-red-900/40 bg-background/80 p-3 text-xs"
+							>
+								<div className="min-w-0 flex-1">
+									<div className="flex items-center gap-2">
+										<Badge variant="destructive" className="text-[9px] uppercase">
+											Tarea vencida
+										</Badge>
+										<Badge variant={priorityVariant[t.priority] ?? 'outline'} className="text-[10px] lowercase">
+											{t.priority}
+										</Badge>
+									</div>
+									<strong className="mt-1 block truncate text-foreground">{t.title}</strong>
+									<span className="font-mono text-[10px] text-muted-foreground">
+										Límite: {t.dueDate?.slice(0, 10)}
+									</span>
+								</div>
+								<div className="flex shrink-0 items-center gap-2">
+									{context.canEdit && (
+										<form action={changeTaskStatusAction}>
+											<input type="hidden" name="id" value={t.id} />
+											<input type="hidden" name="status" value="completada" />
+											<Button
+												type="submit"
+												variant="outline"
+												size="icon"
+												title="Marcar como completada"
+												className="h-7 w-7 text-muted-foreground hover:text-emerald-300"
+											>
+												<Check className="h-3.5 w-3.5" />
+											</Button>
+										</form>
+									)}
+									<Link
+										href={`/workspace/tasks/${t.id}`}
+										className="font-mono text-xs text-sky-400 underline hover:text-foreground"
+									>
+										Ver
+									</Link>
+								</div>
+							</div>
+						))}
 
-      {/* Main Grid: Agenda & Followups */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Agenda del Día */}
-        <div className="space-y-4">
-          <div className="oled-card p-5">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-white" />
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                  Agenda del Día
-                </h2>
-              </div>
-              <span className="text-xs font-mono text-zinc-400">
-                {totalCommitments} {totalCommitments === 1 ? 'compromiso' : 'compromisos'}
-              </span>
-            </div>
+						{overduePayments.map((p) => {
+							const clientObj = typeof p.client === 'object' && p.client ? (p.client as Client) : null
+							return (
+								<div
+									key={`overdue-p-${p.id}`}
+									className="flex items-center justify-between gap-3 border border-red-900/40 bg-background/80 p-3 text-xs"
+								>
+									<div className="min-w-0 flex-1">
+										<div className="flex items-center gap-2">
+											<Badge variant="destructive" className="text-[9px] uppercase">
+												Cobro vencido
+											</Badge>
+											<span className="font-mono text-[10px] font-bold text-emerald-400">
+												{usd.format(p.amount)}
+											</span>
+										</div>
+										<strong className="mt-1 block truncate text-foreground">
+											{clientObj?.name ?? 'Cliente'}
+										</strong>
+										<span className="font-mono text-[10px] text-muted-foreground">
+											Venció: {p.dueDate?.slice(0, 10)}
+										</span>
+									</div>
+									<Button
+										asChild
+										variant="outline"
+										size="sm"
+										className="shrink-0 border-emerald-500/30 bg-emerald-500/10 font-mono text-xs font-bold uppercase text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300"
+									>
+										<Link href="/workspace/billing">Cobrar →</Link>
+									</Button>
+								</div>
+							)
+						})}
+					</div>
+				</section>
+			)}
 
-            {totalCommitments === 0 ? (
-              <div className="py-12 text-center text-zinc-500">
-                <Sparkles className="w-8 h-8 mx-auto mb-2 text-zinc-600" />
-                <p className="text-sm font-medium text-zinc-300">Agenda despejada para hoy</p>
-                <p className="text-xs font-mono mt-1 text-zinc-500">
-                  No hay citas ni tareas programadas con vencimiento hoy.
-                </p>
-              </div>
-            ) : (
-              <div className="mt-4 divide-y divide-zinc-900">
-                {appointments.length > 0 && (
-                  <div className="py-3 first:pt-0">
-                    <p className="text-[10px] font-mono text-sky-400 uppercase tracking-wider mb-2">
-                      Citas Agendadas ({appointments.length})
-                    </p>
-                    <ul className="space-y-2">
-                      {appointments.map((item, idx) => (
-                        <li
-                          key={`cita-${idx}`}
-                          className="flex items-center justify-between p-2.5 bg-zinc-900/60 border border-zinc-800"
-                        >
-                          <div>
-                            <Link href={item.href} className="text-xs font-semibold text-white hover:underline">
-                              {item.label}
-                            </Link>
-                            <p className="text-[10px] text-zinc-400 font-mono mt-0.5">{item.sublabel}</p>
-                          </div>
-                          <span className="text-[11px] font-mono px-2 py-0.5 bg-sky-950 text-sky-300 border border-sky-800">
-                            {new Intl.DateTimeFormat('es', { timeZone, timeStyle: 'short' }).format(new Date(item.date))}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+			{/* Main Grid: Agenda & Followups */}
+			<div className="grid gap-6 lg:grid-cols-2">
+				{/* Agenda del Día */}
+				<div className="space-y-4">
+					<Card className="gap-0 py-5">
+						<CardHeader className="flex flex-row items-center justify-between gap-2 border-b px-5 pb-3">
+							<CardTitle className="flex items-center gap-2 font-mono text-sm uppercase tracking-wider">
+								<Calendar className="h-4 w-4" />
+								Agenda del Día
+							</CardTitle>
+							<span className="font-mono text-xs text-muted-foreground">
+								{totalCommitments} {totalCommitments === 1 ? 'compromiso' : 'compromisos'}
+							</span>
+						</CardHeader>
+						<CardContent className="mt-2">
+							{totalCommitments === 0 ? (
+								<div className="py-12 text-center text-muted-foreground">
+									<Sparkles className="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
+									<p className="text-sm font-medium text-foreground">Agenda despejada para hoy</p>
+									<p className="mt-1 font-mono text-xs text-muted-foreground">
+										No hay citas ni tareas programadas con vencimiento hoy.
+									</p>
+								</div>
+							) : (
+								<div className="mt-4 divide-y">
+									{appointments.length > 0 && (
+										<div className="py-3 first:pt-0">
+											<p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-sky-400">
+												Citas Agendadas ({appointments.length})
+											</p>
+											<ul className="space-y-2">
+												{appointments.map((item, idx) => (
+													<li
+														key={`cita-${idx}`}
+														className="flex items-center justify-between border bg-muted/60 p-2.5"
+													>
+														<div>
+															<Link href={item.href} className="text-xs font-semibold text-foreground hover:underline">
+																{item.label}
+															</Link>
+															<p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{item.sublabel}</p>
+														</div>
+														<Badge variant="outline" className="font-mono text-[11px] text-sky-400">
+															{new Intl.DateTimeFormat('es', { timeZone, timeStyle: 'short' }).format(new Date(item.date))}
+														</Badge>
+													</li>
+												))}
+											</ul>
+										</div>
+									)}
 
-                {tasks.length > 0 && (
-                  <div className="py-3 first:pt-0">
-                    <p className="text-[10px] font-mono text-amber-400 uppercase tracking-wider mb-2">
-                      Tareas con Vencimiento Hoy ({tasks.length})
-                    </p>
-                    <ul className="space-y-2">
-                      {tasks.map((item, idx) => (
-                        <li
-                          key={`task-${idx}`}
-                          className="flex items-center justify-between p-2.5 bg-zinc-900/60 border border-zinc-800"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                            {context.canEdit && item.id && (
-                              <form action={changeTaskStatusAction}>
-                                <input type="hidden" name="id" value={item.id} />
-                                <input type="hidden" name="status" value="completada" />
-                                <button
-                                  type="submit"
-                                  title="Marcar como completada"
-                                  className="h-4 w-4 rounded border border-zinc-700 bg-black hover:bg-emerald-950 hover:border-emerald-600 flex items-center justify-center text-transparent hover:text-emerald-300 transition"
-                                >
-                                  <Check size={11} />
-                                </button>
-                              </form>
-                            )}
-                            <div className="truncate">
-                              <Link href={item.href} className="text-xs font-semibold text-white hover:underline truncate block">
-                                {item.label}
-                              </Link>
-                              <p className="text-[10px] text-zinc-400 font-mono mt-0.5 truncate">{item.sublabel}</p>
-                            </div>
-                          </div>
-                          <Link
-                            href={item.href}
-                            className="text-xs text-zinc-400 hover:text-white font-mono shrink-0"
-                          >
-                            Ver tarea →
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+									{tasks.length > 0 && (
+										<div className="py-3 first:pt-0">
+											<p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-amber-400">
+												Tareas con Vencimiento Hoy ({tasks.length})
+											</p>
+											<ul className="space-y-2">
+												{tasks.map((item, idx) => (
+													<li
+														key={`task-${idx}`}
+														className="flex items-center justify-between bg-muted/60 p-2.5"
+													>
+														<div className="flex min-w-0 items-center gap-2.5 pr-2">
+															{context.canEdit && item.id && (
+																<form action={changeTaskStatusAction}>
+																	<input type="hidden" name="id" value={item.id} />
+																	<input type="hidden" name="status" value="completada" />
+																	<Button
+																		type="submit"
+																		variant="outline"
+																		size="icon"
+																		title="Marcar como completada"
+																		className="h-4 w-4 rounded-none border-border bg-transparent text-transparent hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-300"
+																	>
+																		<Check size={11} />
+																	</Button>
+																</form>
+															)}
+															<div className="truncate">
+																<Link href={item.href} className="block truncate text-xs font-semibold text-foreground hover:underline">
+																	{item.label}
+																</Link>
+																<p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">{item.sublabel}</p>
+															</div>
+														</div>
+														<Link
+															href={item.href}
+															className="shrink-0 font-mono text-xs text-muted-foreground hover:text-foreground"
+														>
+															Ver tarea →
+														</Link>
+													</li>
+												))}
+											</ul>
+										</div>
+									)}
 
-                {payments.length > 0 && (
-                  <div className="py-3 first:pt-0">
-                    <p className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider mb-2">
-                      Cobros del Día ({payments.length})
-                    </p>
-                    <ul className="space-y-2">
-                      {payments.map((item, idx) => (
-                        <li
-                          key={`pay-${idx}`}
-                          className="flex items-center justify-between p-2.5 bg-zinc-900/60 border border-zinc-800"
-                        >
-                          <div>
-                            <Link href={item.href} className="text-xs font-semibold text-white hover:underline">
-                              {item.label}
-                            </Link>
-                            <p className="text-[10px] text-zinc-400 font-mono mt-0.5">{item.sublabel}</p>
-                          </div>
-                          <Link
-                            href={item.href}
-                            className="text-xs text-emerald-400 hover:text-emerald-300 font-mono"
-                          >
-                            Cobrar →
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+									{payments.length > 0 && (
+										<div className="py-3 first:pt-0">
+											<p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-emerald-400">
+												Cobros del Día ({payments.length})
+											</p>
+											<ul className="space-y-2">
+												{payments.map((item, idx) => (
+													<li
+														key={`pay-${idx}`}
+														className="flex items-center justify-between border bg-muted/60 p-2.5"
+													>
+														<div>
+															<Link href={item.href} className="text-xs font-semibold text-foreground hover:underline">
+																{item.label}
+															</Link>
+															<p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{item.sublabel}</p>
+														</div>
+														<Link
+															href={item.href}
+															className="font-mono text-xs text-emerald-400 hover:text-emerald-300"
+														>
+															Cobrar →
+														</Link>
+													</li>
+												))}
+											</ul>
+										</div>
+									)}
+								</div>
+							)}
+						</CardContent>
+					</Card>
+				</div>
 
-        {/* Seguimientos Proactivos (WhatsApp) */}
-        <div className="space-y-4">
-          <div className="oled-card p-5">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="w-4 h-4 text-[#25d366]" />
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                  Seguimientos Comerciales (WhatsApp)
-                </h2>
-              </div>
-              <span className="text-xs font-mono text-zinc-400">
-                {followups.length} {followups.length === 1 ? 'pendiente' : 'pendientes'}
-              </span>
-            </div>
-
-            {followups.length === 0 ? (
-              <div className="py-12 text-center text-zinc-500">
-                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
-                <p className="text-sm font-medium text-white">Al día con todos los contactos</p>
-                <p className="text-xs font-mono mt-1 text-zinc-500">
-                  Ningún lead o cliente ha sobrepasado su SLA de seguimiento sin respuesta.
-                </p>
-              </div>
-            ) : (
-              <FollowupsTriage items={followups} canEdit={context.canEdit} assignees={assignees} />
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+				{/* Seguimientos Proactivos (WhatsApp) */}
+				<div className="space-y-4">
+					<Card className="gap-0 py-5">
+						<CardHeader className="flex flex-row items-center justify-between gap-2 border-b px-5 pb-3">
+							<CardTitle className="flex items-center gap-2 font-mono text-sm uppercase tracking-wider">
+								<MessageCircle className="h-4 w-4 text-[#25d366]" />
+								Seguimientos Comerciales (WhatsApp)
+							</CardTitle>
+							<span className="font-mono text-xs text-muted-foreground">
+								{followups.length} {followups.length === 1 ? 'pendiente' : 'pendientes'}
+							</span>
+						</CardHeader>
+						<CardContent className="mt-2">
+							{followups.length === 0 ? (
+								<div className="py-12 text-center text-muted-foreground">
+									<CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-emerald-500" />
+									<p className="text-sm font-medium text-foreground">Al día con todos los contactos</p>
+									<p className="mt-1 font-mono text-xs text-muted-foreground">
+										Ningún lead o cliente ha sobrepasado su SLA de seguimiento sin respuesta.
+									</p>
+								</div>
+							) : (
+								<FollowupsTriage items={followups} canEdit={context.canEdit} assignees={assignees} />
+							)}
+						</CardContent>
+					</Card>
+				</div>
+			</div>
+		</div>
+	)
 }
