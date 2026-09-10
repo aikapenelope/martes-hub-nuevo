@@ -109,7 +109,7 @@ export default async function WorkspacePage({
 
   return (
     <div className="space-y-4">
-      {/* Selector de rango (estilo dashboard-9: 14D/1M/3M/6M) */}
+      {/* Selector de rango */}
       <nav aria-label="Rango de tiempo" className="flex items-center gap-1">
         {RANGES.map((r) => (
           <Link
@@ -117,7 +117,9 @@ export default async function WorkspacePage({
             href={`/workspace?rango=${r.key}&vista=${initialView}`}
             aria-current={timeRange === r.key ? 'true' : undefined}
             className={`px-2.5 py-1 text-[11px] font-mono uppercase transition ${
-              timeRange === r.key ? 'bg-white text-black font-bold' : 'border border-zinc-800 text-zinc-400 hover:text-white'
+              timeRange === r.key
+                ? 'bg-primary text-primary-foreground font-bold'
+                : 'border border-border text-muted-foreground hover:text-foreground'
             }`}
           >
             {r.label}
@@ -136,13 +138,13 @@ export default async function WorkspacePage({
           <Link
             key={action.href}
             href={action.href}
-            className="oled-card p-3.5 transition hover:border-zinc-600 flex items-center justify-between gap-2 group"
+            className="flex items-center justify-between gap-2 border border-border bg-card p-3.5 transition hover:border-muted-foreground/40 group"
           >
             <div className="min-w-0">
-              <p className="text-xs font-bold text-white">{action.title}</p>
-              <p className="mt-1 text-[11px] text-zinc-500 truncate">{action.desc}</p>
+              <p className="text-xs font-bold text-foreground">{action.title}</p>
+              <p className="mt-1 truncate text-[11px] text-muted-foreground">{action.desc}</p>
             </div>
-            <span className="font-mono text-sm text-zinc-600 group-hover:text-zinc-300 transition shrink-0" aria-hidden="true">
+            <span className="shrink-0 font-mono text-sm text-muted-foreground transition group-hover:text-foreground" aria-hidden="true">
               &gt;
             </span>
           </Link>
