@@ -294,6 +294,66 @@ export async function verifyConnectionAction(
     })
 
     try {
+      if (toolkit === 'tiktok') {
+        // TikTok (review Devin): un reconnect genera un connectedAccountId
+        // nuevo — buscar solo por ese id duplicaría el espejo y dejaría los
+        // posts históricos huérfanos en la fila vieja. Alcance TikTok es
+        // siempre empresa → hay UN espejo del negocio: adoptarlo y revivirlo
+        // con la nueva referencia; crear solo si no existe ninguno.
+        const mirrors = await context.payload.find({
+          collection: 'social-accounts',
+          where: {
+            and: [
+              { tenant: { equals: context.tenantId } },
+              { platform: { equals: 'tiktok' } },
+              { composioConnectedAccountId: { exists: true } },
+            ],
+          },
+          limit: 5,
+          depth: 0,
+          overrideAccess: true,
+        })
+        const mirrorData = {
+          status: 'conectada' as const,
+          syncStatus: 'ok' as const,
+          composioConnectedAccountId: account.id,
+          platformAccountId: account.id,
+          lastSyncAt: new Date().toISOString(),
+        }
+        const active = mirrors.docs.find((doc) => doc.composioConnectedAccountId === account.id)
+        // Adoptar SOLO filas no conectadas: un espejo aún 'conectada' puede
+        // representar OTRA cuenta TikTok activa — reescribirle la conexión
+        // asociaría sus posts históricos a credenciales ajenas (review Devin).
+        const stale = mirrors.docs.find((doc) => doc.status !== 'conectada')
+
+        if (active) {
+          await context.payload.update({
+            collection: 'social-accounts',
+            id: active.id,
+            data: mirrorData,
+            overrideAccess: true,
+          })
+        } else if (stale) {
+          await context.payload.update({
+            collection: 'social-accounts',
+            id: stale.id,
+            data: mirrorData,
+            overrideAccess: true,
+          })
+        } else {
+          await context.payload.create({
+            collection: 'social-accounts',
+            data: {
+              tenant: context.tenantId,
+              accountName: 'TikTok (conectado vía Composio)',
+              platform: 'tiktok',
+              ...mirrorData,
+            },
+            overrideAccess: true,
+          })
+        }
+      }
+
       if (toolkit === 'instagram') {
       // Identidad IG REAL (no el connected account de Composio) — la consulta
       // GET_USER_INFO resuelve 'me' para la conexión recién autorizada.
@@ -491,7 +551,9 @@ export async function disconnectConnectionAction(
         // La revocación en Composio no puede bloquear la desconexión local.
         await deleteConnectedAccount(session.composio, row.connectedAccountId).catch(() => undefined)
       }
-      if (toolkit === 'instagram') {
+      // Instagram y TikTok tienen espejo en social-accounts: al desconectar,
+      // marcarlo para que el composer deje de ofrecer la cuenta revocada.
+      if (toolkit === 'instagram' || toolkit === 'tiktok') {
         const linked = await context.payload.find({
           collection: 'social-accounts',
           where: {

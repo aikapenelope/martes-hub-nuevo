@@ -38,6 +38,16 @@ export const PostMetrics: CollectionConfig = {
       },
     },
     {
+      name: 'recordedDay',
+      type: 'date',
+      required: true,
+      label: 'Día del registro (UTC)',
+      admin: {
+        description: 'Día sin hora: clave del unique (tenant, post, día) — una fila de métricas por post y día.',
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'impressions',
       type: 'number',
       defaultValue: 0,

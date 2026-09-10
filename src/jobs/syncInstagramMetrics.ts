@@ -211,8 +211,7 @@ export const syncInstagramMetricsTask: TaskConfig = {
             where: {
               and: [
                 { post: { equals: postId } },
-                { recordedAt: { greater_than_equal: `${todayIso}T00:00:00.000Z` } },
-                { recordedAt: { less_than_equal: `${todayIso}T23:59:59.999Z` } },
+                { recordedDay: { equals: `${todayIso}T00:00:00.000Z` } },
               ],
             },
             limit: 1,
@@ -223,6 +222,7 @@ export const syncInstagramMetricsTask: TaskConfig = {
             tenant: tenantId,
             post: postId,
             recordedAt: new Date().toISOString(),
+            recordedDay: `${todayIso}T00:00:00.000Z`,
             impressions: reach,
             reach,
             likes: item.likeCount ?? 0,

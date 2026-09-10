@@ -1,6 +1,7 @@
 import type { Payload } from 'payload'
 
 import { executeTool, getComposioForTenant } from '@/integrations/composio/client'
+import { postPhoto as tiktokPostPhoto } from '@/integrations/composio/tiktok'
 import {
   assertToolSuccess,
   extractCreationId,
@@ -58,12 +59,9 @@ export async function runSocialPublish(
 
   try {
     const account = typeof post.account === 'object' ? post.account : null
-    if (!account || account.platform !== 'instagram' || !account.composioConnectedAccountId) {
-      throw new Error('La cuenta del post no es Instagram conectado vía Composio')
+    if (!account || !account.composioConnectedAccountId) {
+      throw new Error('La cuenta del post no está conectada vía Composio')
     }
-
-    const session = await getComposioForTenant(payload, options.tenantId)
-    if (!session) throw new Error('Este tenant no tiene API key de Composio asignada')
 
     // Imagen del post: primera media vinculada con URL pública (S3/R2).
     const mediaIds = Array.isArray(post.media) ? post.media : []
@@ -75,6 +73,38 @@ export async function runSocialPublish(
       imageUrl = (mediaDoc as { url?: string | null }).url ?? null
     }
     if (!imageUrl) throw new Error('El post no tiene imagen con URL pública para publicar')
+
+    // Ruta TikTok (foto v1; video llega con UPLOAD/PUBLISH en fase siguiente).
+    if (account.platform === 'tiktok') {
+      const session = await getComposioForTenant(payload, options.tenantId)
+      if (!session) throw new Error('Este tenant no tiene API key de Composio asignada')
+      const posted = await tiktokPostPhoto(session.composio, {
+        userId: session.userId,
+        imageUrl,
+        title: post.caption.slice(0, 150),
+      })
+      const platformPostId = posted.postId
+      if (!platformPostId) throw new Error('TikTok no devolvió post_id — revisa el schema en el spike')
+      await payload.update({
+        collection: 'social-posts',
+        id: options.postId,
+        data: {
+          status: 'publicado',
+          platformPostId,
+          publishedAt: new Date().toISOString(),
+          lastError: null,
+        },
+        overrideAccess: true,
+      })
+      return { ok: true, status: 'publicado', platformPostId }
+    }
+
+    if (account.platform !== 'instagram') {
+      throw new Error(`Plataforma no soportada para publicar: ${account.platform}`)
+    }
+
+    const session = await getComposioForTenant(payload, options.tenantId)
+    if (!session) throw new Error('Este tenant no tiene API key de Composio asignada')
 
     // IG user id: guardado al conectar o resuelto contra la API ahora.
     let igUserId = account.externalUserId ?? null

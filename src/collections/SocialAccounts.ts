@@ -34,6 +34,7 @@ export const SocialAccounts: CollectionConfig = {
       label: 'Plataforma',
       options: [
         { label: 'Instagram Business', value: 'instagram' },
+        { label: 'TikTok Business', value: 'tiktok' },
         { label: 'Facebook Page', value: 'facebook' },
       ],
       admin: {
