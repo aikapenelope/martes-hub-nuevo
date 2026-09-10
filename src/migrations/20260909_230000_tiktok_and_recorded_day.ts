@@ -20,6 +20,15 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   -- Backfill de filas existentes (si las hay) antes del unique.
   UPDATE "post_metrics" SET "recorded_day" = date_trunc('day', "recorded_at")::date WHERE "recorded_day" IS NULL;
 
+  -- Deduplicación (review Devin): si el query-first de la fase 2 dejó dos
+  -- filas el mismo día, el unique abortaría la migración. Se conserva la MÁS
+  -- RECIENTE (mayor id — la última medición).
+  DELETE FROM "post_metrics" a USING "post_metrics" b
+  WHERE a."tenant_id" = b."tenant_id"
+    AND a."post_id" = b."post_id"
+    AND a."recorded_day" = b."recorded_day"
+    AND a."id" < b."id";
+
   CREATE UNIQUE INDEX IF NOT EXISTS "post_metrics_tenant_post_day_idx" ON "post_metrics" USING btree ("tenant_id", "post_id", "recorded_day");
   CREATE INDEX IF NOT EXISTS "post_metrics_recorded_day_idx" ON "post_metrics" USING btree ("recorded_day");`)
 }

@@ -295,18 +295,21 @@ export async function verifyConnectionAction(
 
     try {
       if (toolkit === 'tiktok') {
-        // TikTok: la identidad de negocio es el connected account (el adapter
-        // de stats no la requiere). Espejo igual que Instagram.
-        const byConn = await context.payload.find({
+        // TikTok (review Devin): un reconnect genera un connectedAccountId
+        // nuevo — buscar solo por ese id duplicaría el espejo y dejaría los
+        // posts históricos huérfanos en la fila vieja. Alcance TikTok es
+        // siempre empresa → hay UN espejo del negocio: adoptarlo y revivirlo
+        // con la nueva referencia; crear solo si no existe ninguno.
+        const mirrors = await context.payload.find({
           collection: 'social-accounts',
           where: {
             and: [
               { tenant: { equals: context.tenantId } },
               { platform: { equals: 'tiktok' } },
-              { composioConnectedAccountId: { equals: account.id } },
+              { composioConnectedAccountId: { exists: true } },
             ],
           },
-          limit: 1,
+          limit: 5,
           depth: 0,
           overrideAccess: true,
         })
@@ -317,10 +320,20 @@ export async function verifyConnectionAction(
           platformAccountId: account.id,
           lastSyncAt: new Date().toISOString(),
         }
-        if (byConn.docs[0]) {
+        const active = mirrors.docs.find((doc) => doc.composioConnectedAccountId === account.id)
+        const stale = mirrors.docs.find((doc) => doc.status !== 'conectada') ?? mirrors.docs[0]
+
+        if (active) {
           await context.payload.update({
             collection: 'social-accounts',
-            id: byConn.docs[0].id,
+            id: active.id,
+            data: mirrorData,
+            overrideAccess: true,
+          })
+        } else if (stale) {
+          await context.payload.update({
+            collection: 'social-accounts',
+            id: stale.id,
             data: mirrorData,
             overrideAccess: true,
           })
@@ -535,7 +548,9 @@ export async function disconnectConnectionAction(
         // La revocación en Composio no puede bloquear la desconexión local.
         await deleteConnectedAccount(session.composio, row.connectedAccountId).catch(() => undefined)
       }
-      if (toolkit === 'instagram') {
+      // Instagram y TikTok tienen espejo en social-accounts: al desconectar,
+      // marcarlo para que el composer deje de ofrecer la cuenta revocada.
+      if (toolkit === 'instagram' || toolkit === 'tiktok') {
         const linked = await context.payload.find({
           collection: 'social-accounts',
           where: {

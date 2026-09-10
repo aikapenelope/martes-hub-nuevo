@@ -1,7 +1,7 @@
 import type { Composio } from '@composio/core'
 
 import { executeTool } from './client'
-import { parseToolData } from '../../lib/social-publish'
+import { assertToolSuccess, parseToolData } from '../../lib/social-publish'
 
 /**
  * Adapter TikTok vía Composio (fase 4 — doc ideas-futuras/06).
@@ -71,6 +71,7 @@ export async function postPhoto(
       description: options.title,
     },
   })
+  assertToolSuccess(result, 'TIKTOK_POST_PHOTO')
   const parsed = parseToolData(result)
   return { postId: str(parsed.post_id ?? parsed.id ?? parsed.photo_id) }
 }
@@ -86,6 +87,7 @@ export async function publishVideo(
     userId: options.userId,
     args: { video_url: options.videoUrl },
   })
+  assertToolSuccess(uploaded, 'TIKTOK_UPLOAD_VIDEO')
   const uploadedParsed = parseToolData(uploaded)
   const uploadId = str(uploadedParsed.publish_id ?? uploadedParsed.upload_id ?? uploadedParsed.id)
   if (!uploadId) throw new Error('TIKTOK_UPLOAD_VIDEO sin publish_id')
@@ -96,6 +98,7 @@ export async function publishVideo(
     userId: options.userId,
     args: { publish_id: uploadId },
   })
+  assertToolSuccess(published, 'TIKTOK_PUBLISH_VIDEO')
   const parsed = parseToolData(published)
   return { publishId: str(parsed.publish_id ?? parsed.id) }
 }
@@ -111,6 +114,9 @@ export async function getUserStats(
     userId: options.userId,
     args: {},
   })
+  // Sin esta validación, un fallo del proveedor se convertiría en stats en
+  // cero y el sync sobreescribiría las métricas reales del día (review Devin).
+  assertToolSuccess(result, 'TIKTOK_GET_USER_STATS')
   const parsed = parseToolData(result)
   return {
     followers: num(parsed.follower_count ?? parsed.followers_count),
@@ -130,6 +136,7 @@ export async function listVideos(
     userId: options.userId,
     args: { max_results: options.maxResults ?? 50 },
   })
+  assertToolSuccess(result, 'TIKTOK_LIST_VIDEOS')
   const parsed = parseToolData(result)
   const list = (parsed.videos ?? parsed.data ?? parsed) as unknown
   const rawList = Array.isArray(list) ? list : []
