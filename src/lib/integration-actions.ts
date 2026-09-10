@@ -321,7 +321,10 @@ export async function verifyConnectionAction(
           lastSyncAt: new Date().toISOString(),
         }
         const active = mirrors.docs.find((doc) => doc.composioConnectedAccountId === account.id)
-        const stale = mirrors.docs.find((doc) => doc.status !== 'conectada') ?? mirrors.docs[0]
+        // Adoptar SOLO filas no conectadas: un espejo aún 'conectada' puede
+        // representar OTRA cuenta TikTok activa — reescribirle la conexión
+        // asociaría sus posts históricos a credenciales ajenas (review Devin).
+        const stale = mirrors.docs.find((doc) => doc.status !== 'conectada')
 
         if (active) {
           await context.payload.update({
