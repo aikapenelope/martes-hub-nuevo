@@ -1,7 +1,14 @@
 'use client'
 
-import { TASK_STATUSES, type TaskStatus } from '@/lib/tasks-filters'
 import { changeTaskStatusAction } from '@/lib/tasks-actions'
+import { TASK_STATUSES, type TaskStatus } from '@/lib/tasks-filters'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 const statusLabel: Record<TaskStatus, string> = {
   pendiente: 'Pendiente',
@@ -12,10 +19,10 @@ const statusLabel: Record<TaskStatus, string> = {
 }
 
 /**
- * `<select>` de cambio de estado de tarea. Debe ser un Client Component:
- * un Server Component no puede pasar event handlers (`onChange`) a JSX.
- * Recibe solo props serializables y delega la mutación en la Server Action
- * `changeTaskStatusAction` (misma fuente de verdad que el resto del workspace).
+ * Select de cambio de estado de tarea (shadcn/Radix). Debe ser un Client
+ * Component: el auto-submit necesita `onValueChange` — la mutación la ejecuta
+ * la Server Action `changeTaskStatusAction` (hidden input `id` + `status` del
+ * Select con `name`, misma fuente de verdad que el resto del workspace).
  */
 export function TaskStatusSelect({
   taskId,
@@ -29,22 +36,33 @@ export function TaskStatusSelect({
   disabled?: boolean
 }) {
   return (
-    <form action={changeTaskStatusAction}>
+    <form action={changeTaskStatusAction} data-task-id={taskId}>
       <input type="hidden" name="id" value={taskId} />
-      <select
+      <Select
         name="status"
         defaultValue={status}
-        aria-label={label}
         disabled={disabled}
-        onChange={(event) => event.currentTarget.form?.requestSubmit()}
-        className="border border-zinc-800 bg-black px-1.5 py-0.5 text-[10px] text-zinc-300 font-mono uppercase disabled:cursor-not-allowed disabled:opacity-60"
+        onValueChange={() => {
+          // Auto-submit cuando el hidden select de Radix ya tiene el valor NUEVO.
+          document
+            .querySelector<HTMLFormElement>(`form[data-task-id="${taskId}"]`)
+            ?.requestSubmit()
+        }}
       >
-        {TASK_STATUSES.map((s) => (
-          <option key={s} value={s}>
-            {statusLabel[s]}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger
+          aria-label={label}
+          className="h-auto w-fit border-none bg-transparent px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground focus-visible:ring-0"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {TASK_STATUSES.map((s) => (
+            <SelectItem key={s} value={s}>
+              {statusLabel[s]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </form>
   )
 }

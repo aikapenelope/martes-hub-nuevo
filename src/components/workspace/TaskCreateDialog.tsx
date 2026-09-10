@@ -3,9 +3,28 @@
 import { useState } from 'react'
 import { Plus, Sparkles } from 'lucide-react'
 
-import { Drawer } from '@/components/workspace/overlays'
 import { createTaskAction } from '@/lib/tasks-actions'
 import { TASK_PRIORITIES, TASK_STATUSES, type TaskPriority, type TaskStatus } from '@/lib/tasks-filters'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { Client, Lead, User } from '@/payload-types'
 
 const statusLabel: Record<TaskStatus, string> = {
@@ -38,9 +57,11 @@ const priorityCls: Record<TaskPriority, string> = {
   urgente: 'bg-red-900/50 text-red-400 border border-red-800',
 }
 
-const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-500 transition font-mono'
-const labelCls = 'flex flex-col gap-1.5 text-[11px] font-mono uppercase tracking-wider text-zinc-400'
+const labelCls = 'font-mono text-[11px] uppercase tracking-wider text-muted-foreground'
+
+/* Textarea nativa (no hay ui/textarea en el proyecto) con los mismos tokens que `Input`. */
+const textareaCls =
+  'flex min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 font-mono text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30'
 
 interface TaskCreateDialogProps {
   assignees: User[]
@@ -63,7 +84,6 @@ export function TaskCreateDialog({
   defaultLeadId,
   defaultStatus = 'pendiente',
 }: TaskCreateDialogProps) {
-  const [open, setOpen] = useState(false)
   const [status, setStatus] = useState<TaskStatus>(defaultStatus)
   const [priority, setPriority] = useState<TaskPriority>('media')
   const [relationType, setRelationType] = useState<'none' | 'client' | 'lead'>(
@@ -71,12 +91,12 @@ export function TaskCreateDialog({
   )
   const [crmSearch, setCrmSearch] = useState('')
 
-  const btnCls =
+  const triggerCls =
     variant === 'primary'
-      ? 'px-4 py-2 bg-white hover:bg-zinc-200 text-black font-black flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider transition shadow-[0_0_16px_rgba(255,255,255,0.15)]'
+      ? 'bg-sky-400 font-mono text-xs font-black uppercase text-black shadow-[0_0_16px_rgba(56,189,248,0.35)] hover:bg-sky-300'
       : variant === 'ghost'
-        ? 'inline-flex items-center gap-1 text-[10px] font-mono text-zinc-400 hover:text-white px-2 py-1 border border-zinc-800 hover:border-zinc-700 bg-zinc-900 transition'
-        : 'px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold flex items-center gap-1.5 text-xs font-mono uppercase transition'
+        ? 'gap-1 border-zinc-800 bg-zinc-900 px-2 font-mono text-[10px] font-normal text-zinc-400 hover:bg-zinc-900 hover:text-white'
+        : 'gap-1.5 border-zinc-700 bg-zinc-900 px-3 font-mono text-xs font-bold uppercase text-zinc-200 hover:bg-zinc-800 hover:text-zinc-200'
 
   const filteredClients = crmSearch
     ? clients.filter((c) => c.name.toLowerCase().includes(crmSearch.toLowerCase()))
@@ -87,260 +107,258 @@ export function TaskCreateDialog({
     : leads
 
   return (
-    <>
-      <button type="button" className={btnCls} onClick={() => setOpen(true)}>
-        <Plus size={variant === 'ghost' ? 12 : 14} />
-        <span>Nueva Tarea</span>
-      </button>
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button
+          variant={variant === 'ghost' ? 'ghost' : variant === 'secondary' ? 'outline' : 'default'}
+          className={triggerCls}
+        >
+          <Plus className={variant === 'ghost' ? 'size-3' : 'size-3.5'} />
+          <span>Nueva Tarea</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Creación de Tarea · Ejecución Ágil</DialogTitle>
+          <DialogDescription>
+            Centro de Ejecución Ágil · Martes Hub — planifica la entrega, asigna responsables del
+            equipo y vincula con cuentas CRM.
+          </DialogDescription>
+        </DialogHeader>
+        <form action={createTaskAction} className="flex flex-col gap-4 font-mono text-xs">
+          <input type="hidden" name="redirectTo" value={redirectTo} />
+          <input type="hidden" name="status" value={status} />
+          <input type="hidden" name="priority" value={priority} />
 
-      <Drawer
-        open={open}
-        onClose={() => setOpen(false)}
-        size="xl"
-        title="Creación de Tarea · Ejecución Ágil"
-      >
-        <div className="flex flex-col gap-5 pb-6">
-          {/* Subheader descriptivo */}
-          <div className="border border-zinc-850 bg-zinc-900/40 p-3">
-            <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-zinc-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" />
-              <span>Centro de Ejecución Ágil · Martes Hub</span>
-            </div>
-            <p className="mt-1 text-xs text-zinc-300">
-              Planifica la entrega, asigna responsables del equipo y vincula con cuentas CRM.
-            </p>
+          {/* Título e Instrucciones */}
+          <div className="space-y-1.5">
+            <Label htmlFor="task-title" className={labelCls}>
+              Título de la tarea
+            </Label>
+            <Input
+              id="task-title"
+              name="title"
+              required
+              maxLength={180}
+              placeholder="Ej. Enviar propuesta comercial o resolver ticket de onboarding"
+              autoFocus
+              className="font-mono text-xs"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="task-description" className={labelCls}>
+              Instrucciones / Contexto relevante (opcional)
+            </Label>
+            <textarea
+              id="task-description"
+              name="description"
+              rows={3}
+              maxLength={5000}
+              placeholder="Detalles, criterios de aceptación o notas de ejecución..."
+              className={textareaCls}
+            />
           </div>
 
-          <form action={createTaskAction} className="flex flex-col gap-4 text-xs font-mono">
-            <input type="hidden" name="redirectTo" value={redirectTo} />
-            <input type="hidden" name="status" value={status} />
-            <input type="hidden" name="priority" value={priority} />
+          {/* Estado y Prioridad Interactiva */}
+          <div className="flex flex-col gap-1.5">
+            <span className={labelCls}>Columna / Estado Inicial</span>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+              {TASK_STATUSES.map((s) => {
+                const isSelected = status === s
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStatus(s)}
+                    className={`px-2 py-1.5 text-center text-[10px] font-mono border transition-all ${
+                      isSelected
+                        ? `${statusBadgeCls[s]} ring-1 ring-white/20 font-bold`
+                        : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                    }`}
+                  >
+                    {statusLabel[s]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
-            {/* Panel 1: Título e Instrucciones */}
-            <div className="border border-zinc-850 bg-zinc-950 p-3.5 flex flex-col gap-3">
-              <label className={labelCls}>
-                Título de la tarea
+          <div className="flex flex-col gap-1.5">
+            <span className={labelCls}>Nivel de Prioridad</span>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              {TASK_PRIORITIES.map((p) => {
+                const isSelected = priority === p
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPriority(p)}
+                    className={`px-2 py-1.5 text-center text-xs font-mono font-medium border transition-all ${
+                      isSelected
+                        ? `${priorityCls[p]} ring-1 ring-white/20 font-bold`
+                        : 'border-zinc-800 bg-zinc-900/40 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300'
+                    }`}
+                  >
+                    {priorityLabel[p]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="task-due-date" className={labelCls}>
+                Fecha Límite
+              </Label>
+              <Input id="task-due-date" name="dueDate" type="date" className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="task-assigned-to" className={labelCls}>
+                Responsable
+              </Label>
+              <Select name="assignedTo">
+                <SelectTrigger id="task-assigned-to" className="w-full font-mono text-xs">
+                  <SelectValue placeholder="Sin asignar (Equipo)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assignees.map((user) => (
+                    <SelectItem key={user.id} value={String(user.id)}>
+                      {`${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Vinculación CRM */}
+          <fieldset className="flex flex-col gap-2.5">
+            <legend className={labelCls}>Vinculación CRM (Opcional)</legend>
+            <div className="flex items-center gap-4 text-xs">
+              <label className="flex cursor-pointer items-center gap-1.5 text-zinc-300">
                 <input
-                  name="title"
-                  required
-                  maxLength={180}
-                  placeholder="Ej. Enviar propuesta comercial o resolver ticket de onboarding"
-                  className={inputCls}
-                  autoFocus
+                  type="radio"
+                  name="relTypeRadio"
+                  checked={relationType === 'none'}
+                  onChange={() => setRelationType('none')}
+                  className="accent-sky-500"
                 />
+                <span>Sin vínculo</span>
               </label>
-
-              <label className={labelCls}>
-                Instrucciones / Contexto relevante (opcional)
-                <textarea
-                  name="description"
-                  rows={3}
-                  maxLength={5000}
-                  placeholder="Detalles, criterios de aceptación o notas de ejecución..."
-                  className={inputCls}
+              <label className="flex cursor-pointer items-center gap-1.5 text-zinc-300">
+                <input
+                  type="radio"
+                  name="relTypeRadio"
+                  checked={relationType === 'client'}
+                  onChange={() => setRelationType('client')}
+                  className="accent-sky-500"
                 />
+                <span>Cliente</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5 text-zinc-300">
+                <input
+                  type="radio"
+                  name="relTypeRadio"
+                  checked={relationType === 'lead'}
+                  onChange={() => setRelationType('lead')}
+                  className="accent-sky-500"
+                />
+                <span>Lead / Prospecto</span>
               </label>
             </div>
 
-            {/* Panel 2: Estado y Prioridad Interactiva */}
-            <div className="border border-zinc-850 bg-zinc-950 p-3.5 flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
-                  Columna / Estado Inicial
-                </span>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                  {TASK_STATUSES.map((s) => {
-                    const isSelected = status === s
-                    return (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setStatus(s)}
-                        className={`px-2 py-1.5 text-center text-[10px] font-mono border transition-all ${
-                          isSelected
-                            ? `${statusBadgeCls[s]} ring-1 ring-white/20 font-bold`
-                            : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
-                        }`}
-                      >
-                        {statusLabel[s]}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1.5 pt-1">
-                <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
-                  Nivel de Prioridad
-                </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                  {TASK_PRIORITIES.map((p) => {
-                    const isSelected = priority === p
-                    return (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setPriority(p)}
-                        className={`px-2 py-1.5 text-center text-xs font-mono font-medium border transition-all ${
-                          isSelected
-                            ? `${priorityCls[p]} ring-1 ring-white/20 font-bold`
-                            : 'border-zinc-800 bg-zinc-900/40 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300'
-                        }`}
-                      >
-                        {priorityLabel[p]}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <label className={labelCls}>
-                  Fecha Límite
-                  <input name="dueDate" type="date" className={inputCls} />
-                </label>
-
-                <label className={labelCls}>
-                  Responsable
-                  <select name="assignedTo" defaultValue="" className={inputCls}>
-                    <option value="">Sin asignar (Equipo)</option>
-                    {assignees.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {`${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
-
-            {/* Panel 3: Vinculación CRM */}
-            <div className="border border-zinc-850 bg-zinc-950 p-3.5 flex flex-col gap-2.5">
-              <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
-                Vinculación CRM (Opcional)
-              </span>
-              <div className="flex items-center gap-4 text-xs">
-                <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
-                  <input
-                    type="radio"
-                    name="relTypeRadio"
-                    checked={relationType === 'none'}
-                    onChange={() => setRelationType('none')}
-                    className="accent-sky-500"
-                  />
-                  <span>Sin vínculo</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
-                  <input
-                    type="radio"
-                    name="relTypeRadio"
-                    checked={relationType === 'client'}
-                    onChange={() => setRelationType('client')}
-                    className="accent-sky-500"
-                  />
-                  <span>Cliente</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
-                  <input
-                    type="radio"
-                    name="relTypeRadio"
-                    checked={relationType === 'lead'}
-                    onChange={() => setRelationType('lead')}
-                    className="accent-sky-500"
-                  />
-                  <span>Lead / Prospecto</span>
-                </label>
-              </div>
-
-              {relationType === 'client' && (
-                <div className="space-y-1.5 pt-1">
-                  <input
-                    type="text"
-                    placeholder="Filtrar clientes por nombre..."
-                    value={crmSearch}
-                    onChange={(e) => setCrmSearch(e.target.value)}
-                    className="w-full bg-black border border-zinc-800 px-2.5 py-1 text-xs text-white focus:outline-none focus:border-zinc-600"
-                  />
-                  <select
-                    name="client"
-                    defaultValue={defaultClientId ? String(defaultClientId) : ''}
-                    className={inputCls}
-                  >
-                    <option value="">Selecciona un cliente...</option>
+            {relationType === 'client' && (
+              <div className="space-y-1.5">
+                <Input
+                  type="text"
+                  placeholder="Filtrar clientes por nombre..."
+                  value={crmSearch}
+                  onChange={(e) => setCrmSearch(e.target.value)}
+                  className="font-mono text-xs"
+                />
+                <Select
+                  name="client"
+                  defaultValue={defaultClientId ? String(defaultClientId) : undefined}
+                >
+                  <SelectTrigger className="w-full font-mono text-xs">
+                    <SelectValue placeholder="Selecciona un cliente..." />
+                  </SelectTrigger>
+                  <SelectContent>
                     {filteredClients.map((c) => (
-                      <option key={c.id} value={c.id}>
+                      <SelectItem key={c.id} value={String(c.id)}>
                         {c.name} {c.companyName ? `(${c.companyName})` : ''}
-                      </option>
+                      </SelectItem>
                     ))}
-                  </select>
-                </div>
-              )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-              {relationType === 'lead' && (
-                <div className="space-y-1.5 pt-1">
-                  <input
-                    type="text"
-                    placeholder="Filtrar prospectos por nombre..."
-                    value={crmSearch}
-                    onChange={(e) => setCrmSearch(e.target.value)}
-                    className="w-full bg-black border border-zinc-800 px-2.5 py-1 text-xs text-white focus:outline-none focus:border-zinc-600"
-                  />
-                  <select
-                    name="lead"
-                    defaultValue={defaultLeadId ? String(defaultLeadId) : ''}
-                    className={inputCls}
-                  >
-                    <option value="">Selecciona un prospecto...</option>
-                    {filteredLeads.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.fullName} {l.companyName ? `(${l.companyName})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            {/* Panel 4: Subtareas Iniciales */}
-            <div className="border border-zinc-850 bg-zinc-950 p-3.5 flex flex-col gap-2">
-              <label className={labelCls}>
-                Checklist inicial de subtareas <small className="text-zinc-500 normal-case">(una por línea)</small>
-                <textarea
-                  name="checklist"
-                  rows={3}
-                  placeholder="Subtarea 1: Revisar requisitos&#10;Subtarea 2: Preparar entregable&#10;Subtarea 3: Confirmación con cliente"
-                  className={inputCls}
+            {relationType === 'lead' && (
+              <div className="space-y-1.5">
+                <Input
+                  type="text"
+                  placeholder="Filtrar prospectos por nombre..."
+                  value={crmSearch}
+                  onChange={(e) => setCrmSearch(e.target.value)}
+                  className="font-mono text-xs"
                 />
-              </label>
-            </div>
-
-            {/* Footer de Acciones */}
-            <div className="flex items-center justify-between gap-3 border-t border-zinc-800/80 pt-4 mt-2">
-              <div className="flex items-center gap-1 text-[11px] font-mono text-zinc-500">
-                <Sparkles size={11} className="text-sky-400" />
-                <span>Disponible al instante en el tablero</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs font-bold uppercase tracking-wider transition"
+                <Select
+                  name="lead"
+                  defaultValue={defaultLeadId ? String(defaultLeadId) : undefined}
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-white hover:bg-zinc-200 text-black text-xs font-black uppercase tracking-wider transition inline-flex items-center gap-1.5 shadow-[0_0_12px_rgba(255,255,255,0.2)]"
-                >
-                  <Plus size={14} />
-                  <span>Crear Tarea</span>
-                </button>
+                  <SelectTrigger className="w-full font-mono text-xs">
+                    <SelectValue placeholder="Selecciona un prospecto..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredLeads.map((l) => (
+                      <SelectItem key={l.id} value={String(l.id)}>
+                        {l.fullName} {l.companyName ? `(${l.companyName})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
-          </form>
-        </div>
-      </Drawer>
-    </>
+            )}
+          </fieldset>
+
+          {/* Subtareas Iniciales */}
+          <div className="space-y-1.5">
+            <Label htmlFor="task-checklist" className={labelCls}>
+              Checklist inicial de subtareas{' '}
+              <small className="normal-case text-muted-foreground">(una por línea)</small>
+            </Label>
+            <textarea
+              id="task-checklist"
+              name="checklist"
+              rows={3}
+              placeholder="Subtarea 1: Revisar requisitos&#10;Subtarea 2: Preparar entregable&#10;Subtarea 3: Confirmación con cliente"
+              className={textareaCls}
+            />
+          </div>
+
+          {/* Footer de Acciones */}
+          <div className="flex items-center gap-1 pt-1 text-[11px] font-mono text-muted-foreground">
+            <Sparkles className="size-3 text-sky-400" />
+            <span>Disponible al instante en el tablero</span>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" className="font-mono text-xs font-bold uppercase tracking-wider">
+                Cancelar
+              </Button>
+            </DialogClose>
+            <Button
+              type="submit"
+              className="bg-sky-400 font-mono text-xs font-black uppercase text-black shadow-[0_0_16px_rgba(56,189,248,0.35)] hover:bg-sky-300"
+            >
+              <Plus className="size-3.5" />
+              <span>Crear Tarea</span>
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
