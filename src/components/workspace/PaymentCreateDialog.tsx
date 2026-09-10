@@ -17,12 +17,31 @@ import {
 } from 'lucide-react'
 
 import { createPaymentAction } from '@/lib/billing-actions'
-import { Drawer } from '@/components/workspace/overlays'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import type { Client } from '@/payload-types'
 
-const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 font-mono focus:outline-none focus:border-zinc-500 transition'
-const labelCls = 'flex flex-col gap-1.5 text-xs font-mono uppercase tracking-wider text-zinc-400'
+const labelCls = 'font-mono text-[11px] uppercase tracking-wider text-muted-foreground'
+
+/* Select nativo: conserva su `<option value="" disabled>` del contrato
+   (Radix no soporta value="") con los mismos tokens que `Input`. */
+const selectCls =
+  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 font-mono text-xs text-foreground transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30'
+
+/* Textarea nativa (no hay ui/textarea en el proyecto) con los mismos tokens que `Input`. */
+const textareaCls =
+  'flex min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 font-mono text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30'
 
 interface PaymentCreateDialogProps {
   clients: Client[]
@@ -56,8 +75,8 @@ const PAYMENT_METHODS: Array<{
 ]
 
 /**
- * Crea un cobro sin salir del workspace mediante un Drawer lateral Fintech
- * de alta fidelidad, con conversiones en tiempo real (USD a Bs) y selector visual.
+ * Crea un cobro sin salir del workspace mediante un Dialog shadcn de
+ * alta fidelidad, con conversiones en tiempo real (USD a Bs) y selector visual.
  */
 export function PaymentCreateDialog({
   clients,
@@ -101,10 +120,10 @@ export function PaymentCreateDialog({
       ? (numAmount * effectiveRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })
       : null
 
-  const btnCls =
+  const triggerCls =
     variant === 'primary'
-      ? 'px-4 py-2 bg-sky-400 hover:bg-sky-300 text-black font-black flex items-center gap-2 uppercase transition shadow-[0_0_16px_rgba(56,189,248,0.35)] text-xs font-mono'
-      : 'px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold flex items-center gap-2 uppercase transition text-xs font-mono'
+      ? 'bg-sky-400 font-mono text-xs font-black uppercase text-black shadow-[0_0_16px_rgba(56,189,248,0.35)] hover:bg-sky-300'
+      : 'gap-1.5 border-zinc-700 bg-zinc-900 px-3 font-mono text-xs font-bold uppercase text-zinc-200 hover:bg-zinc-800 hover:text-zinc-200'
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -122,46 +141,47 @@ export function PaymentCreateDialog({
   }
 
   return (
-    <>
-      <button 
-        type="button" 
-        className={btnCls} 
-        onClick={() => {
-          resetForm()
-          setOpen(true)
-        }}
-      >
-        <Receipt className="w-4 h-4" /> + Cobro
-      </button>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        resetForm()
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button className={triggerCls}>
+          <Receipt className="size-4" />
+          <span>+ Cobro</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Nuevo Cobro · Terminal Fintech</DialogTitle>
+          <DialogDescription>
+            Cobro directo multi-moneda con conversión a bolívares en tiempo real. Base: dólares
+            (USD).
+          </DialogDescription>
+        </DialogHeader>
 
-      <Drawer
-        open={open}
-        onClose={() => {
-          setOpen(false)
-          resetForm()
-        }}
-        size="xl"
-        title="Nuevo Cobro · Terminal Fintech"
-      >
         <div className="space-y-5 font-mono text-xs">
           {/* Badge de Terminal & Moneda Base */}
-          <div className="p-3 bg-zinc-900/60 border border-zinc-800 flex items-center justify-between">
+          <div className="flex items-center justify-between border border-border bg-muted/60 p-3">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
                 Cobro Directo · Multi-Moneda
               </span>
             </div>
-            <span className="text-[10px] text-zinc-500">Base: Dólares (USD)</span>
+            <span className="text-[10px] text-muted-foreground">Base: Dólares (USD)</span>
           </div>
 
           {formError && (
-            <div className="p-3 bg-rose-950/80 border border-rose-800 text-rose-300 text-xs flex items-center justify-between">
+            <div className="flex items-center justify-between border border-rose-800 bg-rose-950/80 p-3 text-xs text-rose-300">
               <span>{formError}</span>
               <button
                 type="button"
                 onClick={() => setFormError(null)}
-                className="text-rose-400 hover:text-white ml-2"
+                className="ml-2 text-rose-400 transition hover:text-foreground"
               >
                 <X size={14} />
               </button>
@@ -169,20 +189,22 @@ export function PaymentCreateDialog({
           )}
 
           {clients.length === 0 ? (
-            <div className="p-6 border border-zinc-800 bg-black text-center space-y-3">
-              <p className="text-zinc-400 text-xs">
+            <div className="space-y-3 border border-border bg-background p-6 text-center">
+              <p className="text-xs text-muted-foreground">
                 No hay clientes registrados en este tenant.
               </p>
-              <p className="text-zinc-500 text-[11px]">
+              <p className="text-[11px] text-muted-foreground">
                 Crea un cliente primero en el CRM para asociar sus cobros y pagos.
               </p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4 font-mono text-xs">
               {/* Selector de Cliente */}
-              <label className={labelCls}>
-                <span>Cliente <span className="text-rose-400">*</span></span>
-                <select name="client" required defaultValue="" className={inputCls}>
+              <div className="space-y-1.5">
+                <Label htmlFor="payment-client" className={labelCls}>
+                  Cliente <span className="text-rose-400">*</span>
+                </Label>
+                <select id="payment-client" name="client" required defaultValue="" className={selectCls}>
                   <option value="" disabled>
                     Selecciona un cliente del CRM…
                   </option>
@@ -192,19 +214,22 @@ export function PaymentCreateDialog({
                     </option>
                   ))}
                 </select>
-              </label>
+              </div>
 
               {/* Monto y Conversión Referencial */}
               <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className={labelCls}>
-                    <span>Monto en USD <span className="text-rose-400">*</span></span>
+                <div className="space-y-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="payment-amount" className={labelCls}>
+                      Monto en USD <span className="text-rose-400">*</span>
+                    </Label>
                     <div className="relative">
                       <DollarSign
                         size={14}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                       />
-                      <input
+                      <Input
+                        id="payment-amount"
                         name="amount"
                         type="number"
                         min={1}
@@ -213,23 +238,25 @@ export function PaymentCreateDialog({
                         value={amountVal}
                         onChange={(e) => setAmountVal(e.target.value)}
                         placeholder="0.00"
-                        className={`${inputCls} pl-8 text-emerald-400 font-bold`}
+                        className="pl-8 font-mono text-xs font-bold text-emerald-400"
                       />
                     </div>
-                  </label>
-                  <p className="text-[10px] text-zinc-500 mt-1">Monto entero sin centavos</p>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Monto entero sin centavos</p>
                 </div>
 
-                <label className={labelCls}>
-                  <span>Fecha de Vencimiento <span className="text-rose-400">*</span></span>
-                  <input name="dueDate" type="date" required className={inputCls} />
-                </label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="payment-due-date" className={labelCls}>
+                    Fecha de Vencimiento <span className="text-rose-400">*</span>
+                  </Label>
+                  <Input id="payment-due-date" name="dueDate" type="date" required className="font-mono text-xs" />
+                </div>
               </div>
 
               {/* Módulo de Conversión a Bolívares */}
-              <div className="p-3 bg-zinc-900/50 border border-zinc-800 space-y-2">
+              <div className="space-y-2 border border-border bg-muted/50 p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold text-zinc-400">
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground">
                     Tasa Referencial (Bs./USD)
                   </span>
                   <div className="flex items-center gap-1.5">
@@ -239,10 +266,10 @@ export function PaymentCreateDialog({
                         setUserRateSrc('bcv')
                         setUserCustomRate(bcvRate || defaultRate || '')
                       }}
-                      className={`px-2 py-0.5 text-[9px] uppercase border transition ${
+                      className={`border px-2 py-0.5 text-[9px] uppercase transition ${
                         rateSrc === 'bcv'
-                          ? 'bg-emerald-500 text-black font-bold border-emerald-500'
-                          : 'border-zinc-800 text-zinc-400 hover:text-white'
+                          ? 'border-emerald-500 bg-emerald-500 font-bold text-black'
+                          : 'border-border text-muted-foreground hover:text-foreground'
                       }`}
                     >
                       BCV
@@ -253,10 +280,10 @@ export function PaymentCreateDialog({
                         setUserRateSrc('binance')
                         setUserCustomRate(binanceRate || defaultRate || '')
                       }}
-                      className={`px-2 py-0.5 text-[9px] uppercase border transition ${
+                      className={`border px-2 py-0.5 text-[9px] uppercase transition ${
                         rateSrc === 'binance'
-                          ? 'bg-amber-400 text-black font-bold border-amber-400'
-                          : 'border-zinc-800 text-zinc-400 hover:text-white'
+                          ? 'border-amber-400 bg-amber-400 font-bold text-black'
+                          : 'border-border text-muted-foreground hover:text-foreground'
                       }`}
                     >
                       Binance
@@ -271,41 +298,44 @@ export function PaymentCreateDialog({
                         setUserRateSrc('manual')
                       }}
                       placeholder="Tasa"
-                      className="bg-black border border-zinc-700 px-2 py-0.5 text-xs text-emerald-400 font-mono w-24 text-right focus:outline-none"
+                      className="w-24 rounded-lg border border-border bg-background px-2 py-0.5 text-right font-mono text-xs text-emerald-400 transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                     />
                   </div>
                 </div>
 
                 {bsEquivalent ? (
-                  <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80">
-                    <span className="text-[11px] text-zinc-400">Equivalente Estimado:</span>
+                  <div className="flex items-center justify-between border-t border-border pt-2">
+                    <span className="text-[11px] text-muted-foreground">Equivalente Estimado:</span>
                     <span className="text-sm font-bold text-emerald-300">
                       Bs. {bsEquivalent}
                     </span>
                   </div>
                 ) : (
-                  <p className="text-[10px] text-zinc-500 italic">
+                  <p className="text-[10px] italic text-muted-foreground">
                     Introduce un monto para visualizar la conversión en bolívares.
                   </p>
                 )}
               </div>
 
               {/* Concepto del Cobro */}
-              <label className={labelCls}>
-                <span>Concepto de Facturación</span>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="payment-concept" className={labelCls}>
+                  Concepto de Facturación
+                </Label>
+                <Input
+                  id="payment-concept"
                   name="concept"
                   maxLength={240}
                   placeholder="Ej: Mensualidad desarrollo web - Julio 2026"
-                  className={inputCls}
+                  className="font-mono text-xs"
                 />
-              </label>
+              </div>
 
               {/* Selector Visual de Método de Pago */}
               <div className="space-y-2">
                 <span className={labelCls}>Método de Pago Sugerido</span>
                 <input type="hidden" name="method" value={selectedMethod} />
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {PAYMENT_METHODS.map((pm) => {
                     const Icon = pm.icon
                     const isSelected = selectedMethod === pm.id
@@ -314,19 +344,22 @@ export function PaymentCreateDialog({
                         key={pm.id}
                         type="button"
                         onClick={() => setSelectedMethod(isSelected ? '' : pm.id)}
-                        className={`p-2.5 text-left border transition flex flex-col justify-between gap-1.5 ${
+                        className={`flex flex-col justify-between gap-1.5 border p-2.5 text-left transition ${
                           isSelected
-                            ? 'bg-emerald-950/50 border-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.2)]'
-                            : 'bg-black border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
+                            ? 'border-emerald-500 bg-emerald-950/50 text-foreground shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                            : 'border-border bg-background text-muted-foreground hover:border-zinc-700 hover:text-foreground'
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <Icon size={14} className={isSelected ? 'text-emerald-400' : 'text-zinc-500'} />
+                          <Icon
+                            size={14}
+                            className={isSelected ? 'text-emerald-400' : 'text-muted-foreground'}
+                          />
                           {isSelected && <Check size={12} className="text-emerald-400" />}
                         </div>
                         <div>
-                          <p className="font-bold text-xs text-white">{pm.label}</p>
-                          <span className="text-[9px] text-zinc-500">{pm.hint}</span>
+                          <p className="text-xs font-bold text-foreground">{pm.label}</p>
+                          <span className="text-[9px] text-muted-foreground">{pm.hint}</span>
                         </div>
                       </button>
                     )
@@ -335,43 +368,49 @@ export function PaymentCreateDialog({
               </div>
 
               {/* Notas y Auditoría */}
-              <label className={labelCls}>
-                <span>Notas Internas / Auditoría</span>
+              <div className="space-y-1.5">
+                <Label htmlFor="payment-notes" className={labelCls}>
+                  Notas Internas / Auditoría
+                </Label>
                 <textarea
+                  id="payment-notes"
                   name="notes"
                   rows={3}
                   maxLength={2000}
                   placeholder="Comentarios adicionales, instrucciones o datos bancarios..."
-                  className={inputCls}
+                  className={textareaCls}
                 />
-              </label>
+              </div>
 
               {/* Footer con Acciones */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono transition"
-                >
-                  Cancelar
-                </button>
-                <button
+              <DialogFooter>
+                <DialogClose asChild>
+                  {/* type="button": sin él, Cancelar haría submit del form y crearía el cobro (review Devin). */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="font-mono text-xs font-bold uppercase tracking-wider"
+                  >
+                    Cancelar
+                  </Button>
+                </DialogClose>
+                <Button
                   type="submit"
                   disabled={isPending}
-                  className="px-5 py-2 bg-white hover:bg-zinc-200 text-black text-xs font-black uppercase tracking-wider font-mono inline-flex items-center gap-2 transition disabled:opacity-50"
+                  className="font-mono text-xs font-black uppercase tracking-wider"
                 >
                   {isPending ? (
-                    <Loader2 size={14} className="animate-spin" />
+                    <Loader2 className="size-3.5 animate-spin" />
                   ) : (
-                    <Plus size={14} />
+                    <Plus className="size-3.5" />
                   )}
                   <span>{isPending ? 'Guardando…' : 'Guardar Cobro'}</span>
-                </button>
-              </div>
+                </Button>
+              </DialogFooter>
             </form>
           )}
         </div>
-      </Drawer>
-    </>
+      </DialogContent>
+    </Dialog>
   )
 }

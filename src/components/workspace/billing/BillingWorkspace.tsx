@@ -34,7 +34,16 @@ import {
   updateQuoteStatusAction,
 } from '@/lib/billing-actions'
 import { getLiveExchangeRatesAction, type LiveExchangeRates } from '@/lib/exchange-rates'
-import { Drawer } from '@/components/workspace/overlays'
+import { Button } from '@/components/ui/button'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
 import { PaymentCreateDialog } from '@/components/workspace/PaymentCreateDialog'
 import { QuoteInvoiceCreateDialog } from '@/components/workspace/QuoteInvoiceCreateDialog'
@@ -502,9 +511,9 @@ export function BillingWorkspace({
             <CircleAlert size={14} className="shrink-0" />
             <span>{actionError}</span>
           </div>
-          <button type="button" onClick={() => setActionError(null)} className="text-rose-400 hover:text-white">
-            <X size={14} />
-          </button>
+          <Button type="button" variant="ghost" size="icon-xs" onClick={() => setActionError(null)} className="text-rose-400 hover:text-foreground">
+            <X className="size-3.5" />
+          </Button>
         </div>
       )}
 
@@ -514,9 +523,9 @@ export function BillingWorkspace({
             <CheckCircle2 size={14} className="shrink-0" />
             <span>{actionSuccess}</span>
           </div>
-          <button type="button" onClick={() => setActionSuccess(null)} className="text-emerald-400 hover:text-white">
-            <X size={14} />
-          </button>
+          <Button type="button" variant="ghost" size="icon-xs" onClick={() => setActionSuccess(null)} className="text-emerald-400 hover:text-foreground">
+            <X className="size-3.5" />
+          </Button>
         </div>
       )}
 
@@ -538,145 +547,151 @@ export function BillingWorkspace({
       </section>
 
       {/* 4. Barra de Navegación por Pestañas & Buscador Reactivo */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-y border-zinc-900/90 py-3 bg-black/40">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-y border-border/90 py-3 bg-background/40">
         {/* Tabs de vista */}
-        <div className="inline-flex flex-wrap items-center bg-zinc-950 border border-zinc-800 p-1 gap-1 font-mono text-xs">
-          <button
+        <div className="inline-flex flex-wrap items-center bg-background border border-border p-1 gap-1 font-mono text-xs">
+          <Button
             type="button"
             onClick={() => setActiveTab('todos_cobros')}
-            className={`px-3 py-1.5 uppercase transition ${
-              activeTab === 'todos_cobros'
-                ? 'bg-white text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900/60'
+            variant={activeTab === 'todos_cobros' ? 'default' : 'ghost'}
+            className={`h-auto px-3 py-1.5 uppercase ${
+              activeTab === 'todos_cobros' ? 'font-black shadow-sm' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             Todos los Cobros ({payments.length})
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             onClick={() => setActiveTab('pendientes')}
-            className={`px-3 py-1.5 uppercase transition flex items-center gap-1.5 ${
+            variant={activeTab === 'pendientes' ? 'default' : 'ghost'}
+            className={`h-auto px-3 py-1.5 uppercase ${
               activeTab === 'pendientes'
-                ? 'bg-amber-500 text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900/60'
+                ? 'bg-amber-500 text-black font-black shadow-sm hover:bg-amber-500 hover:text-black'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Clock3 size={13} />
+            <Clock3 className="size-3" />
             <span>Por Cobrar</span>
             <span className="text-[10px] opacity-80">
               ({payments.filter((p) => p.status === 'pendiente' || p.status === 'vencido').length})
             </span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             onClick={() => setActiveTab('pagados')}
-            className={`px-3 py-1.5 uppercase transition flex items-center gap-1.5 ${
+            variant={activeTab === 'pagados' ? 'default' : 'ghost'}
+            className={`h-auto px-3 py-1.5 uppercase ${
               activeTab === 'pagados'
-                ? 'bg-emerald-400 text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900/60'
+                ? 'bg-emerald-400 text-black font-black shadow-sm hover:bg-emerald-400 hover:text-black'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Check size={13} />
+            <Check className="size-3" />
             <span>Pagados</span>
             <span className="text-[10px] opacity-80">
               ({payments.filter((p) => p.status === 'pagado').length})
             </span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             onClick={() => setActiveTab('cotizaciones')}
-            className={`px-3 py-1.5 uppercase transition flex items-center gap-1.5 ${
+            variant={activeTab === 'cotizaciones' ? 'default' : 'ghost'}
+            className={`h-auto px-3 py-1.5 uppercase ${
               activeTab === 'cotizaciones'
-                ? 'bg-indigo-600 text-white font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900/60'
+                ? 'bg-indigo-600 font-black shadow-sm hover:bg-indigo-600'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <FileText size={13} />
+            <FileText className="size-3" />
             <span>Cotizaciones ({quotes.length})</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             onClick={() => setActiveTab('facturas')}
-            className={`px-3 py-1.5 uppercase transition flex items-center gap-1.5 ${
+            variant={activeTab === 'facturas' ? 'default' : 'ghost'}
+            className={`h-auto px-3 py-1.5 uppercase ${
               activeTab === 'facturas'
-                ? 'bg-sky-400 text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900/60'
+                ? 'bg-sky-400 text-black font-black shadow-sm hover:bg-sky-400 hover:text-black'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Receipt size={13} />
+            <Receipt className="size-3" />
             <span>Facturas ({invoices.length})</span>
-          </button>
+          </Button>
         </div>
 
         {/* Buscador reactivo */}
         <div className="relative w-full sm:w-64">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar cliente, concepto..."
-            className="w-full bg-zinc-950 border border-zinc-800 pl-9 pr-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 font-mono focus:outline-none focus:border-zinc-600"
+            className="w-full bg-background border border-border pl-9 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground font-mono focus:outline-none focus:border-muted-foreground/40"
           />
         </div>
       </div>
 
       {/* Barra de Tasa Cambiaria Referencial (Base siempre USD) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-zinc-950 border border-zinc-800/80 font-mono text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-background border border-border/80 font-mono text-xs">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
             <span>Base USD ($)</span>
           </span>
-          <span className="text-zinc-400 text-[11px]">
+          <span className="text-muted-foreground text-[11px]">
             Precios pactados en dólares. Tasa referencial para cobros en Bolívares:
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Selector de fuente */}
-          <div className="inline-flex items-center border border-zinc-800 bg-black p-0.5 text-[10px]">
-            <button
+          <div className="inline-flex items-center border border-border bg-background p-0.5 text-[10px]">
+            <Button
               type="button"
               onClick={() => handleSelectRateSource('bcv')}
-              className={`px-2 py-1 uppercase transition ${
+              variant={rateSource === 'bcv' ? 'default' : 'ghost'}
+              className={`h-auto px-2 py-1 uppercase ${
                 rateSource === 'bcv'
-                  ? 'bg-emerald-500 text-black font-black'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-emerald-500 text-black font-black hover:bg-emerald-500 hover:text-black'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               BCV {liveRates ? `(${liveRates.bcv.rate})` : ''}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => handleSelectRateSource('binance')}
-              className={`px-2 py-1 uppercase transition ${
+              variant={rateSource === 'binance' ? 'default' : 'ghost'}
+              className={`h-auto px-2 py-1 uppercase ${
                 rateSource === 'binance'
-                  ? 'bg-amber-400 text-black font-black'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-amber-400 text-black font-black hover:bg-amber-400 hover:text-black'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Binance P2P {liveRates ? `(${liveRates.binance.rate})` : ''}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => setRateSource('manual')}
-              className={`px-2 py-1 uppercase transition ${
+              variant={rateSource === 'manual' ? 'default' : 'ghost'}
+              className={`h-auto px-2 py-1 uppercase ${
                 rateSource === 'manual'
-                  ? 'bg-zinc-700 text-white font-black'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-muted text-foreground font-black hover:bg-muted hover:text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Manual
-            </button>
+            </Button>
           </div>
 
           {/* Input de tasa editable en todo momento */}
-          <div className="flex items-center gap-1 bg-black border border-zinc-800 px-2 py-1">
-            <span className="text-zinc-500 text-[10px]">Bs./USD</span>
+          <div className="flex items-center gap-1 bg-background border border-border px-2 py-1">
+            <span className="text-muted-foreground text-[10px]">Bs./USD</span>
             <input
               type="number"
               step="0.01"
@@ -691,18 +706,20 @@ export function BillingWorkspace({
           </div>
 
           {/* Botón de refresco */}
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="icon-sm"
             onClick={() => {
               setIsFetchingRates(true)
               void fetchRates(true)
             }}
             disabled={isFetchingRates}
-            className="p-1.5 border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white transition disabled:opacity-50"
+            className="text-muted-foreground hover:text-foreground"
             title="Actualizar tasas en vivo desde API"
           >
-            <RotateCcw size={12} className={isFetchingRates ? 'animate-spin text-sky-400' : ''} />
-          </button>
+            <RotateCcw className={`size-3 ${isFetchingRates ? 'animate-spin text-sky-400' : ''}`} />
+          </Button>
         </div>
       </div>
 
@@ -719,19 +736,19 @@ export function BillingWorkspace({
             </EmptyState>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-800 text-[10px] font-mono uppercase tracking-wider text-zinc-500 bg-zinc-950/40">
-                    <th className="px-4 py-2.5 font-medium">Cliente</th>
-                    <th className="px-4 py-2.5 font-medium">Concepto</th>
-                    <th className="px-4 py-2.5 font-medium">Monto (USD)</th>
-                    <th className="px-4 py-2.5 font-medium">Estado</th>
-                    <th className="px-4 py-2.5 font-medium">Vencimiento</th>
-                    <th className="px-4 py-2.5 font-medium">Método</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Acciones In-Situ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-900">
+              <Table className="text-left text-xs">
+                <TableHeader>
+                  <TableRow className="border-border bg-background/40 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="px-4 py-2.5">Cliente</TableHead>
+                    <TableHead className="px-4 py-2.5">Concepto</TableHead>
+                    <TableHead className="px-4 py-2.5">Monto (USD)</TableHead>
+                    <TableHead className="px-4 py-2.5">Estado</TableHead>
+                    <TableHead className="px-4 py-2.5">Vencimiento</TableHead>
+                    <TableHead className="px-4 py-2.5">Método</TableHead>
+                    <TableHead className="px-4 py-2.5 text-right">Acciones In-Situ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredPayments.map((p) => {
                     const clientName = getClientName(p.client)
                     const isOverdue = p.status === 'vencido'
@@ -742,24 +759,24 @@ export function BillingWorkspace({
                     const diffDays = getCalendarDayDiff(p.dueDate, timezone)
 
                     return (
-                      <tr
+                      <TableRow
                         key={p.id}
                         onClick={() => {
                           setSelectedDoc({ kind: 'payment', data: p })
                           setPaymentDrawerTab('detalle')
                         }}
-                        className="hover:bg-zinc-900/50 cursor-pointer transition group"
+                        className="cursor-pointer group"
                       >
-                        <td className="px-4 py-3 text-white font-medium group-hover:text-sky-300 transition">
+                        <TableCell className="px-4 py-3 text-foreground font-medium group-hover:text-sky-300 transition">
                           {clientName}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-400 truncate max-w-xs">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 text-muted-foreground truncate max-w-xs">
                           {p.concept || 'Cobro sin concepto'}
-                        </td>
-                        <td className="px-4 py-3 font-mono font-bold text-white">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 font-mono font-bold text-foreground">
                           {usd.format(p.amount)}
-                        </td>
-                        <td className="px-4 py-3">
+                        </TableCell>
+                        <TableCell className="px-4 py-3">
                           <StatusBadge
                             tone={
                               isOverdue
@@ -773,8 +790,8 @@ export function BillingWorkspace({
                           >
                             {p.status}
                           </StatusBadge>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-zinc-400">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 font-mono text-muted-foreground">
                           <div>{p.dueDate ? dateFmt.format(new Date(p.dueDate)) : '—'}</div>
                           {diffDays !== null && (isPendingState || isOverdue) && (
                             <div className="text-[10px] mt-0.5">
@@ -787,34 +804,36 @@ export function BillingWorkspace({
                               ) : null}
                             </div>
                           )}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-zinc-400 capitalize">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 font-mono text-muted-foreground capitalize">
                           {p.method ? p.method.replace('_', ' ') : '—'}
-                        </td>
-                        <td
+                        </TableCell>
+                        <TableCell
                           className="px-4 py-3 text-right"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {canEdit && (
                             <div className="flex items-center justify-end gap-1.5">
                               {(isPendingState || isOverdue) && (
-                                <button
+                                <Button
                                   type="button"
+                                  variant="outline"
                                   onClick={() => {
                                     setSelectedDoc({ kind: 'payment', data: p })
                                     setPaymentDrawerTab('whatsapp')
                                   }}
-                                  className="px-2 py-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border border-emerald-800/80 text-[10px] font-mono transition flex items-center gap-1"
+                                  className="h-auto gap-1 px-2 py-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border-emerald-800/80 font-mono text-[10px]"
                                   title="Enviar recordatorio por WhatsApp"
                                 >
-                                  <MessageSquare size={11} />
+                                  <MessageSquare className="size-3" />
                                   <span>WhatsApp</span>
-                                </button>
+                                </Button>
                               )}
 
                               {(isPendingState || isOverdue) && (
-                                <button
+                                <Button
                                   type="button"
+                                  variant="outline"
                                   onClick={() => {
                                     setSelectedDoc({ kind: 'payment', data: p })
                                     setPaymentDrawerTab('conciliar')
@@ -822,51 +841,54 @@ export function BillingWorkspace({
                                     setPayReference('')
                                     setPayNotes('')
                                   }}
-                                  className="px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-black border border-emerald-500/30 text-[10px] font-mono font-bold uppercase transition flex items-center gap-1"
+                                  className="h-auto gap-1 px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-black border-emerald-500/30 font-mono text-[10px] font-bold uppercase"
                                   title="Registrar confirmación de pago"
                                 >
-                                  <Check size={12} />
+                                  <Check className="size-3" />
                                   <span>Registrar Pago</span>
-                                </button>
+                                </Button>
                               )}
 
                               {(isPendingState || isOverdue) && (
-                                <button
+                                <Button
                                   type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
                                   onClick={() => handleCancelPayment(p.id)}
-                                  className="p-1 hover:bg-zinc-800 text-zinc-500 hover:text-rose-400 transition"
+                                  className="hover:bg-muted/60 text-muted-foreground hover:text-rose-400"
                                   title="Anular cobro"
                                 >
-                                  <Ban size={13} />
-                                </button>
+                                  <Ban className="size-3.5" />
+                                </Button>
                               )}
 
                               {isCancelled && (
-                                <button
+                                <Button
                                   type="button"
+                                  variant="outline"
                                   onClick={() => handleReactivatePayment(p.id)}
-                                  className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 text-[10px] font-mono transition flex items-center gap-1"
+                                  className="h-auto gap-1 px-2 py-1 bg-muted hover:bg-muted/60 text-foreground/80 font-mono text-[10px]"
                                   title="Reactivar cobro"
                                 >
-                                  <RotateCcw size={11} />
+                                  <RotateCcw className="size-3" />
                                   <span>Reactivar</span>
-                                </button>
+                                </Button>
                               )}
                             </div>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
-          <footer className="flex items-center justify-between border-t border-zinc-900 px-4 py-3 text-xs font-mono text-zinc-500">
+          <footer className="flex items-center justify-between border-t border-border px-4 py-3 text-xs font-mono text-muted-foreground">
             <span>
               Mostrando {filteredPayments.length} de {payments.length} cobros
             </span>
-            <span className="text-zinc-600">Haz clic en cualquier fila para ver el detalle 360°</span>
+            <span className="text-muted-foreground">Haz clic en cualquier fila para ver el detalle 360°</span>
           </footer>
         </OledCard>
       )}
@@ -882,39 +904,39 @@ export function BillingWorkspace({
             </EmptyState>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-800 text-[10px] font-mono uppercase tracking-wider text-zinc-500 bg-zinc-950/40">
-                    <th className="px-4 py-2.5 font-medium">Número</th>
-                    <th className="px-4 py-2.5 font-medium">Cliente</th>
-                    <th className="px-4 py-2.5 font-medium">Total (USD)</th>
-                    <th className="px-4 py-2.5 font-medium">Estado</th>
-                    <th className="px-4 py-2.5 font-medium">Válida hasta</th>
-                    <th className="px-4 py-2.5 font-medium">Comprobante</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Acciones Comerciales</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-900">
+              <Table className="text-left text-xs">
+                <TableHeader>
+                  <TableRow className="border-border bg-background/40 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="px-4 py-2.5">Número</TableHead>
+                    <TableHead className="px-4 py-2.5">Cliente</TableHead>
+                    <TableHead className="px-4 py-2.5">Total (USD)</TableHead>
+                    <TableHead className="px-4 py-2.5">Estado</TableHead>
+                    <TableHead className="px-4 py-2.5">Válida hasta</TableHead>
+                    <TableHead className="px-4 py-2.5">Comprobante</TableHead>
+                    <TableHead className="px-4 py-2.5 text-right">Acciones Comerciales</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredQuotes.map((q) => {
                     const url = pdfUrl(q)
                     const canConvert = q.status === 'draft' || q.status === 'sent'
 
                     return (
-                      <tr
+                      <TableRow
                         key={q.id}
                         onClick={() => setSelectedDoc({ kind: 'quote', data: q })}
-                        className="hover:bg-zinc-900/50 cursor-pointer transition group"
+                        className="cursor-pointer group"
                       >
-                        <td className="px-4 py-3 font-mono font-bold text-white group-hover:text-indigo-400 transition">
+                        <TableCell className="px-4 py-3 font-mono font-bold text-foreground group-hover:text-indigo-400 transition">
                           {q.quoteNumber || `COT-#${q.id}`}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-300 font-medium">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 text-foreground/80 font-medium">
                           {q.client?.name || 'Cliente sin nombre'}
-                        </td>
-                        <td className="px-4 py-3 font-mono font-bold text-white">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 font-mono font-bold text-foreground">
                           {usd.format(q.total ?? 0)}
-                        </td>
-                        <td className="px-4 py-3">
+                        </TableCell>
+                        <TableCell className="px-4 py-3">
                           <StatusBadge
                             tone={
                               q.status === 'accepted'
@@ -926,11 +948,11 @@ export function BillingWorkspace({
                           >
                             {q.status || 'draft'}
                           </StatusBadge>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-zinc-400">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 font-mono text-muted-foreground">
                           {q.validUntil ? dateFmt.format(new Date(q.validUntil)) : '—'}
-                        </td>
-                        <td
+                        </TableCell>
+                        <TableCell
                           className="px-4 py-3"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -945,48 +967,49 @@ export function BillingWorkspace({
                               <ExternalLink size={12} />
                             </a>
                           ) : (
-                            <span className="text-zinc-600 font-mono text-[10px]">Sin PDF</span>
+                            <span className="text-muted-foreground font-mono text-[10px]">Sin PDF</span>
                           )}
-                        </td>
-                        <td
+                        </TableCell>
+                        <TableCell
                           className="px-4 py-3 text-right"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {canEdit && (
                             <div className="flex items-center justify-end gap-1.5">
                               {canConvert && (
-                                <button
+                                <Button
                                   type="button"
                                   disabled={isPending}
                                   onClick={() => handleConvertQuote(q.id)}
-                                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-[10px] uppercase font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                                  className="h-auto gap-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 font-mono text-[10px] uppercase font-bold shadow-sm"
                                   title="Crear Factura y Cobro automático a partir de esta cotización"
                                 >
-                                  {isPending ? <Loader2 size={11} className="animate-spin" /> : <FileCheck size={12} />}
+                                  {isPending ? <Loader2 className="size-3 animate-spin" /> : <FileCheck className="size-3" />}
                                   <span>Convertir a Factura</span>
-                                </button>
+                                </Button>
                               )}
 
                               {q.status === 'draft' && (
-                                <button
+                                <Button
                                   type="button"
+                                  variant="outline"
                                   onClick={() => handleChangeQuoteStatus(q.id, 'sent')}
-                                  className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono text-[10px] transition"
+                                  className="h-auto px-2 py-1 bg-muted hover:bg-muted/60 text-foreground/80 font-mono text-[10px]"
                                 >
                                   Marcar Enviada
-                                </button>
+                                </Button>
                               )}
                             </div>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
-          <footer className="border-t border-zinc-900 px-4 py-3 text-xs font-mono text-zinc-500">
+          <footer className="border-t border-border px-4 py-3 text-xs font-mono text-muted-foreground">
             <span>{filteredQuotes.length} cotizaciones registradas</span>
           </footer>
         </OledCard>
@@ -1003,37 +1026,37 @@ export function BillingWorkspace({
             </EmptyState>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-800 text-[10px] font-mono uppercase tracking-wider text-zinc-500 bg-zinc-950/40">
-                    <th className="px-4 py-2.5 font-medium">Factura #</th>
-                    <th className="px-4 py-2.5 font-medium">Cliente</th>
-                    <th className="px-4 py-2.5 font-medium">Total (USD)</th>
-                    <th className="px-4 py-2.5 font-medium">Estado</th>
-                    <th className="px-4 py-2.5 font-medium">Vencimiento</th>
-                    <th className="px-4 py-2.5 font-medium">Comprobante</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-900">
+              <Table className="text-left text-xs">
+                <TableHeader>
+                  <TableRow className="border-border bg-background/40 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="px-4 py-2.5">Factura #</TableHead>
+                    <TableHead className="px-4 py-2.5">Cliente</TableHead>
+                    <TableHead className="px-4 py-2.5">Total (USD)</TableHead>
+                    <TableHead className="px-4 py-2.5">Estado</TableHead>
+                    <TableHead className="px-4 py-2.5">Vencimiento</TableHead>
+                    <TableHead className="px-4 py-2.5">Comprobante</TableHead>
+                    <TableHead className="px-4 py-2.5 text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredInvoices.map((inv) => {
                     const url = pdfUrl(inv)
                     return (
-                      <tr
+                      <TableRow
                         key={inv.id}
                         onClick={() => setSelectedDoc({ kind: 'invoice', data: inv })}
-                        className="hover:bg-zinc-900/50 cursor-pointer transition group"
+                        className="cursor-pointer group"
                       >
-                        <td className="px-4 py-3 font-mono font-bold text-white group-hover:text-sky-300 transition">
+                        <TableCell className="px-4 py-3 font-mono font-bold text-foreground group-hover:text-sky-300 transition">
                           {inv.invoiceNumber || `INV-#${inv.id}`}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-300 font-medium">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 text-foreground/80 font-medium">
                           {inv.client?.name || 'Cliente sin nombre'}
-                        </td>
-                        <td className="px-4 py-3 font-mono font-bold text-white">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 font-mono font-bold text-foreground">
                           {usd.format(inv.total ?? 0)}
-                        </td>
-                        <td className="px-4 py-3">
+                        </TableCell>
+                        <TableCell className="px-4 py-3">
                           <StatusBadge
                             tone={
                               inv.status === 'paid'
@@ -1045,11 +1068,11 @@ export function BillingWorkspace({
                           >
                             {inv.status || 'draft'}
                           </StatusBadge>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-zinc-400">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 font-mono text-muted-foreground">
                           {inv.dueDate ? dateFmt.format(new Date(inv.dueDate)) : '—'}
-                        </td>
-                        <td
+                        </TableCell>
+                        <TableCell
                           className="px-4 py-3"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -1064,67 +1087,79 @@ export function BillingWorkspace({
                               <ExternalLink size={12} />
                             </a>
                           ) : (
-                            <span className="text-zinc-600 font-mono text-[10px]">Sin PDF</span>
+                            <span className="text-muted-foreground font-mono text-[10px]">Sin PDF</span>
                           )}
-                        </td>
-                        <td
+                        </TableCell>
+                        <TableCell
                           className="px-4 py-3 text-right"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {canEdit && (
                             <div className="flex items-center justify-end gap-1.5">
                               {inv.status !== 'paid' && (
-                                <button
+                                <Button
                                   type="button"
+                                  variant="outline"
                                   onClick={() => handleChangeInvoiceStatus(inv.id, 'paid')}
-                                  className="px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-black border border-emerald-500/30 font-mono text-[10px] uppercase font-bold transition flex items-center gap-1"
+                                  className="h-auto gap-1 px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-black border-emerald-500/30 font-mono text-[10px] uppercase font-bold"
                                 >
-                                  <Check size={11} />
+                                  <Check className="size-3" />
                                   <span>Pagada</span>
-                                </button>
+                                </Button>
                               )}
                               {inv.status !== 'cancelled' && (
-                                <button
+                                <Button
                                   type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
                                   onClick={() => handleChangeInvoiceStatus(inv.id, 'cancelled')}
-                                  className="p-1 hover:bg-zinc-800 text-zinc-500 hover:text-rose-400 transition"
+                                  className="hover:bg-muted/60 text-muted-foreground hover:text-rose-400"
                                   title="Anular factura"
                                 >
-                                  <Ban size={13} />
-                                </button>
+                                  <Ban className="size-3.5" />
+                                </Button>
                               )}
                             </div>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
-          <footer className="border-t border-zinc-900 px-4 py-3 text-xs font-mono text-zinc-500">
+          <footer className="border-t border-border px-4 py-3 text-xs font-mono text-muted-foreground">
             <span>{filteredInvoices.length} facturas emitidas</span>
           </footer>
         </OledCard>
       )}
 
-      {/* 6. Slide-Over Drawer: Terminal Fintech 360° */}
-      <Drawer
+      {/* 6. Slide-Over Sheet: Terminal Fintech 360° */}
+      <Sheet
         open={activeDoc !== null}
-        onClose={() => {
-          setSelectedDoc(null)
-          setPaymentDrawerTab('detalle')
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedDoc(null)
+            setPaymentDrawerTab('detalle')
+          }
         }}
-        size="xl"
-        title={
-          activeDoc?.kind === 'payment'
-            ? 'Terminal Fintech · Cobro'
-            : activeDoc?.kind === 'quote'
-              ? 'Terminal Comercial · Cotización'
-              : 'Terminal Fiscal · Factura'
-        }
       >
+        <SheetContent
+          side="right"
+          className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl"
+        >
+          <SheetHeader className="border-b border-border px-4 py-3">
+            <SheetTitle className="truncate text-sm font-bold uppercase tracking-wider text-foreground">
+              {activeDoc?.kind === 'payment'
+                ? 'Terminal Fintech · Cobro'
+                : activeDoc?.kind === 'quote'
+                  ? 'Terminal Comercial · Cotización'
+                  : 'Terminal Fiscal · Factura'}
+            </SheetTitle>
+            <SheetDescription className="sr-only">Detalle 360° del documento de facturación</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-1 flex-col overflow-y-auto p-4">
         {activeDoc && (
           <div className="space-y-4 font-mono text-xs">
             {/* === CASO 1: COBRO (PAYMENT) === */}
@@ -1147,9 +1182,9 @@ export function BillingWorkspace({
               return (
                 <div className="space-y-4">
                   {/* Tarjeta de Resumen Financiero Principal */}
-                  <div className="p-4 oled-subcard space-y-2.5 border-l-2 border-emerald-400">
+                  <div className="p-4 border border-border bg-muted/40 space-y-2.5 border-l-2 border-emerald-400">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold flex items-center gap-1.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                         Cobro #{payment.id}
                       </span>
@@ -1168,20 +1203,20 @@ export function BillingWorkspace({
                       </StatusBadge>
                     </div>
 
-                    <h3 className="text-base font-bold text-white">
+                    <h3 className="text-base font-bold text-foreground">
                       {payment.concept || 'Cobro sin concepto'}
                     </h3>
 
-                    <div className="flex flex-wrap items-baseline justify-between gap-2 pt-1 border-t border-zinc-900">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2 pt-1 border-t border-border">
                       <div>
-                        <span className="text-[10px] text-zinc-500 uppercase block">Base Principal</span>
-                        <div className="text-2xl font-black text-white font-mono">
+                        <span className="text-[10px] text-muted-foreground uppercase block">Base Principal</span>
+                        <div className="text-2xl font-black text-foreground font-mono">
                           {usd.format(payment.amount)}
                         </div>
                       </div>
                       {bsEquivalent && (
                         <div className="text-right">
-                          <span className="text-[10px] text-zinc-500 uppercase block">
+                          <span className="text-[10px] text-muted-foreground uppercase block">
                             Equivalente ({rateSource.toUpperCase()} {exchangeRate})
                           </span>
                           <div className="text-sm font-bold text-emerald-300 font-mono">
@@ -1193,60 +1228,61 @@ export function BillingWorkspace({
                   </div>
 
                   {/* Segmented Tab Selector para el Drawer de Cobros */}
-                  <div className="flex items-center gap-1 p-1 bg-zinc-900/80 border border-zinc-800 font-mono text-xs">
-                    <button
+                  <div className="flex items-center gap-1 p-1 bg-muted/80 border border-border font-mono text-xs">
+                    <Button
                       type="button"
                       onClick={() => setPaymentDrawerTab('detalle')}
-                      className={`flex-1 py-1.5 uppercase font-bold text-center transition ${
-                        paymentDrawerTab === 'detalle'
-                          ? 'bg-white text-black shadow-xs'
-                          : 'text-zinc-400 hover:text-white'
+                      variant={paymentDrawerTab === 'detalle' ? 'default' : 'ghost'}
+                      className={`h-auto flex-1 py-1.5 uppercase font-bold ${
+                        paymentDrawerTab === 'detalle' ? 'shadow-xs' : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
                       Detalle 360°
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
                       onClick={() => {
                         setPaymentDrawerTab('conciliar')
                         setPayMethod((payment.method as typeof payMethod) || 'transferencia')
                       }}
-                      className={`flex-1 py-1.5 uppercase font-bold text-center transition flex items-center justify-center gap-1.5 ${
+                      variant={paymentDrawerTab === 'conciliar' ? 'default' : 'ghost'}
+                      className={`h-auto flex-1 py-1.5 uppercase font-bold ${
                         paymentDrawerTab === 'conciliar'
-                          ? 'bg-emerald-400 text-black shadow-xs'
-                          : 'text-zinc-400 hover:text-white'
+                          ? 'bg-emerald-400 text-black shadow-xs hover:bg-emerald-400 hover:text-black'
+                          : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
-                      <Check size={13} />
+                      <Check className="size-3" />
                       <span>Conciliar</span>
                       {(isPendingState || isOverdue) && (
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                       )}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
                       onClick={() => setPaymentDrawerTab('whatsapp')}
-                      className={`flex-1 py-1.5 uppercase font-bold text-center transition flex items-center justify-center gap-1.5 ${
+                      variant={paymentDrawerTab === 'whatsapp' ? 'default' : 'ghost'}
+                      className={`h-auto flex-1 py-1.5 uppercase font-bold ${
                         paymentDrawerTab === 'whatsapp'
-                          ? 'bg-emerald-500 text-black shadow-xs'
-                          : 'text-zinc-400 hover:text-white'
+                          ? 'bg-emerald-500 text-black shadow-xs hover:bg-emerald-500 hover:text-black'
+                          : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
-                      <MessageSquare size={13} />
+                      <MessageSquare className="size-3" />
                       <span>WhatsApp</span>
-                    </button>
+                    </Button>
                   </div>
 
                   {/* SUB-VISTA 1: DETALLE 360° */}
                   {paymentDrawerTab === 'detalle' && (
                     <div className="space-y-3">
                       {/* Cliente vinculado */}
-                      <div className="p-3.5 oled-card space-y-1.5 border border-zinc-800">
-                        <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
+                      <div className="p-3.5 bg-card text-card-foreground space-y-1.5 border border-border">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-widest block">
                           Cliente Registrado
                         </span>
                         <div className="flex items-center justify-between">
-                          <strong className="text-sm text-white">{clientName}</strong>
+                          <strong className="text-sm text-foreground">{clientName}</strong>
                           {custId && (
                             <Link
                               href={`/workspace/crm/clientes/${custId}`}
@@ -1260,10 +1296,10 @@ export function BillingWorkspace({
                       </div>
 
                       {/* Parámetros Operativos */}
-                      <div className="grid grid-cols-2 gap-2 p-3 bg-zinc-950 border border-zinc-850">
+                      <div className="grid grid-cols-2 gap-2 p-3 bg-background border border-border">
                         <div>
-                          <span className="text-[10px] text-zinc-500 uppercase block">Vencimiento</span>
-                          <span className="text-xs text-zinc-200 font-bold">
+                          <span className="text-[10px] text-muted-foreground uppercase block">Vencimiento</span>
+                          <span className="text-xs text-foreground font-bold">
                             {payment.dueDate ? dateFmt.format(new Date(payment.dueDate)) : '—'}
                           </span>
                           {diffDays !== null && (isPendingState || isOverdue) && (
@@ -1280,8 +1316,8 @@ export function BillingWorkspace({
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-zinc-500 uppercase block">Método Sugerido</span>
-                          <span className="text-xs text-zinc-200 font-bold capitalize">
+                          <span className="text-[10px] text-muted-foreground uppercase block">Método Sugerido</span>
+                          <span className="text-xs text-foreground font-bold capitalize">
                             {payment.method ? payment.method.replace('_', ' ') : 'Sin especificar'}
                           </span>
                         </div>
@@ -1289,11 +1325,11 @@ export function BillingWorkspace({
 
                       {/* Notas y Auditoría */}
                       {payment.notes && (
-                        <div className="p-3 bg-zinc-950 border border-zinc-850 space-y-1">
-                          <span className="text-[10px] text-zinc-500 uppercase block">
+                        <div className="p-3 bg-background border border-border space-y-1">
+                          <span className="text-[10px] text-muted-foreground uppercase block">
                             Historial / Notas / Conciliación
                           </span>
-                          <p className="text-zinc-300 whitespace-pre-wrap text-[11px] font-mono leading-relaxed">
+                          <p className="text-foreground/80 whitespace-pre-wrap text-[11px] font-mono leading-relaxed">
                             {payment.notes}
                           </p>
                         </div>
@@ -1304,7 +1340,7 @@ export function BillingWorkspace({
                         <div className="pt-2 flex flex-col gap-2">
                           {(isPendingState || isOverdue) && (
                             <div className="flex gap-2">
-                              <button
+                              <Button
                                 type="button"
                                 onClick={() => {
                                   setPaymentDrawerTab('conciliar')
@@ -1312,43 +1348,46 @@ export function BillingWorkspace({
                                   setPayReference('')
                                   setPayNotes('')
                                 }}
-                                className="flex-1 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-black font-black uppercase text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950"
+                                className="h-auto flex-1 gap-1.5 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-black font-black uppercase text-xs shadow-lg shadow-emerald-950"
                               >
-                                <Check size={14} />
+                                <Check className="size-3.5" />
                                 <span>Conciliar Cobro Ahora</span>
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 type="button"
+                                variant="outline"
                                 onClick={() => setPaymentDrawerTab('whatsapp')}
-                                className="px-3.5 py-2.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border border-emerald-800 text-xs font-bold transition flex items-center gap-1.5"
+                                className="h-auto gap-1.5 px-3.5 py-2.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border-emerald-800 text-xs font-bold"
                                 title="Enviar recordatorio por WhatsApp"
                               >
-                                <MessageSquare size={13} />
+                                <MessageSquare className="size-3" />
                                 <span>WhatsApp</span>
-                              </button>
+                              </Button>
                             </div>
                           )}
 
                           {(isPendingState || isOverdue) && (
-                            <button
+                            <Button
                               type="button"
+                              variant="outline"
                               onClick={() => handleCancelPayment(payment.id)}
-                              className="w-full py-2 bg-zinc-900 hover:bg-zinc-850 text-rose-400 hover:text-rose-300 border border-zinc-800 text-xs font-bold uppercase transition flex items-center justify-center gap-1.5"
+                              className="h-auto w-full gap-1.5 py-2 text-rose-400 hover:text-rose-300 text-xs font-bold uppercase"
                             >
-                              <Ban size={13} />
+                              <Ban className="size-3" />
                               <span>Anular Cobro</span>
-                            </button>
+                            </Button>
                           )}
 
                           {isCancelled && (
-                            <button
+                            <Button
                               type="button"
+                              variant="outline"
                               onClick={() => handleReactivatePayment(payment.id)}
-                              className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-bold uppercase transition flex items-center justify-center gap-1.5"
+                              className="h-auto w-full gap-1.5 py-2.5 text-foreground text-xs font-bold uppercase"
                             >
-                              <RotateCcw size={13} />
+                              <RotateCcw className="size-3" />
                               <span>Reactivar Cobro Pendiente</span>
-                            </button>
+                            </Button>
                           )}
 
                           {isPaid && (
@@ -1371,35 +1410,36 @@ export function BillingWorkspace({
                             <CheckCircle2 size={16} />
                             <span>Cobro Ya Pagado</span>
                           </div>
-                          <p className="text-[11px] text-zinc-300">
+                          <p className="text-[11px] text-foreground/80">
                             Este cobro ya figura como registrado en el sistema con método:{' '}
-                            <strong className="text-white capitalize">{payment.method || '—'}</strong>.
+                            <strong className="text-foreground capitalize">{payment.method || '—'}</strong>.
                           </p>
                         </div>
                       ) : isCancelled ? (
-                        <div className="p-4 bg-zinc-900 border border-zinc-800 space-y-3">
+                        <div className="p-4 bg-muted border border-border space-y-3">
                           <div className="flex items-center gap-2 font-bold text-rose-400">
                             <Ban size={16} />
                             <span>Cobro Anulado</span>
                           </div>
-                          <p className="text-[11px] text-zinc-400 leading-relaxed">
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
                             Este cobro se encuentra anulado. No es posible conciliar ingresos ni adjuntar comprobantes a un cobro inactivo.
                           </p>
                           {canEdit && (
-                            <button
+                            <Button
                               type="button"
+                              variant="outline"
                               onClick={() => handleReactivatePayment(payment.id)}
-                              className="w-full py-2.5 bg-zinc-850 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-bold uppercase transition flex items-center justify-center gap-1.5"
+                              className="h-auto w-full gap-1.5 py-2.5 text-foreground text-xs font-bold uppercase"
                             >
-                              <RotateCcw size={13} />
+                              <RotateCcw className="size-3" />
                               <span>Reactivar Cobro a Pendiente</span>
-                            </button>
+                            </Button>
                           )}
                         </div>
                       ) : (
                         <div className="space-y-3.5">
-                          <div className="p-3 bg-zinc-900/60 border border-zinc-800 flex items-center justify-between">
-                            <span className="text-zinc-400 text-xs font-bold uppercase">
+                          <div className="p-3 bg-muted/60 border border-border flex items-center justify-between">
+                            <span className="text-muted-foreground text-xs font-bold uppercase">
                               Conciliación de Ingreso
                             </span>
                             <span className="text-emerald-400 font-bold font-mono">
@@ -1407,12 +1447,12 @@ export function BillingWorkspace({
                             </span>
                           </div>
 
-                          <label className="flex flex-col gap-1.5 text-xs text-zinc-400 uppercase">
+                          <label className="flex flex-col gap-1.5 text-xs text-muted-foreground uppercase">
                             <span>Método de Pago Real</span>
                             <select
                               value={payMethod}
                               onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
-                              className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600 font-mono"
+                              className="w-full bg-background border border-border px-3 py-2 text-xs text-foreground focus:outline-none focus:border-muted-foreground/40 font-mono"
                             >
                               <option value="pago_movil">Pago Móvil (Bs.)</option>
                               <option value="transferencia">Transferencia Bancaria (Bs.)</option>
@@ -1425,32 +1465,34 @@ export function BillingWorkspace({
 
                           {/* Tasa y cálculo referencial en Bolívares */}
                           {(payMethod === 'pago_movil' || payMethod === 'transferencia') && (
-                            <div className="p-3 bg-zinc-900/60 border border-zinc-800 space-y-2">
-                              <div className="flex items-center justify-between text-[11px] text-zinc-400">
-                                <span className="font-bold text-zinc-300">Tasa Referencial (Bs./USD)</span>
+                            <div className="p-3 bg-muted/60 border border-border space-y-2">
+                              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                <span className="font-bold text-foreground/80">Tasa Referencial (Bs./USD)</span>
                                 <div className="flex items-center gap-1.5">
-                                  <button
+                                  <Button
                                     type="button"
                                     onClick={() => handleSelectRateSource('bcv')}
-                                    className={`px-1.5 py-0.5 text-[9px] uppercase border transition ${
+                                    variant={rateSource === 'bcv' ? 'default' : 'outline'}
+                                    className={`h-auto rounded-none px-1.5 py-0.5 text-[9px] uppercase font-bold ${
                                       rateSource === 'bcv'
-                                        ? 'bg-emerald-500 text-black font-bold border-emerald-500'
-                                        : 'border-zinc-800 text-zinc-400 hover:text-white'
+                                        ? 'bg-emerald-500 text-black border-emerald-500 hover:bg-emerald-500 hover:text-black'
+                                        : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                   >
                                     BCV
-                                  </button>
-                                  <button
+                                  </Button>
+                                  <Button
                                     type="button"
                                     onClick={() => handleSelectRateSource('binance')}
-                                    className={`px-1.5 py-0.5 text-[9px] uppercase border transition ${
+                                    variant={rateSource === 'binance' ? 'default' : 'outline'}
+                                    className={`h-auto rounded-none px-1.5 py-0.5 text-[9px] uppercase font-bold ${
                                       rateSource === 'binance'
-                                        ? 'bg-amber-400 text-black font-bold border-amber-400'
-                                        : 'border-zinc-800 text-zinc-400 hover:text-white'
+                                        ? 'bg-amber-400 text-black border-amber-400 hover:bg-amber-400 hover:text-black'
+                                        : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                   >
                                     Binance
-                                  </button>
+                                  </Button>
                                   <input
                                     type="number"
                                     step="0.01"
@@ -1460,13 +1502,13 @@ export function BillingWorkspace({
                                       setExchangeRate(e.target.value)
                                       setRateSource('manual')
                                     }}
-                                    className="bg-black border border-zinc-700 px-2 py-0.5 text-xs text-emerald-400 font-mono w-24 text-right focus:outline-none"
+                                    className="bg-background border border-border px-2 py-0.5 text-xs text-emerald-400 font-mono w-24 text-right focus:outline-none"
                                   />
                                 </div>
                               </div>
                               {Number(exchangeRate) > 0 && (
-                                <div className="flex items-center justify-between pt-1 border-t border-zinc-800/60">
-                                  <span className="text-[10px] text-zinc-500">
+                                <div className="flex items-center justify-between pt-1 border-t border-border/60">
+                                  <span className="text-[10px] text-muted-foreground">
                                     Base USD: {usd.format(payment.amount)}
                                   </span>
                                   <div className="text-right text-xs font-mono text-emerald-300 font-bold">
@@ -1477,45 +1519,46 @@ export function BillingWorkspace({
                             </div>
                           )}
 
-                          <label className="flex flex-col gap-1.5 text-xs text-zinc-400 uppercase">
+                          <label className="flex flex-col gap-1.5 text-xs text-muted-foreground uppercase">
                             <span>Número de Referencia / Comprobante Bancario</span>
                             <input
                               type="text"
                               value={payReference}
                               onChange={(e) => setPayReference(e.target.value)}
                               placeholder="Ej: Ref #948291 Banesco / TXID Binance"
-                              className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600 font-mono"
+                              className="w-full bg-background border border-border px-3 py-2 text-xs text-foreground focus:outline-none focus:border-muted-foreground/40 font-mono"
                             />
                           </label>
 
-                          <label className="flex flex-col gap-1.5 text-xs text-zinc-400 uppercase">
+                          <label className="flex flex-col gap-1.5 text-xs text-muted-foreground uppercase">
                             <span>Notas de Auditoría o Conciliación</span>
                             <input
                               type="text"
                               value={payNotes}
                               onChange={(e) => setPayNotes(e.target.value)}
                               placeholder="Observaciones adicionales para el registro..."
-                              className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600 font-mono"
+                              className="w-full bg-background border border-border px-3 py-2 text-xs text-foreground focus:outline-none focus:border-muted-foreground/40 font-mono"
                             />
                           </label>
 
-                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-900">
-                            <button
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                            <Button
                               type="button"
+                              variant="outline"
                               onClick={() => setPaymentDrawerTab('detalle')}
-                              className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold uppercase transition"
+                              className="h-auto px-4 py-2 bg-muted hover:bg-muted/60 text-foreground/80 text-xs font-bold uppercase"
                             >
                               Cancelar
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               type="button"
                               disabled={isPending}
                               onClick={handleConfirmPayment}
-                              className="px-5 py-2 bg-emerald-400 hover:bg-emerald-300 text-black text-xs font-black uppercase transition flex items-center gap-1.5 shadow-lg shadow-emerald-950 disabled:opacity-50"
+                              className="h-auto gap-1.5 px-5 py-2 bg-emerald-400 hover:bg-emerald-300 text-black text-xs font-black uppercase shadow-lg shadow-emerald-950"
                             >
-                              {isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={14} />}
+                              {isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3.5" />}
                               <span>Confirmar y Conciliar</span>
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -1531,30 +1574,31 @@ export function BillingWorkspace({
                       </div>
 
                       <div className="space-y-1.5">
-                        <span className="text-[11px] text-zinc-400 block uppercase">
+                        <span className="text-[11px] text-muted-foreground block uppercase">
                           Vista previa del mensaje para {clientName}:
                         </span>
                         <textarea
                           readOnly
                           rows={10}
                           value={generatePaymentReminderText(payment)}
-                          className="w-full bg-black border border-zinc-800 p-3 text-xs text-emerald-300 font-mono focus:outline-none select-all leading-relaxed"
+                          className="w-full bg-background border border-border p-3 text-xs text-emerald-300 font-mono focus:outline-none select-all leading-relaxed"
                         />
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-zinc-900">
-                        <button
+                      <div className="flex items-center justify-between pt-2 border-t border-border">
+                        <Button
                           type="button"
+                          variant="outline"
                           onClick={() => {
                             navigator.clipboard.writeText(generatePaymentReminderText(payment))
                             setCopiedReminder(true)
                             setTimeout(() => setCopiedReminder(false), 2500)
                           }}
-                          className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold transition flex items-center gap-1.5 font-mono"
+                          className="h-auto gap-1.5 px-3.5 py-2 bg-muted hover:bg-muted/60 text-foreground text-xs font-bold font-mono"
                         >
-                          {copiedReminder ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                          {copiedReminder ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
                           <span>{copiedReminder ? '¡Copiado!' : 'Copiar Mensaje'}</span>
-                        </button>
+                        </Button>
 
                         <a
                           href={`https://wa.me/?text=${encodeURIComponent(generatePaymentReminderText(payment))}`}
@@ -1581,9 +1625,9 @@ export function BillingWorkspace({
               return (
                 <div className="space-y-4">
                   {/* Cabecera Cotización */}
-                  <div className="p-4 oled-subcard space-y-2 border-l-2 border-indigo-400">
+                  <div className="p-4 border border-border bg-muted/40 space-y-2 border-l-2 border-indigo-400">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
                         Cotización Comercial
                       </span>
                       <StatusBadge
@@ -1599,22 +1643,22 @@ export function BillingWorkspace({
                       </StatusBadge>
                     </div>
 
-                    <h3 className="text-lg font-bold text-white font-mono">
+                    <h3 className="text-lg font-bold text-foreground font-mono">
                       {q.quoteNumber || `Cotización #${q.id}`}
                     </h3>
 
-                    <div className="text-2xl font-black text-white font-mono pt-1">
+                    <div className="text-2xl font-black text-foreground font-mono pt-1">
                       {usd.format(q.total ?? 0)}
                     </div>
                   </div>
 
                   {/* Datos del Cliente y Enlace CRM */}
-                  <div className="p-3.5 oled-card space-y-2 border border-zinc-800">
-                    <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
+                  <div className="p-3.5 bg-card text-card-foreground space-y-2 border border-border">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest block">
                       Cliente Vinculado
                     </span>
                     <div className="flex items-center justify-between">
-                      <strong className="text-sm text-white">{q.client?.name || 'Cliente sin nombre'}</strong>
+                      <strong className="text-sm text-foreground">{q.client?.name || 'Cliente sin nombre'}</strong>
                       {(() => {
                         const custId = getCustomerId(q.client)
                         if (!custId) return null
@@ -1630,7 +1674,7 @@ export function BillingWorkspace({
                       })()}
                     </div>
                     {q.validUntil && (
-                      <p className="text-[10px] text-zinc-500 font-mono">
+                      <p className="text-[10px] text-muted-foreground font-mono">
                         Válida hasta: {dateFmt.format(new Date(q.validUntil))}
                       </p>
                     )}
@@ -1638,27 +1682,27 @@ export function BillingWorkspace({
 
                   {/* Desglose de ítems */}
                   {q.items && q.items.length > 0 && (
-                    <div className="p-3.5 oled-card space-y-2 border border-zinc-800">
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
+                    <div className="p-3.5 bg-card text-card-foreground space-y-2 border border-border">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest block">
                         Líneas de Detalle ({q.items.length})
                       </span>
-                      <div className="divide-y divide-zinc-900">
+                      <div className="divide-y divide-border">
                         {q.items.map((it, idx) => (
                           <div key={idx} className="py-2 flex items-center justify-between">
                             <div>
-                              <p className="text-white font-medium">{it.description}</p>
-                              <span className="text-[10px] text-zinc-500">
+                              <p className="text-foreground font-medium">{it.description}</p>
+                              <span className="text-[10px] text-muted-foreground">
                                 {it.quantity} × {usd.format(it.unitPrice)}
                               </span>
                             </div>
-                            <span className="font-mono text-white font-bold">
+                            <span className="font-mono text-foreground font-bold">
                               {usd.format(it.lineTotal || it.quantity * it.unitPrice)}
                             </span>
                           </div>
                         ))}
                       </div>
 
-                      <div className="pt-2 border-t border-zinc-900 flex justify-between font-bold text-white">
+                      <div className="pt-2 border-t border-border flex justify-between font-bold text-foreground">
                         <span>Total Cotizado</span>
                         <span>{usd.format(q.total ?? 0)}</span>
                       </div>
@@ -1669,32 +1713,31 @@ export function BillingWorkspace({
                   {canEdit && (
                     <div className="space-y-2 pt-1">
                       {canConvert && (
-                        <button
+                        <Button
                           type="button"
                           onClick={() => handleConvertQuote(q.id)}
-                          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-950 font-mono"
+                          className="h-auto w-full gap-1.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 font-bold uppercase text-xs shadow-lg shadow-indigo-950 font-mono"
                         >
-                          <FileCheck size={14} />
+                          <FileCheck className="size-3.5" />
                           <span>Facturar con 1 Clic</span>
-                        </button>
+                        </Button>
                       )}
 
                       {/* Selector de estados rápido */}
                       <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        <span className="text-[10px] text-zinc-500 uppercase mr-1">Estado:</span>
+                        <span className="text-[10px] text-muted-foreground uppercase mr-1">Estado:</span>
                         {(['draft', 'sent', 'accepted', 'rejected', 'expired'] as const).map((s) => (
-                          <button
+                          <Button
                             key={s}
                             type="button"
                             onClick={() => handleChangeQuoteStatus(q.id, s)}
-                            className={`px-2 py-1 text-[10px] uppercase font-mono border transition ${
-                              q.status === s
-                                ? 'bg-zinc-200 text-black font-bold border-white'
-                                : 'border-zinc-800 text-zinc-400 hover:text-white'
+                            variant={q.status === s ? 'default' : 'outline'}
+                            className={`h-auto px-2 py-1 text-[10px] uppercase font-mono ${
+                              q.status === s ? 'font-bold border-primary' : 'text-muted-foreground hover:text-foreground'
                             }`}
                           >
                             {s}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     </div>
@@ -1707,13 +1750,13 @@ export function BillingWorkspace({
                         href={url}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-indigo-400 hover:text-white border border-zinc-800 font-bold uppercase transition font-mono"
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-muted hover:bg-muted/60 text-indigo-400 hover:text-foreground border border-border font-bold uppercase transition font-mono"
                       >
                         <ExternalLink size={14} />
                         <span>Ver Cotización en PDF</span>
                       </a>
                     ) : (
-                      <div className="p-3 bg-zinc-900/40 border border-zinc-800 text-center text-zinc-500 text-[11px] font-mono">
+                      <div className="p-3 bg-muted/40 border border-border text-center text-muted-foreground text-[11px] font-mono">
                         PDF aún no generado por el motor de cotización
                       </div>
                     )}
@@ -1730,9 +1773,9 @@ export function BillingWorkspace({
               return (
                 <div className="space-y-4">
                   {/* Cabecera Factura */}
-                  <div className="p-4 oled-subcard space-y-2 border-l-2 border-sky-400">
+                  <div className="p-4 border border-border bg-muted/40 space-y-2 border-l-2 border-sky-400">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
                         Factura Emitida
                       </span>
                       <StatusBadge
@@ -1748,22 +1791,22 @@ export function BillingWorkspace({
                       </StatusBadge>
                     </div>
 
-                    <h3 className="text-lg font-bold text-white font-mono">
+                    <h3 className="text-lg font-bold text-foreground font-mono">
                       {inv.invoiceNumber || `Factura #${inv.id}`}
                     </h3>
 
-                    <div className="text-2xl font-black text-white font-mono pt-1">
+                    <div className="text-2xl font-black text-foreground font-mono pt-1">
                       {usd.format(inv.total ?? 0)}
                     </div>
                   </div>
 
                   {/* Datos del Cliente y Enlace CRM */}
-                  <div className="p-3.5 oled-card space-y-2 border border-zinc-800">
-                    <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
+                  <div className="p-3.5 bg-card text-card-foreground space-y-2 border border-border">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest block">
                       Cliente Vinculado
                     </span>
                     <div className="flex items-center justify-between">
-                      <strong className="text-sm text-white">{inv.client?.name || 'Cliente sin nombre'}</strong>
+                      <strong className="text-sm text-foreground">{inv.client?.name || 'Cliente sin nombre'}</strong>
                       {(() => {
                         const custId = getCustomerId(inv.client)
                         if (!custId) return null
@@ -1779,7 +1822,7 @@ export function BillingWorkspace({
                       })()}
                     </div>
                     {inv.dueDate && (
-                      <p className="text-[10px] text-zinc-500 font-mono">
+                      <p className="text-[10px] text-muted-foreground font-mono">
                         Vence: {dateFmt.format(new Date(inv.dueDate))}
                       </p>
                     )}
@@ -1787,27 +1830,27 @@ export function BillingWorkspace({
 
                   {/* Desglose de ítems */}
                   {inv.items && inv.items.length > 0 && (
-                    <div className="p-3.5 oled-card space-y-2 border border-zinc-800">
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
+                    <div className="p-3.5 bg-card text-card-foreground space-y-2 border border-border">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest block">
                         Líneas de Detalle ({inv.items.length})
                       </span>
-                      <div className="divide-y divide-zinc-900">
+                      <div className="divide-y divide-border">
                         {inv.items.map((it, idx) => (
                           <div key={idx} className="py-2 flex items-center justify-between">
                             <div>
-                              <p className="text-white font-medium">{it.description}</p>
-                              <span className="text-[10px] text-zinc-500">
+                              <p className="text-foreground font-medium">{it.description}</p>
+                              <span className="text-[10px] text-muted-foreground">
                                 {it.quantity} × {usd.format(it.unitPrice)}
                               </span>
                             </div>
-                            <span className="font-mono text-white font-bold">
+                            <span className="font-mono text-foreground font-bold">
                               {usd.format(it.lineTotal || it.quantity * it.unitPrice)}
                             </span>
                           </div>
                         ))}
                       </div>
 
-                      <div className="pt-2 border-t border-zinc-900 flex justify-between font-bold text-white">
+                      <div className="pt-2 border-t border-border flex justify-between font-bold text-foreground">
                         <span>Total Factura</span>
                         <span>{usd.format(inv.total ?? 0)}</span>
                       </div>
@@ -1818,20 +1861,19 @@ export function BillingWorkspace({
                   {canEdit && (
                     <div className="space-y-2 pt-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10px] text-zinc-500 uppercase mr-1">Estado Fiscal:</span>
+                        <span className="text-[10px] text-muted-foreground uppercase mr-1">Estado Fiscal:</span>
                         {(['draft', 'sent', 'paid', 'overdue', 'cancelled'] as const).map((s) => (
-                          <button
+                          <Button
                             key={s}
                             type="button"
                             onClick={() => handleChangeInvoiceStatus(inv.id, s)}
-                            className={`px-2 py-1 text-[10px] uppercase font-mono border transition ${
-                              inv.status === s
-                                ? 'bg-zinc-200 text-black font-bold border-white'
-                                : 'border-zinc-800 text-zinc-400 hover:text-white'
+                            variant={inv.status === s ? 'default' : 'outline'}
+                            className={`h-auto px-2 py-1 text-[10px] uppercase font-mono ${
+                              inv.status === s ? 'font-bold border-primary' : 'text-muted-foreground hover:text-foreground'
                             }`}
                           >
                             {s}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     </div>
@@ -1844,13 +1886,13 @@ export function BillingWorkspace({
                         href={url}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-sky-400 hover:text-white border border-zinc-800 font-bold uppercase transition font-mono"
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-muted hover:bg-muted/60 text-sky-400 hover:text-foreground border border-border font-bold uppercase transition font-mono"
                       >
                         <ExternalLink size={14} />
                         <span>Ver Factura Oficial en PDF</span>
                       </a>
                     ) : (
-                      <div className="p-3 bg-zinc-900/40 border border-zinc-800 text-center text-zinc-500 text-[11px] font-mono">
+                      <div className="p-3 bg-muted/40 border border-border text-center text-muted-foreground text-[11px] font-mono">
                         PDF aún no generado por el motor de facturación
                       </div>
                     )}
@@ -1860,7 +1902,9 @@ export function BillingWorkspace({
             })()}
           </div>
         )}
-      </Drawer>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

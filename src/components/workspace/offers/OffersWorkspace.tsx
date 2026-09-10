@@ -23,9 +23,26 @@ import {
 
 import type { Client, Lead, Media, Offer, Quote, Segment } from '@/payload-types'
 import { useRouter } from 'next/navigation'
+import { cn } from 'cn'
 import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
 import { OfferCreateDialog } from '@/components/workspace/OfferCreateDialog'
-import { Drawer } from '@/components/workspace/overlays'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { toggleOfferActiveAction } from '@/lib/offer-actions'
 import {
   convertQuoteToInvoiceAction,
@@ -366,9 +383,16 @@ export function OffersWorkspace({
           }`}
         >
           <span>{actionNotice.text}</span>
-          <button type="button" onClick={() => setActionNotice(null)} className="opacity-70 hover:opacity-100">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Cerrar aviso"
+            onClick={() => setActionNotice(null)}
+            className="opacity-70 hover:opacity-100"
+          >
             <X size={14} />
-          </button>
+          </Button>
         </div>
       )}
 
@@ -379,14 +403,14 @@ export function OffersWorkspace({
         actions={
           canEdit ? (
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
                 onClick={() => handleOpenQuoteBuilder()}
-                className="px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-black text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 transition shadow-sm"
+                className="bg-sky-500 font-mono text-xs font-bold uppercase tracking-wider text-black shadow-sm hover:bg-sky-400"
               >
                 <FileText size={14} />
                 <span>Nueva Cotización</span>
-              </button>
+              </Button>
               <OfferCreateDialog segments={segments.map((s) => ({ id: s.id, name: s.name }))} />
             </div>
           ) : undefined
@@ -426,36 +450,40 @@ export function OffersWorkspace({
       </section>
 
       {/* Selector de Pestañas */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
         <div className="flex items-center gap-1 font-mono text-xs">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setActiveTab('catalogo')}
-            className={`px-3 py-1.5 transition flex items-center gap-1.5 ${
+            className={cn(
+              'flex items-center gap-1.5 border-b-2 px-3 py-1.5 font-mono text-xs transition',
               activeTab === 'catalogo'
-                ? 'bg-zinc-800 text-white font-bold border-b-2 border-sky-400'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-            }`}
+                ? 'border-sky-400 bg-muted font-bold text-foreground'
+                : 'border-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
           >
             <Tag size={13} />
             <span>Catálogo de Ofertas ({offers.length})</span>
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setActiveTab('cotizaciones')}
-            className={`px-3 py-1.5 transition flex items-center gap-1.5 ${
+            className={cn(
+              'flex items-center gap-1.5 border-b-2 px-3 py-1.5 font-mono text-xs transition',
               activeTab === 'cotizaciones'
-                ? 'bg-zinc-800 text-white font-bold border-b-2 border-amber-400'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-            }`}
+                ? 'border-amber-400 bg-muted font-bold text-foreground'
+                : 'border-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
           >
             <FileText size={13} />
             <span>Cotizaciones Emitidas ({quotes.length})</span>
-          </button>
+          </Button>
         </div>
 
         {/* Buscador reactivo */}
-        <input
+        <Input
           type="text"
           value={searchQuery}
           onChange={(e) => {
@@ -463,7 +491,7 @@ export function OffersWorkspace({
             setQuotePage(1)
           }}
           placeholder={activeTab === 'catalogo' ? 'Buscar oferta o rubro...' : 'Buscar cliente o cotización #...'}
-          className="bg-black border border-zinc-800 px-3 py-1 text-xs text-white placeholder:text-zinc-600 font-mono w-64 focus:outline-none focus:border-zinc-600"
+          className="h-7 w-64 bg-background px-3 font-mono text-xs"
         />
       </div>
 
@@ -484,10 +512,13 @@ export function OffersWorkspace({
             filteredOffers.map((o) => {
               const segmentName = typeof o.segment === 'object' && o.segment ? o.segment.name : null
               return (
-                <article key={o.id} className="oled-card flex flex-col gap-2.5 p-4 justify-between group">
+                <article
+                  key={o.id}
+                  className="flex flex-col justify-between gap-2.5 border border-border bg-card p-4 text-card-foreground group"
+                >
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
-                      <strong className="text-sm font-bold text-white group-hover:text-sky-300 transition">
+                      <strong className="text-sm font-bold text-foreground transition group-hover:text-sky-300">
                         {o.name}
                       </strong>
                       <StatusBadge tone={o.active ? 'success' : 'neutral'}>
@@ -495,18 +526,18 @@ export function OffersWorkspace({
                       </StatusBadge>
                     </div>
                     {o.description && (
-                      <p className="text-xs leading-relaxed text-zinc-400">{o.description}</p>
+                      <p className="text-xs leading-relaxed text-muted-foreground">{o.description}</p>
                     )}
                   </div>
 
-                  <div className="pt-3 border-t border-zinc-900 space-y-3">
+                  <div className="space-y-3 border-t border-border pt-3">
                     <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1 text-base font-black text-white font-mono">
+                      <span className="flex items-center gap-1 font-mono text-base font-black text-foreground">
                         <CircleDollarSign className="h-4 w-4 text-sky-400" />
                         {usd.format(o.price)}
                       </span>
                       {segmentName && (
-                        <span className="flex items-center gap-1 border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-mono text-zinc-300">
+                        <span className="flex items-center gap-1 border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground/80">
                           <Tag className="h-3 w-3" />
                           {segmentName}
                         </span>
@@ -514,24 +545,28 @@ export function OffersWorkspace({
                     </div>
 
                     {canEdit && o.active && (
-                      <div className="flex items-center justify-between pt-1 border-t border-zinc-900/50">
-                        <button
+                      <div className="flex items-center justify-between border-t border-border/50 pt-1">
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="xs"
                           onClick={() => handleOpenQuoteBuilder(o)}
-                          className="inline-flex items-center gap-1 text-[11px] font-mono text-sky-400 hover:text-sky-300 font-bold"
+                          className="gap-1 p-0 font-mono text-[11px] font-bold text-sky-400 hover:bg-transparent hover:text-sky-300"
                         >
                           <Plus size={12} />
                           <span>Cotizar esto</span>
-                        </button>
+                        </Button>
 
                         <form action={toggleOfferActiveAction} className="text-right">
                           <input type="hidden" name="id" value={o.id} />
-                          <button
+                          <Button
                             type="submit"
-                            className="text-[10px] text-zinc-500 font-mono uppercase transition hover:text-white"
+                            variant="ghost"
+                            size="xs"
+                            className="font-mono text-[10px] uppercase text-muted-foreground hover:text-foreground"
                           >
                             {o.active ? 'Pausar' : 'Activar'}
-                          </button>
+                          </Button>
                         </form>
                       </div>
                     )}
@@ -554,38 +589,38 @@ export function OffersWorkspace({
             </EmptyState>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-800 text-[10px] font-mono uppercase tracking-wider text-zinc-500 bg-zinc-950/40">
-                    <th className="px-4 py-2.5 font-medium">Cotización #</th>
-                    <th className="px-4 py-2.5 font-medium">Cliente / Prospecto</th>
-                    <th className="px-4 py-2.5 font-medium">Total (USD)</th>
-                    <th className="px-4 py-2.5 font-medium">Estado</th>
-                    <th className="px-4 py-2.5 font-medium">Válida Hasta</th>
-                    <th className="px-4 py-2.5 font-medium">PDF</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-900">
+              <Table className="text-left text-xs">
+                <TableHeader>
+                  <TableRow className="border-b bg-background/40 font-mono text-[10px] uppercase tracking-wider text-muted-foreground hover:bg-background/40">
+                    <TableHead className="px-4 py-2.5 font-medium">Cotización #</TableHead>
+                    <TableHead className="px-4 py-2.5 font-medium">Cliente / Prospecto</TableHead>
+                    <TableHead className="px-4 py-2.5 font-medium">Total (USD)</TableHead>
+                    <TableHead className="px-4 py-2.5 font-medium">Estado</TableHead>
+                    <TableHead className="px-4 py-2.5 font-medium">Válida Hasta</TableHead>
+                    <TableHead className="px-4 py-2.5 font-medium">PDF</TableHead>
+                    <TableHead className="px-4 py-2.5 text-right font-medium">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {paginatedQuotes.map((q) => {
                     const url = getPdfUrl(q)
                     const isAccepted = q.status === 'accepted'
                     return (
-                      <tr
+                      <TableRow
                         key={q.id}
                         onClick={() => setSelectedQuote(q)}
-                        className="hover:bg-zinc-900/50 cursor-pointer transition group"
+                        className="cursor-pointer transition group hover:bg-muted/50"
                       >
-                        <td className="px-4 py-3 font-mono font-bold text-white group-hover:text-sky-300 transition">
+                        <TableCell className="px-4 py-3 font-mono font-bold text-foreground transition group-hover:text-sky-300">
                           {q.quoteNumber || `COT-#${q.id}`}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-300 font-medium">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 font-medium text-foreground/80">
                           {q.client?.name || 'Cliente sin nombre'}
-                        </td>
-                        <td className="px-4 py-3 font-mono font-bold text-white">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 font-mono font-bold text-foreground">
                           {usd.format(q.total ?? 0)}
-                        </td>
-                        <td className="px-4 py-3">
+                        </TableCell>
+                        <TableCell className="px-4 py-3">
                           <StatusBadge
                             tone={
                               q.status === 'accepted'
@@ -607,91 +642,100 @@ export function OffersWorkspace({
                                     ? 'Rechazada'
                                     : q.status || 'draft'}
                           </StatusBadge>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-zinc-400">
+                        </TableCell>
+                        <TableCell className="px-4 py-3 font-mono text-muted-foreground">
                           {q.validUntil ? dateFmt.format(new Date(q.validUntil)) : '—'}
-                        </td>
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        </TableCell>
+                        <TableCell className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           <a
                             href={`/api/pdf/quote/${q.id}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-mono border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition"
+                            className="inline-flex items-center gap-1 border border-border px-2 py-1 font-mono text-[10px] text-muted-foreground transition hover:border-muted-foreground/40 hover:text-foreground"
                           >
                             <FileText size={10} /> PDF
                           </a>
-                        </td>
-                        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        </TableCell>
+                        <TableCell className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
                             {/* Compartir WhatsApp */}
-                            <button
+                            <Button
                               type="button"
+                              variant="outline"
+                              size="xs"
                               onClick={() => setShareQuote(q)}
-                              className="px-2 py-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border border-emerald-800/80 font-mono text-[10px] transition flex items-center gap-1"
+                              className="gap-1 border-emerald-800/80 bg-emerald-950/80 font-mono text-[10px] text-emerald-400 hover:bg-emerald-900 hover:text-emerald-400"
                               title="Compartir por WhatsApp"
                             >
                               <MessageSquare size={11} />
                               <span>WhatsApp</span>
-                            </button>
+                            </Button>
 
                             {/* Convertir a Factura */}
                             {canEdit && (q.status === 'draft' || q.status === 'sent') && (
-                              <button
+                              <Button
                                 type="button"
+                                size="xs"
                                 disabled={isPending}
                                 onClick={() => handleConvertQuote(q.id)}
-                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-[10px] uppercase font-bold transition flex items-center gap-1 disabled:opacity-50"
+                                className="gap-1 bg-indigo-600 font-mono text-[10px] font-bold uppercase text-foreground hover:bg-indigo-500"
                                 title="Aprobar y generar Factura/Cobro"
                               >
                                 {isPending ? <Loader2 size={11} className="animate-spin" /> : <FileCheck size={11} />}
                                 <span>Facturar</span>
-                              </button>
+                              </Button>
                             )}
 
                             {/* Marcar Enviada si es borrador */}
                             {canEdit && q.status === 'draft' && (
-                              <button
+                              <Button
                                 type="button"
+                                variant="outline"
+                                size="xs"
                                 onClick={() => handleChangeStatus(q.id, 'sent')}
-                                className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono text-[10px] transition"
+                                className="bg-muted font-mono text-[10px] text-foreground/80 hover:text-foreground"
                               >
                                 Marcar Enviada
-                              </button>
+                              </Button>
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
-          <footer className="border-t border-zinc-900 px-4 py-3 text-xs font-mono text-zinc-500 flex flex-wrap items-center justify-between gap-2">
+          <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 font-mono text-xs text-muted-foreground">
             <span>
               Mostrando {paginatedQuotes.length} de {filteredQuotes.length} cotizaciones
             </span>
             {totalQuotePages > 1 && (
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="xs"
                   disabled={safeQuotePage <= 1}
                   onClick={() => setQuotePage((p) => Math.max(1, p - 1))}
-                  className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 disabled:opacity-40 hover:text-white transition text-[11px]"
+                  className="border-border bg-muted font-mono text-[11px] text-foreground/80 hover:text-foreground"
                 >
                   Anterior
-                </button>
-                <span className="text-zinc-400 text-[11px]">
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
                   Página {safeQuotePage} de {totalQuotePages}
                 </span>
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="xs"
                   disabled={safeQuotePage >= totalQuotePages}
                   onClick={() => setQuotePage((p) => Math.min(totalQuotePages, p + 1))}
-                  className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 disabled:opacity-40 hover:text-white transition text-[11px]"
+                  className="border-border bg-muted font-mono text-[11px] text-foreground/80 hover:text-foreground"
                 >
                   Siguiente
-                </button>
+                </Button>
               </div>
             )}
           </footer>
@@ -700,31 +744,34 @@ export function OffersWorkspace({
 
       {/* DIÁLOGO: CONSTRUCTOR DE NUEVA COTIZACIÓN RÁPIDA */}
       {isCreatingQuote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4 text-white shadow-2xl font-mono text-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <h2 className="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-2xl space-y-4 border border-border bg-background p-6 font-mono text-xs text-foreground shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider">
                 <FileText size={16} className="text-sky-400" />
                 <span>Emitir Cotización Comercial</span>
               </h2>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Cerrar"
                 onClick={() => setIsCreatingQuote(false)}
-                className="text-zinc-500 hover:text-white"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X size={16} />
-              </button>
+              </Button>
             </div>
 
             <form action={createQuoteAction} className="space-y-4">
               <input type="hidden" name="redirectTo" value="/workspace/offers" />
 
               {/* Selector de Cliente o Lead */}
-              <div className="p-3 bg-zinc-900/40 border border-zinc-850 space-y-3">
-                <div className="flex items-center justify-between text-[11px] text-zinc-400">
+              <div className="space-y-3 border border-border bg-muted/40 p-3">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>Destinatario de la Cotización</span>
                   <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1 cursor-pointer">
+                    <label className="flex cursor-pointer items-center gap-1">
                       <input
                         type="radio"
                         name="custTypeRadio"
@@ -733,7 +780,7 @@ export function OffersWorkspace({
                       />
                       <span>Cliente</span>
                     </label>
-                    <label className="flex items-center gap-1 cursor-pointer">
+                    <label className="flex cursor-pointer items-center gap-1">
                       <input
                         type="radio"
                         name="custTypeRadio"
@@ -742,7 +789,7 @@ export function OffersWorkspace({
                       />
                       <span>Lead CRM</span>
                     </label>
-                    <label className="flex items-center gap-1 cursor-pointer">
+                    <label className="flex cursor-pointer items-center gap-1">
                       <input
                         type="radio"
                         name="custTypeRadio"
@@ -756,13 +803,13 @@ export function OffersWorkspace({
 
                 {quoteCustomerType !== 'custom' && (
                   <div className="relative">
-                    <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-                    <input
+                    <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
                       type="text"
                       value={recipientQuery}
                       onChange={(e) => void handleSearchRecipients(e.target.value)}
                       placeholder="Escribe para buscar destinatario en todo el CRM..."
-                      className="w-full bg-black border border-zinc-800 pl-8 pr-8 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-sky-500"
+                      className="h-8 bg-background py-1.5 pl-8 pr-8 text-xs focus-visible:border-sky-500"
                     />
                     {isSearchingRecipients && (
                       <Loader2 size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-sky-400" />
@@ -775,7 +822,7 @@ export function OffersWorkspace({
                     name="customer"
                     value={selectedCustomerId}
                     onChange={(e) => setSelectedCustomerId(e.target.value)}
-                    className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus-visible:border-muted-foreground/40"
                     required
                   >
                     <option value="">
@@ -796,7 +843,7 @@ export function OffersWorkspace({
                       const leadObj = displayedLeads.find((l) => l.fullName === e.target.value)
                       if (leadObj?.email) setCustomClientEmail(leadObj.email)
                     }}
-                    className="w-full bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus-visible:border-muted-foreground/40"
                     required
                   >
                     <option value="">
@@ -811,23 +858,23 @@ export function OffersWorkspace({
                 )}
 
                 {quoteCustomerType === 'custom' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Input
                       name="clientName"
                       type="text"
                       placeholder="Nombre del Cliente o Empresa"
                       value={customClientName}
                       onChange={(e) => setCustomClientName(e.target.value)}
-                      className="bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
+                      className="bg-background px-3 py-2 text-xs"
                       required
                     />
-                    <input
+                    <Input
                       name="clientEmail"
                       type="email"
                       placeholder="Correo Electrónico (opcional)"
                       value={customClientEmail}
                       onChange={(e) => setCustomClientEmail(e.target.value)}
-                      className="bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
+                      className="bg-background px-3 py-2 text-xs"
                     />
                   </div>
                 )}
@@ -835,29 +882,31 @@ export function OffersWorkspace({
 
               {/* Detalle de Conceptos / Ofertas */}
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between text-zinc-400">
-                  <span className="uppercase tracking-wider text-[11px]">Líneas de Servicios / Ofertas</span>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span className="text-[11px] uppercase tracking-wider">Líneas de Servicios / Ofertas</span>
                   {items.length < 6 && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="xs"
                       onClick={handleAddItem}
-                      className="text-sky-400 hover:text-sky-300 text-[10px] font-bold flex items-center gap-1"
+                      className="gap-1 p-0 text-[10px] font-bold text-sky-400 hover:bg-transparent hover:text-sky-300"
                     >
                       <Plus size={12} />
                       <span>Agregar Fila</span>
-                    </button>
+                    </Button>
                   )}
                 </div>
 
                 {items.map((it, idx) => (
-                  <div key={idx} className="p-3 bg-zinc-900/50 border border-zinc-800 space-y-2">
+                  <div key={idx} className="space-y-2 border border-border bg-muted/50 p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-zinc-500">Ítem #{idx + 1}</span>
+                      <span className="text-[10px] text-muted-foreground">Ítem #{idx + 1}</span>
                       {/* Selector de oferta predefinida */}
                       <select
                         value={it.productId}
                         onChange={(e) => handleProductSelect(idx, e.target.value)}
-                        className="bg-black border border-zinc-800 text-[10px] text-sky-400 px-2 py-1 max-w-xs focus:outline-none"
+                        className="max-w-xs border border-border bg-background px-2 py-1 text-[10px] text-sky-400 focus:outline-none"
                       >
                         <option value="">(Cargar desde Catálogo de Ofertas...)</option>
                         {activeOffers.map((o) => (
@@ -867,13 +916,16 @@ export function OffersWorkspace({
                         ))}
                       </select>
                       {items.length > 1 && (
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label="Eliminar ítem"
                           onClick={() => handleRemoveItem(idx)}
-                          className="text-zinc-500 hover:text-rose-400"
+                          className="text-muted-foreground hover:text-rose-400"
                         >
                           <X size={12} />
-                        </button>
+                        </Button>
                       )}
                     </div>
 
@@ -883,7 +935,7 @@ export function OffersWorkspace({
                       value={it.productId || ''}
                     />
 
-                    <input
+                    <Input
                       name={`item${idx}_description`}
                       value={it.description}
                       onChange={(e) => {
@@ -892,14 +944,14 @@ export function OffersWorkspace({
                         setItems(next)
                       }}
                       placeholder="Descripción del servicio cotizado"
-                      className="w-full bg-black border border-zinc-800 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-600"
+                      className="w-full bg-background px-2.5 py-1.5 text-xs"
                       required
                     />
 
                     <div className="grid grid-cols-3 gap-2">
-                      <label className="flex flex-col gap-0.5 text-[10px] text-zinc-500">
+                      <label className="flex flex-col gap-0.5 text-[10px] text-muted-foreground">
                         Cantidad
-                        <input
+                        <Input
                           name={`item${idx}_quantity`}
                           type="number"
                           min="1"
@@ -909,12 +961,12 @@ export function OffersWorkspace({
                             next[idx].quantity = Math.max(1, Number(e.target.value))
                             setItems(next)
                           }}
-                          className="bg-black border border-zinc-800 px-2 py-1 text-xs text-white font-mono"
+                          className="bg-background px-2 py-1 font-mono text-xs"
                         />
                       </label>
-                      <label className="flex flex-col gap-0.5 text-[10px] text-zinc-500">
+                      <label className="flex flex-col gap-0.5 text-[10px] text-muted-foreground">
                         Precio Unitario (USD)
-                        <input
+                        <Input
                           name={`item${idx}_unitPrice`}
                           type="number"
                           step="0.01"
@@ -925,10 +977,10 @@ export function OffersWorkspace({
                             next[idx].unitPrice = Math.max(0, Number(e.target.value))
                             setItems(next)
                           }}
-                          className="bg-black border border-zinc-800 px-2 py-1 text-xs text-white font-mono"
+                          className="bg-background px-2 py-1 font-mono text-xs"
                         />
                       </label>
-                      <label className="flex flex-col gap-0.5 text-[10px] text-zinc-500">
+                      <label className="flex flex-col gap-0.5 text-[10px] text-muted-foreground">
                         Impuesto
                         <select
                           name={`item${idx}_taxRate`}
@@ -938,7 +990,7 @@ export function OffersWorkspace({
                             next[idx].taxRate = Number(e.target.value)
                             setItems(next)
                           }}
-                          className="bg-black border border-zinc-800 px-2 py-1 text-xs text-white font-mono"
+                          className="border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none"
                         >
                           <option value="0.16">IVA 16%</option>
                           <option value="0">Exento (0%)</option>
@@ -950,24 +1002,24 @@ export function OffersWorkspace({
               </div>
 
               {/* Resumen numérico */}
-              <div className="p-3 bg-zinc-900 border border-zinc-800 flex items-center justify-between text-xs font-mono">
-                <span className="text-zinc-400">Total Cotizado:</span>
+              <div className="flex items-center justify-between border border-border bg-muted p-3 font-mono text-xs">
+                <span className="text-muted-foreground">Total Cotizado:</span>
                 <div className="text-right">
-                  <span className="text-lg font-black text-white">{usd.format(totalCalc)}</span>
-                  <span className="text-[10px] text-zinc-500 block">
+                  <span className="text-lg font-black text-foreground">{usd.format(totalCalc)}</span>
+                  <span className="block text-[10px] text-muted-foreground">
                     (Subtotal {usd.format(subtotalCalc)} + IVA {usd.format(taxCalc)})
                   </span>
                 </div>
               </div>
 
               {/* Validez y Notas */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <label className="flex flex-col gap-1 text-[10px] text-zinc-400">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <label className="flex flex-col gap-1 text-[10px] text-muted-foreground">
                   Días de Validez
                   <select
                     value={quoteValidDays}
                     onChange={(e) => setQuoteValidDays(e.target.value)}
-                    className="bg-black border border-zinc-800 px-2 py-1.5 text-xs text-white"
+                    className="border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none"
                   >
                     <option value="7">7 Días</option>
                     <option value="15">15 Días</option>
@@ -979,33 +1031,34 @@ export function OffersWorkspace({
                     value={validUntilDate}
                   />
                 </label>
-                <label className="sm:col-span-2 flex flex-col gap-1 text-[10px] text-zinc-400">
+                <label className="flex flex-col gap-1 text-[10px] text-muted-foreground sm:col-span-2">
                   Condiciones / Notas
-                  <input
+                  <Input
                     name="notes"
                     type="text"
                     value={quoteNotes}
                     onChange={(e) => setQuoteNotes(e.target.value)}
-                    className="bg-black border border-zinc-800 px-2 py-1.5 text-xs text-white"
+                    className="bg-background px-2 py-1.5 text-xs"
                   />
                 </label>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
-                <button
+              <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setIsCreatingQuote(false)}
-                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold uppercase transition"
+                  className="bg-muted px-4 py-2 text-xs font-bold uppercase text-foreground/80 hover:text-foreground"
                 >
                   Cancelar
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-5 py-2 bg-sky-400 hover:bg-sky-300 text-black text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-lg shadow-sky-950"
+                  className="bg-sky-400 px-5 py-2 text-xs font-black uppercase tracking-wider text-black shadow-lg shadow-sky-950 hover:bg-sky-300"
                 >
                   <Send size={13} />
                   <span>Emitir Cotización</span>
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -1014,49 +1067,53 @@ export function OffersWorkspace({
 
       {/* MODAL PARA COMPARTIR POR WHATSAPP */}
       {shareQuote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg border border-emerald-800/80 bg-zinc-950 p-6 space-y-4 text-white shadow-2xl font-mono text-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <h2 className="text-sm font-bold uppercase tracking-wider flex items-center gap-2 text-emerald-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg space-y-4 border border-emerald-800/80 bg-background p-6 font-mono text-xs text-foreground shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-emerald-400">
                 <MessageSquare size={16} />
                 <span>Compartir Cotización por WhatsApp</span>
               </h2>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Cerrar"
                 onClick={() => setShareQuote(null)}
-                className="text-zinc-500 hover:text-white"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X size={16} />
-              </button>
+              </Button>
             </div>
 
             <div className="space-y-2">
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-[11px] text-muted-foreground">
                 Mensaje formateado listo para enviar al cliente {shareQuote.client?.name}:
               </p>
               <textarea
                 readOnly
                 rows={8}
                 value={generateWhatsAppText(shareQuote)}
-                className="w-full bg-black border border-zinc-800 p-3 text-xs text-emerald-300 font-mono focus:outline-none select-all"
+                className="w-full select-all border border-border bg-background p-3 font-mono text-xs text-emerald-300 focus:outline-none"
               />
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-zinc-900">
-              <button
+            <div className="flex items-center justify-between border-t border-border pt-2">
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => handleCopyWhatsAppText(shareQuote)}
-                className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold transition flex items-center gap-1.5"
+                className="gap-1.5 bg-muted px-3 py-1.5 text-xs font-bold text-foreground"
               >
                 {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
                 <span>{copied ? '¡Copiado!' : 'Copiar Texto'}</span>
-              </button>
+              </Button>
 
               <a
                 href={`https://wa.me/?text=${encodeURIComponent(generateWhatsAppText(shareQuote))}`}
                 target="_blank"
                 rel="noreferrer"
-                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-lg shadow-emerald-950"
+                className="inline-flex items-center gap-1.5 bg-emerald-500 px-4 py-2 text-xs font-black uppercase tracking-wider text-black shadow-lg shadow-emerald-950 transition hover:bg-emerald-400"
               >
                 <Share2 size={13} />
                 <span>Abrir WhatsApp</span>
@@ -1067,94 +1124,105 @@ export function OffersWorkspace({
       )}
 
       {/* DRAWER DE DETALLE DE COTIZACIÓN */}
-      <Drawer
+      <Sheet
         open={selectedQuote !== null}
-        onClose={() => setSelectedQuote(null)}
-        title="Ficha de Cotización"
+        onOpenChange={(open) => {
+          if (!open) setSelectedQuote(null)
+        }}
       >
-        {selectedQuote && (
-          <div className="space-y-4 font-mono text-xs">
-            <div className="p-4 oled-subcard space-y-2 border-l-2 border-amber-400">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-widest">
-                  {selectedQuote.quoteNumber || `COT-#${selectedQuote.id}`}
-                </span>
-                <StatusBadge tone={selectedQuote.status === 'accepted' ? 'success' : 'neutral'}>
-                  {selectedQuote.status || 'draft'}
-                </StatusBadge>
-              </div>
+        <SheetContent side="right" className="gap-0 data-[side=right]:sm:max-w-md">
+          <SheetHeader className="border-b border-border px-4 py-3">
+            <SheetTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Ficha de Cotización
+            </SheetTitle>
+            <SheetDescription className="sr-only">Detalle de la cotización seleccionada</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-1 flex-col overflow-y-auto p-4">
+            {selectedQuote && (
+              <div className="space-y-4 font-mono text-xs">
+                <div className="space-y-2 border border-amber-400 border-l-2 bg-muted/40 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                      {selectedQuote.quoteNumber || `COT-#${selectedQuote.id}`}
+                    </span>
+                    <StatusBadge tone={selectedQuote.status === 'accepted' ? 'success' : 'neutral'}>
+                      {selectedQuote.status || 'draft'}
+                    </StatusBadge>
+                  </div>
 
-              <h3 className="text-lg font-bold text-white">
-                {selectedQuote.client?.name || 'Cliente sin nombre'}
-              </h3>
+                  <h3 className="text-lg font-bold text-foreground">
+                    {selectedQuote.client?.name || 'Cliente sin nombre'}
+                  </h3>
 
-              <div className="text-2xl font-black text-white font-mono pt-1">
-                {usd.format(selectedQuote.total ?? 0)}
-              </div>
-            </div>
+                  <div className="pt-1 font-mono text-2xl font-black text-foreground">
+                    {usd.format(selectedQuote.total ?? 0)}
+                  </div>
+                </div>
 
-            {/* Desglose de ítems */}
-            {selectedQuote.items && selectedQuote.items.length > 0 && (
-              <div className="p-3.5 oled-card space-y-2">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">
-                  Conceptos Cotizados
-                </span>
-                <div className="divide-y divide-zinc-900">
-                  {selectedQuote.items.map((it, idx) => (
-                    <div key={idx} className="py-2 flex items-center justify-between">
-                      <div>
-                        <p className="text-white font-medium">{it.description}</p>
-                        <span className="text-[10px] text-zinc-500">
-                          {it.quantity} x {usd.format(it.unitPrice)}
-                        </span>
-                      </div>
-                      <span className="font-mono text-white font-bold">
-                        {usd.format(it.lineTotal || it.quantity * it.unitPrice)}
-                      </span>
+                {/* Desglose de ítems */}
+                {selectedQuote.items && selectedQuote.items.length > 0 && (
+                  <div className="space-y-2 border border-border bg-card p-3.5 text-card-foreground">
+                    <span className="block text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Conceptos Cotizados
+                    </span>
+                    <div className="divide-y divide-border">
+                      {selectedQuote.items.map((it, idx) => (
+                        <div key={idx} className="flex items-center justify-between py-2">
+                          <div>
+                            <p className="font-medium text-foreground">{it.description}</p>
+                            <span className="text-[10px] text-muted-foreground">
+                              {it.quantity} x {usd.format(it.unitPrice)}
+                            </span>
+                          </div>
+                          <span className="font-mono font-bold text-foreground">
+                            {usd.format(it.lineTotal || it.quantity * it.unitPrice)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
 
-                <div className="pt-2 border-t border-zinc-900 flex justify-between font-bold text-white">
-                  <span>Total</span>
-                  <span>{usd.format(selectedQuote.total ?? 0)}</span>
-                </div>
-              </div>
-            )}
+                    <div className="flex justify-between border-t border-border pt-2 font-bold text-foreground">
+                      <span>Total</span>
+                      <span>{usd.format(selectedQuote.total ?? 0)}</span>
+                    </div>
+                  </div>
+                )}
 
-            {/* Botón de PDF */}
-            {getPdfUrl(selectedQuote) && (
-              <a
-                href={getPdfUrl(selectedQuote)!}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-sky-400 hover:text-white border border-zinc-800 font-bold uppercase transition"
-              >
-                <ExternalLink size={14} />
-                <span>Ver PDF Oficial</span>
-              </a>
-            )}
+                {/* Botón de PDF */}
+                {getPdfUrl(selectedQuote) && (
+                  <a
+                    href={getPdfUrl(selectedQuote)!}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex w-full items-center justify-center gap-2 border border-border bg-muted px-4 py-2 font-bold uppercase text-sky-400 transition hover:border-muted-foreground/40 hover:text-foreground"
+                  >
+                    <ExternalLink size={14} />
+                    <span>Ver PDF Oficial</span>
+                  </a>
+                )}
 
-            {/* Acciones del Drawer — solo cotizaciones aún facturables */}
-            {canEdit && (selectedQuote.status === 'draft' || selectedQuote.status === 'sent') && (
-              <div className="pt-3 border-t border-zinc-850 space-y-2">
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => {
-                    handleConvertQuote(selectedQuote.id)
-                    setSelectedQuote(null)
-                  }}
-                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-xs transition flex items-center justify-center gap-1.5"
-                >
-                  <FileCheck size={14} />
-                  <span>Aprobar y Facturar (1 Clic)</span>
-                </button>
+                {/* Acciones del Drawer — solo cotizaciones aún facturables */}
+                {canEdit && (selectedQuote.status === 'draft' || selectedQuote.status === 'sent') && (
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <Button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => {
+                        handleConvertQuote(selectedQuote.id)
+                        setSelectedQuote(null)
+                      }}
+                      className="flex w-full items-center justify-center gap-1.5 bg-indigo-600 py-2 font-bold uppercase text-xs text-foreground hover:bg-indigo-500"
+                    >
+                      <FileCheck size={14} />
+                      <span>Aprobar y Facturar (1 Clic)</span>
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
-      </Drawer>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
