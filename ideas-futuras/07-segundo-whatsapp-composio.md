@@ -70,11 +70,21 @@ Meta Business.
    validada).
 2. El endpoint reutiliza el pipeline de OpenBSP casi 1:1:
    - Resuelve tenant por la conexión (no por organization_id).
-   - Idempotencia: id del mensaje de Composio en `messages`.
+   - Idempotencia EN BD (review Devin): unique parcial en `messages`
+     (`tenant` + id del mensaje de Composio — campo nuevo `composioMessageId`)
+     + manejo del 23505 que TERMINA la request (la transacción abortada no
+     acepta más queries). El query-first del pipeline OpenBSP no basta solo:
+     dos entregas concurrentes del mismo wamid crearían duplicados. La misma
+     migración puede blindar el camino OpenBSP (`openbspId`/`externalId`),
+     que hoy tiene índices ordinarios.
    - `upsertConversation` con id determinista `composio-wa:{waba}:{chat_id}` y
      **`channel: 'whatsapp_composio'`**.
    - `matchOrCreateLead` (mismo matching exacto/loose + auto-lead + activity).
    - `queue summarize-conversation`.
+   - **Paridad de pagos (review Devin)**: si el mensaje entrante es imagen →
+     encolar `extract-payment-proof` (idea 02) igual que el camino OpenBSP,
+     preservando los campos de contenido que el job de extracción necesita.
+     Un comprobante al segundo número concilia igual que al primario.
 3. El Inbox lista `conversations` del tenant sin importar el canal → el segundo
    número **aparece en el mismo inbox** con su badge de canal.
 
@@ -90,6 +100,12 @@ ventana: `SEND_TEMPLATE_MESSAGE` (fase 2 del doc).
 - **Endpoint de webhook**: mismo patrón que `/webhooks/openbsp` — validación de
   firma, rate limit distribuido, idempotencia, `overrideAccess: true` (llamadas
   de sistema), `req.context` si hace falta cortar hooks.
+- **El canal nuevo necesita schema (review Devin)**: `Conversations.channel`
+  hoy solo admite 3 valores — agregar `'whatsapp_composio'` implica migración
+  del enum en Postgres, `generate:types`, y revisar los consumidores
+  exhaustivos del canal: `SUPPORTED_CHANNELS` en `message-dispatch.ts`, badge
+  del Inbox, y cualquier filtro de canal. Sin eso, el create de la
+  conversación es rechazado por validación y no aparece nada en el inbox.
 - **Composio trigger = cobro por evento** (como todo tool call): el inbound por
   trigger consume cuota del proyecto del tenant — aceptable (es SU cuota); el
   primario OpenBSP sigue gratis en su propio canal.
@@ -102,8 +118,11 @@ ventana: `SEND_TEMPLATE_MESSAGE` (fase 2 del doc).
 
 - [ ] Toolkit `whatsapp` en `tenant-connections` + tarjeta del hub (managed OAuth)
 - [ ] Al conectar: `WHATSAPP_SUBSCRIBE_APP` + registro del trigger con webhook al endpoint
-- [ ] Endpoint `/webhooks/composio/whatsapp` (firma + idempotencia + pipeline compartido)
+- [ ] Schema: opción `whatsapp_composio` en `Conversations.channel` (migración de enum + generate:types) + revisar consumidores exhaustivos (`SUPPORTED_CHANNELS`, Inbox, filtros)
+- [ ] Schema: unique parcial en `messages` (tenant + `composioMessageId`) + 23505 que termina la request; opcionalmente blindar también `openbspId/externalId`
+- [ ] Endpoint `/webhooks/composio/whatsapp` (firma + idempotencia + pipeline compartido + normalize de media)
+- [ ] Paridad de pagos: encolar `extract-payment-proof` en imágenes entrantes (cuando exista idea 02)
 - [ ] `message-dispatch`: canal `whatsapp_composio` → `WHATSAPP_SEND_MESSAGE`
 - [ ] Badge de canal en el Inbox para distinguir primario vs segundo número
-- [ ] Tests del endpoint (fixture de mensaje entrante → lead creado + mensaje espejado)
+- [ ] Tests del endpoint (fixture de mensaje entrante → lead creado + mensaje espejado; entrega concurrente → sin duplicados)
 - [ ] Fase 2: plantillas fuera de ventana + botones interactivos
