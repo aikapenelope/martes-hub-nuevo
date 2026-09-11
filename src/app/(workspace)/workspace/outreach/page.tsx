@@ -4,6 +4,7 @@ import { Target } from 'lucide-react'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import type { Segment, User } from '@/payload-types'
 import { OutreachList } from '@/components/workspace/crm/OutreachList'
+import { Button } from '@/components/ui/button'
 import type { Lead } from '@/payload-types'
 
 export const metadata: Metadata = {
@@ -155,43 +156,58 @@ export default async function OutreachPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
             Prospección · {context.tenant.name}
           </p>
-          <h1 className="mt-1 flex items-center gap-2 text-xl font-bold tracking-tight text-white">
+          <h1 className="mt-1 flex items-center gap-2 text-xl font-bold tracking-tight text-foreground">
             <Target size={20} className="text-sky-400" /> Lista de salida — interesados
           </h1>
-          <p className="mt-1 text-xs text-zinc-400">
+          <p className="mt-1 text-xs text-muted-foreground">
             Mensajes pre-escritos y personalizados: copia y envía por fuera con el enlace de WhatsApp.
           </p>
         </div>
-        <span className="border border-zinc-800 bg-zinc-950 px-3 py-1 text-[11px] font-mono text-zinc-400">
+        <span className="border border-border bg-background px-3 py-1 text-[11px] font-mono text-muted-foreground">
           {rows.length} interesado(s)
         </span>
       </div>
 
-      <form method="get" className="flex flex-wrap items-center gap-2 border border-zinc-800 bg-zinc-950 p-3">
-        <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Filtros</span>
-        <select name="rubro" defaultValue={rubroFilter ?? ''} aria-label="Filtrar por rubro" className="border border-zinc-800 bg-black px-2 py-1 text-xs text-zinc-200">
+      <form method="get" className="flex flex-wrap items-center gap-2 border border-border bg-background p-3">
+        <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Filtros</span>
+        <select
+          name="rubro"
+          defaultValue={rubroFilter ?? ''}
+          aria-label="Filtrar por rubro"
+          className="border border-border bg-background px-2 py-1 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
           <option value="">Todos los rubros</option>
           {(segmentsRes.docs as Segment[]).map((seg) => (
             <option key={seg.id} value={seg.id}>{seg.name}</option>
           ))}
         </select>
-        <select name="agente" defaultValue={agenteFilter ?? ''} aria-label="Filtrar por agente" className="border border-zinc-800 bg-black px-2 py-1 text-xs text-zinc-200">
+        <select
+          name="agente"
+          defaultValue={agenteFilter ?? ''}
+          aria-label="Filtrar por agente"
+          className="border border-border bg-background px-2 py-1 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
           <option value="">Todos los agentes</option>
           {(agentsRes.docs as User[]).map((u) => (
             <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}</option>
           ))}
         </select>
-        <select name="orden" defaultValue={orden} aria-label="Ordenar por" className="border border-zinc-800 bg-black px-2 py-1 text-xs text-zinc-200">
+        <select
+          name="orden"
+          defaultValue={orden}
+          aria-label="Ordenar por"
+          className="border border-border bg-background px-2 py-1 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
           <option value="recientes">Más recientes</option>
           <option value="prioridad">Prioridad / interés</option>
           <option value="proximos">Próxima llamada</option>
         </select>
-        <button type="submit" className="border border-zinc-700 bg-zinc-900 px-3 py-1 text-[11px] font-mono text-white uppercase">
+        <Button type="submit" variant="outline" size="sm" className="font-mono text-[11px] uppercase">
           Aplicar
-        </button>
+        </Button>
       </form>
 
       <OutreachList rows={rows} canEdit={context.canEdit} />

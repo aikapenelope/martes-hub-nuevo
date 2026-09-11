@@ -36,6 +36,7 @@ import { getCrmRecord, type CrmView } from '@/lib/crm-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
 import { ActivityDrawer } from '@/components/workspace/ActivityDrawer'
+import { Button } from '@/components/ui/button'
 import { getAssignableUsers } from '@/lib/tasks-data'
 import { changeTaskStatusAction } from '@/lib/tasks-actions'
 import type { Client, Company, Lead, Segment, User } from '@/payload-types'
@@ -55,16 +56,22 @@ function relId(value: number | { id: number } | null | undefined): number | null
   return typeof value === 'object' ? value.id : value
 }
 
+/* Inputs, selects y textareas NATIVOS (los selects llevan `option value=""`,
+   así que no se convierten a Radix); mismos tokens que el Input shadcn. */
 const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600 font-sans'
-const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
+  'w-full border border-input bg-transparent px-3 py-2 text-sm font-sans text-foreground outline-none placeholder:text-muted-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30'
+const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-muted-foreground'
 
 const priorityCls: Record<string, string> = {
-  baja: 'bg-zinc-900 text-zinc-400 border-zinc-800',
-  media: 'bg-zinc-800 text-zinc-300 border-zinc-700',
+  baja: 'bg-muted text-muted-foreground border-border',
+  media: 'bg-muted text-foreground/80 border-border',
   alta: 'bg-amber-950/60 text-amber-300 border-amber-800',
   urgente: 'bg-rose-950/60 text-rose-300 border-rose-800',
 }
+
+/* Botón submit primario de los formularios con server action (patrón tasks/[id]). */
+const submitBtnCls =
+  'self-start bg-primary px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider text-primary-foreground'
 
 export default async function CrmRecordPage({
   params,
@@ -333,7 +340,7 @@ export default async function CrmRecordPage({
 
   return (
     <>
-      <Link href={`/workspace/crm?vista=${type}`} className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white font-mono">
+      <Link href={`/workspace/crm?vista=${type}`} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-mono">
         <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Volver al CRM
       </Link>
 
@@ -350,9 +357,9 @@ export default async function CrmRecordPage({
         </div>
       )}
 
-      <header className="flex flex-col justify-between gap-3.5 oled-card p-5 sm:flex-row sm:items-center bracket-accent">
+      <header className="flex flex-col justify-between gap-3.5 bg-card text-card-foreground border border-border p-5 sm:flex-row sm:items-center bracket-accent">
         <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center border border-zinc-700 bg-zinc-900 text-white">
+          <span className="flex h-11 w-11 items-center justify-center border border-border bg-muted text-foreground">
             {isCompany ? (
               <Building2 className="w-5 h-5" aria-hidden="true" />
             ) : (
@@ -360,11 +367,11 @@ export default async function CrmRecordPage({
             )}
           </span>
           <div>
-            <div className="text-xs font-mono uppercase tracking-wider text-zinc-400">
+            <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
               {isLead ? 'Lead' : isCompany ? 'Empresa / Cuenta' : 'Cliente'} · #{id}
             </div>
-            <h1 className="text-xl font-bold text-white">{name}</h1>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+            <h1 className="text-xl font-bold text-foreground">{name}</h1>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span>{relationName(recordSegment)}</span>
               {isLead && leadRecord?.estimatedValue != null && leadRecord.estimatedValue > 0 && (
                 <span className="font-mono text-emerald-400 font-semibold">
@@ -372,7 +379,7 @@ export default async function CrmRecordPage({
                 </span>
               )}
               {isCompany && companyRecord?.taxId && (
-                <span className="font-mono text-zinc-400">· RIF: {companyRecord.taxId}</span>
+                <span className="font-mono text-muted-foreground">· RIF: {companyRecord.taxId}</span>
               )}
             </div>
           </div>
@@ -380,7 +387,7 @@ export default async function CrmRecordPage({
         <div className="flex flex-wrap items-center gap-2">
           {detail.conversations.length > 0 && (
             <Link
-              className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono"
+              className="px-3 py-1.5 bg-muted hover:bg-accent border border-border text-foreground text-xs font-bold uppercase tracking-wider font-mono"
               href={`/workspace/inbox?c=${detail.conversations[0].id}`}
             >
               Abrir en inbox
@@ -388,7 +395,7 @@ export default async function CrmRecordPage({
           )}
           {phone && (
             <a
-              className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono inline-flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-muted hover:bg-accent border border-border text-foreground text-xs font-bold uppercase tracking-wider font-mono inline-flex items-center gap-1.5"
               href={`https://wa.me/${phone.replace(/\D/g, '')}`}
               target="_blank"
               rel="noreferrer"
@@ -417,7 +424,7 @@ export default async function CrmRecordPage({
           )}
           {convertedId && (
             <Link
-              className="px-3 py-1.5 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono"
+              className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider font-mono"
               href={`/workspace/crm/clientes/${convertedId}`}
             >
               Ver cliente
@@ -428,36 +435,36 @@ export default async function CrmRecordPage({
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_.9fr]">
         <div className="space-y-4">
-          <section className="oled-card p-5">
-            <h2 className="text-base font-bold text-white">
+          <section className="bg-card text-card-foreground border border-border p-5">
+            <h2 className="text-base font-bold text-foreground">
               {isCompany ? 'Ficha de la Empresa' : 'Ficha 360'}
             </h2>
-            <p className="mt-1 text-xs text-zinc-400">Datos comerciales, estado y contexto interno.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Datos comerciales, estado y contexto interno.</p>
 
             <dl className="mt-4 grid gap-3 sm:grid-cols-2 text-xs">
               <div>
-                <dt className="flex items-center gap-1.5 text-zinc-500 font-mono uppercase">
+                <dt className="flex items-center gap-1.5 text-muted-foreground font-mono uppercase">
                   <Mail className="w-3.5 h-3.5" aria-hidden="true" /> Email
                 </dt>
-                <dd className="mt-1 text-white">
+                <dd className="mt-1 text-foreground">
                   {email ? <a href={`mailto:${email}`}>{email}</a> : 'Sin email'}
                 </dd>
               </div>
               <div>
-                <dt className="flex items-center gap-1.5 text-zinc-500 font-mono uppercase">
+                <dt className="flex items-center gap-1.5 text-muted-foreground font-mono uppercase">
                   <Phone className="w-3.5 h-3.5" aria-hidden="true" /> Teléfono
                 </dt>
-                <dd className="mt-1 text-white">
+                <dd className="mt-1 text-foreground">
                   {phone ? <a href={`tel:${phone}`}>{phone}</a> : 'Sin teléfono'}
                 </dd>
               </div>
               {isCompany ? (
                 <>
                   <div>
-                    <dt className="flex items-center gap-1.5 text-zinc-500 font-mono uppercase">
+                    <dt className="flex items-center gap-1.5 text-muted-foreground font-mono uppercase">
                       <Globe className="w-3.5 h-3.5" aria-hidden="true" /> Sitio Web
                     </dt>
-                    <dd className="mt-1 text-white">
+                    <dd className="mt-1 text-foreground">
                       {companyRecord?.website ? (
                         <a href={companyRecord.website} target="_blank" rel="noreferrer" className="underline">
                           {companyRecord.website}
@@ -468,10 +475,10 @@ export default async function CrmRecordPage({
                     </dd>
                   </div>
                   <div>
-                    <dt className="flex items-center gap-1.5 text-zinc-500 font-mono uppercase">
+                    <dt className="flex items-center gap-1.5 text-muted-foreground font-mono uppercase">
                       <MapPin className="w-3.5 h-3.5" aria-hidden="true" /> Ubicación
                     </dt>
-                    <dd className="mt-1 text-white">
+                    <dd className="mt-1 text-foreground">
                       {companyRecord?.city ? `${companyRecord.city}${companyRecord.state ? `, ${companyRecord.state}` : ''}` : 'Sin ciudad'}
                     </dd>
                   </div>
@@ -479,18 +486,18 @@ export default async function CrmRecordPage({
               ) : (
                 <>
                   <div>
-                    <dt className="flex items-center gap-1.5 text-zinc-500 font-mono uppercase">
+                    <dt className="flex items-center gap-1.5 text-muted-foreground font-mono uppercase">
                       <CircleDot className="w-3.5 h-3.5" aria-hidden="true" /> Estado
                     </dt>
-                    <dd className="mt-1 text-white">
+                    <dd className="mt-1 text-foreground">
                       {isLead ? leadRecord?.status : clientRecord?.stage}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-zinc-500 font-mono uppercase">
+                    <dt className="text-muted-foreground font-mono uppercase">
                       {isLead ? 'Empresa vinculada' : 'Agente'}
                     </dt>
-                    <dd className="mt-1 text-white">
+                    <dd className="mt-1 text-foreground">
                       {isLead
                         ? relationName(leadRecord?.company)
                         : relationName(clientRecord?.assignedAgent)}
@@ -778,7 +785,7 @@ export default async function CrmRecordPage({
                     </div>
 
                     {isClient && (
-                      <label className="flex items-center gap-2 text-xs text-zinc-300">
+                      <label className="flex items-center gap-2 text-xs text-foreground/80">
                         <input
                           name="consent"
                           type="checkbox"
@@ -821,16 +828,13 @@ export default async function CrmRecordPage({
                   />
                 </label>
 
-                <button
-                  type="submit"
-                  className="self-start px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono"
-                >
+                <Button type="submit" className={submitBtnCls}>
                   Guardar cambios
-                </button>
+                </Button>
               </form>
             ) : (
-              <div className="mt-5 border border-zinc-800 bg-black p-3 text-xs text-zinc-300">
-                <strong className="text-white">Notas internas</strong>
+              <div className="mt-5 border border-border bg-background p-3 text-xs text-foreground/80">
+                <strong className="text-foreground">Notas internas</strong>
                 <p className="mt-1">
                   {(isLead ? leadRecord?.notes : isCompany ? companyRecord?.notes : clientRecord?.notes) ||
                     'Sin notas registradas.'}
@@ -841,34 +845,34 @@ export default async function CrmRecordPage({
 
           {/* Si es una empresa, mostrar sus contactos asociados (Leads y Clientes) */}
           {isCompany && (
-            <section className="oled-card p-5">
+            <section className="bg-card text-card-foreground border border-border p-5">
               <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-zinc-400" />
-                <h2 className="text-base font-bold text-white">Contactos asociados</h2>
+                <Users className="w-4 h-4 text-muted-foreground" />
+                <h2 className="text-base font-bold text-foreground">Contactos asociados</h2>
               </div>
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Personas registradas en el CRM vinculadas a esta empresa.
               </p>
 
               <div className="mt-4 space-y-4">
                 <div>
-                  <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-400">
+                  <h3 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
                     Clientes ({detail.relatedClients?.length ?? 0})
                   </h3>
                   {(!detail.relatedClients || detail.relatedClients.length === 0) ? (
-                    <p className="mt-1 text-xs text-zinc-500">Ningún cliente activo vinculado.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Ningún cliente activo vinculado.</p>
                   ) : (
-                    <ul className="mt-2 divide-y divide-zinc-900 border border-zinc-900">
+                    <ul className="mt-2 divide-y divide-border border border-border">
                       {detail.relatedClients.map((c) => (
                         <li key={c.id} className="flex items-center justify-between p-2.5 text-xs">
                           <div>
                             <Link
                               href={`/workspace/crm/clientes/${c.id}`}
-                              className="font-semibold text-white hover:underline"
+                              className="font-semibold text-foreground hover:underline"
                             >
                               {c.name}
                             </Link>
-                            <span className="block text-[10px] text-zinc-500 font-mono">
+                            <span className="block text-[10px] text-muted-foreground font-mono">
                               {c.email || c.phone || 'Sin datos de contacto'} · Etapa: {c.stage}
                             </span>
                           </div>
@@ -885,23 +889,23 @@ export default async function CrmRecordPage({
                 </div>
 
                 <div>
-                  <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-400">
+                  <h3 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
                     Leads en prospección ({detail.relatedLeads?.length ?? 0})
                   </h3>
                   {(!detail.relatedLeads || detail.relatedLeads.length === 0) ? (
-                    <p className="mt-1 text-xs text-zinc-500">Ningún prospecto vinculado.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Ningún prospecto vinculado.</p>
                   ) : (
-                    <ul className="mt-2 divide-y divide-zinc-900 border border-zinc-900">
+                    <ul className="mt-2 divide-y divide-border border border-border">
                       {detail.relatedLeads.map((l) => (
                         <li key={l.id} className="flex items-center justify-between p-2.5 text-xs">
                           <div>
                             <Link
                               href={`/workspace/crm/leads/${l.id}`}
-                              className="font-semibold text-white hover:underline"
+                              className="font-semibold text-foreground hover:underline"
                             >
                               {l.fullName}
                             </Link>
-                            <span className="block text-[10px] text-zinc-500 font-mono">
+                            <span className="block text-[10px] text-muted-foreground font-mono">
                               {l.email || l.phone || 'Sin datos de contacto'} · Estado: {l.status}
                             </span>
                           </div>
@@ -921,19 +925,19 @@ export default async function CrmRecordPage({
           )}
 
           {/* Tareas y Compromisos asociados */}
-          <section className="oled-card p-5">
+          <section className="bg-card text-card-foreground border border-border p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <CheckSquare className="w-4 h-4 text-zinc-400" />
-                <h2 className="text-base font-bold text-white">Tareas y compromisos</h2>
-                <span className="text-xs font-mono text-zinc-500">
+                <CheckSquare className="w-4 h-4 text-muted-foreground" />
+                <h2 className="text-base font-bold text-foreground">Tareas y compromisos</h2>
+                <span className="text-xs font-mono text-muted-foreground">
                   ({detail.tasks.filter((t) => t.status !== 'completada' && t.status !== 'cancelada').length} pendientes)
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <Link
                   href={`/workspace/tasks?${isLead ? 'lead' : isClient ? 'client' : ''}=${id}`}
-                  className="text-xs font-mono text-zinc-400 hover:text-white transition"
+                  className="text-xs font-mono text-muted-foreground hover:text-foreground transition"
                 >
                   Ver en Tareas →
                 </Link>
@@ -950,18 +954,18 @@ export default async function CrmRecordPage({
                 )}
               </div>
             </div>
-            <p className="mt-1 text-xs text-zinc-400">
+            <p className="mt-1 text-xs text-muted-foreground">
               {isCompany
                 ? 'Tareas asignadas a los contactos vinculados con esta empresa.'
                 : 'Compromisos, recordatorios y acciones asignadas a este contacto.'}
             </p>
 
             {detail.tasks.length === 0 ? (
-              <div className="mt-4 border border-zinc-800 bg-black/40 p-4 text-center">
-                <p className="text-xs text-zinc-500 font-mono">No hay tareas asociadas a este registro.</p>
+              <div className="mt-4 border border-border bg-background/40 p-4 text-center">
+                <p className="text-xs text-muted-foreground font-mono">No hay tareas asociadas a este registro.</p>
               </div>
             ) : (
-              <ul className="mt-4 divide-y divide-zinc-900 border border-zinc-800">
+              <ul className="mt-4 divide-y divide-border border border-border">
                 {detail.tasks.map((task) => {
                   const isDone = task.status === 'completada'
                   const isCanceled = task.status === 'cancelada'
@@ -971,48 +975,50 @@ export default async function CrmRecordPage({
                   return (
                     <li
                       key={task.id}
-                      className="flex items-center justify-between p-3 gap-3 bg-black/40 hover:bg-zinc-900/30 transition"
+                      className="flex items-center justify-between p-3 gap-3 bg-background/40 hover:bg-muted/30 transition"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         {context.canEdit && (
                           <form action={changeTaskStatusAction}>
                             <input type="hidden" name="id" value={task.id} />
                             <input type="hidden" name="status" value={isDone ? 'pendiente' : 'completada'} />
-                            <button
+                            <Button
                               type="submit"
+                              variant="outline"
+                              size="icon"
                               title={isDone ? 'Reabrir tarea' : 'Marcar como completada'}
-                              className={`h-4 w-4 rounded border flex items-center justify-center transition shrink-0 ${
+                              className={`h-4 w-4 rounded border p-0 transition shrink-0 ${
                                 isDone
                                   ? 'border-emerald-500 bg-emerald-950 text-emerald-300'
-                                  : 'border-zinc-700 bg-black text-transparent hover:border-emerald-600 hover:text-emerald-300'
+                                  : 'border-border bg-background text-transparent hover:border-emerald-600 hover:text-emerald-300'
                               }`}
                             >
                               <Check size={11} />
-                            </button>
+                            </Button>
                           </form>
                         )}
                         <div className="min-w-0">
                           <Link
                             href={`/workspace/tasks/${task.id}`}
                             className={`text-xs font-medium block truncate hover:underline ${
-                              isDone ? 'text-zinc-500 line-through' : 'text-white'
+                              isDone ? 'text-muted-foreground line-through' : 'text-foreground'
                             }`}
                           >
                             {task.title}
                           </Link>
-                          <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[10px] font-mono text-zinc-400">
+                          <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[10px] font-mono text-muted-foreground">
                             <span className={`px-1.5 py-0.5 border text-[9px] uppercase ${priorityCls[task.priority] ?? priorityCls.media}`}>
                               {task.priority}
                             </span>
                             <span>{task.status}</span>
                             {task.dueDate && (
-                              <span className={isOverdue ? 'text-rose-400 font-bold' : 'text-zinc-500'}>
+                              <span className={isOverdue ? 'text-rose-400 font-bold' : 'text-muted-foreground'}>
                                 {isOverdue ? '⚠ Vencida: ' : 'Vence: '}
                                 {new Intl.DateTimeFormat('es', { dateStyle: 'short' }).format(new Date(task.dueDate))}
                               </span>
                             )}
                             {assigneeName !== 'Sin asignar' && (
-                              <span className="text-zinc-500">· {assigneeName}</span>
+                              <span className="text-muted-foreground">· {assigneeName}</span>
                             )}
                           </div>
                         </div>
@@ -1020,7 +1026,7 @@ export default async function CrmRecordPage({
 
                       <Link
                         href={`/workspace/tasks/${task.id}`}
-                        className="text-xs text-zinc-400 hover:text-white font-mono shrink-0"
+                        className="text-xs text-muted-foreground hover:text-foreground font-mono shrink-0"
                       >
                         Ver →
                       </Link>
@@ -1032,35 +1038,35 @@ export default async function CrmRecordPage({
           </section>
         </div>
 
-        <aside className="oled-card p-5">
+        <aside className="bg-card text-card-foreground border border-border p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-white">Timeline unificado</h2>
-              <p className="text-xs text-zinc-400">Conversaciones, emails, citas, tareas, cobros y actividades.</p>
+              <h2 className="text-base font-bold text-foreground">Timeline unificado</h2>
+              <p className="text-xs text-muted-foreground">Conversaciones, emails, citas, tareas, cobros y actividades.</p>
             </div>
           </div>
 
           {detail.timeline.length === 0 ? (
-            <p className="mt-4 text-xs text-zinc-500">Todavía no hay actividad para este registro.</p>
+            <p className="mt-4 text-xs text-muted-foreground">Todavía no hay actividad para este registro.</p>
           ) : (
-            <ol className="mt-4 flex flex-col gap-3 border-l border-zinc-800 pl-4">
+            <ol className="mt-4 flex flex-col gap-3 border-l border-border pl-4">
               {detail.timeline.map((entry, index) => (
                 <li key={`${entry.kind}-${index}-${entry.date}`} className="relative">
                   <span
                     className={`absolute -left-[21px] top-1 h-2 w-2 rounded-full ${
-                      entry.direction === 'in' ? 'bg-emerald-400' : entry.direction === 'out' ? 'bg-sky-400' : 'bg-white'
+                      entry.direction === 'in' ? 'bg-emerald-400' : entry.direction === 'out' ? 'bg-sky-400' : 'bg-foreground'
                     }`}
                     aria-hidden="true"
                   />
                   {entry.href ? (
-                    <Link href={entry.href} className="block text-xs text-white hover:underline">
+                    <Link href={entry.href} className="block text-xs text-foreground hover:underline">
                       {entry.title}
                     </Link>
                   ) : (
-                    <strong className="block text-xs text-white">{entry.title}</strong>
+                    <strong className="block text-xs text-foreground">{entry.title}</strong>
                   )}
-                  {entry.detail && <span className="block text-[11px] text-zinc-400">{entry.detail}</span>}
-                  <span className="text-[10px] text-zinc-500 font-mono">
+                  {entry.detail && <span className="block text-[11px] text-muted-foreground">{entry.detail}</span>}
+                  <span className="text-[10px] text-muted-foreground font-mono">
                     {entry.kind} · {new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.date))}
                   </span>
                 </li>
@@ -1069,10 +1075,10 @@ export default async function CrmRecordPage({
           )}
 
           {isLead && (leadEnrollments.length > 0 || (context.canEdit && activeSequences.length > 0)) && (
-            <section className="mt-4 border border-zinc-800 bg-black p-3">
-              <strong className="block text-xs text-white">Secuencias de email</strong>
+            <section className="mt-4 border border-border bg-background p-3">
+              <strong className="block text-xs text-foreground">Secuencias de email</strong>
               {leadEnrollments.length > 0 && (
-                <ul className="mt-2 divide-y divide-zinc-900 border border-zinc-900">
+                <ul className="mt-2 divide-y divide-border border border-border">
                   {leadEnrollments.map((enrollment) => {
                     const seqName =
                       typeof enrollment.sequence === 'object'
@@ -1081,8 +1087,8 @@ export default async function CrmRecordPage({
                     return (
                       <li key={enrollment.id} className="flex items-center justify-between gap-2 p-2 text-xs">
                         <div className="min-w-0">
-                          <span className="block truncate text-white">{seqName}</span>
-                          <span className="font-mono text-[10px] text-zinc-500">
+                          <span className="block truncate text-foreground">{seqName}</span>
+                          <span className="font-mono text-[10px] text-muted-foreground">
                             {enrollment.status === 'activa'
                               ? `activa · paso ${enrollment.currentStep + 1}`
                               : enrollment.status}
@@ -1092,12 +1098,13 @@ export default async function CrmRecordPage({
                           <form action={cancelSequenceEnrollmentAction} className="shrink-0">
                             <input type="hidden" name="enrollmentId" value={enrollment.id} />
                             <input type="hidden" name="redirectTo" value={`/workspace/crm/leads/${id}`} />
-                            <button
+                            <Button
                               type="submit"
-                              className="font-mono text-[10px] uppercase text-zinc-400 hover:text-rose-300"
+                              variant="ghost"
+                              className="h-auto p-0 font-mono text-[10px] uppercase text-muted-foreground hover:text-rose-300"
                             >
                               Cancelar
-                            </button>
+                            </Button>
                           </form>
                         )}
                       </li>
@@ -1117,12 +1124,9 @@ export default async function CrmRecordPage({
                       </option>
                     ))}
                   </select>
-                  <button
-                    type="submit"
-                    className="self-start px-3 py-1.5 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono"
-                  >
+                  <Button type="submit" className={submitBtnCls + ' px-3 py-1.5'}>
                     Inscribir
-                  </button>
+                  </Button>
                 </form>
               )}
               {feedback.sequenceError && (
@@ -1134,8 +1138,8 @@ export default async function CrmRecordPage({
           )}
 
           {!isCompany && context.canEdit && (
-            <details className="mt-4 border border-zinc-800 bg-black">
-              <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-xs text-zinc-300 font-mono uppercase">
+            <details className="mt-4 border border-border bg-background">
+              <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-xs text-foreground/80 font-mono uppercase">
                 <Plus className="w-3.5 h-3.5" aria-hidden="true" /> Registrar actividad
               </summary>
               <form action={createActivityAction} className="flex flex-col gap-3 p-3">
@@ -1172,29 +1176,23 @@ export default async function CrmRecordPage({
                     className={inputCls}
                   />
                 </label>
-                <button
-                  type="submit"
-                  className="self-start px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono"
-                >
+                <Button type="submit" className={submitBtnCls}>
                   Guardar actividad
-                </button>
+                </Button>
               </form>
             </details>
           )}
 
           {isLead && context.canEdit && !convertedId && (
-            <form action={convertLeadAction} className="mt-4 border border-zinc-800 bg-black p-3">
+            <form action={convertLeadAction} className="mt-4 border border-border bg-background p-3">
               <input name="id" type="hidden" value={id} />
-              <strong className="block text-xs text-white">¿La oportunidad avanzó?</strong>
-              <p className="mt-1 text-xs text-zinc-400">
+              <strong className="block text-xs text-foreground">¿La oportunidad avanzó?</strong>
+              <p className="mt-1 text-xs text-muted-foreground">
                 Crea un cliente con estos datos y conserva el vínculo con el lead.
               </p>
-              <button
-                type="submit"
-                className="mt-2 px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono"
-              >
+              <Button type="submit" className={'mt-2 ' + submitBtnCls}>
                 Convertir a cliente
-              </button>
+              </Button>
             </form>
           )}
         </aside>

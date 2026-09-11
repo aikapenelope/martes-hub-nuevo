@@ -1,7 +1,7 @@
 /**
  * CrmPage — `/workspace/crm`. Pipeline de leads y cartera de clientes,
- * con la misma UI Storelink (fondo negro, mono, bordes zinc-800) del resto
- * del workspace.
+ * con la UI Storelink del resto del workspace (tokens shadcn calibrados
+ * para OLED: bg-card/border-border/muted-foreground).
  */
 
 import 'server-only'
@@ -112,17 +112,17 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       <CrmHeader tenant={context.tenant} view={data.view} canEdit={context.canEdit} />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="oled-card p-3.5">
-          <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Leads abiertos</p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight text-white">{data.totals.leads}</p>
+        <div className="bg-card text-card-foreground border border-border p-3.5">
+          <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Leads abiertos</p>
+          <p className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">{data.totals.leads}</p>
         </div>
-        <div className="oled-card p-3.5">
-          <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Clientes activos</p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight text-white">{data.totals.clients}</p>
+        <div className="bg-card text-card-foreground border border-border p-3.5">
+          <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Clientes activos</p>
+          <p className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">{data.totals.clients}</p>
         </div>
-        <div className="oled-card p-3.5">
-          <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">Empresas registradas</p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight text-white">{data.totals.companies}</p>
+        <div className="bg-card text-card-foreground border border-border p-3.5">
+          <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Empresas registradas</p>
+          <p className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">{data.totals.companies}</p>
         </div>
       </section>
 

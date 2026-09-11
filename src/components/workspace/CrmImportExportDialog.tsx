@@ -1,7 +1,18 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Download, Upload, X } from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from '@/components/ui/dialog'
 
 interface ImportResult {
   totalRows: number
@@ -17,7 +28,6 @@ interface ImportResult {
  * cargar/descargar contactos no saque al usuario del producto.
  */
 export function CrmImportExportDialog({ collection }: { collection: 'leads' | 'clients' }) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -46,51 +56,60 @@ export function CrmImportExportDialog({ collection }: { collection: 'leads' | 'c
   }
 
   return (
-    <>
-      <button
-        type="button"
-        className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition inline-flex items-center gap-1.5 uppercase tracking-wider font-mono"
-        onClick={() => dialogRef.current?.showModal()}
-      >
-        <Upload className="w-4 h-4" /> Importar / exportar
-      </button>
-
-      <dialog
-        ref={dialogRef}
-        className="workspace-dialog m-auto w-[min(30rem,calc(100vw-2rem))] border border-zinc-800 bg-zinc-950 p-0 text-white"
-        onClose={() => {
+    <Dialog
+      onOpenChange={(open) => {
+        // Equivalente al `onClose` del <dialog> nativo: al cerrar se limpia el feedback.
+        if (!open) {
           setResult(null)
           setError(null)
-        }}
-      >
-        <header className="flex items-center justify-between gap-4 border-b border-zinc-800 px-4 py-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-white">
-            Importar / exportar {collection === 'leads' ? 'leads' : 'clientes'}
-          </h2>
-          <button
-            type="button"
-            aria-label="Cerrar"
-            onClick={() => dialogRef.current?.close()}
-            className="text-zinc-400 transition hover:text-white"
-          >
-            <X size={16} />
-          </button>
-        </header>
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          className="border-border bg-muted font-mono text-xs font-bold uppercase tracking-wider text-foreground hover:bg-accent"
+        >
+          <Upload className="size-4" /> Importar / exportar
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[30rem]" showCloseButton={false}>
+        <DialogHeader className="flex-row items-center justify-between gap-4 border-b border-border pb-3">
+          <div>
+            <DialogTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Importar / exportar {collection === 'leads' ? 'leads' : 'clientes'}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Descarga el CSV del tenant activo o sube un CSV para crear contactos.
+            </DialogDescription>
+          </div>
+          <DialogClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Cerrar"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-4" />
+            </Button>
+          </DialogClose>
+        </DialogHeader>
 
-        <div className="flex flex-col gap-4 p-4">
+        <div className="flex flex-col gap-4">
           <a
             href={`/api/export-csv?collection=${collection}`}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono"
+            className="flex items-center justify-center gap-2 border border-border bg-muted px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider text-foreground transition hover:bg-accent"
           >
-            <Download className="w-4 h-4" /> Descargar CSV del tenant activo
+            <Download className="size-4" /> Descargar CSV del tenant activo
           </a>
 
-          <div className="border-t border-zinc-800 pt-4">
+          <div className="border-t border-border pt-4">
             <form
               action={(formData) => void handleImport(formData)}
               className="flex flex-col gap-2"
             >
-              <label className="text-xs font-mono uppercase tracking-wider text-zinc-400">
+              <label className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                 Subir CSV ({collection === 'leads' ? 'fullName' : 'name'}, email, phone{collection === 'leads' ? ', status, source' : ', stage'})
               </label>
               <input
@@ -98,27 +117,27 @@ export function CrmImportExportDialog({ collection }: { collection: 'leads' | 'c
                 name="file"
                 accept=".csv,text/csv"
                 required
-                className="w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white file:mr-3 file:border-0 file:bg-zinc-800 file:px-2 file:py-1 file:text-xs file:text-white"
+                className="w-full border border-border bg-background px-3 py-2 text-sm text-foreground file:mr-3 file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs file:text-foreground"
               />
-              <button
+              <Button
                 type="submit"
                 disabled={importing}
-                className="mt-1 px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono disabled:opacity-50"
+                className="mt-1 font-mono text-xs font-bold uppercase tracking-wider"
               >
                 {importing ? 'Importando…' : 'Importar filas'}
-              </button>
+              </Button>
             </form>
 
             {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
             {result && (
-              <p className="mt-2 text-xs text-zinc-300">
+              <p className="mt-2 text-xs text-foreground/80">
                 {result.createdCount} de {result.totalRows} filas creadas.
                 {result.issueCount > 0 && ` ${result.issueCount} con problemas (duplicados o datos faltantes).`}
               </p>
             )}
           </div>
         </div>
-      </dialog>
-    </>
+      </DialogContent>
+    </Dialog>
   )
 }
