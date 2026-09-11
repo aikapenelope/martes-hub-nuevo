@@ -2,9 +2,20 @@
 
 import { useState, useTransition } from 'react'
 import { Send, Users, Contact } from 'lucide-react'
-import { Drawer } from '@/components/workspace/overlays'
 import { sendDirectEmailAction } from '@/lib/email-direct-actions'
+import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import type { Lead, Client } from '@/payload-types'
+
+/* Campos nativos (select con option vacío no puede ser Select Radix: regla Devin #2). */
+const fieldCls =
+  'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 
 export function DirectEmailDrawer({ leads, clients }: { leads: Lead[], clients: Client[] }) {
   const [open, setOpen] = useState(false)
@@ -24,78 +35,86 @@ export function DirectEmailDrawer({ leads, clients }: { leads: Lead[], clients: 
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono hover:bg-zinc-200 transition inline-flex items-center gap-2"
-      >
-        <Send size={14} /> Redactar 1:1
-      </button>
+      <Button type="button" onClick={() => setOpen(true)} className="font-mono text-xs font-bold uppercase tracking-wider">
+        <Send className="size-3.5" /> Redactar 1:1
+      </Button>
 
-      <Drawer
+      <Sheet
         open={open}
-        onClose={() => setOpen(false)}
-        title="Enviar Correo Directo"
-        size="lg"
+        onOpenChange={(next) => {
+          if (!next) setOpen(false)
+        }}
       >
-        <form action={handleAction} className="flex flex-col gap-5 p-4 flex-1">
-          
-          <div className="flex gap-2 p-1 bg-zinc-900 border border-zinc-800 rounded">
-            <button
-              type="button"
-              onClick={() => setRecipientType('lead')}
-              className={`flex-1 py-1.5 text-[10px] font-mono uppercase tracking-wider flex items-center justify-center gap-1.5 ${recipientType === 'lead' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-            >
-              <Contact size={12} /> Prospectos (Leads)
-            </button>
-            <button
-              type="button"
-              onClick={() => setRecipientType('client')}
-              className={`flex-1 py-1.5 text-[10px] font-mono uppercase tracking-wider flex items-center justify-center gap-1.5 ${recipientType === 'client' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-            >
-              <Users size={12} /> Clientes Activos
-            </button>
-          </div>
+        <SheetContent
+          side="right"
+          className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
+        >
+          <SheetHeader className="border-b border-border px-4 py-3">
+            <SheetTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Enviar Correo Directo
+            </SheetTitle>
+            <SheetDescription className="sr-only">
+              Redacta y envía un correo 1:1 a un lead o cliente del CRM.
+            </SheetDescription>
+          </SheetHeader>
 
-          <label className="flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400">
-            Destinatario ({recipientType === 'lead' ? 'Lead' : 'Cliente'})
-            <select name="recipientId" required className="w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600">
-              <option value="" disabled selected>Selecciona un destinatario...</option>
-              {recipientType === 'lead' ? leads.map(l => (
-                <option key={l.id} value={`lead_${l.id}`}>{l.fullName} ({l.email})</option>
-              )) : clients.map(c => (
-                <option key={c.id} value={`client_${c.id}`}>{c.name} ({c.email})</option>
-              ))}
-            </select>
-          </label>
+          <form action={handleAction} className="flex flex-1 flex-col gap-5 overflow-y-auto p-4">
 
-          <label className="flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400">
-            Asunto
-            <input name="subject" required className="w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600" />
-          </label>
+            <div className="flex gap-2 rounded border border-border bg-muted/50 p-1">
+              <button
+                type="button"
+                onClick={() => setRecipientType('lead')}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded py-1.5 font-mono text-[10px] uppercase tracking-wider transition ${recipientType === 'lead' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground/80'}`}
+              >
+                <Contact size={12} /> Prospectos (Leads)
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecipientType('client')}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded py-1.5 font-mono text-[10px] uppercase tracking-wider transition ${recipientType === 'client' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground/80'}`}
+              >
+                <Users size={12} /> Clientes Activos
+              </button>
+            </div>
 
-          <label className="flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400 flex-1">
-            Mensaje (Markdown soportado)
-            <textarea name="body" rows={8} required className="w-full h-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600 resize-none font-sans" />
-          </label>
+            <label className="flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+              Destinatario ({recipientType === 'lead' ? 'Lead' : 'Cliente'})
+              <select name="recipientId" required className={fieldCls}>
+                <option value="" disabled selected>Selecciona un destinatario...</option>
+                {recipientType === 'lead' ? leads.map(l => (
+                  <option key={l.id} value={`lead_${l.id}`}>{l.fullName} ({l.email})</option>
+                )) : clients.map(c => (
+                  <option key={c.id} value={`client_${c.id}`}>{c.name} ({c.email})</option>
+                ))}
+              </select>
+            </label>
 
-          <div className="flex justify-end gap-2 pt-4 mt-auto border-t border-zinc-800">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="px-4 py-2 bg-zinc-900 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono hover:bg-zinc-800"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="px-4 py-2 bg-sky-500 text-white text-xs font-bold uppercase tracking-wider font-mono hover:bg-sky-400 disabled:opacity-50"
-            >
-              {isPending ? 'Enviando...' : 'Enviar Mensaje'}
-            </button>
-          </div>
-        </form>
-      </Drawer>
+            <label className="flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+              Asunto
+              <input name="subject" required className={fieldCls} />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-muted-foreground flex-1">
+              Mensaje (Markdown soportado)
+              <textarea name="body" rows={8} required className={`${fieldCls} h-full resize-none font-sans`} />
+            </label>
+
+            <div className="mt-auto flex justify-end gap-2 border-t border-border pt-4">
+              {/* type="button": sin él, Cancelar haría submit del form (review Devin). */}
+              <Button type="button" variant="outline" className="bg-muted font-mono text-xs font-bold uppercase tracking-wider text-foreground/80 hover:bg-accent hover:text-foreground">
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isPending}
+                className="bg-sky-500 font-mono text-xs font-bold uppercase tracking-wider text-white hover:bg-sky-400"
+              >
+                {isPending ? 'Enviando...' : 'Enviar Mensaje'}
+              </Button>
+            </div>
+          </form>
+        </SheetContent>
+      </Sheet>
     </>
   )
 }

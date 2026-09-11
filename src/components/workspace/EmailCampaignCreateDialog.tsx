@@ -9,12 +9,19 @@ import {
   renderCampaignPreviewAction,
   sendCampaignTestAction,
 } from '@/lib/email-campaign-actions'
-import { Drawer } from '@/components/workspace/overlays'
+import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import type { Segment } from '@/payload-types'
 
 const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
-const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
+  'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
+const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-muted-foreground'
 
 export function EmailCampaignCreateDialog({
   segments,
@@ -28,7 +35,7 @@ export function EmailCampaignCreateDialog({
   const [previewHtml, setPreviewHtml] = useState('')
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [recipientCount, setRecipientCount] = useState<{ total: number; leads: number; clients: number } | null>(null)
-  const [testTo, setTestTo] = useState(testEmail ?? '')
+  const [testTo, _setTestTo] = useState(testEmail ?? '')
   const [testFeedback, setTestFeedback] = useState<string | null>(null)
   const [testError, setTestError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -113,17 +120,31 @@ export function EmailCampaignCreateDialog({
 
   return (
     <>
-      <button
+      <Button
         type="button"
-        className="px-4 py-2 bg-sky-400 hover:bg-sky-300 text-black font-black flex items-center gap-2 uppercase transition shadow-[0_0_16px_rgba(56,189,248,0.35)] text-xs font-mono"
+        className="bg-sky-400 font-mono text-xs font-black uppercase text-black shadow-[0_0_16px_rgba(56,189,248,0.35)] hover:bg-sky-300"
         onClick={() => setOpen(true)}
       >
         <Plus className="w-4 h-4" /> + Campaña
-      </button>
+      </Button>
 
-      <Drawer open={open} onClose={() => setOpen(false)} title="Nueva Campaña de Email" size="xl">
+      <Sheet
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) setOpen(false)
+        }}
+      >
+        <SheetContent side="right" className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
+          <SheetHeader className="border-b border-border px-4 py-3">
+            <SheetTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Nueva Campaña de Email
+            </SheetTitle>
+            <SheetDescription className="sr-only">
+              Crea la campaña, revisa alcance y vista previa, y envía una prueba antes de guardar.
+            </SheetDescription>
+          </SheetHeader>
 
-        <div className="grid max-h-[75vh] gap-4 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="grid max-h-[75vh] flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <form ref={formRef} action={handleSave} onChange={refreshPreview} className="flex min-w-0 flex-col gap-3">
           <label className={labelCls}>
             Nombre interno
@@ -150,7 +171,7 @@ export function EmailCampaignCreateDialog({
             Cuerpo (HTML)
             <textarea name="bodyHtml" rows={8} required maxLength={20000} placeholder="<p>Hola {{nombre}}...</p>" className={`${inputCls} font-mono text-xs`} />
           </label>
-          <p className="text-[11px] text-zinc-500">
+          <p className="text-[11px] text-muted-foreground">
             El HTML se sanitiza en el servidor (sin scripts/iframes/handlers inline) y se envuelve
             automáticamente con la plantilla base de la marca.
           </p>
@@ -160,74 +181,71 @@ export function EmailCampaignCreateDialog({
             </div>
           )}
           <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono"
-            >
+            {/* type="button": sin él, Cancelar haría submit del form (review Devin). */}
+            <Button type="button" variant="outline" className="bg-muted font-mono text-xs font-bold uppercase tracking-wider text-foreground/80 hover:bg-accent hover:text-foreground">
               Cancelar
-            </button>
-            <button type="submit" disabled={saving} className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono disabled:opacity-50">
+            </Button>
+            <Button type="submit" disabled={saving} className="font-mono text-xs font-bold uppercase tracking-wider">
               {saving ? 'Guardando…' : 'Guardar borrador'}
-            </button>
+            </Button>
           </div>
         </form>
 
         {/* Panel derecho: alcance + preview + prueba */}
-        <div className="flex min-w-0 flex-col gap-3 border-l border-zinc-800 pl-4">
+        <div className="flex min-w-0 flex-col gap-3 border-l border-border pl-4">
           <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+            <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
               <Users size={12} /> Alcance
             </span>
-            <button type="button" onClick={refreshCount} className="text-[10px] font-mono text-sky-400 hover:text-sky-300">
+            <Button type="button" variant="link" onClick={refreshCount} className="h-auto p-0 text-[10px] font-mono text-sky-400 hover:text-sky-300">
               Recalcular
-            </button>
+            </Button>
           </div>
-          <p className="text-xs text-zinc-300 font-mono">
+          <p className="text-xs text-foreground/80 font-mono">
             {recipientCount
               ? `${recipientCount.total} destinatarios (${recipientCount.leads} leads + ${recipientCount.clients} clientes con email${recipientCount.clients > 0 ? ', sin opt-out' : ''})`
               : 'Elige un rubro y recalcula para ver el alcance real.'}
           </p>
 
           <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+            <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
               <Eye size={12} /> Vista previa
             </span>
-            <div className="flex gap-1">
-              <button type="button" onClick={() => { refreshPreview() }} className="text-[10px] font-mono text-sky-400 hover:text-sky-300">Actualizar</button>
-              <button type="button" onClick={() => setDevice('desktop')} aria-label="Vista escritorio" className={`border px-1.5 py-0.5 ${device === 'desktop' ? 'border-zinc-500 text-white' : 'border-zinc-800 text-zinc-500'}`}>
-                <Monitor size={11} />
-              </button>
-              <button type="button" onClick={() => setDevice('mobile')} aria-label="Vista móvil" className={`border px-1.5 py-0.5 ${device === 'mobile' ? 'border-zinc-500 text-white' : 'border-zinc-800 text-zinc-500'}`}>
-                <Smartphone size={11} />
-              </button>
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="link" onClick={() => { refreshPreview() }} className="h-auto p-0 text-[10px] font-mono text-sky-400 hover:text-sky-300">Actualizar</Button>
+              <Button type="button" variant="outline" size="icon-xs" onClick={() => setDevice('desktop')} aria-label="Vista escritorio" className={device === 'desktop' ? 'border-foreground/50 text-foreground' : 'border-border text-muted-foreground'}>
+                <Monitor className="size-3" />
+              </Button>
+              <Button type="button" variant="outline" size="icon-xs" onClick={() => setDevice('mobile')} aria-label="Vista móvil" className={device === 'mobile' ? 'border-foreground/50 text-foreground' : 'border-border text-muted-foreground'}>
+                <Smartphone className="size-3" />
+              </Button>
             </div>
           </div>
-          <div className="flex justify-center border border-zinc-800 bg-zinc-950 p-2">
+          <div className="flex justify-center border border-border bg-background p-2">
             {previewHtml ? (
               <iframe
                 title="Vista previa de campaña"
                 srcDoc={previewHtml}
                 sandbox=""
-                className="h-[380px] border border-zinc-800 bg-white"
+                className="h-[380px] border border-border bg-white"
                 style={{ width: device === 'mobile' ? 375 : 640, maxWidth: '100%' }}
               />
             ) : (
-              <div className="flex h-[380px] w-full items-center justify-center text-[11px] font-mono text-zinc-600">
+              <div className="flex h-[380px] w-full items-center justify-center text-[11px] font-mono text-muted-foreground">
                 Escribe el cuerpo (HTML) y pulsa Actualizar
               </div>
             )}
           </div>
 
-          <div className="flex flex-col gap-2 border-t border-zinc-800 pt-3">
-            <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+          <div className="flex flex-col gap-2 border-t border-border pt-3">
+            <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
               <Send size={12} /> Envío de prueba
             </span>
             <div className="flex items-center gap-2">
-              <p className="min-w-0 flex-1 text-[11px] font-mono text-zinc-500">
+              <p className="min-w-0 flex-1 text-[11px] font-mono text-muted-foreground">
                 Destino: {testTo || 'tu correo de usuario'}
               </p>
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   const draft = readDraft()
@@ -244,17 +262,18 @@ export function EmailCampaignCreateDialog({
                   })
                 }}
                 disabled={isPending}
-                className="shrink-0 border border-sky-700 bg-sky-950/60 px-3 py-2 text-[11px] font-mono text-sky-300 transition hover:bg-sky-900/60 disabled:opacity-50"
+                className="shrink-0 border border-sky-700 bg-sky-950/60 px-3 py-2 text-[11px] font-mono text-sky-300 hover:bg-sky-900/60"
               >
                 Enviar prueba
-              </button>
+              </Button>
             </div>
             {testFeedback && <p className="text-[11px] font-mono text-emerald-400">{testFeedback}</p>}
             {testError && <p className="text-[11px] font-mono text-red-400" role="alert">{testError}</p>}
           </div>
         </div>
         </div>
-      </Drawer>
+        </SheetContent>
+      </Sheet>
     </>
   )
 }

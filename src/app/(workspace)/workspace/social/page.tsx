@@ -108,13 +108,13 @@ export default async function SocialPage({
 
       <section aria-label="Desempeño por post — espejo de Instagram Insights">
         <OledCard>
-          <SectionHeader eyebrow="Espejo de Instagram Insights" title="Desempeño por publicación" action={<TrendingUp size={18} className="text-zinc-500" />} />
+          <SectionHeader eyebrow="Espejo de Instagram Insights" title="Desempeño por publicación" action={<TrendingUp size={18} className="text-muted-foreground" />} />
           {!hasInstagram ? (
-            <div className="flex flex-col items-center gap-2 py-6 text-center text-xs text-zinc-500">
+            <div className="flex flex-col items-center gap-2 py-6 text-center text-xs text-muted-foreground">
               <AlertCircle size={22} />
               <div>
                 Conecta la cuenta de Instagram del negocio en{' '}
-                <a href="/workspace/settings#conexiones" className="underline text-zinc-300">
+                <a href="/workspace/settings#conexiones" className="underline text-foreground/80">
                   Ajustes → Conexiones
                 </a>{' '}
                 para ver alcance, guardados y más.
@@ -128,7 +128,7 @@ export default async function SocialPage({
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-zinc-800 text-[10px] uppercase tracking-wider font-mono text-zinc-500">
+                  <tr className="border-b border-border text-[10px] uppercase tracking-wider font-mono text-muted-foreground">
                     <th className="py-2 pr-3">Post</th>
                     <th className="py-2 pr-3">Alcance</th>
                     <th className="py-2 pr-3">Me gusta</th>
@@ -144,35 +144,35 @@ export default async function SocialPage({
                     const interactions = snap.likes + snap.comments + snap.saved + snap.shares
                     const er = snap.reach > 0 ? ((interactions / snap.reach) * 100).toFixed(1) : '0.0'
                     return (
-                      <tr key={post.id} className="border-b border-zinc-900 last:border-0 text-xs">
+                      <tr key={post.id} className="border-b border-border last:border-0 text-xs">
                         <td className="py-2 pr-3">
                           <div className="flex items-center gap-2 min-w-0">
                             {thumb ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={thumb} alt="" className="h-9 w-9 rounded-sm object-cover border border-zinc-800" />
+                              <img src={thumb} alt="" className="h-9 w-9 rounded-sm object-cover border border-border" />
                             ) : (
-                              <div className="h-9 w-9 rounded-sm border border-zinc-800 bg-zinc-900 flex items-center justify-center">
-                                <Share2 size={12} className="text-zinc-600" />
+                              <div className="h-9 w-9 rounded-sm border border-border bg-muted flex items-center justify-center">
+                                <Share2 size={12} className="text-muted-foreground" />
                               </div>
                             )}
-                            <span className="truncate max-w-56 text-zinc-300">
+                            <span className="truncate max-w-56 text-foreground/80">
                               {post.caption.slice(0, 60)}
                               {post.caption.length > 60 ? '…' : ''}
                             </span>
                           </div>
                         </td>
-                        <td className="py-2 pr-3 text-zinc-300 font-mono">{snap.reach.toLocaleString('es')}</td>
-                        <td className="py-2 pr-3 text-zinc-300 font-mono">{snap.likes.toLocaleString('es')}</td>
-                        <td className="py-2 pr-3 text-zinc-300 font-mono">{snap.comments.toLocaleString('es')}</td>
-                        <td className="py-2 pr-3 text-zinc-300 font-mono">{snap.saved.toLocaleString('es')}</td>
-                        <td className="py-2 pr-3 text-zinc-300 font-mono">{er}%</td>
+                        <td className="py-2 pr-3 text-foreground/80 font-mono">{snap.reach.toLocaleString('es')}</td>
+                        <td className="py-2 pr-3 text-foreground/80 font-mono">{snap.likes.toLocaleString('es')}</td>
+                        <td className="py-2 pr-3 text-foreground/80 font-mono">{snap.comments.toLocaleString('es')}</td>
+                        <td className="py-2 pr-3 text-foreground/80 font-mono">{snap.saved.toLocaleString('es')}</td>
+                        <td className="py-2 pr-3 text-foreground/80 font-mono">{er}%</td>
                         <td className="py-2">
                           {post.permalink ? (
                             <a href={post.permalink} target="_blank" rel="noopener noreferrer" className="text-sky-400 underline text-[11px]">
                               Ver
                             </a>
                           ) : (
-                            <span className="text-zinc-600">—</span>
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </td>
                       </tr>
@@ -212,7 +212,7 @@ export default async function SocialPage({
       <section className="grid gap-4 lg:grid-cols-[1.4fr_.8fr]">
         <div className="flex flex-col gap-4">
           <OledCard>
-            <SectionHeader eyebrow="Calendario semanal" title="Distribución de publicaciones" action={<Calendar size={18} className="text-zinc-500" />} />
+            <SectionHeader eyebrow="Calendario semanal" title="Distribución de publicaciones" action={<Calendar size={18} className="text-muted-foreground" />} />
             <SocialWeekCalendar posts={posts} weekStart={monday.toISOString()} />
           </OledCard>
 
@@ -228,12 +228,12 @@ export default async function SocialPage({
                   const dateStr = p.scheduledAt || p.publishedAt || p.createdAt
                   const snap = metrics.latestByPost.get(p.id)
                   return (
-                    <div key={p.id} className="flex items-center justify-between gap-3 border-b border-zinc-900 py-2.5 last:border-0">
+                    <div key={p.id} className="flex items-center justify-between gap-3 border-b border-border py-2.5 last:border-0">
                       <div className="min-w-0 flex-1">
-                        <strong className="block truncate text-xs text-white">{p.caption.slice(0, 80)}{p.caption.length > 80 ? '…' : ''}</strong>
-                        <span className="text-[10px] text-zinc-500 font-mono">{accountLabel} · {dateStr ? dateFmt.format(new Date(dateStr)) : 'Sin fecha'}</span>
+                        <strong className="block truncate text-xs text-foreground">{p.caption.slice(0, 80)}{p.caption.length > 80 ? '…' : ''}</strong>
+                        <span className="text-[10px] text-muted-foreground font-mono">{accountLabel} · {dateStr ? dateFmt.format(new Date(dateStr)) : 'Sin fecha'}</span>
                         {snap && (
-                          <span className="mt-0.5 flex items-center gap-2.5 text-[10px] text-zinc-400 font-mono">
+                          <span className="mt-0.5 flex items-center gap-2.5 text-[10px] text-muted-foreground font-mono">
                             <span className="inline-flex items-center gap-1"><Eye size={10} /> {snap.reach.toLocaleString('es')}</span>
                             <span className="inline-flex items-center gap-1"><Heart size={10} /> {snap.likes.toLocaleString('es')}</span>
                             <span>{snap.comments} comentarios</span>
@@ -258,20 +258,20 @@ export default async function SocialPage({
             action={canEdit && isAdmin ? <SocialAccountCreateDialog variant="button" /> : undefined}
           />
           {accounts.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-8 text-center text-xs text-zinc-500">
+            <div className="flex flex-col items-center gap-2 py-8 text-center text-xs text-muted-foreground">
               <AlertCircle size={22} />
               <div>Sin cuentas sociales conectadas.</div>
-              <a href="/workspace/settings#conexiones" className="text-zinc-300 underline">
+              <a href="/workspace/settings#conexiones" className="text-foreground/80 underline">
                 Conectar en Ajustes → Conexiones
               </a>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
               {accounts.map((acc) => (
-                <div key={acc.id} className="oled-subcard flex items-center justify-between gap-3 p-3">
+                <div key={acc.id} className="border border-border bg-muted/40 flex items-center justify-between gap-3 p-3">
                   <div>
-                    <div className="text-xs font-semibold text-white">{acc.accountName}</div>
-                    <div className="mt-0.5 text-[10px] text-zinc-500">{acc.platform === 'instagram' ? 'Instagram Business' : 'Facebook Page'}</div>
+                    <div className="text-xs font-semibold text-foreground">{acc.accountName}</div>
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">{acc.platform === 'instagram' ? 'Instagram Business' : 'Facebook Page'}</div>
                   </div>
                   <StatusBadge tone={acc.status === 'conectada' ? 'success' : 'danger'}>● {acc.status.toUpperCase()}</StatusBadge>
                 </div>

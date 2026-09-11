@@ -13,13 +13,10 @@ import {
   type ConnectionScope,
   type TenantConnectionRow,
 } from '@/lib/integration-actions'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
-const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
-const btnPrimary =
-  'px-3 py-1.5 bg-white text-black text-[11px] font-bold uppercase tracking-wider font-mono disabled:opacity-40'
-const btnGhost =
-  'px-3 py-1.5 bg-zinc-900 border border-zinc-700 text-zinc-200 text-[11px] font-bold uppercase tracking-wider font-mono disabled:opacity-40'
+const btnCls = 'font-mono text-[11px] font-bold uppercase tracking-wider'
 
 interface ToolkitMeta {
   slug: string
@@ -51,7 +48,7 @@ const ESTADO_STYLES: Record<string, string> = {
   conectando: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
   error_token: 'text-red-400 border-red-500/30 bg-red-500/10',
   error_api: 'text-red-400 border-red-500/30 bg-red-500/10',
-  desconectado: 'text-zinc-500 border-zinc-700 bg-zinc-900',
+  desconectado: 'text-muted-foreground border-border bg-muted',
   invalida: 'text-red-400 border-red-500/30 bg-red-500/10',
 }
 
@@ -195,52 +192,58 @@ export function IntegrationHub({
     const key = `${scope}:${toolkit.slug}`
     if (!row || row.estado === 'desconectado' || row.estado === 'error_token') {
       return (
-        <button
+        <Button
           type="button"
-          className={btnPrimary}
+          size="sm"
+          className={btnCls}
           disabled={busy !== null}
           onClick={() => void handleConnect(toolkit.slug, scope)}
         >
           {busy === key ? (
-            <Loader2 className="w-3 h-3 animate-spin inline mr-1" />
+            <Loader2 className="mr-1 inline size-3 animate-spin" />
           ) : (
-            <Link2 size={12} className="inline mr-1" />
+            <Link2 className="mr-1 inline size-3" />
           )}
           Conectar
-        </button>
+        </Button>
       )
     }
     if (row.estado === 'conectando') {
       return (
-        <button
+        <Button
           type="button"
-          className={btnPrimary}
+          size="sm"
+          className={btnCls}
           disabled={busy !== null}
           onClick={() => void run(key, () => verifyConnectionAction(toolkit.slug, scope))}
         >
-          <CheckCircle2 size={12} className="inline mr-1" />
+          <CheckCircle2 className="mr-1 inline size-3" />
           Ya autoricé — verificar
-        </button>
+        </Button>
       )
     }
     return (
       <>
-        <button
+        <Button
           type="button"
-          className={btnGhost}
+          variant="outline"
+          size="sm"
+          className={btnCls}
           disabled={busy !== null}
           onClick={() => void run(key, () => pingConnectionAction(toolkit.slug, scope))}
         >
           Probar
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className={btnGhost}
+          variant="outline"
+          size="sm"
+          className={btnCls}
           disabled={busy !== null}
           onClick={() => void run(key, () => disconnectConnectionAction(toolkit.slug, scope))}
         >
           Desconectar
-        </button>
+        </Button>
       </>
     )
   }
@@ -249,16 +252,16 @@ export function IntegrationHub({
     const badge = estadoBadge(row?.estado)
     const canManage = scope === 'empresa' ? isAdmin : true
     return (
-      <div key={`${scope}-${toolkit.slug}`} className="border border-zinc-800 bg-black/40 p-4 flex flex-col gap-2">
+      <div key={`${scope}-${toolkit.slug}`} className="border border-border bg-background/40 p-4 flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-bold uppercase tracking-wider font-mono text-white">
+          <span className="text-xs font-bold uppercase tracking-wider font-mono text-foreground">
             {toolkit.label}
           </span>
           <span className={`px-2 py-0.5 border text-[9px] font-mono uppercase tracking-wider ${badge.cls}`}>
             {row?.estado === 'ok' ? 'conectado' : badge.label}
           </span>
         </div>
-        <span className="text-[10px] text-zinc-500 font-sans normal-case">{toolkit.hint}</span>
+        <span className="text-[10px] text-muted-foreground font-sans normal-case">{toolkit.hint}</span>
         {canManage && toolkit.enabled && (
           <div className="flex flex-wrap gap-2 mt-auto pt-1">
             {connectionButtons(toolkit, scope, row)}
@@ -269,15 +272,15 @@ export function IntegrationHub({
   }
 
   return (
-    <section className="oled-card p-6" id="conexiones">
-      <div className="flex items-center gap-2 pb-4 border-b border-zinc-800">
-        <PlugZap className="w-4 h-4 text-white" />
-        <h2 className="text-sm font-bold uppercase tracking-wider font-mono text-white">
+    <section className="bg-card text-card-foreground border border-border p-6" id="conexiones">
+      <div className="flex items-center gap-2 pb-4 border-b border-border">
+        <PlugZap className="w-4 h-4 text-foreground" />
+        <h2 className="text-sm font-bold uppercase tracking-wider font-mono text-foreground">
           Conexiones
         </h2>
       </div>
 
-      <p className="mt-4 text-[11px] text-zinc-500 font-sans normal-case">
+      <p className="mt-4 text-[11px] text-muted-foreground font-sans normal-case">
         Conecta un servicio con un clic: se abre el login del servicio real (Instagram, Google…) en
         un popup y queda cableado. Los tokens viven en Composio; el proyecto (y el consumo) es del
         tenant.
@@ -304,8 +307,8 @@ export function IntegrationHub({
       )}
 
       <div className="mt-5 flex items-center gap-2">
-        <Building className="w-3.5 h-3.5 text-zinc-400" />
-        <h3 className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+        <Building className="w-3.5 h-3.5 text-muted-foreground" />
+        <h3 className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
           De la empresa {isAdmin ? '' : '(gestionada por admins)'}
         </h3>
       </div>
@@ -320,8 +323,8 @@ export function IntegrationHub({
       </div>
 
       <div className="mt-5 flex items-center gap-2">
-        <User className="w-3.5 h-3.5 text-zinc-400" />
-        <h3 className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">Personales (solo tuyas)</h3>
+        <User className="w-3.5 h-3.5 text-muted-foreground" />
+        <h3 className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">Personales (solo tuyas)</h3>
       </div>
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
         {PERSONAL_TOOLKITS.map((toolkit) =>
@@ -334,10 +337,10 @@ export function IntegrationHub({
       </div>
 
       {isAdmin && (
-        <div className="mt-5 border border-zinc-800 bg-black/40 p-4">
+        <div className="mt-5 border border-border bg-background/40 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <KeyRound className="w-3.5 h-3.5 text-zinc-400" />
-            <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+            <KeyRound className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
               API key de este tenant (opcional — BYO)
             </span>
             {hasApiKey && (
@@ -347,23 +350,23 @@ export function IntegrationHub({
             )}
           </div>
           <div className="flex gap-2">
-            <input
+            <Input
               type="password"
               value={apiKeyInput}
               onChange={(event) => setApiKeyInput(event.target.value)}
               placeholder="API key de platform.composio.dev — solo si el tenant quiere cuota propia"
-              className={inputCls}
             />
-            <button
+            <Button
               type="button"
-              className={btnPrimary}
+              size="sm"
+              className={btnCls}
               disabled={busy === 'key' || !apiKeyInput.trim()}
               onClick={() => void run('key', handleSaveKey)}
             >
-              {busy === 'key' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Usar'}
-            </button>
+              {busy === 'key' ? <Loader2 className="size-3.5 animate-spin" /> : 'Usar'}
+            </Button>
           </div>
-          <p className="mt-2 text-[10px] text-zinc-600 font-sans normal-case">
+          <p className="mt-2 text-[10px] text-muted-foreground font-sans normal-case">
             Por defecto las conexiones usan la cuota del proyecto asignado al tenant. Si se pega aquí
             una key propia, este tenant consume SU cuota. El superadmin también puede asignarla por
             tenant desde /admin → Integraciones del Tenant. Cifrada con AES-256-GCM; no vuelve a mostrarse.
