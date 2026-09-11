@@ -84,22 +84,6 @@
  * de alto contraste, acentos de esquina y celdas de la matriz de actividad.
  * Definidas aquí porque son efectos visuales puntuales (pseudo-elementos,
  * keyframes) que Tailwind no expresa limpiamente como utility classes. */
-.oled-card {
-  background-color: var(--oled-card-bg);
-  border: 1px solid var(--oled-card-border);
-  border-radius: 0px;
-  position: relative;
-}
-.oled-card:hover {
-  border-color: var(--oled-card-border-hover);
-}
-.oled-subcard {
-  background-color: var(--oled-subcard-bg);
-  border: 1px solid var(--oled-subcard-border);
-}
-.oled-subcard:hover {
-  border-color: var(--oled-subcard-border-hover);
-}
 
 .bracket-accent {
   position: relative;

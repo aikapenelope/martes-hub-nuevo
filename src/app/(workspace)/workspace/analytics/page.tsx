@@ -21,7 +21,9 @@ import { getWorkspaceContext } from '@/lib/workspace-context'
 import { monthlyRevenueSeries } from '@/lib/db-aggregates'
 import { getConversionReport } from '@/lib/conversion-reports'
 import { ConversionReportTable } from '@/components/workspace/analytics/ConversionReportTable'
-import { EmptyState, HeroAction, KpiCard, OledCard, PageHero, SectionHeader } from '@/components/workspace/oled'
+import { KpiCard } from '@/components/workspace/kpi-card'
+import { PageHeader } from '@/components/workspace/page-header'
+import { Button } from '@/components/ui/button'
 import {
   MonoAreaChart,
   MonoDonutChart,
@@ -79,14 +81,18 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
         eyebrow={`Inteligencia y analítica · ${context.tenant.name}`}
         title="Métricas de Conversión y Calidad"
         description="Rendimiento comercial, embudo de captación y satisfacción de clientes."
         actions={
           <>
-            <HeroAction href="/workspace/crm" icon={Users}>Ver CRM</HeroAction>
-            <HeroAction href="/workspace/billing" icon={TrendingUp} variant="primary">Ver Facturación</HeroAction>
+            <Button asChild className="border border-border bg-muted font-mono text-xs font-bold uppercase text-foreground hover:bg-accent">
+              <Link href="/workspace/crm"><Users className="h-4 w-4" />Ver CRM</Link>
+            </Button>
+            <Button asChild className="bg-sky-400 font-mono text-xs font-black uppercase text-black shadow-[0_0_16px_rgba(56,189,248,0.35)] hover:bg-sky-300">
+              <Link href="/workspace/billing"><TrendingUp className="h-4 w-4" />Ver Facturación</Link>
+            </Button>
           </>
         }
       />
@@ -98,39 +104,39 @@ export default async function AnalyticsPage() {
       </section>
 
       {/* Tendencia de ingresos de los últimos 12 meses (datos agregados en BD) */}
-      <OledCard>
-        <SectionHeader
-          eyebrow="Facturación"
-          title="Ingresos Cobrados · Últimos 12 Meses"
-          action={
-            <Link href="/workspace/billing" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
-              Ver cobros →
-            </Link>
-          }
-        />
+      <div className="bg-card text-card-foreground border border-border p-3.5">
+        <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Facturación</p>
+            <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Ingresos Cobrados · Últimos 12 Meses</h2>
+          </div>
+          <Link href="/workspace/billing" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
+            Ver cobros →
+          </Link>
+        </div>
         {revenueTrend.every((p) => p.value === 0) ? (
-          <EmptyState>Aún no hay pagos confirmados en los últimos 12 meses.</EmptyState>
+          <div className="py-10 text-center font-mono text-xs text-muted-foreground">Aún no hay pagos confirmados en los últimos 12 meses.</div>
         ) : (
           <div className="pt-2">
             <MonoAreaChart data={revenueTrend} unit="USD" height={190} />
           </div>
         )}
-      </OledCard>
+      </div>
 
       <section className="grid gap-4 xl:grid-cols-[1.4fr_.8fr]">
-        <OledCard>
-          <SectionHeader
-            eyebrow="Pipeline"
-            title="Embudo de Conversión de Leads"
-            action={
-              <Link href="/workspace/crm" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
-                Ver leads →
-              </Link>
-            }
-          />
+        <div className="bg-card text-card-foreground border border-border p-3.5">
+          <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Pipeline</p>
+              <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Embudo de Conversión de Leads</h2>
+            </div>
+            <Link href="/workspace/crm" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
+              Ver leads →
+            </Link>
+          </div>
 
           {funnel.totalLeads === 0 ? (
-            <EmptyState>Sin leads registrados en el tenant activo.</EmptyState>
+            <div className="py-10 text-center font-mono text-xs text-muted-foreground">Sin leads registrados en el tenant activo.</div>
           ) : (
             <div className="space-y-4">
               <MonoFunnel
@@ -181,11 +187,17 @@ export default async function AnalyticsPage() {
               </div>
             </div>
           )}
-        </OledCard>
+        </div>
 
         <div className="space-y-4">
-          <OledCard>
-            <SectionHeader eyebrow="Tally Forms" title="Satisfacción y Calidad" action={<FileSpreadsheet className="w-4 h-4 text-muted-foreground" />} />
+          <div className="bg-card text-card-foreground border border-border p-3.5">
+            <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Tally Forms</p>
+                <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Satisfacción y Calidad</h2>
+              </div>
+              <FileSpreadsheet className="w-4 h-4 text-muted-foreground" />
+            </div>
             <div className="space-y-2 text-xs font-mono">
               <div className="flex justify-between border-b border-border pb-2">
                 <span className="text-muted-foreground">Total respuestas</span>
@@ -202,10 +214,16 @@ export default async function AnalyticsPage() {
                 </span>
               </div>
             </div>
-          </OledCard>
+          </div>
 
-          <OledCard>
-            <SectionHeader eyebrow="Timeline" title="Interacciones del Mes" action={<Activity className="w-4 h-4 text-muted-foreground" />} />
+          <div className="bg-card text-card-foreground border border-border p-3.5">
+            <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Timeline</p>
+                <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Interacciones del Mes</h2>
+              </div>
+              <Activity className="w-4 h-4 text-muted-foreground" />
+            </div>
             <div className="space-y-2 text-xs font-mono">
               <div className="flex justify-between border-b border-border pb-2">
                 <span className="text-muted-foreground flex items-center gap-1.5"><PhoneCall className="w-3 h-3" /> Llamadas</span>
@@ -224,18 +242,18 @@ export default async function AnalyticsPage() {
                 <span className="font-bold text-foreground">{activities.byType.nota + activities.byType.email + activities.byType.otro}</span>
               </div>
             </div>
-          </OledCard>
+          </div>
 
-          <OledCard>
-            <SectionHeader
-              eyebrow="Operaciones"
-              title="Cumplimiento de Tareas"
-              action={
-                <Link href="/workspace/tasks" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
-                  Ver tareas →
-                </Link>
-              }
-            />
+          <div className="bg-card text-card-foreground border border-border p-3.5">
+            <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Operaciones</p>
+                <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Cumplimiento de Tareas</h2>
+              </div>
+              <Link href="/workspace/tasks" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
+                Ver tareas →
+              </Link>
+            </div>
             <div className="space-y-2 text-xs font-mono">
               <div className="flex justify-between border-b border-border pb-2">
                 <span className="text-muted-foreground">Tasa de finalización</span>
@@ -256,22 +274,22 @@ export default async function AnalyticsPage() {
                 </span>
               </div>
             </div>
-          </OledCard>
+          </div>
         </div>
       </section>
 
       {/* Desglose del embudo por origen y por agente (ítem 5, sector operacional) */}
-      <OledCard>
-        <SectionHeader
-          eyebrow="Rendimiento comercial"
-          title="Conversión por Origen y por Agente"
-          description="Embudo entrada → contactado → calificado → cliente. Agregado en base de datos."
-          action={
-            <Link href="/workspace/crm" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
-              Ver CRM →
-            </Link>
-          }
-        />
+      <div className="bg-card text-card-foreground border border-border p-3.5">
+        <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Rendimiento comercial</p>
+            <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Conversión por Origen y por Agente</h2>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Embudo entrada → contactado → calificado → cliente. Agregado en base de datos.</p>
+          </div>
+          <Link href="/workspace/crm" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
+            Ver CRM →
+          </Link>
+        </div>
         <div className="grid gap-6 xl:grid-cols-2">
           <ConversionReportTable
             eyebrow="Por origen de captación"
@@ -284,40 +302,50 @@ export default async function AnalyticsPage() {
             rows={conversionReport.byAgent}
           />
         </div>
-      </OledCard>
+      </div>
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <OledCard>
-          <SectionHeader eyebrow="Composición" title="Leads por Canal" />
+        <div className="bg-card text-card-foreground border border-border p-3.5">
+          <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Composición</p>
+              <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Leads por Canal</h2>
+            </div>
+          </div>
           {sources.length === 0 ? (
-            <EmptyState>Sin datos suficientes todavía.</EmptyState>
+            <div className="py-10 text-center font-mono text-xs text-muted-foreground">Sin datos suficientes todavía.</div>
           ) : (
             <MonoDonutChart data={sources.map((s) => ({ label: s.label, value: s.count }))} centerLabel="LEADS" />
           )}
-        </OledCard>
-        <OledCard>
-          <SectionHeader eyebrow="Composición" title="Clientes por Etapa" />
+        </div>
+        <div className="bg-card text-card-foreground border border-border p-3.5">
+          <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Composición</p>
+              <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Clientes por Etapa</h2>
+            </div>
+          </div>
           {clientsByStage.length === 0 ? (
-            <EmptyState>Sin clientes registrados todavía.</EmptyState>
+            <div className="py-10 text-center font-mono text-xs text-muted-foreground">Sin clientes registrados todavía.</div>
           ) : (
             <MonoDonutChart data={clientsByStage} centerLabel="CLIENTES" />
           )}
-        </OledCard>
+        </div>
       </section>
 
-      <OledCard>
-        <SectionHeader
-          eyebrow="Adquisición"
-          title="Canales de Captación de Leads"
-          action={
-            <Link href="/workspace/crm" className="text-xs text-muted-foreground hover:text-foreground font-mono transition inline-flex items-center gap-1">
-              Explorar CRM <ArrowRight className="w-3 h-3" />
-            </Link>
-          }
-        />
+      <div className="bg-card text-card-foreground border border-border p-3.5">
+        <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Adquisición</p>
+            <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Canales de Captación de Leads</h2>
+          </div>
+          <Link href="/workspace/crm" className="text-xs text-muted-foreground hover:text-foreground font-mono transition inline-flex items-center gap-1">
+            Explorar CRM <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
 
         {sources.length === 0 ? (
-          <EmptyState>No hay registros suficientes de leads para segmentar canales.</EmptyState>
+          <div className="py-10 text-center font-mono text-xs text-muted-foreground">No hay registros suficientes de leads para segmentar canales.</div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {sources.map((item) => (
@@ -334,7 +362,7 @@ export default async function AnalyticsPage() {
             ))}
           </div>
         )}
-      </OledCard>
+      </div>
     </div>
   )
 }

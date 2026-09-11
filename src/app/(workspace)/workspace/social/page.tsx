@@ -10,7 +10,9 @@ import { getSocialMetricsSummary } from '@/lib/social-metrics-data'
 import { SocialAccountCreateDialog } from '@/components/workspace/SocialAccountCreateDialog'
 import { SocialPostCreateDialog } from '@/components/workspace/SocialPostCreateDialog'
 import { SocialWeekCalendar } from '@/components/workspace/social/SocialWeekCalendar'
-import { EmptyState, KpiCard, OledCard, PageHero, SectionHeader, StatusBadge } from '@/components/workspace/oled'
+import { KpiCard } from '@/components/workspace/kpi-card'
+import { PageHeader } from '@/components/workspace/page-header'
+import { Badge } from '@/components/ui/badge'
 import type { SocialAccount, SocialPost } from '@/payload-types'
 
 const dateFmt = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -85,7 +87,7 @@ export default async function SocialPage({
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
         eyebrow="Redes sociales y contenidos"
         title="Social Hub"
         description={`Calendario editorial, publicaciones y cuentas de ${context.tenant.name}.`}
@@ -107,8 +109,14 @@ export default async function SocialPage({
       </section>
 
       <section aria-label="Desempeño por post — espejo de Instagram Insights">
-        <OledCard>
-          <SectionHeader eyebrow="Espejo de Instagram Insights" title="Desempeño por publicación" action={<TrendingUp size={18} className="text-muted-foreground" />} />
+        <div className="bg-card text-card-foreground border border-border p-3.5">
+          <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Espejo de Instagram Insights</p>
+              <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Desempeño por publicación</h2>
+            </div>
+            <TrendingUp size={18} className="text-muted-foreground" />
+          </div>
           {!hasInstagram ? (
             <div className="flex flex-col items-center gap-2 py-6 text-center text-xs text-muted-foreground">
               <AlertCircle size={22} />
@@ -121,9 +129,9 @@ export default async function SocialPage({
               </div>
             </div>
           ) : topPosts.length === 0 ? (
-            <EmptyState>
+            <div className="py-10 text-center font-mono text-xs text-muted-foreground">
               Aún no hay métricas — el job diario trae alcance/interacciones de cada post publicado.
-            </EmptyState>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -182,7 +190,7 @@ export default async function SocialPage({
               </table>
             </div>
           )}
-        </OledCard>
+        </div>
       </section>
 
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-4" aria-label="Desempeño real de publicaciones">
@@ -211,15 +219,26 @@ export default async function SocialPage({
 
       <section className="grid gap-4 lg:grid-cols-[1.4fr_.8fr]">
         <div className="flex flex-col gap-4">
-          <OledCard>
-            <SectionHeader eyebrow="Calendario semanal" title="Distribución de publicaciones" action={<Calendar size={18} className="text-muted-foreground" />} />
+          <div className="bg-card text-card-foreground border border-border p-3.5">
+            <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Calendario semanal</p>
+                <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Distribución de publicaciones</h2>
+              </div>
+              <Calendar size={18} className="text-muted-foreground" />
+            </div>
             <SocialWeekCalendar posts={posts} weekStart={monday.toISOString()} />
-          </OledCard>
+          </div>
 
-          <OledCard>
-            <SectionHeader eyebrow="Editorial" title="Publicaciones recientes y programadas" />
+          <div className="bg-card text-card-foreground border border-border p-3.5">
+            <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Editorial</p>
+                <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Publicaciones recientes y programadas</h2>
+              </div>
+            </div>
             {posts.length === 0 ? (
-              <EmptyState>No hay publicaciones registradas para este tenant todavía.</EmptyState>
+              <div className="py-10 text-center font-mono text-xs text-muted-foreground">No hay publicaciones registradas para este tenant todavía.</div>
             ) : (
               <div className="flex flex-col">
                 {posts.map((p) => {
@@ -240,23 +259,25 @@ export default async function SocialPage({
                           </span>
                         )}
                       </div>
-                      <StatusBadge tone={p.status === 'fallido' ? 'danger' : p.status === 'publicado' ? 'success' : 'neutral'}>
+                      <Badge variant={p.status === 'fallido' ? 'destructive' : p.status === 'publicado' ? 'success' : 'outline'} className="font-mono text-[10px]">
                         {p.status}
-                      </StatusBadge>
+                      </Badge>
                     </div>
                   )
                 })}
               </div>
             )}
-          </OledCard>
+          </div>
         </div>
 
-        <OledCard>
-          <SectionHeader
-            eyebrow="Integración"
-            title="Cuentas vinculadas"
-            action={canEdit && isAdmin ? <SocialAccountCreateDialog variant="button" /> : undefined}
-          />
+        <div className="bg-card text-card-foreground border border-border p-3.5">
+          <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Integración</p>
+              <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Cuentas vinculadas</h2>
+            </div>
+            {canEdit && isAdmin ? <SocialAccountCreateDialog variant="button" /> : undefined}
+          </div>
           {accounts.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-8 text-center text-xs text-muted-foreground">
               <AlertCircle size={22} />
@@ -273,12 +294,12 @@ export default async function SocialPage({
                     <div className="text-xs font-semibold text-foreground">{acc.accountName}</div>
                     <div className="mt-0.5 text-[10px] text-muted-foreground">{acc.platform === 'instagram' ? 'Instagram Business' : 'Facebook Page'}</div>
                   </div>
-                  <StatusBadge tone={acc.status === 'conectada' ? 'success' : 'danger'}>● {acc.status.toUpperCase()}</StatusBadge>
+                  <Badge variant={acc.status === 'conectada' ? 'success' : 'destructive'} className="font-mono text-[10px]">● {acc.status.toUpperCase()}</Badge>
                 </div>
               ))}
             </div>
           )}
-        </OledCard>
+        </div>
       </section>
     </div>
   )

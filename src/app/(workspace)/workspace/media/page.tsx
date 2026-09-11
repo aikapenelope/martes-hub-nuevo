@@ -8,7 +8,8 @@
 import { File as FileIcon, FileType2, HardDrive, Image as ImageIcon } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
-import { EmptyState, KpiCard, OledCard, PageHero } from '@/components/workspace/oled'
+import { KpiCard } from '@/components/workspace/kpi-card'
+import { PageHeader } from '@/components/workspace/page-header'
 import type { Media as MediaDoc } from '@/payload-types'
 
 import { MediaUploadDialog } from '@/components/workspace/MediaUploadDialog'
@@ -41,7 +42,7 @@ export default async function MediaPage() {
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
         eyebrow={`Biblioteca · ${context.tenant.name}`}
         title="Media y Archivos"
         description="Imágenes y documentos del tenant. Sube y gestiona archivos directamente en tu almacenamiento en la nube."
@@ -55,9 +56,9 @@ export default async function MediaPage() {
       </section>
 
       {media.length === 0 ? (
-        <OledCard>
-          <EmptyState>Sin archivos todavía — sube el primero con el botón superior.</EmptyState>
-        </OledCard>
+        <div className="bg-card text-card-foreground border border-border p-3.5">
+          <div className="py-10 text-center font-mono text-xs text-muted-foreground">Sin archivos todavía — sube el primero con el botón superior.</div>
+        </div>
       ) : (
         <section className="grid grid-cols-2 gap-3.5 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
           {media.map((m) => {

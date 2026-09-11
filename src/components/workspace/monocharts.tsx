@@ -217,7 +217,7 @@ export function MonoFunnel({
         const pillLeftPct = Math.min(widthPct + 2, 88)
 
         return (
-          <div key={stage.label} className="p-2.5 oled-subcard space-y-1.5 border-zinc-900/80 hover:border-zinc-800 transition">
+          <div key={stage.label} className="space-y-1.5 border border-border bg-muted/40 p-2.5 transition">
             <div className="flex justify-between items-baseline">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-zinc-500 font-bold">0{idx + 1}</span>

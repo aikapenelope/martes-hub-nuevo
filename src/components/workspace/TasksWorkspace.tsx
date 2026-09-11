@@ -16,7 +16,7 @@ import {
 import { TasksKanbanBoard } from '@/components/workspace/tasks/TasksKanbanBoard'
 import { TasksListView } from '@/components/workspace/tasks/TasksListView'
 import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
-import { EmptyState, PageHero } from '@/components/workspace/oled'
+import { PageHeader } from '@/components/workspace/page-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 
@@ -97,7 +97,7 @@ export function TasksWorkspace({
 
   return (
     <>
-      <PageHero
+      <PageHeader
         eyebrow="Operaciones / Tareas"
         title="Trabajo del equipo"
         description="Prioriza, asigna y mueve el trabajo sin perder contexto del cliente."
@@ -257,11 +257,11 @@ export function TasksWorkspace({
 
       {data.tasks.length === 0 ? (
         <Card className="py-12">
-          <EmptyState>
+          <div className="py-10 text-center font-mono text-xs text-muted-foreground">
             <CheckCircle2 size={28} className="mx-auto" />
             <h2 className="mt-2 text-sm text-foreground">No hay tareas en esta vista</h2>
             <p>Ajusta los filtros o crea la primera tarea para empezar.</p>
-          </EmptyState>
+          </div>
         </Card>
       ) : filters.view === 'tablero' ? (
         <TasksKanbanBoard

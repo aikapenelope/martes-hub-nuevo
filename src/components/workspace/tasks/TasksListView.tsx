@@ -110,7 +110,7 @@ export function TasksListView({
 
   return (
     <>
-      <section className="oled-card overflow-hidden">
+      <section className="overflow-hidden bg-card text-card-foreground border border-border">
         <div className="grid grid-cols-12 gap-2 border-b border-zinc-800 bg-zinc-950/80 px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
           <span className="col-span-5 sm:col-span-4">Tarea / Contexto CRM</span>
           <span className="col-span-2 text-center sm:text-left">Estado</span>
