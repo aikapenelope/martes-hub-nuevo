@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { getWorkspaceOverviewData } from '@/lib/overview-data'
-import { DashboardStats } from '@/components/stats'
+import { DashboardStats, type StatItem } from '@/components/stats'
 import { NetRevenueChart } from '@/components/net-revenue-chart'
 import { ChannelSalesChart } from '@/components/channel-sales-chart'
 import { DashboardInvoices } from '@/components/dashboard-invoices'
@@ -43,23 +43,23 @@ export default async function WorkspacePage({
   ]
 
   // Fila 1: 4 KPIs de Efferd conectados a métricas reales
-  const statsItems = [
+  const statsItems: StatItem[] = [
     {
       label: 'Ingresos del período',
       value: usd.format(data.metrics.revenuePeriodTotal),
-      delta: data.metrics.revenueTrendPct ?? 0,
-      comparisonLabel: 'vs período anterior',
+      delta: data.metrics.revenueTrendPct,
+      comparisonLabel: data.metrics.revenueTrendPct === null ? 'sin base previa' : 'vs período anterior',
     },
     {
       label: 'Leads activos',
       value: String(data.metrics.totalLeadsActive),
-      delta: data.metrics.leadsNuevosTrendPct ?? 0,
+      delta: data.metrics.leadsNuevosTrendPct,
       comparisonLabel: `${data.metrics.leadsCreatedInPeriod} captados`,
     },
     {
       label: 'Tasa de conversión',
-      value: `${(data.metrics.globalConversionRate ?? 0).toFixed(1)}%`,
-      delta: data.metrics.conversionTrendPct ?? 0,
+      value: data.metrics.globalConversionRate !== null ? `${data.metrics.globalConversionRate.toFixed(1)}%` : '—',
+      delta: data.metrics.conversionTrendPct,
       comparisonLabel: `${data.metrics.totalConvertedClients} convertidos`,
     },
     {

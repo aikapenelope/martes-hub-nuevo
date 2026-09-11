@@ -255,9 +255,10 @@ export async function getWorkspaceOverviewData({
     leadsNuevo,
     leadsContactado,
     leadsCalificado,
-    leadsDescartado,
+    _leadsDescartado,
     clientsActive,
     leadsConvertedRes,
+    leadsTotalTenantRes,
     recentPaymentsRes,
     recentConversationsRes,
     recentSummariesRes,
@@ -283,19 +284,27 @@ export async function getWorkspaceOverviewData({
   ] = await Promise.all([
     c({
       collection: 'leads',
-      where: tenantWhere(tenantId, { status: { equals: 'nuevo' } }),
+      where: tenantWhere(tenantId, {
+        and: [{ status: { equals: 'nuevo' } }, { convertedClient: { exists: false } }],
+      }),
     }),
     c({
       collection: 'leads',
-      where: tenantWhere(tenantId, { status: { equals: 'contactado' } }),
+      where: tenantWhere(tenantId, {
+        and: [{ status: { equals: 'contactado' } }, { convertedClient: { exists: false } }],
+      }),
     }),
     c({
       collection: 'leads',
-      where: tenantWhere(tenantId, { status: { equals: 'calificado' } }),
+      where: tenantWhere(tenantId, {
+        and: [{ status: { equals: 'calificado' } }, { convertedClient: { exists: false } }],
+      }),
     }),
     c({
       collection: 'leads',
-      where: tenantWhere(tenantId, { status: { equals: 'descartado' } }),
+      where: tenantWhere(tenantId, {
+        and: [{ status: { equals: 'descartado' } }, { convertedClient: { exists: false } }],
+      }),
     }),
     c({
       collection: 'clients',
@@ -303,12 +312,11 @@ export async function getWorkspaceOverviewData({
     }),
     c({
       collection: 'leads',
-      where: tenantWhere(tenantId, {
-        or: [
-          { convertedClient: { exists: true } },
-          { convertedAt: { exists: true } },
-        ],
-      }),
+      where: tenantWhere(tenantId, { convertedClient: { exists: true } }),
+    }),
+    c({
+      collection: 'leads',
+      where: tenantWhere(tenantId),
     }),
     q({
       collection: 'payments',
@@ -420,7 +428,7 @@ export async function getWorkspaceOverviewData({
     leadsNuevo.totalDocs + leadsContactado.totalDocs + leadsCalificado.totalDocs
   const totalConvertedClients = leadsConvertedRes.totalDocs
   const activeClientsCount = clientsActive.totalDocs
-  const totalHistoricLeads = totalLeadsActive + leadsDescartado.totalDocs + totalConvertedClients
+  const totalHistoricLeads = leadsTotalTenantRes.totalDocs
   const globalConversionRate = stageRate(totalConvertedClients, totalHistoricLeads)
 
   // Pipeline ponderado
@@ -479,7 +487,10 @@ export async function getWorkspaceOverviewData({
   // Tasas de conversión entre etapas
   const rateNewToContacted = stageRate(leadsContactado.totalDocs, leadsNuevo.totalDocs)
   const rateContactedToQualified = stageRate(leadsCalificado.totalDocs, leadsContactado.totalDocs)
-  const rateQualifiedToWon = stageRate(totalConvertedClients, leadsCalificado.totalDocs)
+  const rateQualifiedToWon = stageRate(
+    totalConvertedClients,
+    leadsCalificado.totalDocs + totalConvertedClients,
+  )
 
   // Desglose de canales de origen (Google Maps, Puerta Fría, WhatsApp, etc.)
   const sourceCounts: Record<string, number> = {}

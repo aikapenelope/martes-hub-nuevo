@@ -40,7 +40,7 @@ const stats: Stat[] = [
 export type StatItem = {
 	label: string;
 	value: string;
-	delta: number;
+	delta: number | null;
 	comparisonLabel?: string;
 };
 
@@ -58,12 +58,18 @@ export function DashboardStats({ items }: { items?: StatItem[] } = {}) {
 					<CardContent className="flex flex-row items-center gap-2">
 						<p className="font-semibold text-2xl tabular-nums">{s.value}</p>
 					</CardContent>
-					<CardFooter className="gap-1 rounded-none bg-background text-xs">
-						<Delta value={s.delta}>
-							<DeltaIcon />
-							<DeltaValue />
-						</Delta>
-						<span className="text-muted-foreground">{s.comparisonLabel ?? "vs período anterior"}</span>{" "}
+					<CardFooter className="gap-1.5 rounded-none bg-background text-xs">
+						{s.delta !== null ? (
+							<Delta value={s.delta}>
+								<DeltaIcon />
+								<DeltaValue />
+							</Delta>
+						) : (
+							<span className="font-medium text-muted-foreground">—</span>
+						)}
+						<span className="text-muted-foreground">
+							{s.comparisonLabel ?? (s.delta === null ? "sin base previa" : "vs período anterior")}
+						</span>
 					</CardFooter>
 				</DashboardCard>
 			))}
