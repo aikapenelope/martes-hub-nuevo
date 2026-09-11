@@ -30,10 +30,6 @@ const salesDaily7 = [
 
 const chartRows = salesDaily7.map((row) => ({ ...row }));
 
-const firstDay = salesDaily7[0].sales;
-const lastDay = salesDaily7.at(-1)?.sales ?? firstDay;
-const growthPct = (((lastDay - firstDay) / firstDay) * 100).toFixed(1);
-
 const chartConfig = {
 	sales: {
 		label: "Sales",
@@ -79,25 +75,46 @@ function CustomGradientBar(
 	);
 }
 
-export function NetRevenueChart() {
+export type NetRevenuePoint = {
+	day: string;
+	sales: number;
+};
+
+export function NetRevenueChart({
+	data,
+	title = "Ingresos Netos",
+	description = "Flujo de cobros confirmados del período",
+}: {
+	data?: NetRevenuePoint[];
+	title?: string;
+	description?: string;
+} = {}) {
+	const rows = data && data.length > 0 ? data : chartRows;
+	const firstDaySales = rows[0]?.sales ?? 0;
+	const lastDaySales = rows.at(-1)?.sales ?? firstDaySales;
+	const currentGrowth =
+		firstDaySales > 0
+			? (((lastDaySales - firstDaySales) / firstDaySales) * 100).toFixed(1)
+			: "0";
+
 	return (
 		<DashboardCard className="gap-0 md:col-span-2">
 			<CardHeader className="gap-2">
 				<div className="flex flex-wrap items-center gap-2">
-					<CardTitle>Net revenue</CardTitle>
-					<Delta value={Number(growthPct)} variant="badge">
+					<CardTitle>{title}</CardTitle>
+					<Delta value={Number(currentGrowth)} variant="badge">
 						<DeltaIcon variant="trend" />
 						<DeltaValue />
 					</Delta>
 				</div>
-				<CardDescription>Daily net sales, last 7 days.</CardDescription>
+				<CardDescription>{description}</CardDescription>
 			</CardHeader>
 			<CardContent>
 				<ChartContainer
 					className="aspect-auto h-60 w-full md:h-80"
 					config={chartConfig}
 				>
-					<BarChart accessibilityLayer data={chartRows}>
+					<BarChart accessibilityLayer data={rows}>
 						<XAxis
 							axisLine={false}
 							dataKey="day"

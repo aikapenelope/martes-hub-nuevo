@@ -211,13 +211,13 @@ function PipelineCardView({
           </span>
         )}
         {card.city && (
-          <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-secondary/80 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
             <MapPin size={10} />
             {card.city}
           </span>
         )}
         {card.channel && (
-          <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-foreground/80">
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-secondary/80 px-1.5 py-0.5 text-[10px] font-mono text-foreground/80">
             {card.channel === 'instagram_dm' ? <Camera size={10} /> : <MessageCircle size={10} className="text-[#25d366]" />}
             {card.channel === 'instagram_dm' ? 'Instagram' : 'WhatsApp'}
           </span>
@@ -243,7 +243,7 @@ function PipelineCardView({
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex size-6 items-center justify-center rounded-md border border-border bg-muted/60 text-muted-foreground hover:border-emerald-500/40 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+              className="inline-flex size-6 items-center justify-center rounded-md border border-border/80 bg-secondary/60 text-muted-foreground hover:border-emerald-500/40 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
               title="WhatsApp directo"
             >
               <MessageCircle size={11} />
@@ -253,7 +253,7 @@ function PipelineCardView({
             <a
               href={`mailto:${card.email}`}
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex size-6 items-center justify-center rounded-md border border-border bg-muted/60 text-muted-foreground hover:border-sky-500/40 hover:text-sky-400 hover:bg-sky-500/10 transition-colors"
+              className="inline-flex size-6 items-center justify-center rounded-md border border-border/80 bg-secondary/60 text-muted-foreground hover:border-sky-500/40 hover:text-sky-400 hover:bg-sky-500/10 transition-colors"
               title={`Escribir a ${card.email}`}
             >
               <Mail size={11} />
@@ -602,7 +602,7 @@ export function CrmPipelineWorkspace({
                   </span>
                 )}
               </header>
-              <div className="flex flex-1 flex-col gap-2 p-2.5 bg-muted/10" style={{ minHeight: '8rem' }}>
+              <div className="flex flex-1 flex-col gap-2.5 p-3 bg-background" style={{ minHeight: '12rem' }}>
                 {isTarget && (
                   <div className="border border-dashed border-primary/50 bg-primary/10 py-3 text-center text-xs font-mono uppercase tracking-wider text-primary rounded-lg transition-all animate-pulse">
                     Soltar aquí para mover a {COLUMN_LABEL[column.status]}

@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import {
 	CardContent,
 	CardDescription,
@@ -42,22 +43,40 @@ const items = [
 	},
 ] as const;
 
-export function DashboardActivity() {
+export type DashboardActivityItem = {
+	title: string;
+	time: string;
+	icon?: React.ReactNode;
+};
+
+export function DashboardActivity({
+	items: customItems,
+	title = "Actividad Reciente",
+	description = "Últimas interacciones omnicanal en tu workspace.",
+	className,
+}: {
+	items?: DashboardActivityItem[];
+	title?: string;
+	description?: string;
+	className?: string;
+} = {}) {
+	const list = customItems && customItems.length > 0 ? customItems : items;
+
 	return (
-		<DashboardCard className="gap-0">
+		<DashboardCard className={cn("gap-0 md:col-span-2", className)}>
 			<CardHeader className="border-b">
-				<CardTitle>Activity</CardTitle>
-				<CardDescription>Latest updates in your workspace.</CardDescription>
+				<CardTitle>{title}</CardTitle>
+				<CardDescription>{description}</CardDescription>
 			</CardHeader>
 			<CardContent className="px-0">
 				<ul className="flex flex-col divide-y divide-border">
-					{items.map((item) => (
-						<li className="flex h-16 items-center gap-3 px-6" key={item.title}>
+					{list.map((item, idx) => (
+						<li className="flex h-16 items-center gap-3 px-6" key={item.title + idx}>
 							<span
 								aria-hidden="true"
-								className="flex size-10 shrink-0 items-center justify-center [&_svg]:size-4"
+								className="flex size-10 shrink-0 items-center justify-center [&_svg]:size-4 text-muted-foreground"
 							>
-								{item.icon}
+								{item.icon ?? <FileTextIcon />}
 							</span>
 							<div className="min-w-0 flex-1 space-y-1">
 								<p className="line-clamp-1 text-pretty text-foreground text-sm leading-snug">

@@ -87,8 +87,6 @@ function growthPctForWindow(rows: readonly ChannelSalesChartRow[]) {
 	return ((b - a) / a) * 100;
 }
 
-const growthPctNum = growthPctForWindow(chartRows);
-
 const chartConfig = {
 	retail: {
 		label: "Retail",
@@ -100,24 +98,32 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
-export function ChannelSalesChart() {
+export function ChannelSalesChart({
+	data,
+	title = "Ventas por Canal",
+	description = "Tendencia de captación por canal principal",
+}: {
+	data?: ChannelSalesChartRow[];
+	title?: string;
+	description?: string;
+} = {}) {
 	const chartUid = useId().replace(/:/g, "");
 	const idLineGlow = `channel-sales-line-glow-${chartUid}`;
+	const rows = data && data.length > 0 ? data : chartRows;
+	const growth = growthPctForWindow(rows);
 
 	return (
 		<DashboardCard className="gap-0 md:col-span-2">
 			<CardHeader>
 				<div className="min-w-0 space-y-2">
 					<div className="flex flex-wrap items-center gap-2">
-						<CardTitle>Channel sales</CardTitle>
-						<Delta value={growthPctNum} variant="badge">
+						<CardTitle>{title}</CardTitle>
+						<Delta value={growth} variant="badge">
 							<DeltaIcon variant="trend" />
 							<DeltaValue />
 						</Delta>
 					</div>
-					<CardDescription>
-						Daily sales count by channel, last {VISIBLE_DAYS} days.
-					</CardDescription>
+					<CardDescription>{description}</CardDescription>
 				</div>
 			</CardHeader>
 			<CardContent>
@@ -127,7 +133,7 @@ export function ChannelSalesChart() {
 				>
 					<LineChart
 						accessibilityLayer
-						data={chartRows}
+						data={rows}
 						margin={{
 							left: 12,
 							right: 12,

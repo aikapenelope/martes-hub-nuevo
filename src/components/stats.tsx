@@ -11,6 +11,7 @@ type Stat = {
 	label: string;
 	value: string;
 	delta: number;
+	comparisonLabel?: string;
 };
 
 const stats: Stat[] = [
@@ -36,10 +37,18 @@ const stats: Stat[] = [
 	},
 ] as const;
 
-export function DashboardStats() {
+export type StatItem = {
+	label: string;
+	value: string;
+	delta: number;
+	comparisonLabel?: string;
+};
+
+export function DashboardStats({ items }: { items?: StatItem[] } = {}) {
+	const list = items && items.length > 0 ? items : stats;
 	return (
 		<>
-			{stats.map((s) => (
+			{list.map((s) => (
 				<DashboardCard className="" key={s.label}>
 					<CardHeader className="flex flex-row items-center justify-between">
 						<CardTitle className="font-normal text-xs tracking-wide">
@@ -54,7 +63,7 @@ export function DashboardStats() {
 							<DeltaIcon />
 							<DeltaValue />
 						</Delta>
-						<span className="text-muted-foreground">vs last week</span>{" "}
+						<span className="text-muted-foreground">{s.comparisonLabel ?? "vs período anterior"}</span>{" "}
 					</CardFooter>
 				</DashboardCard>
 			))}

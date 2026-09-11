@@ -47,29 +47,46 @@ const invoices = [
 	},
 ] as const;
 
-export function DashboardInvoices() {
+export type DashboardInvoice = {
+	id: string | number;
+	customer: string;
+	amount: string;
+	status: string;
+};
+
+export function DashboardInvoices({
+	invoices: customInvoices,
+	title = "Cobros y facturas recientes",
+	description = "Montos pendientes y confirmados.",
+}: {
+	invoices?: DashboardInvoice[];
+	title?: string;
+	description?: string;
+} = {}) {
+	const list = customInvoices && customInvoices.length > 0 ? customInvoices : invoices;
+
 	return (
 		<DashboardCard className="relative gap-0 md:col-span-2">
 			<CardHeader className="border-b">
-				<CardTitle className="text-base">Recent invoices</CardTitle>
-				<CardDescription>Open amounts and payment status.</CardDescription>
+				<CardTitle className="text-base">{title}</CardTitle>
+				<CardDescription>{description}</CardDescription>
 			</CardHeader>
 			<CardContent className="mask-b-from-50% mask-b-to-100% px-0">
 				<Table>
 					<TableCaption className="sr-only">
-						Recent invoices with customer, amount, and status.
+						{title}
 					</TableCaption>
 					<TableHeader>
 						<TableRow>
-							<TableHead className="ps-6">Customer</TableHead>
-							<TableHead>Invoice</TableHead>
+							<TableHead className="ps-6">Cliente</TableHead>
+							<TableHead>Nº</TableHead>
 							<TableHead className="pe-6 text-right tabular-nums">
-								Amount
+								Monto
 							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{invoices.map((inv) => (
+						{list.map((inv) => (
 							<TableRow className="h-12" key={inv.id}>
 								<TableCell className="max-w-40 truncate ps-6 font-medium">
 									{inv.customer}

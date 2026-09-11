@@ -15,32 +15,50 @@ import {
 	EmptyTitle,
 } from "@/components/ui/empty";
 import { DashboardCard } from "@/components/dashboard-card";
-import { CircleCheckIcon, ArrowRightIcon } from "lucide-react";
+import { CircleCheckIcon, ArrowRightIcon, AlertTriangleIcon } from "lucide-react";
 
-export function BillingHealth() {
+export function BillingHealth({
+	overdueCount = 0,
+	overdueTotal = "$0",
+}: {
+	overdueCount?: number;
+	overdueTotal?: string;
+} = {}) {
+	const hasIssues = overdueCount > 0;
+
 	return (
 		<DashboardCard className="gap-0">
 			<CardHeader className="border-b">
-				<CardTitle className="text-balance text-base">Billing health</CardTitle>
+				<CardTitle className="text-balance text-base">Salud de Cobranza</CardTitle>
 				<CardDescription className="text-pretty">
-					Nothing urgent needs your attention.
+					{hasIssues
+						? `${overdueCount} cobros requieren seguimiento.`
+						: "No hay cobros vencidos en este período."}
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex h-full items-center px-0">
 				<Empty>
 					<EmptyHeader>
 						<EmptyMedia variant="icon">
-							<CircleCheckIcon aria-hidden="true" />
+							{hasIssues ? (
+								<AlertTriangleIcon className="text-amber-500" aria-hidden="true" />
+							) : (
+								<CircleCheckIcon className="text-emerald-500" aria-hidden="true" />
+							)}
 						</EmptyMedia>
-						<EmptyTitle>You&apos;re caught up.</EmptyTitle>
+						<EmptyTitle>
+							{hasIssues ? "Atención requerida" : "Cobranza al día"}
+						</EmptyTitle>
 						<EmptyDescription className="text-xs">
-							Balances and payouts look fine. nothing overdue in this snapshot.
+							{hasIssues
+								? `${overdueCount} cobros pendientes suman ${overdueTotal}.`
+								: "Todos los pagos y cuotas están conciliados."}
 						</EmptyDescription>
 					</EmptyHeader>
 					<EmptyContent>
 						<Button asChild variant="ghost">
 							<Link href="/workspace/billing">
-								Review open invoices
+								{hasIssues ? "Ver cobros pendientes" : "Revisar facturación"}
 								<ArrowRightIcon aria-hidden="true" />
 							</Link>
 						</Button>
