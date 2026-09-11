@@ -35,8 +35,15 @@ describe('Torre de Control Comercial — getWorkspaceOverviewData', () => {
       return Promise.resolve({ docs: [], totalDocs: 0 })
     })
 
-    const mockCount = vi.fn().mockImplementation(({ collection }: { collection: string }) => {
+    const mockCount = vi.fn().mockImplementation(({ collection, where }: { collection: string; where?: unknown }) => {
+      const whereJson = JSON.stringify(where || {})
       if (collection === 'leads') {
+        if (whereJson.includes('"convertedClient":{"exists":true}')) {
+          return Promise.resolve({ totalDocs: 5 })
+        }
+        if (!whereJson.includes('status') && !whereJson.includes('greater_than_equal')) {
+          return Promise.resolve({ totalDocs: 50 })
+        }
         return Promise.resolve({ totalDocs: 15 })
       }
       if (collection === 'clients') {

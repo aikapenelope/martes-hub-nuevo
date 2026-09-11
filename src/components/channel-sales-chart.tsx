@@ -21,10 +21,11 @@ import { DashboardCard } from "@/components/dashboard-card";
 const VISIBLE_DAYS = 7;
 
 /** One row per day: ISO `date`, `retail` / `online` = sales counts (units sold). */
-type ChannelSalesChartRow = {
+export type ChannelSalesChartRow = {
 	date: string;
-	retail: number;
-	online: number;
+	retail?: number;
+	online?: number;
+	interactions?: number;
 };
 
 /**
@@ -67,7 +68,7 @@ const chartData: ChannelSalesChartRow[] = [
 const chartRows = chartData.slice(-VISIBLE_DAYS);
 
 function rowTotal(row: ChannelSalesChartRow) {
-	return row.retail + row.online;
+	return (row.interactions ?? 0) + (row.retail ?? 0) + (row.online ?? 0);
 }
 
 function growthPctForWindow(rows: readonly ChannelSalesChartRow[]) {
@@ -87,9 +88,11 @@ function growthPctForWindow(rows: readonly ChannelSalesChartRow[]) {
 	return ((b - a) / a) * 100;
 }
 
-const growthPctNum = growthPctForWindow(chartRows);
-
 const chartConfig = {
+	interactions: {
+		label: "Interacciones",
+		color: "var(--chart-1)",
+	},
 	retail: {
 		label: "Retail",
 		color: "var(--chart-2)",
@@ -100,83 +103,114 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
-export function ChannelSalesChart() {
+export function ChannelSalesChart({
+	data,
+	title = "Ventas por Canal",
+	description = "Tendencia de captación por canal principal",
+}: {
+	data?: ChannelSalesChartRow[];
+	title?: string;
+	description?: string;
+} = {}) {
 	const chartUid = useId().replace(/:/g, "");
 	const idLineGlow = `channel-sales-line-glow-${chartUid}`;
+	const isExplicitEmpty =
+		data !== undefined && (data.length === 0 || data.every((r) => rowTotal(r) === 0));
+	const rows = data !== undefined ? data : chartRows;
+	const growth = growthPctForWindow(rows);
+	const hasInteractions = rows.some((r) => r.interactions !== undefined);
 
 	return (
 		<DashboardCard className="gap-0 md:col-span-2">
 			<CardHeader>
 				<div className="min-w-0 space-y-2">
 					<div className="flex flex-wrap items-center gap-2">
-						<CardTitle>Channel sales</CardTitle>
-						<Delta value={growthPctNum} variant="badge">
+						<CardTitle>{title}</CardTitle>
+						<Delta value={growth} variant="badge">
 							<DeltaIcon variant="trend" />
 							<DeltaValue />
 						</Delta>
 					</div>
-					<CardDescription>
-						Daily sales count by channel, last {VISIBLE_DAYS} days.
-					</CardDescription>
+					<CardDescription>{description}</CardDescription>
 				</div>
 			</CardHeader>
 			<CardContent>
-				<ChartContainer
-					className="aspect-auto h-60 w-full p-0 md:h-80"
-					config={chartConfig}
-				>
-					<LineChart
-						accessibilityLayer
-						data={chartRows}
-						margin={{
-							left: 12,
-							right: 12,
-							top: 8,
-						}}
+				{isExplicitEmpty ? (
+					<div className="flex aspect-auto h-60 w-full flex-col items-center justify-center text-center space-y-1 p-0 md:h-80">
+						<p className="text-sm font-medium text-foreground">Sin actividad en este período</p>
+						<p className="text-xs text-muted-foreground">El volumen diario de interacciones aparecerá aquí.</p>
+					</div>
+				) : (
+					<ChartContainer
+						className="aspect-auto h-60 w-full p-0 md:h-80"
+						config={chartConfig}
 					>
-						<CartesianGrid className="stroke-border" vertical={false} />
-						<XAxis
-							axisLine={false}
-							dataKey="date"
-							interval={0}
-							tickFormatter={(value) => formatDate(String(value), "day-month")}
-							tickLine={false}
-							tickMargin={8}
-						/>
-						<ChartTooltip
-							content={<ChartTooltipContent hideLabel />}
-							cursor={false}
-						/>
-						<defs>
-							<filter
-								height="140%"
-								id={idLineGlow}
-								width="140%"
-								x="-20%"
-								y="-20%"
-							>
-								<feGaussianBlur result="blur" stdDeviation="10" />
-								<feComposite in="SourceGraphic" in2="blur" operator="over" />
-							</filter>
-						</defs>
-						<Line
-							dataKey="online"
-							dot={false}
-							filter={`url(#${idLineGlow})`}
-							stroke="var(--color-online)"
-							strokeWidth={2}
-							type="step"
-						/>
-						<Line
-							dataKey="retail"
-							dot={false}
-							filter={`url(#${idLineGlow})`}
-							stroke="var(--color-retail)"
-							strokeWidth={2}
-							type="step"
-						/>
-					</LineChart>
-				</ChartContainer>
+						<LineChart
+							accessibilityLayer
+							data={rows}
+							margin={{
+								left: 12,
+								right: 12,
+								top: 8,
+							}}
+						>
+							<CartesianGrid className="stroke-border" vertical={false} />
+							<XAxis
+								axisLine={false}
+								dataKey="date"
+								interval={0}
+								tickFormatter={(value) => formatDate(String(value), "day-month")}
+								tickLine={false}
+								tickMargin={8}
+							/>
+							<ChartTooltip
+								content={<ChartTooltipContent hideLabel />}
+								cursor={false}
+							/>
+							<defs>
+								<filter
+									height="140%"
+									id={idLineGlow}
+									width="140%"
+									x="-20%"
+									y="-20%"
+								>
+									<feGaussianBlur result="blur" stdDeviation="10" />
+									<feComposite in="SourceGraphic" in2="blur" operator="over" />
+								</filter>
+							</defs>
+							{hasInteractions ? (
+								<Line
+									dataKey="interactions"
+									dot={false}
+									filter={`url(#${idLineGlow})`}
+									stroke="var(--color-interactions)"
+									strokeWidth={2}
+									type="step"
+								/>
+							) : (
+								<>
+									<Line
+										dataKey="online"
+										dot={false}
+										filter={`url(#${idLineGlow})`}
+										stroke="var(--color-online)"
+										strokeWidth={2}
+										type="step"
+									/>
+									<Line
+										dataKey="retail"
+										dot={false}
+										filter={`url(#${idLineGlow})`}
+										stroke="var(--color-retail)"
+										strokeWidth={2}
+										type="step"
+									/>
+								</>
+							)}
+						</LineChart>
+					</ChartContainer>
+				)}
 			</CardContent>
 		</DashboardCard>
 	);
