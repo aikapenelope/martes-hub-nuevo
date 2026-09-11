@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Clock3, ExternalLink, Mail, MessageCircle, Pencil, Sparkles } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import type { Activity, Lead, Segment, User } from '@/payload-types'
 import type { LeadDrawerData, TabKey } from './lead-drawer/types'
 import { LeadDrawerWhatsAppTab } from './lead-drawer/LeadDrawerWhatsAppTab'
@@ -85,26 +86,29 @@ export function CrmLeadDrawer({
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <div role="tablist" className="flex flex-wrap gap-1 border-b border-zinc-800 pb-2" aria-label="Secciones de la ficha">
+      <div role="tablist" className="flex flex-wrap gap-1 border-b border-border pb-2" aria-label="Secciones de la ficha">
         {TABS.map(({ key, label, icon: Icon }) => (
-          <button
+          <Button
             key={key}
             id={`lead-tab-${key}`}
             role="tab"
             type="button"
+            variant="ghost"
             onClick={() => setTab(key)}
             aria-selected={tab === key}
             aria-controls={`lead-panel-${key}`}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-wider transition ${
-              tab === key ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+            className={`h-auto gap-1.5 rounded-none px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider ${
+              tab === key
+                ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground'
+                : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
             }`}
           >
-            <Icon size={12} aria-hidden="true" /> {label}
-          </button>
+            <Icon className="size-3" aria-hidden="true" /> {label}
+          </Button>
         ))}
       </div>
 
-      {loading && <p className="text-xs font-mono text-zinc-500">Cargando ficha…</p>}
+      {loading && <p className="font-mono text-xs text-muted-foreground">Cargando ficha…</p>}
       {error && (
         <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300" role="alert">
           {error}
@@ -116,7 +120,7 @@ export function CrmLeadDrawer({
           <div className="mb-2 flex justify-end">
             <Link
               href={`/workspace/crm/leads/${leadId}`}
-              className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:text-white"
+              className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
             >
               <ExternalLink size={11} aria-hidden="true" /> Ficha completa + timeline unificado
             </Link>
