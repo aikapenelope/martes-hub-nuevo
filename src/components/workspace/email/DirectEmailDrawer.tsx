@@ -101,7 +101,12 @@ export function DirectEmailDrawer({ leads, clients }: { leads: Lead[], clients: 
 
             <div className="mt-auto flex justify-end gap-2 border-t border-border pt-4">
               {/* type="button": sin él, Cancelar haría submit del form (review Devin). */}
-              <Button type="button" variant="outline" className="bg-muted font-mono text-xs font-bold uppercase tracking-wider text-foreground/80 hover:bg-accent hover:text-foreground">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                className="bg-muted font-mono text-xs font-bold uppercase tracking-wider text-foreground/80 hover:bg-accent hover:text-foreground"
+              >
                 Cancelar
               </Button>
               <Button
