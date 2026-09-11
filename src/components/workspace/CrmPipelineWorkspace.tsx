@@ -43,7 +43,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { EmptyState } from '@/components/workspace/ui'
 import { CrmLeadDrawer } from '@/components/workspace/CrmLeadDrawer'
 import { CrmSlideOverDrawer } from '@/components/workspace/crm/CrmSlideOverDrawer'
 import { changeLeadStageAction, convertLeadInSituAction } from '@/lib/crm-pipeline-actions'
@@ -610,7 +609,9 @@ export function CrmPipelineWorkspace({
                   </div>
                 )}
                 {column.cards.length === 0 && !isTarget ? (
-                  <EmptyState>Sin leads en esta columna</EmptyState>
+                  <div className="text-center py-8 text-xs text-muted-foreground font-mono">
+                    Sin leads en esta columna
+                  </div>
                 ) : (
                   column.cards.map((card) => (
                     <PipelineCardView

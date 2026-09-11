@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/sheet'
 import { createActivityAction } from '@/lib/crm-actions'
 import { searchActivityContactsAction } from '@/lib/activity-contact-search'
+import { toast } from 'sonner'
 
 /* Inputs/textarea nativos con los mismos tokens que `Input` (no hay ui/textarea en el proyecto). */
 const inputCls =
@@ -146,10 +147,11 @@ export function ActivityDrawer({
     startTransition(async () => {
       try {
         await createActivityAction(formData)
+        toast.success('Actividad registrada correctamente')
         setOpen(false)
       } catch (err) {
         console.error(err)
-        alert(err instanceof Error ? err.message : 'Error al guardar')
+        toast.error(err instanceof Error ? err.message : 'Error al guardar')
       }
     })
   }

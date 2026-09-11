@@ -149,7 +149,7 @@ export function MediaUploadDialog() {
 
               {success ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
-                  <CheckCircle2 className="h-10 w-10 text-emerald-400 animate-bounce" />
+                  <CheckCircle2 className="h-10 w-10 text-emerald-400 transition-transform duration-200 animate-in zoom-in-75" />
                   <p className="text-sm font-bold text-foreground font-mono">¡Archivo guardado con éxito!</p>
                   <p className="text-xs text-muted-foreground">Actualizando la biblioteca...</p>
                 </div>

@@ -365,7 +365,7 @@ export function InboxCrmContextPanel({
           type="button"
           onClick={() => setActiveTab('ai')}
           className={`flex-1 py-1.5 text-xs font-mono uppercase tracking-wider text-center transition flex items-center justify-center gap-1 ${
-            activeTab === 'ai' ? 'bg-purple-500 text-black font-bold' : 'text-zinc-400 hover:text-white'
+            activeTab === 'ai' ? 'bg-purple-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
           }`}
         >
           <Sparkles size={11} />

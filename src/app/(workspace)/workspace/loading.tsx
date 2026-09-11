@@ -7,7 +7,7 @@
  * Suspense con este fallback.
  */
 
-import { Skeleton } from '@/components/workspace/ui'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function WorkspaceLoading() {
   return (
@@ -15,7 +15,7 @@ export default function WorkspaceLoading() {
       <span className="sr-only" role="status">
         Cargando…
       </span>
-      <section className="border border-zinc-800 bg-zinc-950 p-5 shadow-2xl" aria-hidden="true">
+      <section className="border border-border bg-card p-5 shadow-2xl" aria-hidden="true">
         <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
           <div className="w-full max-w-sm space-y-2">
             <Skeleton className="h-3 w-24" />
@@ -28,7 +28,7 @@ export default function WorkspaceLoading() {
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-hidden="true">
         {Array.from({ length: 4 }, (_, index) => (
-          <article key={index} className="border border-zinc-800 bg-zinc-950 p-4">
+          <article key={index} className="border border-border bg-card p-4">
             <Skeleton className="h-3 w-20" />
             <Skeleton className="mt-2 h-7 w-16" />
             <Skeleton className="mt-3 h-3 w-24" />
@@ -36,7 +36,7 @@ export default function WorkspaceLoading() {
         ))}
       </section>
 
-      <section className="border border-zinc-800 bg-zinc-950 p-4" aria-hidden="true">
+      <section className="border border-border bg-card p-4" aria-hidden="true">
         <Skeleton className="h-3 w-32" />
         <div className="mt-4 space-y-2.5">
           {Array.from({ length: 5 }, (_, index) => (

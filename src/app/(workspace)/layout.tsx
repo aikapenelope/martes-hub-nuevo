@@ -43,7 +43,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   }).format(new Date())
 
   return (
-    <html lang="es">
+    <html lang="es" className="dark">
       <body className={`${geist.variable} min-h-screen font-sans antialiased selection:bg-primary selection:text-primary-foreground`}>
         {/* Shell (fase 1 de UI-MIGRATION): sidebar colapsable + header sticky,
          * móvil incluido. El contenido hereda centrado y espaciados. */}
