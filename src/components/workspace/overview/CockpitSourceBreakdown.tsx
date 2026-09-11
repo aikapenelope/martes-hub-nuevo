@@ -83,21 +83,23 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
                     <Icon className="size-3.5 text-sky-400" />
                     <span>{item.label}</span>
                   </span>
-                  <span className="text-xs text-muted-foreground flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                     <strong className="text-foreground font-semibold tabular-nums">{item.count}</strong>
-                    <span className="tabular-nums">({item.percentage}%)</span>
+                    <span className="text-muted-foreground">{item.percentage}%</span>
                     <ChevronRight className="size-3 text-muted-foreground/60 group-hover:text-foreground transition-colors" />
                   </span>
                 </div>
-                {/* Track de progreso con estilo sutil */}
-                <div className="h-1.5 w-full bg-muted overflow-hidden rounded-full">
-                  <div
-                    className="h-full bg-primary/80 transition-all duration-500 rounded-full group-hover:bg-primary"
-                    role="img"
-                    aria-label={`${item.count} de ${totalLeads} leads (${item.percentage}%)`}
-                    style={{ width: `${Math.max(4, item.percentage)}%` }}
-                  />
-                </div>
+                {/* Barra punteada (dashed) estilo dashboard-9 "Traffic sources" */}
+                <div
+                  className="h-1.5 transition-all duration-500 group-hover:opacity-80 rounded-full"
+                  role="img"
+                  aria-label={`${item.count} de ${totalLeads} leads (${item.percentage}%)`}
+                  style={{
+                    width: `${Math.max(6, item.percentage)}%`,
+                    backgroundImage:
+                      'repeating-linear-gradient(to right, #ffffff 0, #ffffff 6px, transparent 6px, transparent 10px)',
+                  }}
+                />
               </Link>
             )
           })}
