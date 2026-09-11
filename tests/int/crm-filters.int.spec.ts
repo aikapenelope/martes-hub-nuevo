@@ -42,6 +42,9 @@ describe('parseCrmFilters', () => {
     const sourceFilters = parseCrmFilters({ vista: 'leads', fuente: 'google_maps' })
     expect(sourceFilters.source).toBe('google_maps')
 
+    const coldCallFilters = parseCrmFilters({ vista: 'leads', fuente: 'llamada_fria' })
+    expect(coldCallFilters.source).toBe('llamada_fria')
+
     const invalidSourceFilters = parseCrmFilters({ vista: 'leads', fuente: 'canal_inexistente' })
     expect(invalidSourceFilters.source).toBeUndefined()
   })

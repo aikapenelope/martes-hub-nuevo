@@ -200,6 +200,7 @@ export function buildEmptyDayBuckets(timeZone: string, now: Date): DayBucket[] {
 const SOURCE_LABELS: Record<string, string> = {
   google_maps: 'Google Maps / Local',
   puerta_fria: 'Puerta Fría / Visita',
+  llamada_fria: 'Llamada Fría',
   whatsapp: 'WhatsApp Directo',
   instagram_dm: 'Instagram DM',
   tally: 'Formulario Web / Tally',
@@ -207,6 +208,28 @@ const SOURCE_LABELS: Record<string, string> = {
   referido: 'Referidos',
   linkedin: 'LinkedIn',
   manual: 'Ingreso Manual',
+}
+
+async function fetchAllLeadsSource(
+  q: <T extends Parameters<Payload['find']>[0]>(opts: T) => Promise<unknown>,
+  tenantId: number,
+): Promise<{ source?: string | null }[]> {
+  const all: { source?: string | null }[] = []
+  let page = 1
+  while (true) {
+    const res = (await q({
+      collection: 'leads',
+      limit: 500,
+      page,
+      depth: 0,
+      select: { source: true },
+      where: tenantWhere(tenantId),
+    })) as { docs: { source?: string | null }[]; hasNextPage?: boolean }
+    all.push(...(res.docs ?? []))
+    if (!res.hasNextPage) break
+    page++
+  }
+  return all
 }
 
 export async function getWorkspaceOverviewData({
@@ -271,7 +294,8 @@ export async function getWorkspaceOverviewData({
     overduePaymentsRes,
     activeQuotesCountRes,
     activeQuotesAggRes,
-    allLeadsRes,
+    critical24hConversationsRes,
+    allLeadsDocs,
     hotLeadsRes,
     paidSeries,
     pendingSeries,
@@ -370,12 +394,16 @@ export async function getWorkspaceOverviewData({
       }),
     }),
     quotesAggregate(payload, tenantId, ['draft', 'sent']),
-    q({
-      collection: 'leads',
-      limit: 500,
-      depth: 0,
-      where: tenantWhere(tenantId),
+    c({
+      collection: 'conversations',
+      where: tenantWhere(tenantId, {
+        and: [
+          { lastInboundAt: { greater_than: new Date(nowTime - 24 * 3600_000).toISOString() } },
+          { lastInboundAt: { less_than_equal: new Date(nowTime - 20 * 3600_000).toISOString() } },
+        ],
+      }),
     }),
+    fetchAllLeadsSource(q, tenantId),
     q({
       collection: 'leads',
       limit: 3,
@@ -476,12 +504,8 @@ export async function getWorkspaceOverviewData({
   const averageTicket = revenuePeriod.count > 0 ? Math.round(revenuePeriod.total / revenuePeriod.count) : 0
 
   // Salud 24h WhatsApp
-  const critical24hCount = convList.filter((c) => {
-    if (!c.lastInboundAt) return false
-    const hoursSinceInbound = (nowTime - new Date(c.lastInboundAt).getTime()) / 3600_000
-    return hoursSinceInbound > 20 && hoursSinceInbound <= 24
-  }).length
-  const openConvCount = convList.length
+  const critical24hCount = critical24hConversationsRes.totalDocs
+  const openConvCount = recentConversationsRes.totalDocs
   const metaHealthPct = openConvCount > 0 ? Math.max(90, 100 - critical24hCount * 5) : 100
 
   // Tasas de conversión entre etapas
@@ -494,12 +518,11 @@ export async function getWorkspaceOverviewData({
 
   // Desglose de canales de origen (Google Maps, Puerta Fría, WhatsApp, etc.)
   const sourceCounts: Record<string, number> = {}
-  const allLeads = allLeadsRes.docs as Lead[]
-  for (const l of allLeads) {
+  for (const l of allLeadsDocs) {
     const s = l.source || 'manual'
     sourceCounts[s] = (sourceCounts[s] || 0) + 1
   }
-  const totalLeadsCount = allLeads.length || 1
+  const totalLeadsCount = leadsTotalTenantRes.totalDocs || allLeadsDocs.length || 1
   const sourceBreakdown: ChannelSourceMetric[] = Object.entries(sourceCounts)
     .map(([source, count]) => ({
       source,

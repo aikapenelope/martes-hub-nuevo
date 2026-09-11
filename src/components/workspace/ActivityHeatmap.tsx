@@ -27,6 +27,7 @@ interface ActivityHeatmapProps {
   /** 168 celdas (7 días × 24 horas) — variante "por hora" (ítem 6 del sector UI). */
   hourBuckets: HourBucket[]
   totalInteractions: number
+  className?: string
 }
 
 /** Nivel visual 0-4 según el conteo real del día, relativo al máximo del período. */
@@ -45,7 +46,7 @@ function levelFor(count: number, max: number): 0 | 1 | 2 | 3 | 4 {
  * `page.tsx`). No genera datos sintéticos: si no hay actividad registrada
  * en un día, la celda queda en nivel 0 — nunca se inventa una cifra.
  */
-export function ActivityHeatmap({ daysData, hourBuckets, totalInteractions }: ActivityHeatmapProps) {
+export function ActivityHeatmap({ daysData, hourBuckets, totalInteractions, className }: ActivityHeatmapProps) {
   const [hovered, setHovered] = useState<HeatmapDay | null>(null)
   const [view, setView] = useState<'year' | 'hours'>('year')
   const maxCount = useMemo(() => Math.max(...daysData.map((d) => d.count), 1), [daysData])
@@ -59,7 +60,7 @@ export function ActivityHeatmap({ daysData, hourBuckets, totalInteractions }: Ac
   }, [daysData])
 
   return (
-    <DashboardCard className="gap-0">
+    <DashboardCard className={cn('col-span-1 md:col-span-2 lg:col-span-4 gap-0', className)}>
       <CardHeader className="border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 space-y-0 py-3.5 px-4 sm:px-6">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-sky-500/20 bg-sky-500/10 text-sky-400">

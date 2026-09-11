@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react'
 import { Send } from 'lucide-react'
 import { quickReplyLeadChatAction } from '@/lib/crm-pipeline-actions'
 import { useRef } from 'react'
+import { Button } from '@/components/ui/button'
 import type { ConversationInfo, MessageItem } from './types'
 
 const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
+  'w-full rounded-md border border-input bg-background/60 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-colors font-sans resize-none'
 
 /** Chat en vivo del lead: mismo patrón REST de InboxPage, envío vía quickReplyLeadChatAction. */
 export function LeadDrawerWhatsAppTab({ leadId, canEdit }: { leadId: number; canEdit: boolean }) {
@@ -87,22 +88,24 @@ export function LeadDrawerWhatsAppTab({ leadId, canEdit }: { leadId: number; can
     if (conversation) void refreshMessages(conversation.id)
   }
 
-  if (!conversationLoaded) return <p className="text-xs font-mono text-zinc-500">Cargando conversación…</p>
+  if (!conversationLoaded) return <p className="text-xs text-muted-foreground">Cargando conversación…</p>
   if (!conversation) {
-    return <p className="text-xs text-zinc-500">Este lead todavía no tiene una conversación de WhatsApp/Instagram.</p>
+    return <p className="text-xs text-muted-foreground">Este lead todavía no tiene una conversación de WhatsApp/Instagram.</p>
   }
 
   return (
-    <div className="flex h-full flex-col gap-2">
-      <div className="flex-1 space-y-2 overflow-y-auto">
+    <div className="flex h-full flex-col gap-2.5">
+      <div className="flex-1 space-y-2.5 overflow-y-auto pr-1">
         {messages.length === 0 ? (
-          <p className="text-xs text-zinc-500">Sin mensajes todavía.</p>
+          <p className="text-xs text-muted-foreground">Sin mensajes todavía.</p>
         ) : (
           messages.map((message) => (
             <div
               key={message.id}
-              className={`max-w-[85%] px-3 py-2 text-xs ${
-                message.direction === 'inbound' ? 'bg-zinc-800 text-white' : 'ml-auto bg-white text-black'
+              className={`max-w-[85%] px-3.5 py-2 text-xs leading-relaxed ${
+                message.direction === 'inbound'
+                  ? 'rounded-2xl rounded-tl-xs bg-muted/70 text-foreground border border-border/40'
+                  : 'ml-auto rounded-2xl rounded-tr-xs bg-primary text-primary-foreground font-medium shadow-xs'
               }`}
             >
               {message.text || `[${message.type}]`}
@@ -112,13 +115,13 @@ export function LeadDrawerWhatsAppTab({ leadId, canEdit }: { leadId: number; can
       </div>
 
       {error && (
-        <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300" role="alert">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
           {error}
         </div>
       )}
 
       {canEdit && (
-        <div className="flex gap-2 border-t border-zinc-800 pt-2">
+        <div className="flex items-end gap-2 border-t border-border/60 pt-2.5">
           <label className="sr-only" htmlFor="whatsapp-reply">
             Respuesta rápida
           </label>
@@ -136,15 +139,16 @@ export function LeadDrawerWhatsAppTab({ leadId, canEdit }: { leadId: number; can
               }
             }}
           />
-          <button
+          <Button
             type="button"
+            size="icon"
             onClick={() => void send()}
             disabled={sending || !draft.trim()}
             aria-label="Enviar"
-            className="self-end px-3 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono disabled:opacity-50"
+            className="size-8 shrink-0 mb-0.5"
           >
-            <Send size={14} />
-          </button>
+            <Send size={13} />
+          </Button>
         </div>
       )}
     </div>

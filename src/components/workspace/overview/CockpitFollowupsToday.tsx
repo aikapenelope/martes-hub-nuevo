@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { DashboardCard } from '@/components/dashboard-card'
+import { cn } from '@/lib/utils'
 
 const PIPELINE_LABELS: Record<string, string> = {
   nuevo: 'Nuevo',
@@ -31,15 +32,17 @@ const MAX_SHOWN = 4
 export function CockpitFollowupsToday({
   items,
   onOpenLead,
+  className,
 }: {
   items: FollowUpItem[]
   onOpenLead?: (leadId: number) => void
+  className?: string
 }) {
   const shown = items.slice(0, MAX_SHOWN)
   const extra = items.length - shown.length
 
   return (
-    <DashboardCard className="gap-0">
+    <DashboardCard className={cn('col-span-1 md:col-span-2 lg:col-span-2 gap-0', className)}>
       <CardHeader className="border-b flex flex-row items-center justify-between space-y-0 py-3.5 px-4 sm:px-6">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-emerald-500/20 bg-emerald-500/10 text-emerald-500">

@@ -145,10 +145,10 @@ function PipelineCardView({
         }
       }}
       aria-pressed={selected}
-      className={`rounded-lg border bg-card p-3.5 text-left transition-all duration-150 relative group shadow-xs ${
-        canEdit ? 'cursor-grab active:cursor-grabbing hover:border-foreground/30 hover:shadow-sm' : 'cursor-pointer'
+      className={`rounded-lg border bg-card p-3 text-left transition-all duration-150 relative group shadow-xs ${
+        canEdit ? 'cursor-grab active:cursor-grabbing hover:border-border hover:bg-card/90' : 'cursor-pointer'
       } ${
-        selected ? 'ring-2 ring-primary border-primary' : 'border-border'
+        selected ? 'ring-2 ring-primary border-primary' : 'border-border/70'
       } ${
         card.velocity ? VELOCITY_BORDER[card.velocity.temperature] : ''
       } ${
@@ -160,13 +160,13 @@ function PipelineCardView({
       <div className="flex items-start gap-2.5">
         {canEdit && (
           <span
-            className="mt-1 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors shrink-0"
+            className="mt-1 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0"
             title="Arrastra para mover de columna"
           >
             <GripVertical size={13} />
           </span>
         )}
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-[10px] font-bold text-foreground">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border/50 bg-muted/60 text-[10px] font-bold text-foreground">
           {initialsOf(card.fullName)}
         </span>
         <div className="min-w-0 flex-1">
@@ -211,13 +211,13 @@ function PipelineCardView({
           </span>
         )}
         {card.city && (
-          <span className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-secondary/80 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
             <MapPin size={10} />
             {card.city}
           </span>
         )}
         {card.channel && (
-          <span className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-secondary/80 px-1.5 py-0.5 text-[10px] font-mono text-foreground/80">
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-mono text-foreground/80">
             {card.channel === 'instagram_dm' ? <Camera size={10} /> : <MessageCircle size={10} className="text-[#25d366]" />}
             {card.channel === 'instagram_dm' ? 'Instagram' : 'WhatsApp'}
           </span>
@@ -550,10 +550,10 @@ export function CrmPipelineWorkspace({
           return (
             <section
               key={column.status}
-              className={`flex flex-col rounded-xl border bg-card transition-all duration-150 overflow-hidden ${
+              className={`flex flex-col rounded-xl border bg-card/60 transition-all duration-150 overflow-hidden ${
                 isTarget
                   ? 'ring-2 ring-primary border-primary shadow-[0_0_15px_rgba(56,189,248,0.2)]'
-                  : 'border-border'
+                  : 'border-border/70'
               }`}
               onDragOver={(event) => {
                 if (canEdit) {
@@ -576,7 +576,7 @@ export function CrmPipelineWorkspace({
                 if (Number.isInteger(leadId) && leadId > 0) moveCard(leadId, column.status)
               }}
             >
-              <header className="flex flex-col gap-1 border-b border-border p-3.5 bg-muted/30">
+              <header className="flex flex-col gap-1 border-b border-border/60 p-3.5 bg-card/90">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">{COLUMN_LABEL[column.status]}</h2>
                   <div className="flex items-center gap-1.5">
@@ -602,7 +602,7 @@ export function CrmPipelineWorkspace({
                   </span>
                 )}
               </header>
-              <div className="flex flex-1 flex-col gap-2.5 p-3 bg-background" style={{ minHeight: '12rem' }}>
+              <div className="flex flex-1 flex-col gap-2 p-2.5 bg-background/50" style={{ minHeight: '14rem' }}>
                 {isTarget && (
                   <div className="border border-dashed border-primary/50 bg-primary/10 py-3 text-center text-xs font-mono uppercase tracking-wider text-primary rounded-lg transition-all animate-pulse">
                     Soltar aquí para mover a {COLUMN_LABEL[column.status]}
@@ -649,7 +649,7 @@ export function CrmPipelineWorkspace({
       >
         <SheetContent
           side="right"
-          className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md"
+          className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl data-[side=right]:lg:max-w-2xl bg-background border-l border-border/60 p-0"
         >
           <SheetHeader className="border-b border-border px-4 py-3">
             <SheetTitle className="truncate text-sm font-bold uppercase tracking-wider text-foreground">

@@ -58,6 +58,20 @@ function firstName(name: string): string {
  * strip del cockpit. Siempre con user + overrideAccess: false — el filtro
  * de tenant va explícito en cada where.
  */
+async function fetchAllPages<T>(
+  fetcher: (page: number) => Promise<{ docs: T[]; hasNextPage?: boolean }>,
+): Promise<T[]> {
+  const all: T[] = []
+  let page = 1
+  while (true) {
+    const res = await fetcher(page)
+    all.push(...res.docs)
+    if (!res.hasNextPage) break
+    page++
+  }
+  return all
+}
+
 export async function collectFollowupsToday({
   payload,
   user,
@@ -70,21 +84,24 @@ export async function collectFollowupsToday({
   const now = Date.now()
 
   const conversationsByContactId = new Map<string, ConversationRef>()
-  const conversations = await payload.find({
-    collection: 'conversations',
-    where: { tenant: { equals: tenantId } },
-    limit: 1000,
-    depth: 0,
-    select: {
-      lead: true,
-      client: true,
-      lastInboundAt: true,
-      lastMessageAt: true,
-    },
-    overrideAccess: false,
-    user,
-  })
-  for (const conv of conversations.docs) {
+  const conversations = await fetchAllPages((page) =>
+    payload.find({
+      collection: 'conversations',
+      where: { tenant: { equals: tenantId } },
+      limit: 500,
+      page,
+      depth: 0,
+      select: {
+        lead: true,
+        client: true,
+        lastInboundAt: true,
+        lastMessageAt: true,
+      },
+      overrideAccess: false,
+      user,
+    }),
+  )
+  for (const conv of conversations) {
     for (const key of ['lead', 'client'] as const) {
       const ref = conv[key]
       const contactId = typeof ref === 'object' ? ref?.id : ref
@@ -110,32 +127,35 @@ export async function collectFollowupsToday({
 
   const items: FollowUpItem[] = []
 
-  const leads = await payload.find({
-    collection: 'leads',
-    where: {
-      and: [
-        { tenant: { equals: tenantId } },
-        { status: { not_equals: 'descartado' } },
-        { phone: { exists: true } },
-        { convertedClient: { exists: false } },
-      ],
-    },
-    limit: 500,
-    depth: 0,
-    select: {
-      id: true,
-      fullName: true,
-      phone: true,
-      status: true,
-      createdAt: true,
-      lastContactedAt: true,
-      fechaProximaLlamada: true,
-    },
-    overrideAccess: false,
-    user,
-  })
+  const leads = await fetchAllPages((page) =>
+    payload.find({
+      collection: 'leads',
+      where: {
+        and: [
+          { tenant: { equals: tenantId } },
+          { status: { not_equals: 'descartado' } },
+          { phone: { exists: true } },
+          { convertedClient: { exists: false } },
+        ],
+      },
+      limit: 500,
+      page,
+      depth: 0,
+      select: {
+        id: true,
+        fullName: true,
+        phone: true,
+        status: true,
+        createdAt: true,
+        lastContactedAt: true,
+        fechaProximaLlamada: true,
+      },
+      overrideAccess: false,
+      user,
+    }),
+  )
 
-  for (const lead of leads.docs) {
+  for (const lead of leads) {
     const rule = LEAD_RULES[lead.status]
     if (!rule || !lead.phone) continue
     const conv = conversationsByContactId.get(`lead:${lead.id}`)
@@ -179,29 +199,32 @@ export async function collectFollowupsToday({
     })
   }
 
-  const clients = await payload.find({
-    collection: 'clients',
-    where: {
-      and: [
-        { tenant: { equals: tenantId } },
-        { phone: { exists: true } },
-        { optOutAt: { exists: false } },
-      ],
-    },
-    limit: 500,
-    depth: 0,
-    select: {
-      id: true,
-      name: true,
-      phone: true,
-      stage: true,
-      createdAt: true,
-    },
-    overrideAccess: false,
-    user,
-  })
+  const clients = await fetchAllPages((page) =>
+    payload.find({
+      collection: 'clients',
+      where: {
+        and: [
+          { tenant: { equals: tenantId } },
+          { phone: { exists: true } },
+          { optOutAt: { exists: false } },
+        ],
+      },
+      limit: 500,
+      page,
+      depth: 0,
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        stage: true,
+        createdAt: true,
+      },
+      overrideAccess: false,
+      user,
+    }),
+  )
 
-  for (const client of clients.docs) {
+  for (const client of clients) {
     const rule = CLIENT_RULES[client.stage]
     if (!rule || !client.phone) continue
     const conv = conversationsByContactId.get(`client:${client.id}`)

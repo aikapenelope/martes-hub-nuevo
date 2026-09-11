@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
 	CardContent,
@@ -58,16 +59,18 @@ export function DashboardInvoices({
 	invoices: customInvoices,
 	title = "Cobros y facturas recientes",
 	description = "Montos pendientes y confirmados.",
+	className,
 }: {
 	invoices?: DashboardInvoice[];
 	title?: string;
 	description?: string;
+	className?: string;
 } = {}) {
 	const isExplicitEmpty = customInvoices !== undefined && customInvoices.length === 0;
 	const list = customInvoices !== undefined ? customInvoices : invoices;
 
 	return (
-		<DashboardCard className="relative gap-0 md:col-span-2">
+		<DashboardCard className={cn("relative gap-0 md:col-span-2", className)}>
 			<CardHeader className="border-b">
 				<CardTitle className="text-base">{title}</CardTitle>
 				<CardDescription>{description}</CardDescription>

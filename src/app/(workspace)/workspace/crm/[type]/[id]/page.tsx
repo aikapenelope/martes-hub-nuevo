@@ -37,6 +37,8 @@ import { getWorkspaceContext } from '@/lib/workspace-context'
 import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
 import { ActivityDrawer } from '@/components/workspace/ActivityDrawer'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { getAssignableUsers } from '@/lib/tasks-data'
 import { changeTaskStatusAction } from '@/lib/tasks-actions'
 import type { Client, Company, Lead, Segment, User } from '@/payload-types'
@@ -56,22 +58,20 @@ function relId(value: number | { id: number } | null | undefined): number | null
   return typeof value === 'object' ? value.id : value
 }
 
-/* Inputs, selects y textareas NATIVOS (los selects llevan `option value=""`,
-   así que no se convierten a Radix); mismos tokens que el Input shadcn. */
+/* Inputs, selects y textareas NATIVOS con tokens Shadcn alineados a OLED */
 const inputCls =
-  'w-full border border-input bg-transparent px-3 py-2 text-sm font-sans text-foreground outline-none placeholder:text-muted-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30'
-const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-muted-foreground'
+  'w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 font-sans'
+const labelCls = 'flex flex-col gap-1.5 text-xs font-medium text-muted-foreground'
 
 const priorityCls: Record<string, string> = {
-  baja: 'bg-muted text-muted-foreground border-border',
-  media: 'bg-muted text-foreground/80 border-border',
-  alta: 'bg-amber-950/60 text-amber-300 border-amber-800',
-  urgente: 'bg-rose-950/60 text-rose-300 border-rose-800',
+  baja: 'bg-muted/60 text-muted-foreground border-border/60',
+  media: 'bg-muted/80 text-foreground/80 border-border/60',
+  alta: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+  urgente: 'bg-destructive/10 text-destructive border-destructive/30',
 }
 
-/* Botón submit primario de los formularios con server action (patrón tasks/[id]). */
 const submitBtnCls =
-  'self-start bg-primary px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider text-primary-foreground'
+  'self-start rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-xs transition-opacity hover:opacity-90'
 
 export default async function CrmRecordPage({
   params,
@@ -339,43 +339,58 @@ export default async function CrmRecordPage({
   }
 
   return (
-    <>
-      <Link href={`/workspace/crm?vista=${type}`} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-mono">
-        <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Volver al CRM
+    <div className="space-y-4">
+      <Link href={`/workspace/crm?vista=${type}`} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors font-sans">
+        <ArrowLeft className="size-3.5" aria-hidden="true" /> Volver al CRM
       </Link>
 
       {(feedback.created || feedback.updated || feedback.converted || feedback.taskCreated) && (
-        <div className="flex items-center gap-2 border border-emerald-800 bg-emerald-900/30 px-3 py-2 text-xs text-emerald-300" role="status">
-          <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-          {feedback.taskCreated
-            ? 'Tarea creada correctamente.'
-            : feedback.created
-            ? 'Registro creado correctamente.'
-            : feedback.updated
-            ? 'Cambios guardados.'
-            : 'Lead convertido a cliente.'}
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-400 font-medium shadow-xs" role="status">
+          <CheckCircle2 className="size-4 shrink-0 text-emerald-400" aria-hidden="true" />
+          <span>
+            {feedback.taskCreated
+              ? 'Tarea creada correctamente.'
+              : feedback.created
+              ? 'Registro creado correctamente.'
+              : feedback.updated
+              ? 'Cambios guardados.'
+              : 'Lead convertido a cliente exitosamente.'}
+          </span>
         </div>
       )}
 
-      <header className="flex flex-col justify-between gap-3.5 bg-card text-card-foreground border border-border p-5 sm:flex-row sm:items-center bracket-accent">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center border border-border bg-muted text-foreground">
+      {/* Hero Header 360° Moderno */}
+      <header className="flex flex-col justify-between gap-4 rounded-xl border border-border/70 bg-card p-5 shadow-xs sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3.5">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/60 text-foreground font-bold text-sm">
             {isCompany ? (
-              <Building2 className="w-5 h-5" aria-hidden="true" />
+              <Building2 className="size-5 text-muted-foreground" aria-hidden="true" />
             ) : (
-              <UserRound className="w-5 h-5" aria-hidden="true" />
+              <UserRound className="size-5 text-muted-foreground" aria-hidden="true" />
             )}
           </span>
           <div>
-            <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-              {isLead ? 'Lead' : isCompany ? 'Empresa / Cuenta' : 'Cliente'} · #{id}
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <Badge variant="outline" className="text-[10px] font-mono uppercase">
+                {isLead ? 'Lead' : isCompany ? 'Empresa' : 'Cliente'} · #{id}
+              </Badge>
+              {isLead && leadRecord?.status && (
+                <Badge variant="secondary" className="text-[10px] capitalize font-medium">
+                  {leadRecord.status}
+                </Badge>
+              )}
+              {isClient && clientRecord?.stage && (
+                <Badge variant="secondary" className="text-[10px] capitalize font-medium">
+                  {clientRecord.stage}
+                </Badge>
+              )}
             </div>
-            <h1 className="text-xl font-bold text-foreground">{name}</h1>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <h1 className="text-xl font-bold tracking-tight text-foreground">{name}</h1>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-0.5">
               <span>{relationName(recordSegment)}</span>
               {isLead && leadRecord?.estimatedValue != null && leadRecord.estimatedValue > 0 && (
-                <span className="font-mono text-emerald-400 font-semibold">
-                  · Valor: ${leadRecord.estimatedValue}
+                <span className="font-mono text-emerald-400 font-semibold tabular-nums">
+                  · Valor: ${leadRecord.estimatedValue.toLocaleString('en-US')}
                 </span>
               )}
               {isCompany && companyRecord?.taxId && (
@@ -386,60 +401,66 @@ export default async function CrmRecordPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {detail.conversations.length > 0 && (
-            <Link
-              className="px-3 py-1.5 bg-muted hover:bg-accent border border-border text-foreground text-xs font-bold uppercase tracking-wider font-mono"
-              href={`/workspace/inbox?c=${detail.conversations[0].id}`}
-            >
-              Abrir en inbox
-            </Link>
+            <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5 font-medium">
+              <Link href={`/workspace/inbox?c=${detail.conversations[0].id}`}>
+                <MessageCircle className="size-3.5" />
+                <span>Abrir en inbox</span>
+              </Link>
+            </Button>
           )}
           {phone && (
-            <a
-              className="px-3 py-1.5 bg-muted hover:bg-accent border border-border text-foreground text-xs font-bold uppercase tracking-wider font-mono inline-flex items-center gap-1.5"
-              href={`https://wa.me/${phone.replace(/\D/g, '')}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <MessageCircle className="w-4 h-4" aria-hidden="true" /> WhatsApp
-            </a>
+            <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5 font-medium border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300">
+              <a
+                href={`https://wa.me/${phone.replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <MessageCircle className="size-3.5 text-[#25d366]" />
+                <span>WhatsApp</span>
+              </a>
+            </Button>
           )}
           {!isCompany && context.canEdit && (
             <>
-            <TaskCreateDialog
-              assignees={assignees}
-              clients={clientOptions}
-              leads={leadOptions}
-              variant="secondary"
-              defaultClientId={isClient ? id : undefined}
-              defaultLeadId={isLead ? id : undefined}
-              redirectTo={`/workspace/crm/${type}/${id}?taskCreated=1`}
-            />
-            <ActivityDrawer
-              clientId={isClient ? id : undefined}
-              leadId={isLead ? id : undefined}
-              redirectTo={`/workspace/crm/${type}/${id}`}
-              variant="ghost"
-            />
+              <TaskCreateDialog
+                assignees={assignees}
+                clients={clientOptions}
+                leads={leadOptions}
+                variant="secondary"
+                defaultClientId={isClient ? id : undefined}
+                defaultLeadId={isLead ? id : undefined}
+                redirectTo={`/workspace/crm/${type}/${id}?taskCreated=1`}
+              />
+              <ActivityDrawer
+                clientId={isClient ? id : undefined}
+                leadId={isLead ? id : undefined}
+                redirectTo={`/workspace/crm/${type}/${id}`}
+                variant="ghost"
+              />
             </>
           )}
           {convertedId && (
-            <Link
-              className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider font-mono"
-              href={`/workspace/crm/clientes/${convertedId}`}
-            >
-              Ver cliente
-            </Link>
+            <Button asChild size="sm" className="h-8 text-xs font-semibold">
+              <Link href={`/workspace/crm/clientes/${convertedId}`}>
+                Ver cliente
+              </Link>
+            </Button>
           )}
         </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_.9fr]">
         <div className="space-y-4">
-          <section className="bg-card text-card-foreground border border-border p-5">
-            <h2 className="text-base font-bold text-foreground">
-              {isCompany ? 'Ficha de la Empresa' : 'Ficha 360'}
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">Datos comerciales, estado y contexto interno.</p>
+          <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
+            <CardHeader className="border-b border-border/60 p-5">
+              <CardTitle className="text-base font-bold text-foreground">
+                {isCompany ? 'Ficha de la Empresa' : 'Ficha 360°'}
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Datos comerciales, estado y contexto interno.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-5">
 
             <dl className="mt-4 grid gap-3 sm:grid-cols-2 text-xs">
               <div>
@@ -841,106 +862,114 @@ export default async function CrmRecordPage({
                 </p>
               </div>
             )}
-          </section>
+            </CardContent>
+          </Card>
 
           {/* Si es una empresa, mostrar sus contactos asociados (Leads y Clientes) */}
           {isCompany && (
-            <section className="bg-card text-card-foreground border border-border p-5">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-muted-foreground" />
-                <h2 className="text-base font-bold text-foreground">Contactos asociados</h2>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Personas registradas en el CRM vinculadas a esta empresa.
-              </p>
-
-              <div className="mt-4 space-y-4">
-                <div>
-                  <h3 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-                    Clientes ({detail.relatedClients?.length ?? 0})
-                  </h3>
-                  {(!detail.relatedClients || detail.relatedClients.length === 0) ? (
-                    <p className="mt-1 text-xs text-muted-foreground">Ningún cliente activo vinculado.</p>
-                  ) : (
-                    <ul className="mt-2 divide-y divide-border border border-border">
-                      {detail.relatedClients.map((c) => (
-                        <li key={c.id} className="flex items-center justify-between p-2.5 text-xs">
-                          <div>
-                            <Link
-                              href={`/workspace/crm/clientes/${c.id}`}
-                              className="font-semibold text-foreground hover:underline"
-                            >
-                              {c.name}
-                            </Link>
-                            <span className="block text-[10px] text-muted-foreground font-mono">
-                              {c.email || c.phone || 'Sin datos de contacto'} · Etapa: {c.stage}
-                            </span>
-                          </div>
-                          <Link
-                            href={`/workspace/crm/clientes/${c.id}`}
-                            className="text-xs text-sky-400 hover:text-sky-300 font-mono"
-                          >
-                            Ver ficha →
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+            <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
+              <CardHeader className="border-b border-border/60 p-5">
+                <div className="flex items-center gap-2">
+                  <Users className="size-4 text-muted-foreground" />
+                  <CardTitle className="text-base font-bold text-foreground">Contactos asociados</CardTitle>
                 </div>
+                <CardDescription className="text-xs text-muted-foreground">
+                  Personas registradas en el CRM vinculadas a esta empresa.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
+                      Clientes ({detail.relatedClients?.length ?? 0})
+                    </h3>
+                    {(!detail.relatedClients || detail.relatedClients.length === 0) ? (
+                      <p className="text-xs text-muted-foreground">Ningún cliente activo vinculado.</p>
+                    ) : (
+                      <ul className="divide-y divide-border/60 rounded-lg border border-border/60 overflow-hidden">
+                        {detail.relatedClients.map((c) => (
+                          <li key={c.id} className="flex items-center justify-between p-3 text-xs hover:bg-muted/30 transition-colors">
+                            <div>
+                              <Link
+                                href={`/workspace/crm/clientes/${c.id}`}
+                                className="font-semibold text-foreground hover:underline"
+                              >
+                                {c.name}
+                              </Link>
+                              <span className="block text-[10px] text-muted-foreground font-mono mt-0.5">
+                                {c.email || c.phone || 'Sin datos de contacto'} · Etapa: {c.stage}
+                              </span>
+                            </div>
+                            <Button asChild variant="ghost" size="xs" className="h-7 text-xs font-medium text-sky-400 hover:text-sky-300">
+                              <Link href={`/workspace/crm/clientes/${c.id}`}>
+                                Ver ficha →
+                              </Link>
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
 
-                <div>
-                  <h3 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-                    Leads en prospección ({detail.relatedLeads?.length ?? 0})
-                  </h3>
-                  {(!detail.relatedLeads || detail.relatedLeads.length === 0) ? (
-                    <p className="mt-1 text-xs text-muted-foreground">Ningún prospecto vinculado.</p>
-                  ) : (
-                    <ul className="mt-2 divide-y divide-border border border-border">
-                      {detail.relatedLeads.map((l) => (
-                        <li key={l.id} className="flex items-center justify-between p-2.5 text-xs">
-                          <div>
-                            <Link
-                              href={`/workspace/crm/leads/${l.id}`}
-                              className="font-semibold text-foreground hover:underline"
-                            >
-                              {l.fullName}
-                            </Link>
-                            <span className="block text-[10px] text-muted-foreground font-mono">
-                              {l.email || l.phone || 'Sin datos de contacto'} · Estado: {l.status}
-                            </span>
-                          </div>
-                          <Link
-                            href={`/workspace/crm/leads/${l.id}`}
-                            className="text-xs text-sky-400 hover:text-sky-300 font-mono"
-                          >
-                            Ver ficha →
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  <div>
+                    <h3 className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
+                      Leads en prospección ({detail.relatedLeads?.length ?? 0})
+                    </h3>
+                    {(!detail.relatedLeads || detail.relatedLeads.length === 0) ? (
+                      <p className="text-xs text-muted-foreground">Ningún prospecto vinculado.</p>
+                    ) : (
+                      <ul className="divide-y divide-border/60 rounded-lg border border-border/60 overflow-hidden">
+                        {detail.relatedLeads.map((l) => (
+                          <li key={l.id} className="flex items-center justify-between p-3 text-xs hover:bg-muted/30 transition-colors">
+                            <div>
+                              <Link
+                                href={`/workspace/crm/leads/${l.id}`}
+                                className="font-semibold text-foreground hover:underline"
+                              >
+                                {l.fullName}
+                              </Link>
+                              <span className="block text-[10px] text-muted-foreground font-mono mt-0.5">
+                                {l.email || l.phone || 'Sin datos de contacto'} · Estado: {l.status}
+                              </span>
+                            </div>
+                            <Button asChild variant="ghost" size="xs" className="h-7 text-xs font-medium text-sky-400 hover:text-sky-300">
+                              <Link href={`/workspace/crm/leads/${l.id}`}>
+                                Ver ficha →
+                              </Link>
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </section>
+              </CardContent>
+            </Card>
           )}
 
           {/* Tareas y Compromisos asociados */}
-          <section className="bg-card text-card-foreground border border-border p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <CheckSquare className="w-4 h-4 text-muted-foreground" />
-                <h2 className="text-base font-bold text-foreground">Tareas y compromisos</h2>
-                <span className="text-xs font-mono text-muted-foreground">
-                  ({detail.tasks.filter((t) => t.status !== 'completada' && t.status !== 'cancelada').length} pendientes)
-                </span>
+          <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
+            <CardHeader className="border-b border-border/60 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 space-y-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CheckSquare className="size-4 text-muted-foreground" />
+                  <CardTitle className="text-base font-bold text-foreground">Tareas y compromisos</CardTitle>
+                  <Badge variant="secondary" className="text-[10px] font-mono">
+                    {detail.tasks.filter((t) => t.status !== 'completada' && t.status !== 'cancelada').length} pendientes
+                  </Badge>
+                </div>
+                <CardDescription className="text-xs text-muted-foreground mt-1">
+                  {isCompany
+                    ? 'Tareas asignadas a los contactos vinculados con esta empresa.'
+                    : 'Compromisos, recordatorios y acciones asignadas a este contacto.'}
+                </CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <Link
-                  href={`/workspace/tasks?${isLead ? 'lead' : isClient ? 'client' : ''}=${id}`}
-                  className="text-xs font-mono text-muted-foreground hover:text-foreground transition"
-                >
-                  Ver en Tareas →
-                </Link>
+                <Button asChild variant="ghost" size="xs" className="h-7 text-xs text-muted-foreground hover:text-foreground">
+                  <Link href={`/workspace/tasks?${isLead ? 'lead' : isClient ? 'client' : ''}=${id}`}>
+                    Ver en Tareas →
+                  </Link>
+                </Button>
                 {context.canEdit && !isCompany && (
                   <TaskCreateDialog
                     assignees={assignees}
@@ -953,12 +982,8 @@ export default async function CrmRecordPage({
                   />
                 )}
               </div>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {isCompany
-                ? 'Tareas asignadas a los contactos vinculados con esta empresa.'
-                : 'Compromisos, recordatorios y acciones asignadas a este contacto.'}
-            </p>
+            </CardHeader>
+            <CardContent className="p-5">
 
             {detail.tasks.length === 0 ? (
               <div className="mt-4 border border-border bg-background/40 p-4 text-center">
@@ -1035,168 +1060,188 @@ export default async function CrmRecordPage({
                 })}
               </ul>
             )}
-          </section>
+            </CardContent>
+          </Card>
         </div>
 
-        <aside className="bg-card text-card-foreground border border-border p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-foreground">Timeline unificado</h2>
-              <p className="text-xs text-muted-foreground">Conversaciones, emails, citas, tareas, cobros y actividades.</p>
-            </div>
-          </div>
-
-          {detail.timeline.length === 0 ? (
-            <p className="mt-4 text-xs text-muted-foreground">Todavía no hay actividad para este registro.</p>
-          ) : (
-            <ol className="mt-4 flex flex-col gap-3 border-l border-border pl-4">
-              {detail.timeline.map((entry, index) => (
-                <li key={`${entry.kind}-${index}-${entry.date}`} className="relative">
-                  <span
-                    className={`absolute -left-[21px] top-1 h-2 w-2 rounded-full ${
-                      entry.direction === 'in' ? 'bg-emerald-400' : entry.direction === 'out' ? 'bg-sky-400' : 'bg-foreground'
-                    }`}
-                    aria-hidden="true"
-                  />
-                  {entry.href ? (
-                    <Link href={entry.href} className="block text-xs text-foreground hover:underline">
-                      {entry.title}
-                    </Link>
-                  ) : (
-                    <strong className="block text-xs text-foreground">{entry.title}</strong>
-                  )}
-                  {entry.detail && <span className="block text-[11px] text-muted-foreground">{entry.detail}</span>}
-                  <span className="text-[10px] text-muted-foreground font-mono">
-                    {entry.kind} · {new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.date))}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
+        <aside className="space-y-4">
+          <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
+            <CardHeader className="border-b border-border/60 p-5">
+              <CardTitle className="text-base font-bold text-foreground">Timeline unificado</CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Conversaciones, emails, citas, tareas, cobros y actividades.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-5">
+              {detail.timeline.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Todavía no hay actividad para este registro.</p>
+              ) : (
+                <ol className="flex flex-col gap-3.5 border-l border-border/70 pl-4">
+                  {detail.timeline.map((entry, index) => (
+                    <li key={`${entry.kind}-${index}-${entry.date}`} className="relative">
+                      <span
+                        className={`absolute -left-[21px] top-1 h-2 w-2 rounded-full ${
+                          entry.direction === 'in' ? 'bg-emerald-400' : entry.direction === 'out' ? 'bg-sky-400' : 'bg-foreground'
+                        }`}
+                        aria-hidden="true"
+                      />
+                      {entry.href ? (
+                        <Link href={entry.href} className="block text-xs text-foreground hover:underline font-medium">
+                          {entry.title}
+                        </Link>
+                      ) : (
+                        <strong className="block text-xs text-foreground font-medium">{entry.title}</strong>
+                      )}
+                      {entry.detail && <span className="block text-[11px] text-muted-foreground mt-0.5">{entry.detail}</span>}
+                      <span className="text-[10px] text-muted-foreground font-mono mt-0.5 block">
+                        {entry.kind} · {new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.date))}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </CardContent>
+          </Card>
 
           {isLead && (leadEnrollments.length > 0 || (context.canEdit && activeSequences.length > 0)) && (
-            <section className="mt-4 border border-border bg-background p-3">
-              <strong className="block text-xs text-foreground">Secuencias de email</strong>
-              {leadEnrollments.length > 0 && (
-                <ul className="mt-2 divide-y divide-border border border-border">
-                  {leadEnrollments.map((enrollment) => {
-                    const seqName =
-                      typeof enrollment.sequence === 'object'
-                        ? enrollment.sequence.name
-                        : `#${enrollment.sequence}`
-                    return (
-                      <li key={enrollment.id} className="flex items-center justify-between gap-2 p-2 text-xs">
-                        <div className="min-w-0">
-                          <span className="block truncate text-foreground">{seqName}</span>
-                          <span className="font-mono text-[10px] text-muted-foreground">
-                            {enrollment.status === 'activa'
-                              ? `activa · paso ${enrollment.currentStep + 1}`
-                              : enrollment.status}
-                          </span>
-                        </div>
-                        {context.canEdit && enrollment.status === 'activa' && (
-                          <form action={cancelSequenceEnrollmentAction} className="shrink-0">
-                            <input type="hidden" name="enrollmentId" value={enrollment.id} />
-                            <input type="hidden" name="redirectTo" value={`/workspace/crm/leads/${id}`} />
-                            <Button
-                              type="submit"
-                              variant="ghost"
-                              className="h-auto p-0 font-mono text-[10px] uppercase text-muted-foreground hover:text-rose-300"
-                            >
-                              Cancelar
-                            </Button>
-                          </form>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-              {context.canEdit && activeSequences.length > 0 && (
-                <form action={enrollLeadInSequenceAction} className="mt-3 flex flex-col gap-2">
-                  <input type="hidden" name="leadId" value={id} />
-                  <input type="hidden" name="redirectTo" value={`/workspace/crm/leads/${id}`} />
-                  <select name="sequenceId" required defaultValue="" className={inputCls}>
-                    <option value="">Inscribir en secuencia…</option>
-                    {activeSequences.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                  <Button type="submit" className={submitBtnCls + ' px-3 py-1.5'}>
-                    Inscribir
-                  </Button>
-                </form>
-              )}
-              {feedback.sequenceError && (
-                <p className="mt-2 text-xs text-rose-400" role="alert">
-                  {feedback.sequenceError}
-                </p>
-              )}
-            </section>
+            <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
+              <CardHeader className="border-b border-border/60 p-4">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground">
+                  Secuencias de email
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3">
+                {leadEnrollments.length > 0 && (
+                  <ul className="divide-y divide-border/60 rounded-lg border border-border/60 overflow-hidden">
+                    {leadEnrollments.map((enrollment) => {
+                      const seqName =
+                        typeof enrollment.sequence === 'object'
+                          ? enrollment.sequence.name
+                          : `#${enrollment.sequence}`
+                      return (
+                        <li key={enrollment.id} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-muted/20">
+                          <div className="min-w-0">
+                            <span className="block truncate text-foreground font-medium">{seqName}</span>
+                            <span className="font-mono text-[10px] text-muted-foreground">
+                              {enrollment.status === 'activa'
+                                ? `activa · paso ${enrollment.currentStep + 1}`
+                                : enrollment.status}
+                            </span>
+                          </div>
+                          {context.canEdit && enrollment.status === 'activa' && (
+                            <form action={cancelSequenceEnrollmentAction} className="shrink-0">
+                              <input type="hidden" name="enrollmentId" value={enrollment.id} />
+                              <input type="hidden" name="redirectTo" value={`/workspace/crm/leads/${id}`} />
+                              <Button
+                                type="submit"
+                                variant="ghost"
+                                size="xs"
+                                className="h-6 text-[10px] text-muted-foreground hover:text-rose-400"
+                              >
+                                Cancelar
+                              </Button>
+                            </form>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                {context.canEdit && activeSequences.length > 0 && (
+                  <form action={enrollLeadInSequenceAction} className="flex flex-col gap-2 pt-1">
+                    <input type="hidden" name="leadId" value={id} />
+                    <input type="hidden" name="redirectTo" value={`/workspace/crm/leads/${id}`} />
+                    <select name="sequenceId" required defaultValue="" className={inputCls}>
+                      <option value="">Inscribir en secuencia…</option>
+                      {activeSequences.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button type="submit" size="sm" className="self-start text-xs font-semibold">
+                      Inscribir
+                    </Button>
+                  </form>
+                )}
+                {feedback.sequenceError && (
+                  <p className="text-xs text-rose-400 font-medium" role="alert">
+                    {feedback.sequenceError}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {!isCompany && context.canEdit && (
-            <details className="mt-4 border border-border bg-background">
-              <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-xs text-foreground/80 font-mono uppercase">
-                <Plus className="w-3.5 h-3.5" aria-hidden="true" /> Registrar actividad
-              </summary>
-              <form action={createActivityAction} className="flex flex-col gap-3 p-3">
-                {isLead ? (
-                  <input type="hidden" name="lead" value={id} />
-                ) : (
-                  <input type="hidden" name="client" value={id} />
-                )}
-                <div className="grid gap-3 sm:grid-cols-2">
+            <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
+              <CardHeader className="border-b border-border/60 p-4">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  <Plus className="size-3.5 text-primary" aria-hidden="true" />
+                  <span>Registrar actividad</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <form action={createActivityAction} className="flex flex-col gap-3">
+                  {isLead ? (
+                    <input type="hidden" name="lead" value={id} />
+                  ) : (
+                    <input type="hidden" name="client" value={id} />
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className={labelCls}>
+                      Tipo
+                      <select name="type" defaultValue="nota" className={inputCls}>
+                        <option value="nota">Nota</option>
+                        <option value="llamada">Llamada</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="email">Email</option>
+                        <option value="reunion">Reunión</option>
+                        <option value="otro">Otro</option>
+                      </select>
+                    </label>
+                    <label className={labelCls}>
+                      Fecha y hora
+                      <input type="datetime-local" name="occurredAt" className={inputCls} />
+                    </label>
+                  </div>
                   <label className={labelCls}>
-                    Tipo
-                    <select name="type" defaultValue="nota" className={inputCls}>
-                      <option value="nota">Nota</option>
-                      <option value="llamada">Llamada</option>
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="email">Email</option>
-                      <option value="reunion">Reunión</option>
-                      <option value="otro">Otro</option>
-                    </select>
+                    Resumen
+                    <textarea
+                      name="summary"
+                      rows={3}
+                      maxLength={500}
+                      placeholder="¿Qué ocurrió? Ej: Llamada de 15 min, acordamos enviar propuesta"
+                      required
+                      className={inputCls}
+                    />
                   </label>
-                  <label className={labelCls}>
-                    Fecha y hora
-                    <input type="datetime-local" name="occurredAt" className={inputCls} />
-                  </label>
-                </div>
-                <label className={labelCls}>
-                  Resumen
-                  <textarea
-                    name="summary"
-                    rows={3}
-                    maxLength={500}
-                    placeholder="¿Qué ocurrió? Ej: Llamada de 15 min, acordamos enviar propuesta"
-                    required
-                    className={inputCls}
-                  />
-                </label>
-                <Button type="submit" className={submitBtnCls}>
-                  Guardar actividad
-                </Button>
-              </form>
-            </details>
+                  <Button type="submit" size="sm" className="self-start text-xs font-semibold">
+                    Guardar actividad
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           )}
 
           {isLead && context.canEdit && !convertedId && (
-            <form action={convertLeadAction} className="mt-4 border border-border bg-background p-3">
-              <input name="id" type="hidden" value={id} />
-              <strong className="block text-xs text-foreground">¿La oportunidad avanzó?</strong>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Crea un cliente con estos datos y conserva el vínculo con el lead.
-              </p>
-              <Button type="submit" className={'mt-2 ' + submitBtnCls}>
-                Convertir a cliente
-              </Button>
-            </form>
+            <Card className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 shadow-xs">
+              <CardContent className="p-4">
+                <form action={convertLeadAction} className="flex flex-col gap-2">
+                  <input name="id" type="hidden" value={id} />
+                  <strong className="text-xs text-foreground font-semibold">¿La oportunidad avanzó?</strong>
+                  <p className="text-xs text-muted-foreground">
+                    Crea un cliente con estos datos y conserva el vínculo con el lead.
+                  </p>
+                  <Button type="submit" size="sm" className="mt-1 self-start text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white">
+                    Convertir a cliente
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           )}
         </aside>
       </div>
-    </>
+    </div>
   )
 }
