@@ -11,7 +11,9 @@ import Link from 'next/link'
 import { AlertTriangle, FileSpreadsheet, ThumbsUp } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
-import { EmptyState, KpiCard, OledCard, PageHero, SectionHeader, StatusBadge } from '@/components/workspace/oled'
+import { KpiCard } from '@/components/workspace/kpi-card'
+import { PageHeader } from '@/components/workspace/page-header'
+import { Badge } from '@/components/ui/badge'
 import type { Client, FormSubmission, Lead } from '@/payload-types'
 
 const dateFmt = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -57,7 +59,7 @@ export default async function FeedbackPage({
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
         eyebrow={`Formularios y satisfacción · ${context.tenant.name}`}
         title="Feedback de Clientes"
         description="Envíos de formularios (Tally) y alertas de queja o baja satisfacción."
@@ -85,10 +87,18 @@ export default async function FeedbackPage({
         <KpiCard label="Satisfacción" value={`${satisfactionRate}%`} icon={ThumbsUp} accent="cyan" note="Envíos sin queja sobre el total" />
       </section>
 
-      <OledCard className="!p-0">
-        <SectionHeader eyebrow={onlyComplaints ? 'Quejas' : 'Todos'} title="Envíos recientes" description="Últimos 30 envíos del tenant activo" />
+      <div className="bg-card text-card-foreground border border-border p-3.5 !p-0">
+        <div className="mb-3 flex items-end justify-between gap-4 border-b pb-2.5">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{onlyComplaints ? 'Quejas' : 'Todos'}</p>
+            <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Envíos recientes</h2>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Últimos 30 envíos del tenant activo</p>
+          </div>
+        </div>
         {submissions.length === 0 ? (
-          <EmptyState>{onlyComplaints ? 'Sin quejas registradas — buena señal.' : 'Sin envíos de formularios todavía.'}</EmptyState>
+          <div className="py-10 text-center font-mono text-xs text-muted-foreground">
+            {onlyComplaints ? 'Sin quejas registradas — buena señal.' : 'Sin envíos de formularios todavía.'}
+          </div>
         ) : (
           <div className="flex flex-col">
             {submissions.map((s) => {
@@ -103,7 +113,7 @@ export default async function FeedbackPage({
                     <div>
                       <div className="flex items-center gap-2">
                         <strong className="text-sm text-foreground">{person}</strong>
-                        {s.isComplaint && <StatusBadge tone="danger">Queja / Alerta</StatusBadge>}
+                        {s.isComplaint && <Badge variant="destructive" className="font-mono text-[10px]">Queja / Alerta</Badge>}
                       </div>
                       <span className="text-[10px] text-muted-foreground font-mono">
                         {s.formName} · {dateFmt.format(new Date(s.createdAt))}
@@ -137,7 +147,7 @@ export default async function FeedbackPage({
             })}
           </div>
         )}
-      </OledCard>
+      </div>
     </div>
   )
 }

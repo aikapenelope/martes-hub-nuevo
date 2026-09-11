@@ -16,7 +16,8 @@ import { RichText, defaultJSXConverters } from '@payloadcms/richtext-lexical/rea
 
 import type { Client, Lead, Note, User as UserType } from '@/payload-types'
 import { NOTE_CATEGORIES, NOTE_CATEGORY_LABEL, type NoteCategory } from '@/collections/Notes'
-import { EmptyState, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
+import { PageHeader } from '@/components/workspace/page-header'
+import { Badge } from '@/components/ui/badge'
 import { NoteSlideOverDrawer } from '@/components/workspace/notes/NoteSlideOverDrawer'
 import { deleteNoteAction, toggleNotePinAction } from '@/lib/notes-actions'
 
@@ -80,7 +81,7 @@ export function NotesWorkspace({
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHero
+      <PageHeader
         eyebrow="CUADERNO DE APUNTES"
         title="Notas & To-Dos"
         description="Espacio cómodo para escribir apuntes personales, tareas rápidas e ideas. Edita al instante en el panel lateral deslizable y vincula opcionalmente al CRM solo cuando lo necesites."
@@ -99,7 +100,7 @@ export function NotesWorkspace({
       />
 
       {/* Barra de Filtros y Búsqueda */}
-      <OledCard className="flex flex-col gap-3">
+      <div className="bg-card text-card-foreground border border-border p-3.5 flex flex-col gap-3">
         <form action="/workspace/notes" method="get" className="flex items-center gap-2">
           {activeCategory && <input type="hidden" name="cat" value={activeCategory} />}
           {pinnedOnly && <input type="hidden" name="pin" value="1" />}
@@ -160,11 +161,11 @@ export function NotesWorkspace({
           </Link>
           <span className="ml-auto font-mono text-[11px] text-zinc-500">{total} apunte(s)</span>
         </div>
-      </OledCard>
+      </div>
 
       {/* Estado Vacío */}
       {total === 0 && (
-        <EmptyState>
+        <div className="py-10 text-center font-mono text-xs text-muted-foreground">
           <div className="flex flex-col items-center gap-2 py-12 text-center">
             <StickyNote className="h-10 w-10 text-zinc-600" />
             <p className="text-sm font-bold uppercase tracking-wider text-zinc-300">
@@ -186,7 +187,7 @@ export function NotesWorkspace({
               </button>
             )}
           </div>
-        </EmptyState>
+        </div>
       )}
 
       {/* Sección Fijadas */}
@@ -320,10 +321,9 @@ function NoteWorkspaceCard({
   }
 
   return (
-    <OledCard
-      className="group cursor-pointer flex flex-col gap-3 transition-colors hover:border-zinc-600"
-      bracketAccent={Boolean(note.pinned)}
+    <div
       onClick={onClick}
+      className={`bg-card text-card-foreground border border-border p-3.5 ${Boolean(note.pinned) ? 'bracket-accent' : ''} group cursor-pointer flex flex-col gap-3 transition-colors hover:border-zinc-600`}
     >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -372,9 +372,9 @@ function NoteWorkspaceCard({
 
       {/* Badges de Categoría y Relación */}
       <div className="flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-        <StatusBadge tone="neutral">
+        <Badge variant="outline" className="font-mono text-[10px]">
           {NOTE_CATEGORY_LABEL[(note.category ?? 'general') as NoteCategory] ?? 'General'}
-        </StatusBadge>
+        </Badge>
 
         {isPersonal ? (
           <span className="border border-zinc-800/80 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
@@ -400,6 +400,6 @@ function NoteWorkspaceCard({
       <article className="border-t border-zinc-800/60 pt-3 text-xs leading-relaxed text-zinc-300 line-clamp-4">
         <RichText data={note.body} converters={defaultJSXConverters} />
       </article>
-    </OledCard>
+    </div>
   )
 }

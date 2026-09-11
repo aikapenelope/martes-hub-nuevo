@@ -1,6 +1,5 @@
 import Link from 'next/link'
 
-import { OledCard } from '@/components/workspace/oled'
 import { SegmentedBarChart } from '@/components/workspace/charts/SegmentedBarChart'
 import type { WeeklyCashflow } from '@/lib/trend-widgets'
 
@@ -23,7 +22,7 @@ export function WeeklyCashflowCard({ data }: { data: WeeklyCashflow }) {
   const hasData = totalCobrado > 0 || totalPendiente > 0
 
   return (
-    <OledCard>
+    <div className="bg-card text-card-foreground border border-border p-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Cobranza · 8 semanas</p>
         <Link href="/workspace/billing" className="text-[11px] font-mono text-cyan-400 hover:underline">
@@ -59,6 +58,6 @@ export function WeeklyCashflowCard({ data }: { data: WeeklyCashflow }) {
           </p>
         </div>
       )}
-    </OledCard>
+    </div>
   )
 }

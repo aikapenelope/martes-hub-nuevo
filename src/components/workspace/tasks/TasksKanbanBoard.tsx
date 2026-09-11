@@ -261,7 +261,7 @@ export function TasksKanbanBoard({
           return (
             <section
               key={column.status}
-              className={`oled-card flex flex-col transition-all duration-150 ${
+              className={`bg-card text-card-foreground border border-border flex flex-col transition-all duration-150 ${
                 isTarget
                   ? 'kanban-column-drop-active shadow-[0_0_15px_rgba(56,189,248,0.15)] ring-1 ring-sky-500/50'
                   : ''
@@ -335,7 +335,7 @@ export function TasksKanbanBoard({
                             setIsDrawerOpen(true)
                           }
                         }}
-                        className={`oled-card p-3 transition-all duration-150 relative group cursor-pointer hover:border-zinc-700 ${
+                        className={`bg-card text-card-foreground border border-border p-3 transition-all duration-150 relative group cursor-pointer hover:border-zinc-700 ${
                           isBeingDragged
                             ? 'opacity-30 scale-[0.97] border-sky-400/80 shadow-[0_0_15px_rgba(56,189,248,0.3)]'
                             : ''

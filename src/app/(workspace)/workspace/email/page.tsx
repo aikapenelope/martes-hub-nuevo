@@ -13,18 +13,20 @@ import { sendEmailCampaignAction } from '@/lib/email-campaign-actions'
 import { EmailCampaignCreateDialog } from '@/components/workspace/EmailCampaignCreateDialog'
 import { DirectEmailDrawer } from '@/components/workspace/email/DirectEmailDrawer'
 import type { Lead, Client } from '@/payload-types'
-import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
+import { KpiCard } from '@/components/workspace/kpi-card'
+import { PageHeader } from '@/components/workspace/page-header'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { EmailCampaign, EmailMessage, Segment } from '@/payload-types'
 
 const dateFmt = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
-const STATUS_TONE: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
+const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'destructive' | 'outline'> = {
   sent: 'success',
   sending: 'warning',
   partial: 'warning',
-  failed: 'danger',
-  draft: 'neutral',
+  failed: 'destructive',
+  draft: 'outline',
 }
 
 export default async function EmailCampaignsPage() {
@@ -95,7 +97,7 @@ export default async function EmailCampaignsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
         eyebrow={`Email · ${context.tenant.name}`}
         title="Email"
         description="Bandeja espejo del buzón (solo lectura) y campañas masivas vía Resend."
@@ -116,12 +118,12 @@ export default async function EmailCampaignsPage() {
           <KpiCard label="Entrantes" value={inboundCount} icon={Mail} accent="cyan" note="Recibidos fuera del CRM" />
           <KpiCard label="Vinculados a ficha" value={linkedCount} icon={Users} accent="indigo" note="Matching contra clients/leads" />
         </div>
-        <OledCard className="!p-0">
+        <div className="bg-card text-card-foreground border border-border p-3.5 !p-0">
           {inbox.length === 0 ? (
-            <EmptyState>
+            <div className="py-10 text-center font-mono text-xs text-muted-foreground">
               Sin mensajes espejados todavía — configura GMAIL_SYNC_ENABLED y las credenciales OAuth
               de Google para activar el sync cada 15 min.
-            </EmptyState>
+            </div>
           ) : (
             <div className="flex flex-col">
               {inbox.map((m) => {
@@ -136,9 +138,9 @@ export default async function EmailCampaignsPage() {
                     : null
                 return (
                   <div key={m.id} className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-0">
-                    <StatusBadge tone={isInbound ? 'success' : 'neutral'}>
+                    <Badge variant={isInbound ? 'success' : 'outline'} className="font-mono text-[10px]">
                       {isInbound ? '↓ entrante' : '↑ enviado'}
-                    </StatusBadge>
+                    </Badge>
                     <div className="min-w-0 flex-1">
                       <strong className="block truncate text-sm text-foreground">{m.subject ?? '(sin asunto)'}</strong>
                       <span className="block truncate text-[10px] text-muted-foreground font-mono">
@@ -159,7 +161,7 @@ export default async function EmailCampaignsPage() {
               })}
             </div>
           )}
-        </OledCard>
+        </div>
       </section>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -168,9 +170,9 @@ export default async function EmailCampaignsPage() {
         <KpiCard label="Rebotados" value={totalBounced.toLocaleString('es')} icon={Users} accent="rose" note="Suma histórica de bounces" />
       </section>
 
-      <OledCard className="!p-0">
+      <div className="bg-card text-card-foreground border border-border p-3.5 !p-0">
         {campaigns.length === 0 ? (
-          <EmptyState>Sin campañas de email todavía.</EmptyState>
+          <div className="py-10 text-center font-mono text-xs text-muted-foreground">Sin campañas de email todavía.</div>
         ) : (
           <div className="flex flex-col">
             {campaigns.map((c) => {
@@ -191,7 +193,7 @@ export default async function EmailCampaignsPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <StatusBadge tone={STATUS_TONE[c.status ?? 'draft'] ?? 'neutral'}>{c.status}</StatusBadge>
+                    <Badge variant={STATUS_VARIANT[c.status ?? 'draft'] ?? 'outline'} className="font-mono text-[10px]">{c.status}</Badge>
                     {canEdit && canSend && (
                       <form action={sendEmailCampaignAction}>
                         <input type="hidden" name="id" value={c.id} />
@@ -206,7 +208,7 @@ export default async function EmailCampaignsPage() {
             })}
           </div>
         )}
-      </OledCard>
+      </div>
     </div>
   )
 }

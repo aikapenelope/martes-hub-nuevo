@@ -8,17 +8,18 @@ import { MessageSquareText } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { MessageTemplateCreateDialog } from '@/components/workspace/MessageTemplateCreateDialog'
-import { EmptyState, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
+import { PageHeader } from '@/components/workspace/page-header'
+import { Badge } from '@/components/ui/badge'
 import type { MessageTemplate } from '@/payload-types'
 
 const dateFmt = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric' })
 
-const STATUS_TONE: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
+const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'destructive' | 'outline'> = {
   APPROVED: 'success',
   PENDING: 'warning',
-  REJECTED: 'danger',
-  DISABLED: 'danger',
-  PAUSED: 'neutral',
+  REJECTED: 'destructive',
+  DISABLED: 'destructive',
+  PAUSED: 'outline',
 }
 
 export default async function MessageTemplatesPage() {
@@ -38,16 +39,16 @@ export default async function MessageTemplatesPage() {
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
         eyebrow={`Plantillas WhatsApp · ${context.tenant.name}`}
         title="Plantillas de Mensajería"
         description="Sincronizadas a diario desde Meta vía OpenBSP. El estado de aprobación (metaStatus) solo lo actualiza el sync."
         actions={canEdit ? <MessageTemplateCreateDialog /> : undefined}
       />
 
-      <OledCard className="!p-0">
+      <div className="bg-card text-card-foreground border border-border p-3.5 !p-0">
         {templates.length === 0 ? (
-          <EmptyState>Sin plantillas sincronizadas todavía. Se sincronizan automáticamente todos los días a las 12:30.</EmptyState>
+          <div className="py-10 text-center font-mono text-xs text-muted-foreground">Sin plantillas sincronizadas todavía. Se sincronizan automáticamente todos los días a las 12:30.</div>
         ) : (
           <div className="flex flex-col">
             {templates.map((t) => (
@@ -65,14 +66,14 @@ export default async function MessageTemplatesPage() {
                     {t.openbspTemplateId && ` · ID OpenBSP: ${t.openbspTemplateId}`}
                   </span>
                 </div>
-                <StatusBadge tone={t.metaStatus ? STATUS_TONE[t.metaStatus] ?? 'neutral' : 'neutral'}>
+                <Badge variant={t.metaStatus ? STATUS_VARIANT[t.metaStatus] ?? 'outline' : 'outline'} className="font-mono text-[10px]">
                   {t.metaStatus ?? 'sin sync'}
-                </StatusBadge>
+                </Badge>
               </div>
             ))}
           </div>
         )}
-      </OledCard>
+      </div>
     </div>
   )
 }
