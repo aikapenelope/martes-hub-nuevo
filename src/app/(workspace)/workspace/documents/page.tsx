@@ -9,6 +9,14 @@ import { FileText, Receipt, File as FileIcon } from 'lucide-react'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { DocumentUploadDialog } from '@/components/workspace/DocumentUploadDialog'
 import { EmptyState, KpiCard, OledCard, PageHero } from '@/components/workspace/oled'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import type { Client, Document } from '@/payload-types'
 
 const dateFmt = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -73,40 +81,40 @@ export default async function DocumentsPage() {
           <EmptyState>Sin documentos subidos para este tenant todavía.</EmptyState>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-zinc-800 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
-                  <th className="px-4 py-2.5 font-medium">Título</th>
-                  <th className="px-4 py-2.5 font-medium">Cliente</th>
-                  <th className="px-4 py-2.5 font-medium">Tipo</th>
-                  <th className="px-4 py-2.5 font-medium">Actualizado</th>
-                  <th className="px-4 py-2.5"><span className="sr-only">Abrir</span></th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-left text-xs">
+              <TableHeader>
+                <TableRow className="border-b font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <TableHead className="px-4 py-2.5 font-medium">Título</TableHead>
+                  <TableHead className="px-4 py-2.5 font-medium">Cliente</TableHead>
+                  <TableHead className="px-4 py-2.5 font-medium">Tipo</TableHead>
+                  <TableHead className="px-4 py-2.5 font-medium">Actualizado</TableHead>
+                  <TableHead className="px-4 py-2.5"><span className="sr-only">Abrir</span></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {documents.map((d) => {
                   const clientName = typeof d.client === 'object' && d.client ? (d.client as Client).name : `Cliente #${d.client}`
                   const Icon = TYPE_ICON[d.documentType ?? 'otro'] ?? FileIcon
                   return (
-                    <tr key={d.id} className="border-b border-zinc-900 hover:bg-zinc-900/40">
-                      <td className="px-4 py-3 text-white inline-flex items-center gap-2">
-                        <Icon className="w-3.5 h-3.5 text-zinc-500" /> {d.title}
-                      </td>
-                      <td className="px-4 py-3 text-zinc-400">{clientName}</td>
-                      <td className="px-4 py-3 text-zinc-400 capitalize">{d.documentType}</td>
-                      <td className="px-4 py-3 text-zinc-400">{dateFmt.format(new Date(d.updatedAt))}</td>
-                      <td className="px-4 py-3 text-right">
+                    <TableRow key={d.id} className="border-b hover:bg-muted/40">
+                      <TableCell className="inline-flex items-center gap-2 px-4 py-3 text-foreground">
+                        <Icon className="h-3.5 w-3.5 text-muted-foreground" /> {d.title}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-muted-foreground">{clientName}</TableCell>
+                      <TableCell className="px-4 py-3 text-muted-foreground capitalize">{d.documentType}</TableCell>
+                      <TableCell className="px-4 py-3 text-muted-foreground">{dateFmt.format(new Date(d.updatedAt))}</TableCell>
+                      <TableCell className="px-4 py-3 text-right">
                         {d.url && (
-                          <a href={d.url} target="_blank" rel="noreferrer" className="text-zinc-500 hover:text-white text-xs font-mono">
+                          <a href={d.url} target="_blank" rel="noreferrer" className="font-mono text-xs text-muted-foreground hover:text-foreground">
                             Abrir →
                           </a>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </OledCard>
