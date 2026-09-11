@@ -51,43 +51,67 @@ export default async function WorkspacePage({
 
   const [data, agenda, trends, cashflow] = await Promise.all([
     getWorkspaceOverviewData({ payload, user, tenant, tenantId, timeRange }),
-    getUpcomingAgenda({ payload, user, tenantId, days: 7 }),
-    getMonthlyTrends({ payload, tenantId, user }),
-    getWeeklyCashflow({ payload, tenantId, user }),
+    getUpcomingAgenda({ payload, user, tenantId, days: 7 }).catch((err) => {
+      console.error('[workspace] Error cargando agenda próxima:', err)
+      return []
+    }),
+    getMonthlyTrends({ payload, tenantId, user }).catch((err) => {
+      console.error('[workspace] Error cargando tendencias mensuales:', err)
+      return null
+    }),
+    getWeeklyCashflow({ payload, tenantId, user }).catch((err) => {
+      console.error('[workspace] Error cargando flujo semanal:', err)
+      return null
+    }),
   ])
 
   const [clientsForDialog, agentsForDrawer, segmentsForDrawer] = await Promise.all([
     canEdit
-      ? payload.find({
-          collection: 'clients',
-          limit: 200,
-          sort: 'name',
-          depth: 0,
-          select: { name: true },
-          where: { tenant: { equals: tenantId } },
-          overrideAccess: false,
-          user,
-        })
+      ? payload
+          .find({
+            collection: 'clients',
+            limit: 200,
+            sort: 'name',
+            depth: 0,
+            select: { name: true },
+            where: { tenant: { equals: tenantId } },
+            overrideAccess: false,
+            user,
+          })
+          .catch((err) => {
+            console.error('[workspace] Error cargando clientes para diálogo:', err)
+            return null
+          })
       : Promise.resolve(null),
     canEdit
-      ? payload.find({
-          collection: 'users',
-          where: { and: [{ roles: { in: ['admin', 'agente'] } }, { active: { equals: true } }] },
-          limit: 100,
-          depth: 0,
-          overrideAccess: false,
-          user,
-        })
+      ? payload
+          .find({
+            collection: 'users',
+            where: { and: [{ roles: { in: ['admin', 'agente'] } }, { active: { equals: true } }] },
+            limit: 100,
+            depth: 0,
+            overrideAccess: false,
+            user,
+          })
+          .catch((err) => {
+            console.error('[workspace] Error cargando agentes para drawer:', err)
+            return null
+          })
       : Promise.resolve(null),
     canEdit
-      ? payload.find({
-          collection: 'segments',
-          where: { tenant: { equals: tenantId } },
-          limit: 200,
-          depth: 0,
-          overrideAccess: false,
-          user,
-        })
+      ? payload
+          .find({
+            collection: 'segments',
+            where: { tenant: { equals: tenantId } },
+            limit: 200,
+            depth: 0,
+            overrideAccess: false,
+            user,
+          })
+          .catch((err) => {
+            console.error('[workspace] Error cargando segmentos para drawer:', err)
+            return null
+          })
       : Promise.resolve(null),
   ])
 
