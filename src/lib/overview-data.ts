@@ -227,6 +227,36 @@ async function fetchAllLeadsSource(
   return all
 }
 
+async function fetchAllCritical24hConversations(
+  q: <T extends Parameters<Payload['find']>[0]>(opts: T) => Promise<unknown>,
+  tenantId: number,
+  nowTime: number,
+): Promise<{ lastInboundAt?: string | null; lastMessageAt?: string | null; status?: string | null }[]> {
+  const all: { lastInboundAt?: string | null; lastMessageAt?: string | null; status?: string | null }[] = []
+  let page = 1
+  while (true) {
+    const res = (await q({
+      collection: 'conversations',
+      depth: 0,
+      limit: 500,
+      page,
+      select: { lastInboundAt: true, lastMessageAt: true, status: true, channel: true },
+      where: tenantWhere(tenantId, {
+        and: [
+          { status: { equals: 'open' } },
+          { channel: { in: ['whatsapp', 'whatsapp_web'] } },
+          { lastInboundAt: { greater_than: new Date(nowTime - 24 * 3600_000).toISOString() } },
+          { lastInboundAt: { less_than_equal: new Date(nowTime - 20 * 3600_000).toISOString() } },
+        ],
+      }),
+    })) as { docs: { lastInboundAt?: string | null; lastMessageAt?: string | null; status?: string | null }[]; hasNextPage?: boolean }
+    all.push(...(res.docs ?? []))
+    if (!res.hasNextPage) break
+    page++
+  }
+  return all
+}
+
 export async function getWorkspaceOverviewData({
   payload,
   user,
@@ -389,19 +419,7 @@ export async function getWorkspaceOverviewData({
       }),
     }),
     quotesAggregate(payload, tenantId, ['draft', 'sent']),
-    q({
-      collection: 'conversations',
-      depth: 0,
-      limit: 200,
-      select: { lastInboundAt: true, lastMessageAt: true, status: true },
-      where: tenantWhere(tenantId, {
-        and: [
-          { status: { equals: 'open' } },
-          { lastInboundAt: { greater_than: new Date(nowTime - 24 * 3600_000).toISOString() } },
-          { lastInboundAt: { less_than_equal: new Date(nowTime - 20 * 3600_000).toISOString() } },
-        ],
-      }),
-    }),
+    fetchAllCritical24hConversations(q, tenantId, nowTime),
     fetchAllLeadsSource(q, tenantId),
     q({
       collection: 'leads',
@@ -502,14 +520,13 @@ export async function getWorkspaceOverviewData({
   }
   const averageTicket = revenuePeriod.count > 0 ? Math.round(revenuePeriod.total / revenuePeriod.count) : 0
 
-  // Salud 24h WhatsApp: solo conversaciones abiertas esperando respuesta del agente
+  // Salud 24h WhatsApp: solo conversaciones abiertas de WhatsApp esperando respuesta del agente
   // (sin respuesta saliente posterior a lastInboundAt)
-  const critical24hDocs = (critical24hConversationsRes.docs ?? []) as {
+  const critical24hCount = (critical24hConversationsRes as {
     lastInboundAt?: string | null
     lastMessageAt?: string | null
     status?: string | null
-  }[]
-  const critical24hCount = critical24hDocs.filter((conv) => {
+  }[]).filter((conv) => {
     if (conv.status !== 'open' || !conv.lastInboundAt) return false
     if (!conv.lastMessageAt) return true
     return new Date(conv.lastMessageAt).getTime() <= new Date(conv.lastInboundAt).getTime()

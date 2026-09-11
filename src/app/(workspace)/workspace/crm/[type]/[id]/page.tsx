@@ -38,7 +38,7 @@ import {
 } from '@/lib/crm-actions'
 import { cancelSequenceEnrollmentAction, enrollLeadInSequenceAction } from '@/lib/sequence-actions'
 import { findAllPages } from '@/lib/lead-scoring'
-import { getCrmRecord, type CrmView } from '@/lib/crm-data'
+import { getCrmRecord, getCrmBilledTotals, type CrmView } from '@/lib/crm-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
 import { ActivityDrawer } from '@/components/workspace/ActivityDrawer'
@@ -48,7 +48,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getAssignableUsers } from '@/lib/tasks-data'
 import { changeTaskStatusAction } from '@/lib/tasks-actions'
-import { computeDealVelocity, computeWindowState, formatTimeAgo } from '@/lib/crm-pipeline-window'
+import { computeDealVelocity, computeWindowState, formatTimeAgo, resolvePastActivityTimestamp } from '@/lib/crm-pipeline-window'
 import { cn } from '@/lib/utils'
 import type { Client, Company, Lead, Segment, User } from '@/payload-types'
 
@@ -348,10 +348,14 @@ export default async function CrmRecordPage({
   }
 
   // Métricas 360° del Contacto
-  const lastActivityIso =
-    detail.timeline[0]?.date ||
-    (isLead ? leadRecord?.updatedAt : isClient ? clientRecord?.updatedAt : companyRecord?.updatedAt) ||
-    new Date().toISOString()
+  // La recencia se deriva exclusivamente de eventos ocurridos en el pasado o presente (<= now),
+  // evitando que tareas o citas programadas a futuro marquen un deal como fresco/activo ahora.
+  const fallbackRecordDate = isLead
+    ? leadRecord?.updatedAt
+    : isClient
+    ? clientRecord?.updatedAt
+    : companyRecord?.updatedAt
+  const lastActivityIso = resolvePastActivityTimestamp(detail.timeline, fallbackRecordDate)
   const dealVelocity = computeDealVelocity(lastActivityIso)
 
   // Conversación y ventana SLA de WhatsApp Meta
@@ -369,13 +373,15 @@ export default async function CrmRecordPage({
       .map((part) => part[0]?.toUpperCase())
       .join('') || (isCompany ? 'EM' : isLead ? 'LD' : 'CL')
 
-  // Total cobrado / LTV
-  const totalBilled = detail.timeline
-    .filter((t) => t.kind === 'cobro' && t.detail?.includes('pagado'))
-    .reduce((acc, t) => {
-      const match = t.detail?.match(/\$([0-9.]+)/)
-      return acc + (match ? Number(match[1]) : 0)
-    }, 0)
+  // Total cobrado / LTV (exhaustivo y tenant-scoped directamente en la colección 'payments')
+  const { totalBilled, billedCount } = await getCrmBilledTotals({
+    payload: context.payload,
+    user: context.user,
+    tenantId: context.tenantId,
+    type,
+    id,
+    relatedClients: detail.relatedClients,
+  })
 
   const pendingTasksCount = detail.tasks.filter(
     (t) => t.status !== 'completada' && t.status !== 'cancelada',
@@ -531,7 +537,7 @@ export default async function CrmRecordPage({
             </span>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground truncate">
-            {isLead ? 'Valor proyectado de cierre' : `${detail.timeline.filter((t) => t.kind === 'cobro').length} cobros registrados`}
+            {isLead ? 'Valor proyectado de cierre' : `${billedCount} ${billedCount === 1 ? 'cobro pagado' : 'cobros pagados'}`}
           </p>
         </Card>
 

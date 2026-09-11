@@ -76,7 +76,11 @@ export function computeDealVelocity(
   if (!lastActiveIso) {
     return { temperature: 'cold', hoursSinceLastActivity: 999, label: 'Sin actividad' }
   }
-  const diffMs = Math.max(0, now - new Date(lastActiveIso).getTime())
+  const activityTime = new Date(lastActiveIso).getTime()
+  if (Number.isNaN(activityTime) || activityTime > now) {
+    return { temperature: 'cold', hoursSinceLastActivity: 999, label: 'Sin actividad' }
+  }
+  const diffMs = Math.max(0, now - activityTime)
   const hours = Math.floor(diffMs / (60 * 60 * 1000))
   if (hours < 24) {
     return {
@@ -116,5 +120,32 @@ export function resolveLastActiveTimestamp(...dates: (string | null | undefined)
     }
   }
   return mostRecent
+}
+
+/**
+ * Resuelve la última interacción ocurrida en el pasado o presente (<= now)
+ * a partir de una lista de eventos (ej. timeline de CRM), ignorando eventos
+ * programados a futuro (como vencimientos de tareas o citas futuras) para
+ * no clasificar erróneamente registros inactivos como frescos/calientes.
+ */
+export function resolvePastActivityTimestamp(
+  timeline: { date: string }[],
+  fallbackIso?: string | null,
+  now: number = Date.now(),
+): string | null {
+  const pastEntry = timeline.find((e) => {
+    const t = new Date(e.date).getTime()
+    return !Number.isNaN(t) && t <= now
+  })
+  if (pastEntry) return pastEntry.date
+
+  if (fallbackIso) {
+    const fallbackTime = new Date(fallbackIso).getTime()
+    if (!Number.isNaN(fallbackTime) && fallbackTime <= now) {
+      return fallbackIso
+    }
+  }
+
+  return null
 }
 
