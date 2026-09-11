@@ -14,6 +14,7 @@ import { EmailCampaignCreateDialog } from '@/components/workspace/EmailCampaignC
 import { DirectEmailDrawer } from '@/components/workspace/email/DirectEmailDrawer'
 import type { Lead, Client } from '@/payload-types'
 import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
+import { Button } from '@/components/ui/button'
 import type { EmailCampaign, EmailMessage, Segment } from '@/payload-types'
 
 const dateFmt = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -107,7 +108,7 @@ export default async function EmailCampaignsPage() {
       />
 
       <section>
-        <h2 className="mb-2 text-xs font-mono uppercase tracking-wider text-zinc-400">
+        <h2 className="mb-2 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           Bandeja del buzón · espejo Gmail (solo lectura)
         </h2>
         <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -134,21 +135,21 @@ export default async function EmailCampaignsPage() {
                     ? `/workspace/crm/leads/${leadObj.id}`
                     : null
                 return (
-                  <div key={m.id} className="flex items-center gap-3 border-b border-zinc-900 px-4 py-3 last:border-0">
+                  <div key={m.id} className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-0">
                     <StatusBadge tone={isInbound ? 'success' : 'neutral'}>
                       {isInbound ? '↓ entrante' : '↑ enviado'}
                     </StatusBadge>
                     <div className="min-w-0 flex-1">
-                      <strong className="block truncate text-sm text-white">{m.subject ?? '(sin asunto)'}</strong>
-                      <span className="block truncate text-[10px] text-zinc-500 font-mono">
+                      <strong className="block truncate text-sm text-foreground">{m.subject ?? '(sin asunto)'}</strong>
+                      <span className="block truncate text-[10px] text-muted-foreground font-mono">
                         {counterpart} · {dateFmt.format(new Date(m.date))}
                       </span>
-                      {m.snippet && <span className="block truncate text-[11px] text-zinc-400">{m.snippet}</span>}
+                      {m.snippet && <span className="block truncate text-[11px] text-muted-foreground">{m.snippet}</span>}
                     </div>
                     {fichaHref && (
                       <Link
                         href={fichaHref}
-                        className="shrink-0 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:text-white"
+                        className="shrink-0 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground"
                       >
                         Ver ficha →
                       </Link>
@@ -176,15 +177,15 @@ export default async function EmailCampaignsPage() {
               const segmentObj = typeof c.segment === 'object' && c.segment ? (c.segment as Segment) : null
               const canSend = c.status === 'draft' || c.status === 'failed'
               return (
-                <div key={c.id} className="flex items-center justify-between gap-3 border-b border-zinc-900 px-4 py-3 last:border-0">
+                <div key={c.id} className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-0">
                   <div className="min-w-0 flex-1">
-                    <strong className="block truncate text-sm text-white">{c.name}</strong>
-                    <span className="text-[10px] text-zinc-500 font-mono">
+                    <strong className="block truncate text-sm text-foreground">{c.name}</strong>
+                    <span className="text-[10px] text-muted-foreground font-mono">
                       {c.subject} · {segmentObj ? segmentObj.name : 'Toda la audiencia'}
                       {c.sentAt && ` · enviada ${dateFmt.format(new Date(c.sentAt))}`}
                     </span>
                     {(c.sentCount ?? 0) > 0 && (
-                      <span className="ml-0 mt-0.5 block text-[10px] text-zinc-400 font-mono">
+                      <span className="ml-0 mt-0.5 block text-[10px] text-muted-foreground font-mono">
                         {c.sentCount} enviados{(c.bouncedCount ?? 0) > 0 ? ` · ${c.bouncedCount} rebotados` : ''}
                       </span>
                     )}
@@ -194,9 +195,9 @@ export default async function EmailCampaignsPage() {
                     {canEdit && canSend && (
                       <form action={sendEmailCampaignAction}>
                         <input type="hidden" name="id" value={c.id} />
-                        <button type="submit" className="px-2.5 py-1 bg-white text-black text-[10px] font-bold uppercase tracking-wider font-mono inline-flex items-center gap-1">
-                          <Send size={11} /> Enviar
-                        </button>
+                        <Button type="submit" size="xs" className="font-mono text-[10px] font-bold uppercase tracking-wider">
+                          <Send className="size-3" /> Enviar
+                        </Button>
                       </form>
                     )}
                   </div>

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import type { CalendarEvent, CalendarMonthData } from '@/lib/calendar-data'
 import { TaskCreateDialog } from '@/components/workspace/TaskCreateDialog'
+import { Button } from '@/components/ui/button'
 import type { Client, Lead, User as PayloadUser } from '@/payload-types'
 
 type FilterType = 'all' | 'cita' | 'task' | 'payment' | 'membership'
@@ -205,37 +206,43 @@ export function CalendarView({
   return (
     <div className="space-y-4">
       {/* Barra de Control: Navegación de Mes + Filtros de Categoría */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border border-zinc-800 bg-zinc-950 p-4 shadow-xl">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border border-border bg-background p-4 shadow-xl">
         <div className="flex items-center gap-2">
-          <div className="flex items-center border border-zinc-800 bg-black">
-            <button
+          <div className="flex items-center border border-border bg-background">
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={prevMonth}
-              className="p-2 text-zinc-400 hover:text-white transition hover:bg-zinc-900"
+              className="rounded-none text-muted-foreground hover:bg-muted hover:text-foreground"
               title="Mes anterior"
             >
               <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="px-3 text-sm font-bold uppercase font-mono text-white tracking-wider">
+            </Button>
+            <span className="px-3 text-sm font-bold uppercase font-mono text-foreground tracking-wider">
               {monthName} {year}
             </span>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={nextMonth}
-              className="p-2 text-zinc-400 hover:text-white transition hover:bg-zinc-900"
+              className="rounded-none text-muted-foreground hover:bg-muted hover:text-foreground"
               title="Mes siguiente"
             >
               <ChevronRight className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
 
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={goToday}
-            className="border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs font-mono uppercase font-bold text-zinc-300 hover:bg-zinc-800 hover:text-white transition"
+            className="border-input bg-muted px-3 font-mono text-xs font-bold uppercase text-foreground/80 hover:bg-accent hover:text-foreground"
           >
             Hoy
-          </button>
+          </Button>
 
           {canEdit && assignees && assignees.length > 0 && (
             <TaskCreateDialog
@@ -250,81 +257,86 @@ export function CalendarView({
 
         {/* Filtros rápidos */}
         <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => setFilter('all')}
-            className={`px-2.5 py-1 text-[11px] font-bold transition border uppercase ${
+            className={`h-auto rounded-none border px-2.5 py-1 text-[11px] font-bold uppercase ${
               filter === 'all'
-                ? 'border-white bg-white text-black'
-                : 'border-zinc-800 bg-black text-zinc-400 hover:text-white'
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-background text-muted-foreground hover:text-foreground'
             }`}
           >
             Todos ({events.length})
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
             onClick={() => setFilter('cita')}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition border uppercase ${
+            className={`h-auto flex items-center gap-1 rounded-none border px-2.5 py-1 text-[11px] font-bold uppercase ${
               filter === 'cita'
                 ? 'border-sky-400 bg-sky-950/80 text-sky-300'
-                : 'border-zinc-800 bg-black text-zinc-400 hover:text-white'
+                : 'border-border bg-background text-muted-foreground hover:text-foreground'
             }`}
           >
-            <CalendarClock size={12} className="text-sky-400" />
+            <CalendarClock className="size-3 text-sky-400" />
             Citas ({totals.citas})
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
             onClick={() => setFilter('task')}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition border uppercase ${
+            className={`h-auto flex items-center gap-1 rounded-none border px-2.5 py-1 text-[11px] font-bold uppercase ${
               filter === 'task'
                 ? 'border-indigo-400 bg-indigo-950/80 text-indigo-300'
-                : 'border-zinc-800 bg-black text-zinc-400 hover:text-white'
+                : 'border-border bg-background text-muted-foreground hover:text-foreground'
             }`}
           >
-            <SquareCheck size={12} className="text-indigo-400" />
+            <SquareCheck className="size-3 text-indigo-400" />
             Tareas ({totals.tasks})
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
             onClick={() => setFilter('payment')}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition border uppercase ${
+            className={`h-auto flex items-center gap-1 rounded-none border px-2.5 py-1 text-[11px] font-bold uppercase ${
               filter === 'payment'
                 ? 'border-amber-400 bg-amber-950/80 text-amber-300'
-                : 'border-zinc-800 bg-black text-zinc-400 hover:text-white'
+                : 'border-border bg-background text-muted-foreground hover:text-foreground'
             }`}
           >
-            <CircleDollarSign size={12} className="text-amber-400" />
+            <CircleDollarSign className="size-3 text-amber-400" />
             Cobros ({totals.payments})
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
             onClick={() => setFilter('membership')}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition border uppercase ${
+            className={`h-auto flex items-center gap-1 rounded-none border px-2.5 py-1 text-[11px] font-bold uppercase ${
               filter === 'membership'
                 ? 'border-emerald-400 bg-emerald-950/80 text-emerald-300'
-                : 'border-zinc-800 bg-black text-zinc-400 hover:text-white'
+                : 'border-border bg-background text-muted-foreground hover:text-foreground'
             }`}
           >
-            <RefreshCcw size={12} className="text-emerald-400" />
+            <RefreshCcw className="size-3 text-emerald-400" />
             Membresías ({totals.memberships})
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Cuadrícula del Calendario */}
-      <div className="border border-zinc-800 bg-zinc-950 shadow-2xl overflow-hidden">
+      <div className="border border-border bg-background shadow-2xl overflow-hidden">
         {/* Cabecera de días de la semana */}
-        <div className="grid grid-cols-7 border-b border-zinc-800 bg-black/60 text-center font-mono text-xs font-bold uppercase tracking-wider text-zinc-400">
+        <div className="grid grid-cols-7 border-b border-border bg-background/60 text-center font-mono text-xs font-bold uppercase tracking-wider text-muted-foreground">
           {DAYS_OF_WEEK.map((day) => (
-            <div key={day} className="py-2.5 border-r border-zinc-800/60 last:border-r-0">
+            <div key={day} className="py-2.5 border-r border-border/60 last:border-r-0">
               {day}
             </div>
           ))}
         </div>
 
         {/* Días en cuadrícula */}
-        <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-zinc-900">
+        <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-border">
           {allGridDays.map((gridDay, idx) => {
             const isToday = gridDay.dateKey === todayKey
             const dayEvents = eventsByDay.get(gridDay.dateKey) ?? []
@@ -333,7 +345,7 @@ export function CalendarView({
               <div
                 key={`${gridDay.dateKey}-${idx}`}
                 className={`min-h-[115px] p-1.5 flex flex-col transition ${
-                  gridDay.currentMonth ? 'bg-zinc-950' : 'bg-black/40 opacity-40'
+                  gridDay.currentMonth ? 'bg-background' : 'bg-background/40 opacity-40'
                 } ${isToday ? 'ring-1 ring-inset ring-sky-400/80' : ''}`}
               >
                 <div className="flex items-center justify-between px-1 mb-1">
@@ -342,14 +354,14 @@ export function CalendarView({
                       isToday
                         ? 'flex h-5 w-5 items-center justify-center rounded-full bg-sky-400 text-black font-extrabold'
                         : gridDay.currentMonth
-                        ? 'text-zinc-300 font-semibold'
-                        : 'text-zinc-600'
+                        ? 'text-foreground/80 font-semibold'
+                        : 'text-muted-foreground'
                     }`}
                   >
                     {gridDay.day}
                   </span>
                   {dayEvents.length > 0 && (
-                    <span className="text-[9px] font-mono text-zinc-500">
+                    <span className="text-[9px] font-mono text-muted-foreground">
                       {dayEvents.length}
                     </span>
                   )}
@@ -371,32 +383,34 @@ export function CalendarView({
                       : 'border-emerald-800/80 bg-emerald-950/70 text-emerald-300 hover:border-emerald-400'
 
                     return (
-                      <button
+                      <Button
                         key={event.id}
                         type="button"
+                        variant="outline"
                         onClick={() => setSelectedEvent(event)}
-                        className={`w-full text-left truncate rounded border px-1.5 py-0.5 text-[10px] font-mono transition flex items-center gap-1 ${badgeStyle}`}
+                        className={`h-auto w-full justify-start gap-1 rounded border px-1.5 py-0.5 text-left text-[10px] font-mono ${badgeStyle}`}
                         title={event.title}
                       >
                         {isCita ? (
-                          <CalendarClock size={9} className="shrink-0 text-sky-400" />
+                          <CalendarClock className="size-[9px] shrink-0 text-sky-400" />
                         ) : isTask ? (
-                          <SquareCheck size={9} className="shrink-0 text-indigo-400" />
+                          <SquareCheck className="size-[9px] shrink-0 text-indigo-400" />
                         ) : (
-                          <CircleDollarSign size={9} className="shrink-0 text-amber-400" />
+                          <CircleDollarSign className="size-[9px] shrink-0 text-amber-400" />
                         )}
                         <span className="truncate">{event.title}</span>
-                      </button>
+                      </Button>
                     )
                   })}
                   {dayEvents.length > 3 && (
-                    <button
+                    <Button
                       type="button"
+                      variant="link"
                       onClick={() => setSelectedDayEvents({ dateKey: gridDay.dateKey, events: dayEvents })}
-                      className="w-full text-center text-[9px] font-mono text-zinc-500 hover:text-white hover:underline transition cursor-pointer"
+                      className="h-auto w-full justify-center p-0 text-[9px] font-mono text-muted-foreground hover:text-foreground hover:underline"
                     >
                       +{dayEvents.length - 3} más
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -408,14 +422,14 @@ export function CalendarView({
       {/* Modal / Dialog de Detalle del Evento */}
       {selectedEvent && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
           onClick={() => setSelectedEvent(null)}
         >
           <div
-            className="w-full max-w-md border border-zinc-800 bg-zinc-950 p-5 shadow-2xl text-white font-mono space-y-4"
+            className="w-full max-w-md border border-border bg-background p-5 shadow-2xl text-foreground font-mono space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between border-b border-zinc-800 pb-3">
+            <div className="flex items-start justify-between border-b border-border pb-3">
               <div>
                 <span
                   className={`inline-block border px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider mb-1.5 ${
@@ -434,20 +448,23 @@ export function CalendarView({
                     ? 'Cobro / Facturación'
                     : 'Renovación de Membresía'}
                 </span>
-                <h3 className="text-base font-bold text-white font-sans">{selectedEvent.title}</h3>
+                <h3 className="text-base font-bold text-foreground font-sans">{selectedEvent.title}</h3>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => setSelectedEvent(null)}
-                className="text-zinc-500 hover:text-white transition"
+                aria-label="Cerrar"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
 
-            <div className="space-y-2 text-xs text-zinc-300">
+            <div className="space-y-2 text-xs text-foreground/80">
               <div className="flex items-center gap-2">
-                <CalendarClock className="h-4 w-4 text-zinc-500 shrink-0" />
+                <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span>
                   {formatEventDate(selectedEvent.date, selectedEvent.allDay)}
                   {!selectedEvent.allDay && ` · ${timeFmt.format(new Date(selectedEvent.date))}`}
@@ -456,22 +473,22 @@ export function CalendarView({
 
               {selectedEvent.location && (
                 <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-zinc-500 shrink-0" />
+                  <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="truncate">{selectedEvent.location}</span>
                 </div>
               )}
 
               {selectedEvent.sublabel && (
-                <div className="text-[11px] text-zinc-400 border-l-2 border-zinc-700 pl-2">
+                <div className="text-[11px] text-muted-foreground border-l-2 border-muted-foreground/40 pl-2">
                   {selectedEvent.sublabel}
                 </div>
               )}
 
               {selectedEvent.contactName && (
-                <div className="flex items-center justify-between border-t border-zinc-900 pt-2 mt-2">
+                <div className="flex items-center justify-between border-t border-border pt-2 mt-2">
                   <div className="flex items-center gap-1.5">
-                    <User className="h-3.5 w-3.5 text-zinc-400" />
-                    <span className="text-white font-bold">{selectedEvent.contactName}</span>
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-foreground font-bold">{selectedEvent.contactName}</span>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -499,28 +516,35 @@ export function CalendarView({
               )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-zinc-900 pt-3">
+            <div className="flex items-center justify-between border-t border-border pt-3">
               {selectedEvent.href ? (
-                <a
-                  href={selectedEvent.href}
-                  target={selectedEvent.href.startsWith('http') ? '_blank' : '_self'}
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 text-xs text-white font-bold uppercase transition"
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 bg-muted px-3 text-xs font-bold uppercase text-foreground hover:bg-accent hover:text-foreground"
                 >
-                  <ExternalLink size={12} />
-                  {selectedEvent.href.includes('google.com')
-                    ? 'Abrir en Google'
-                    : 'Abrir detalle'}
-                </a>
+                  <a
+                    href={selectedEvent.href}
+                    target={selectedEvent.href.startsWith('http') ? '_blank' : '_self'}
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="size-3" />
+                    {selectedEvent.href.includes('google.com')
+                      ? 'Abrir en Google'
+                      : 'Abrir detalle'}
+                  </a>
+                </Button>
               ) : <div />}
 
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setSelectedEvent(null)}
-                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white"
+                className="px-3 text-xs text-muted-foreground hover:text-foreground"
               >
                 Cerrar
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -529,28 +553,30 @@ export function CalendarView({
       {/* Modal / Dialog de Lista Completa de Eventos del Día */}
       {selectedDayEvents && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
           onClick={() => setSelectedDayEvents(null)}
         >
           <div
-            className="w-full max-w-lg max-h-[85vh] overflow-y-auto border border-zinc-800 bg-zinc-950 p-5 shadow-2xl text-white font-mono space-y-4"
+            className="w-full max-w-lg max-h-[85vh] overflow-y-auto border border-border bg-background p-5 shadow-2xl text-foreground font-mono space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between border-b border-zinc-800 pb-3">
+            <div className="flex items-start justify-between border-b border-border pb-3">
               <div>
-                <p className="text-xs text-zinc-400 uppercase tracking-wider">Compromisos del día</p>
-                <h3 className="text-base font-bold text-white mt-1">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Compromisos del día</p>
+                <h3 className="text-base font-bold text-foreground mt-1">
                   {selectedDayEvents.dateKey} · {selectedDayEvents.events.length} eventos
                 </h3>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => setSelectedDayEvents(null)}
-                className="text-zinc-500 hover:text-white"
                 aria-label="Cerrar"
+                className="text-muted-foreground hover:text-foreground"
               >
-                <X size={18} />
-              </button>
+                <X className="size-[18px]" />
+              </Button>
             </div>
 
             <div className="space-y-2">
@@ -564,31 +590,32 @@ export function CalendarView({
                   : 'border-amber-800 bg-amber-950/40 text-amber-200 hover:border-amber-500'
 
                 return (
-                  <button
+                  <Button
                     key={event.id}
                     type="button"
+                    variant="outline"
                     onClick={() => {
                       setSelectedDayEvents(null)
                       setSelectedEvent(event)
                     }}
-                    className={`w-full text-left p-2.5 border rounded flex items-center justify-between gap-2 transition cursor-pointer ${badgeStyle}`}
+                    className={`h-auto w-full justify-between gap-2 rounded border p-2.5 ${badgeStyle}`}
                   >
                     <div className="flex items-center gap-2 truncate">
                       {isCita ? (
-                        <CalendarClock size={14} className="shrink-0 text-sky-400" />
+                        <CalendarClock className="size-3.5 shrink-0 text-sky-400" />
                       ) : isTask ? (
-                        <SquareCheck size={14} className="shrink-0 text-indigo-400" />
+                        <SquareCheck className="size-3.5 shrink-0 text-indigo-400" />
                       ) : (
-                        <CircleDollarSign size={14} className="shrink-0 text-amber-400" />
+                        <CircleDollarSign className="size-3.5 shrink-0 text-amber-400" />
                       )}
-                      <span className="text-xs font-semibold text-white truncate">{event.title}</span>
+                      <span className="text-xs font-semibold text-foreground truncate">{event.title}</span>
                     </div>
                     {event.sublabel && (
-                      <span className="text-[10px] text-zinc-400 shrink-0 font-mono">
+                      <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
                         {event.sublabel}
                       </span>
                     )}
-                  </button>
+                  </Button>
                 )
               })}
             </div>
