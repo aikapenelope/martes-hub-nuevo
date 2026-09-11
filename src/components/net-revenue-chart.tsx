@@ -89,7 +89,8 @@ export function NetRevenueChart({
 	title?: string;
 	description?: string;
 } = {}) {
-	const rows = data && data.length > 0 ? data : chartRows;
+	const isExplicitEmpty = data !== undefined && data.length === 0;
+	const rows = data !== undefined ? data : chartRows;
 	const firstDaySales = rows[0]?.sales ?? 0;
 	const lastDaySales = rows.at(-1)?.sales ?? firstDaySales;
 	const currentGrowth =
@@ -110,30 +111,37 @@ export function NetRevenueChart({
 				<CardDescription>{description}</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<ChartContainer
-					className="aspect-auto h-60 w-full md:h-80"
-					config={chartConfig}
-				>
-					<BarChart accessibilityLayer data={rows}>
-						<XAxis
-							axisLine={false}
-							dataKey="day"
-							interval={0}
-							tickFormatter={(value) => String(value)}
-							tickLine={false}
-							tickMargin={10}
-						/>
-						<ChartTooltip
-							content={<ChartTooltipContent hideLabel />}
-							cursor={false}
-						/>
-						<Bar
-							dataKey="sales"
-							fill="var(--color-sales)"
-							shape={<CustomGradientBar />}
-						/>
-					</BarChart>
-				</ChartContainer>
+				{isExplicitEmpty ? (
+					<div className="flex aspect-auto h-60 w-full flex-col items-center justify-center text-center space-y-1 md:h-80">
+						<p className="text-sm font-medium text-foreground">Sin ingresos en este período</p>
+						<p className="text-xs text-muted-foreground">El flujo de cobros confirmados aparecerá graficado aquí.</p>
+					</div>
+				) : (
+					<ChartContainer
+						className="aspect-auto h-60 w-full md:h-80"
+						config={chartConfig}
+					>
+						<BarChart accessibilityLayer data={rows}>
+							<XAxis
+								axisLine={false}
+								dataKey="day"
+								interval={0}
+								tickFormatter={(value) => String(value)}
+								tickLine={false}
+								tickMargin={10}
+							/>
+							<ChartTooltip
+								content={<ChartTooltipContent hideLabel />}
+								cursor={false}
+							/>
+							<Bar
+								dataKey="sales"
+								fill="var(--color-sales)"
+								shape={<CustomGradientBar />}
+							/>
+						</BarChart>
+					</ChartContainer>
+				)}
 			</CardContent>
 		</DashboardCard>
 	);

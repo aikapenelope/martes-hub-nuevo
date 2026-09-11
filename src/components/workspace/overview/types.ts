@@ -56,7 +56,9 @@ export interface WorkspaceOverviewMetrics {
 
   revenuePendingTotal: number
   revenuePendingCount: number
+  overduePaymentsTotal: number
   overduePaymentsCount: number
+  activeClientsCount: number
 
   /** Ticket promedio en el período seleccionado */
   averageTicket: number

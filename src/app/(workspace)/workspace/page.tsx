@@ -70,19 +70,18 @@ export default async function WorkspacePage({
     },
   ]
 
-  // Fila 2: Gráfico de ingresos reales + Ventas por canal
+  // Fila 2: Gráfico de ingresos reales + Actividad operativa diaria (dayBuckets reales)
   const revenueChartData = (data.cashflowPoints || []).map((pt) => ({
     day: pt.monthName,
     sales: pt.paid,
   }))
 
-  const channelSalesRows = (data.dayBuckets || []).slice(-7).map((d) => ({
+  const dailyActivityRows = (data.dayBuckets || []).slice(-7).map((d) => ({
     date: d.dateStr,
-    retail: Math.round(d.count * 0.65),
-    online: Math.round(d.count * 0.35),
+    interactions: d.count,
   }))
 
-  // Fila 3: Cobros recientes, salud de facturación y feed de actividades
+  // Fila 3: Cobros recientes, salud de facturación y feed de actividades omnicanal
   const recentInvoices = (data.recentPayments || []).slice(0, 5).map((p) => {
     const customerName =
       p.client && typeof p.client === 'object' && 'name' in p.client ? p.client.name : 'Cliente'
@@ -94,10 +93,17 @@ export default async function WorkspacePage({
     }
   })
 
+  const dtFormatter = new Intl.DateTimeFormat('es-VE', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Caracas',
+  })
+
   const recentActivities = [
     ...(data.recentSummaries || []).map((s) => ({
+      timestamp: new Date(s.createdAt).getTime(),
       title: s.summary ? s.summary.slice(0, 50) + '…' : 'Resumen IA de conversación',
-      time: 'Reciente',
+      time: s.createdAt ? dtFormatter.format(new Date(s.createdAt)) : 'Reciente',
       icon: <Sparkles className="size-4 text-primary" />,
     })),
     ...(data.recentConversations || []).map((c) => {
@@ -107,24 +113,24 @@ export default async function WorkspacePage({
           : c.lead && typeof c.lead === 'object' && 'fullName' in c.lead
             ? c.lead.fullName
             : c.contactAddress || 'Contacto'
+      const ts = c.lastMessageAt || c.updatedAt || c.createdAt
       return {
+        timestamp: new Date(ts).getTime(),
         title: `Chat ${c.channel === 'instagram_dm' ? 'Instagram' : 'WhatsApp'} con ${contact}`,
-        time: c.lastMessageAt
-          ? new Intl.DateTimeFormat('es-VE', {
-              dateStyle: 'short',
-              timeStyle: 'short',
-              timeZone: 'America/Caracas',
-            }).format(new Date(c.lastMessageAt))
-          : 'Reciente',
+        time: ts ? dtFormatter.format(new Date(ts)) : 'Reciente',
         icon: <MessageSquare className="size-4 text-emerald-500" />,
       }
     }),
     ...(data.recentEmails || []).map((e) => ({
+      timestamp: new Date(e.createdAt).getTime(),
       title: `Email a ${e.to}: ${e.subject || 'Notificación'}`,
-      time: 'Reciente',
+      time: e.createdAt ? dtFormatter.format(new Date(e.createdAt)) : 'Reciente',
       icon: <Mail className="size-4 text-sky-500" />,
     })),
-  ].slice(0, 6)
+  ]
+    .filter((a) => !Number.isNaN(a.timestamp))
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 6)
 
   return (
     <div className="space-y-4">
@@ -166,16 +172,22 @@ export default async function WorkspacePage({
         <DashboardStats items={statsItems} />
 
         {/* Fila 2: 2 Gráficos principales (2 columnas cada uno) */}
-        <NetRevenueChart data={revenueChartData.length > 0 ? revenueChartData : undefined} />
-        <ChannelSalesChart data={channelSalesRows.length > 0 ? channelSalesRows : undefined} />
+        <NetRevenueChart data={revenueChartData} />
+        <ChannelSalesChart
+          data={dailyActivityRows}
+          title="Actividad Operativa"
+          description="Volumen diario de interacciones (mensajes, tareas y pagos)"
+        />
 
         {/* Fila 3: Cobros (2 cols) + Salud de cobranza (1 col) + Actividad (1 col) */}
-        <DashboardInvoices invoices={recentInvoices.length > 0 ? recentInvoices : undefined} />
+        <DashboardInvoices invoices={recentInvoices} />
         <BillingHealth
           overdueCount={data.metrics.overduePaymentsCount}
-          overdueTotal={usd.format(data.metrics.revenuePendingTotal)}
+          overdueTotal={usd.format(data.metrics.overduePaymentsTotal)}
+          pendingCount={data.metrics.revenuePendingCount}
+          pendingTotal={usd.format(data.metrics.revenuePendingTotal)}
         />
-        <DashboardActivity items={recentActivities.length > 0 ? recentActivities : undefined} />
+        <DashboardActivity items={recentActivities} />
       </div>
     </div>
   )

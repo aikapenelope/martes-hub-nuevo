@@ -257,6 +257,7 @@ export async function getWorkspaceOverviewData({
     leadsCalificado,
     leadsDescartado,
     clientsActive,
+    leadsConvertedRes,
     recentPaymentsRes,
     recentConversationsRes,
     recentSummariesRes,
@@ -264,6 +265,7 @@ export async function getWorkspaceOverviewData({
     revenuePeriod,
     revenuePreviousPeriod,
     revenuePending,
+    revenueOverdue,
     overdueTasks,
     overduePaymentsRes,
     activeQuotesCountRes,
@@ -299,6 +301,15 @@ export async function getWorkspaceOverviewData({
       collection: 'clients',
       where: tenantWhere(tenantId, { stage: { equals: 'activo' } }),
     }),
+    c({
+      collection: 'leads',
+      where: tenantWhere(tenantId, {
+        or: [
+          { convertedClient: { exists: true } },
+          { convertedAt: { exists: true } },
+        ],
+      }),
+    }),
     q({
       collection: 'payments',
       limit: 5,
@@ -329,7 +340,8 @@ export async function getWorkspaceOverviewData({
     }),
     paymentsAggregate(payload, tenantId, ['pagado'], periodStartIso, periodEndIso),
     paymentsAggregate(payload, tenantId, ['pagado'], previousStartIso, previousEndIso),
-    paymentsAggregate(payload, tenantId, ['pendiente', 'vencido']),
+    paymentsAggregate(payload, tenantId, ['pendiente']),
+    paymentsAggregate(payload, tenantId, ['vencido']),
     c({
       collection: 'tasks',
       where: tenantWhere(tenantId, {
@@ -406,11 +418,13 @@ export async function getWorkspaceOverviewData({
   // Métricas agregadas
   const totalLeadsActive =
     leadsNuevo.totalDocs + leadsContactado.totalDocs + leadsCalificado.totalDocs
-  const totalConvertedClients = clientsActive.totalDocs
+  const totalConvertedClients = leadsConvertedRes.totalDocs
+  const activeClientsCount = clientsActive.totalDocs
   const totalHistoricLeads = totalLeadsActive + leadsDescartado.totalDocs + totalConvertedClients
   const globalConversionRate = stageRate(totalConvertedClients, totalHistoricLeads)
 
   // Pipeline ponderado
+  const totalPendingCollection = revenuePending.total + revenueOverdue.total
   const estimatedRevenueNew = leadsNuevo.totalDocs * 300
   const estimatedRevenueContacted = leadsContactado.totalDocs * 700
   const estimatedRevenueQualified = leadsCalificado.totalDocs * 1350
@@ -418,12 +432,12 @@ export async function getWorkspaceOverviewData({
     estimatedRevenueNew * 0.2 +
     estimatedRevenueContacted * 0.45 +
     estimatedRevenueQualified * 0.75 +
-    revenuePending.total
+    totalPendingCollection
   const pipelineBase =
     estimatedRevenueNew +
     estimatedRevenueContacted +
     estimatedRevenueQualified +
-    revenuePending.total
+    totalPendingCollection
   const weightedProbabilityPct = pipelineBase > 0 ? (weightedPipelineTotal / pipelineBase) * 100 : 0
 
   // Tendencia período contra período previo
@@ -691,6 +705,7 @@ export async function getWorkspaceOverviewData({
   const metrics: WorkspaceOverviewMetrics = {
     totalLeadsActive,
     totalConvertedClients,
+    activeClientsCount,
     totalHistoricLeads,
     globalConversionRate,
 
@@ -704,6 +719,7 @@ export async function getWorkspaceOverviewData({
 
     revenuePendingTotal: revenuePending.total,
     revenuePendingCount: revenuePending.count,
+    overduePaymentsTotal: revenueOverdue.total,
     overduePaymentsCount: overduePaymentsRes.totalDocs,
 
     averageTicket,

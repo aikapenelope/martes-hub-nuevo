@@ -63,7 +63,8 @@ export function DashboardInvoices({
 	title?: string;
 	description?: string;
 } = {}) {
-	const list = customInvoices && customInvoices.length > 0 ? customInvoices : invoices;
+	const isExplicitEmpty = customInvoices !== undefined && customInvoices.length === 0;
+	const list = customInvoices !== undefined ? customInvoices : invoices;
 
 	return (
 		<DashboardCard className="relative gap-0 md:col-span-2">
@@ -71,41 +72,48 @@ export function DashboardInvoices({
 				<CardTitle className="text-base">{title}</CardTitle>
 				<CardDescription>{description}</CardDescription>
 			</CardHeader>
-			<CardContent className="mask-b-from-50% mask-b-to-100% px-0">
-				<Table>
-					<TableCaption className="sr-only">
-						{title}
-					</TableCaption>
-					<TableHeader>
-						<TableRow>
-							<TableHead className="ps-6">Cliente</TableHead>
-							<TableHead>Nº</TableHead>
-							<TableHead className="pe-6 text-right tabular-nums">
-								Monto
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{list.map((inv) => (
-							<TableRow className="h-12" key={inv.id}>
-								<TableCell className="max-w-40 truncate ps-6 font-medium">
-									{inv.customer}
-								</TableCell>
-								<TableCell className="text-muted-foreground tabular-nums">
-									#{inv.id}
-								</TableCell>
-								<TableCell className="pe-6 text-right tabular-nums">
-									{inv.amount}
-								</TableCell>
+			<CardContent className={isExplicitEmpty ? "px-6 py-12" : "mask-b-from-50% mask-b-to-100% px-0"}>
+				{isExplicitEmpty ? (
+					<div className="flex flex-col items-center justify-center text-center space-y-1">
+						<p className="text-sm font-medium text-foreground">Sin cobros registrados</p>
+						<p className="text-xs text-muted-foreground">Los pagos y facturas del workspace aparecerán aquí.</p>
+					</div>
+				) : (
+					<Table>
+						<TableCaption className="sr-only">
+							{title}
+						</TableCaption>
+						<TableHeader>
+							<TableRow>
+								<TableHead className="ps-6">Cliente</TableHead>
+								<TableHead>Nº</TableHead>
+								<TableHead className="pe-6 text-right tabular-nums">
+									Monto
+								</TableHead>
 							</TableRow>
-						))}
-					</TableBody>
-				</Table>
+						</TableHeader>
+						<TableBody>
+							{list.map((inv) => (
+								<TableRow className="h-12" key={inv.id}>
+									<TableCell className="max-w-40 truncate ps-6 font-medium">
+										{inv.customer}
+									</TableCell>
+									<TableCell className="text-muted-foreground tabular-nums">
+										#{inv.id}
+									</TableCell>
+									<TableCell className="pe-6 text-right tabular-nums">
+										{inv.amount}
+									</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				)}
 			</CardContent>
 			<div className="mask-t-from-30% absolute inset-x-0 bottom-0 flex h-1/5 items-center justify-center bg-background">
 				<Button asChild className="relative" variant="ghost">
 					<Link href="/workspace/billing">
-						View All
+						Ver todos
 						<ArrowRightIcon aria-hidden="true" />
 					</Link>
 				</Button>
