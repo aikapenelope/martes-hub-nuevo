@@ -2,11 +2,13 @@
 
 import { useEffect, useState, type FormEvent } from 'react'
 import { sendLeadEmailAction } from '@/lib/crm-pipeline-actions'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import type { EmailLogItem } from './types'
 
 const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
-const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
+  'w-full rounded-md border border-input bg-background/60 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-colors font-sans'
+const labelCls = 'flex flex-col gap-1.5 text-[11px] font-medium text-muted-foreground'
 
 function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -87,13 +89,13 @@ export function LeadDrawerEmailTab({
   }
 
   if (!email) {
-    return <p className="text-xs text-zinc-500">Este lead no tiene un email registrado — agrégalo en &quot;Datos CRM&quot;.</p>
+    return <p className="text-xs text-muted-foreground">Este lead no tiene un email registrado — agrégalo en &quot;Datos CRM&quot;.</p>
   }
 
   return (
     <div className="flex flex-col gap-4">
       {canEdit && (
-        <form onSubmit={(event) => void onSend(event)} className="flex flex-col gap-2 border border-zinc-800 bg-black p-3">
+        <form onSubmit={(event) => void onSend(event)} className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-3.5 shadow-xs">
           <label className={labelCls}>
             Para
             <input value={email} disabled className={inputCls} />
@@ -119,40 +121,43 @@ export function LeadDrawerEmailTab({
             />
           </label>
           {error && (
-            <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300" role="alert">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
               {error}
             </div>
           )}
           {feedback && (
-            <div className="border border-emerald-800 bg-emerald-900/30 px-3 py-2 text-xs text-emerald-300" role="status">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400 font-medium" role="status">
               {feedback}
             </div>
           )}
-          <button
+          <Button
             type="submit"
+            size="sm"
             disabled={sending}
-            className="self-start px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono disabled:opacity-50"
+            className="self-start font-semibold"
           >
             {sending ? 'Enviando…' : 'Enviar correo'}
-          </button>
+          </Button>
         </form>
       )}
 
       <div>
-        <h3 className="mb-2 text-[10px] font-mono uppercase tracking-wider text-zinc-500">Correos enviados</h3>
+        <h3 className="mb-2 text-[11px] font-medium text-muted-foreground">Correos enviados</h3>
         {!logsLoaded ? (
-          <p className="text-xs font-mono text-zinc-500">Cargando…</p>
+          <p className="text-xs text-muted-foreground">Cargando…</p>
         ) : logs.length === 0 ? (
-          <p className="text-xs text-zinc-500">Sin correos registrados todavía.</p>
+          <p className="text-xs text-muted-foreground">Sin correos registrados todavía.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {logs.map((log) => (
-              <li key={log.id} className="border border-zinc-800 bg-black p-2.5">
+              <li key={log.id} className="rounded-lg border border-border/70 bg-card p-3 shadow-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <strong className="truncate text-xs text-white">{log.subject}</strong>
-                  <span className="shrink-0 text-[9px] font-mono uppercase text-zinc-500">{log.status}</span>
+                  <strong className="truncate text-xs font-medium text-foreground">{log.subject}</strong>
+                  <Badge variant="outline" className="shrink-0 text-[10px] uppercase font-mono">
+                    {log.status}
+                  </Badge>
                 </div>
-                <span className="text-[10px] font-mono text-zinc-500">
+                <span className="text-[10px] text-muted-foreground mt-1 block">
                   {new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(log.createdAt))}
                 </span>
               </li>

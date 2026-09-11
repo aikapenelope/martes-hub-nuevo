@@ -14,17 +14,19 @@ import {
 
 import type { Activity } from '@/payload-types'
 import { addLeadActivityInSituAction, type LeadActivityType } from '@/lib/crm-pipeline-actions'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 const ACTIVITY_TYPE_CONFIG: Record<
   string,
   { label: string; icon: typeof FileText; color: string }
 > = {
-  nota: { label: 'Nota', icon: FileText, color: 'text-zinc-400 bg-zinc-800 border-zinc-700' },
-  llamada: { label: 'Llamada', icon: Phone, color: 'text-sky-400 bg-sky-950/60 border-sky-800' },
-  reunion: { label: 'Reunión', icon: Calendar, color: 'text-purple-400 bg-purple-950/60 border-purple-800' },
-  email: { label: 'Email', icon: Mail, color: 'text-blue-400 bg-blue-950/60 border-blue-800' },
-  whatsapp: { label: 'WhatsApp', icon: MessageCircle, color: 'text-emerald-400 bg-emerald-950/60 border-emerald-800' },
-  otro: { label: 'Otro', icon: FileText, color: 'text-zinc-400 bg-zinc-800 border-zinc-700' },
+  nota: { label: 'Nota', icon: FileText, color: 'text-muted-foreground bg-muted border-border' },
+  llamada: { label: 'Llamada', icon: Phone, color: 'text-sky-400 bg-sky-500/10 border-sky-500/20' },
+  reunion: { label: 'Reunión', icon: Calendar, color: 'text-purple-400 bg-purple-500/10 border-purple-500/20' },
+  email: { label: 'Email', icon: Mail, color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
+  whatsapp: { label: 'WhatsApp', icon: MessageCircle, color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+  otro: { label: 'Otro', icon: FileText, color: 'text-muted-foreground bg-muted border-border' },
 }
 
 export function LeadDrawerTimelineTab({
@@ -73,13 +75,13 @@ export function LeadDrawerTimelineTab({
       {canEdit && (
         <form
           onSubmit={(event) => void handleSubmit(event)}
-          className="flex flex-col gap-2.5 border border-zinc-800 bg-zinc-950 p-3"
+          className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-3.5 shadow-xs"
         >
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider text-zinc-300 font-semibold">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
               <Plus size={13} className="text-emerald-400" /> Registrar Actividad In-Situ
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               {(['nota', 'llamada', 'reunion', 'email', 'whatsapp'] as const).map((t) => {
                 const config = ACTIVITY_TYPE_CONFIG[t]
                 const Icon = config.icon
@@ -89,11 +91,12 @@ export function LeadDrawerTimelineTab({
                     key={t}
                     type="button"
                     onClick={() => setType(t)}
-                    className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded transition ${
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
                       active
-                        ? 'bg-white text-black font-bold'
-                        : 'text-zinc-400 hover:text-white bg-zinc-900 border border-zinc-800'
-                    }`}
+                        ? 'bg-foreground text-background font-semibold shadow-xs'
+                        : 'bg-muted/40 text-muted-foreground hover:text-foreground border border-border/40'
+                    )}
                     title={config.label}
                   >
                     <Icon size={11} />
@@ -112,24 +115,25 @@ export function LeadDrawerTimelineTab({
               placeholder="Ej: Acordamos enviar propuesta antes del viernes..."
               maxLength={500}
               required
-              className="flex-1 border border-zinc-800 bg-black px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-zinc-600 focus:outline-none font-sans"
+              className="flex-1 rounded-md border border-input bg-background/60 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none transition-colors font-sans"
             />
-            <button
+            <Button
               type="submit"
+              size="sm"
               disabled={submitting || !summary.trim()}
-              className="inline-flex items-center gap-1.5 border border-white bg-white px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-black transition hover:bg-zinc-200 disabled:opacity-50 shrink-0"
+              className="gap-1.5 h-8 text-xs font-semibold shrink-0"
             >
               {submitting ? (
-                <Loader2 size={12} className="animate-spin text-black" />
+                <Loader2 size={12} className="animate-spin" />
               ) : (
                 <Send size={12} />
               )}
               Registrar
-            </button>
+            </Button>
           </div>
 
           {error && (
-            <div className="border border-red-800 bg-red-900/30 px-3 py-1.5 text-xs text-red-300 font-mono" role="alert">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
               {error}
             </div>
           )}
@@ -138,9 +142,9 @@ export function LeadDrawerTimelineTab({
 
       {/* Lista cronológica del Timeline */}
       {activities.length === 0 ? (
-        <p className="text-xs text-zinc-500 font-mono">Todavía no hay actividad registrada para este lead.</p>
+        <p className="text-xs text-muted-foreground">Todavía no hay actividad registrada para este lead.</p>
       ) : (
-        <ol className="flex flex-col gap-3 border-l border-zinc-800 pl-4 ml-2">
+        <ol className="flex flex-col gap-3 border-l border-border/60 pl-4 ml-2">
           {activities.map((activity) => {
             const config = ACTIVITY_TYPE_CONFIG[activity.type] ?? ACTIVITY_TYPE_CONFIG.otro
             const Icon = config.icon
@@ -154,8 +158,8 @@ export function LeadDrawerTimelineTab({
                   <Icon size={9} />
                 </span>
                 <div className="flex flex-col gap-0.5">
-                  <strong className="text-xs text-white font-medium leading-snug">{activity.summary}</strong>
-                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500">
+                  <strong className="text-xs text-foreground font-medium leading-snug">{activity.summary}</strong>
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                     <span className="capitalize">{config.label}</span>
                     <span>·</span>
                     <span>

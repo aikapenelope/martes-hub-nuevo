@@ -12,6 +12,11 @@ import { ChannelSalesChart } from '@/components/channel-sales-chart'
 import { DashboardInvoices } from '@/components/dashboard-invoices'
 import { BillingHealth } from '@/components/billing-health'
 import { DashboardActivity } from '@/components/dashboard-activity'
+import { CockpitAlertStrip } from '@/components/workspace/overview/CockpitAlertStrip'
+import { CockpitConversionFunnel } from '@/components/workspace/overview/CockpitConversionFunnel'
+import { CockpitSourceBreakdown } from '@/components/workspace/overview/CockpitSourceBreakdown'
+import { ActivityHeatmap } from '@/components/workspace/ActivityHeatmap'
+import { CockpitFollowupsToday } from '@/components/workspace/overview/CockpitFollowupsToday'
 import type { TimeRangeKey } from '@/components/workspace/overview/types'
 
 const VALID_RANGES: TimeRangeKey[] = ['hoy', '7d', '30d', '90d', 'ano']
@@ -166,9 +171,14 @@ export default async function WorkspacePage({
         </nav>
       </header>
 
+      {/* Alertas operativas críticas proactivas (SLA Meta 24h, cobros y tareas) */}
+      {data.operationalAlerts.length > 0 && (
+        <CockpitAlertStrip alerts={data.operationalAlerts} />
+      )}
+
       {/* Cuadrícula Bento Maestra de Efferd (@efferd/dashboard-2) */}
       <div className="grid grid-cols-1 gap-px bg-border p-px md:grid-cols-2 lg:grid-cols-4 rounded-xl overflow-hidden">
-        {/* Fila 1: 4 KPIs (1 columna cada uno) */}
+        {/* Fila 1: 4 KPIs de Efferd (1 columna cada uno) */}
         <DashboardStats items={statsItems} />
 
         {/* Fila 2: 2 Gráficos principales (2 columnas cada uno) */}
@@ -179,15 +189,31 @@ export default async function WorkspacePage({
           description="Volumen diario de interacciones (mensajes, tareas y pagos)"
         />
 
-        {/* Fila 3: Cobros (2 cols) + Salud de cobranza (1 col) + Actividad (1 col) */}
-        <DashboardInvoices invoices={recentInvoices} />
+        {/* Fila 3: Embudo de Conversión (2 cols) + Canales de Captación (2 cols) */}
+        <CockpitConversionFunnel metrics={data.metrics} className="col-span-1 md:col-span-2 lg:col-span-2" />
+        <CockpitSourceBreakdown sources={data.sourceBreakdown} className="col-span-1 md:col-span-2 lg:col-span-2" />
+
+        {/* Fila 4: Matriz Anual de Actividad Comercial (Ancho completo 4 cols) */}
+        <ActivityHeatmap
+          daysData={data.dayBuckets}
+          hourBuckets={data.hourBuckets}
+          totalInteractions={data.totalYearInteractions}
+          className="col-span-1 md:col-span-2 lg:col-span-4"
+        />
+
+        {/* Fila 5: Seguimientos de Hoy con contacto directo (2 cols) + Cobros recientes (2 cols) */}
+        <CockpitFollowupsToday items={data.followupsToday} className="col-span-1 md:col-span-2 lg:col-span-2" />
+        <DashboardInvoices invoices={recentInvoices} className="col-span-1 md:col-span-2 lg:col-span-2" />
+
+        {/* Fila 6: Salud de cobranza (2 cols) + Feed de actividad omnicanal (2 cols) */}
         <BillingHealth
           overdueCount={data.metrics.overduePaymentsCount}
           overdueTotal={usd.format(data.metrics.overduePaymentsTotal)}
           pendingCount={data.metrics.revenuePendingCount}
           pendingTotal={usd.format(data.metrics.revenuePendingTotal)}
+          className="col-span-1 md:col-span-2 lg:col-span-2"
         />
-        <DashboardActivity items={recentActivities} />
+        <DashboardActivity items={recentActivities} className="col-span-1 md:col-span-2 lg:col-span-2" />
       </div>
     </div>
   )

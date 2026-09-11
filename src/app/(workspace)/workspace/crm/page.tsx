@@ -109,11 +109,11 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
     : []
 
   return (
-    <>
+    <div className="space-y-4">
       <CrmHeader tenant={context.tenant} view={data.view} canEdit={context.canEdit} />
 
       <section className="grid grid-cols-1 gap-px bg-border p-px rounded-xl overflow-hidden sm:grid-cols-3" aria-label="Resumen del CRM">
-        <div className="bg-card p-4 sm:p-5 flex items-center justify-between gap-3">
+        <div className="bg-background p-4 sm:p-5 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Leads abiertos</p>
             <p className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground tabular-nums">{data.totals.leads}</p>
@@ -122,7 +122,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             <Users className="size-4" />
           </span>
         </div>
-        <div className="bg-card p-4 sm:p-5 flex items-center justify-between gap-3">
+        <div className="bg-background p-4 sm:p-5 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Clientes activos</p>
             <p className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground tabular-nums">{data.totals.clients}</p>
@@ -131,7 +131,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
             <UserCheck className="size-4" />
           </span>
         </div>
-        <div className="bg-card p-4 sm:p-5 flex items-center justify-between gap-3">
+        <div className="bg-background p-4 sm:p-5 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Empresas registradas</p>
             <p className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground tabular-nums">{data.totals.companies}</p>
@@ -151,6 +151,6 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       ) : (
         <CrmTableListView data={data} filters={filters} />
       )}
-    </>
+    </div>
   )
 }

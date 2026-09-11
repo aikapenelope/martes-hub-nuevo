@@ -11,8 +11,15 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { DashboardCard } from '@/components/dashboard-card'
+import { cn } from '@/lib/utils'
 
-export function CockpitConversionFunnel({ metrics }: { metrics: WorkspaceOverviewMetrics }) {
+export function CockpitConversionFunnel({
+  metrics,
+  className,
+}: {
+  metrics: WorkspaceOverviewMetrics
+  className?: string
+}) {
   const {
     leadsNuevoCount,
     leadsContactadoCount,
@@ -65,7 +72,7 @@ export function CockpitConversionFunnel({ metrics }: { metrics: WorkspaceOvervie
   ]
 
   return (
-    <DashboardCard className="gap-0">
+    <DashboardCard className={cn('col-span-1 md:col-span-2 lg:col-span-2 gap-0', className)}>
       <CardHeader className="border-b flex flex-row items-center justify-between space-y-0 py-3.5 px-4 sm:px-6">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-sky-500/20 bg-sky-500/10 text-sky-400">

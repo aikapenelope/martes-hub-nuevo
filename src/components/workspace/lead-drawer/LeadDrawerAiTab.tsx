@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Sparkles } from 'lucide-react'
+import { Loader2, Sparkles } from 'lucide-react'
 import { summarizeLeadWithAIAction } from '@/lib/crm-pipeline-actions'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import type { ConversationSummary } from '@/payload-types'
 
 const SENTIMENT_LABEL: Record<ConversationSummary['sentiment'], string> = {
@@ -13,10 +15,10 @@ const SENTIMENT_LABEL: Record<ConversationSummary['sentiment'], string> = {
 }
 
 const SENTIMENT_CLASS: Record<ConversationSummary['sentiment'], string> = {
-  positivo: 'bg-emerald-900/50 text-emerald-400 border-emerald-800',
-  neutral: 'bg-zinc-800 text-zinc-300 border-zinc-700',
-  negativo: 'bg-red-900/50 text-red-400 border-red-800',
-  en_riesgo: 'bg-amber-900/50 text-amber-300 border-amber-800',
+  positivo: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+  neutral: 'text-muted-foreground border-border bg-muted/60',
+  negativo: 'text-destructive border-destructive/30 bg-destructive/10',
+  en_riesgo: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
 }
 
 /** Copiloto IA: dispara `summarizeLeadWithAIAction` y lista el historial de `conversation-summaries` del lead. */
@@ -65,36 +67,51 @@ export function LeadDrawerAiTab({ leadId, canEdit }: { leadId: number; canEdit: 
   return (
     <div className="flex flex-col gap-3">
       {canEdit && (
-        <button
+        <Button
           type="button"
+          size="sm"
           onClick={() => void generate()}
           disabled={generating}
-          className="inline-flex items-center justify-center gap-1.5 self-start px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono disabled:opacity-50"
+          className="gap-1.5 self-start font-semibold"
         >
-          <Sparkles size={14} /> {generating ? 'Generando…' : 'Generar resumen inteligente'}
-        </button>
+          {generating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+          {generating ? 'Generando…' : 'Generar resumen inteligente'}
+        </Button>
       )}
 
       {error && (
-        <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300" role="alert">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
           {error}
         </div>
       )}
 
       {!loaded ? (
-        <p className="text-xs font-mono text-zinc-500">Cargando…</p>
+        <p className="text-xs text-muted-foreground">Cargando…</p>
       ) : summaries.length === 0 ? (
-        <p className="text-xs text-zinc-500">Todavía no hay resúmenes de IA para este lead.</p>
+        <p className="text-xs text-muted-foreground">Todavía no hay resúmenes de IA para este lead.</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {summaries.map((summary) => (
-            <li key={summary.id} className="border border-zinc-800 bg-black p-3">
-              <span className={`inline-flex border px-1.5 py-0.5 text-[9px] font-mono ${SENTIMENT_CLASS[summary.sentiment]}`}>
-                {SENTIMENT_LABEL[summary.sentiment]}
-              </span>
-              <p className="mt-1.5 text-xs text-zinc-200">{summary.summary}</p>
-              {summary.objections && <p className="mt-1 text-[10px] text-zinc-500">Objeciones: {summary.objections}</p>}
-              {summary.nextSteps && <p className="mt-1 text-[10px] text-zinc-500">Próximos pasos: {summary.nextSteps}</p>}
+            <li key={summary.id} className="rounded-xl border border-border/70 bg-card p-3.5 shadow-xs space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] font-semibold uppercase tracking-wider ${SENTIMENT_CLASS[summary.sentiment]}`}
+                >
+                  {SENTIMENT_LABEL[summary.sentiment]}
+                </Badge>
+              </div>
+              <p className="text-xs text-foreground/90 leading-relaxed">{summary.summary}</p>
+              {summary.objections && (
+                <div className="rounded-md border border-destructive/20 bg-destructive/5 px-2.5 py-1.5 text-xs text-destructive/90">
+                  <span className="font-medium">Objeciones:</span> {summary.objections}
+                </div>
+              )}
+              {summary.nextSteps && (
+                <div className="rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs text-primary font-medium">
+                  <span>Próximos pasos:</span> {summary.nextSteps}
+                </div>
+              )}
             </li>
           ))}
         </ul>

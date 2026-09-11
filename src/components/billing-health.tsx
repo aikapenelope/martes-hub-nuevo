@@ -16,23 +16,26 @@ import {
 } from "@/components/ui/empty";
 import { DashboardCard } from "@/components/dashboard-card";
 import { CircleCheckIcon, ArrowRightIcon, AlertTriangleIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function BillingHealth({
 	overdueCount = 0,
 	overdueTotal = "$0",
 	pendingCount = 0,
 	pendingTotal = "$0",
+	className,
 }: {
 	overdueCount?: number;
 	overdueTotal?: string;
 	pendingCount?: number;
 	pendingTotal?: string;
+	className?: string;
 } = {}) {
 	const hasOverdue = overdueCount > 0;
 	const hasPending = pendingCount > 0;
 
 	return (
-		<DashboardCard className="gap-0">
+		<DashboardCard className={cn("gap-0", className)}>
 			<CardHeader className="border-b">
 				<CardTitle className="text-balance text-base">Salud de Cobranza</CardTitle>
 				<CardDescription className="text-pretty">

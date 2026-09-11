@@ -7,9 +7,11 @@ import { convertLeadInSituAction, updateLeadFieldsAction } from '@/lib/crm-pipel
 import { LeadBriefCard } from './LeadBriefCard'
 import type { Lead, Segment, User } from '@/payload-types'
 
+import { Button } from '@/components/ui/button'
+
 const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600 font-sans'
-const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
+  'w-full rounded-md border border-input bg-background/60 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-colors font-sans'
+const labelCls = 'flex flex-col gap-1.5 text-[11px] font-medium text-muted-foreground'
 
 function relId(value: number | { id: number } | null | undefined): number | null {
   if (value == null) return null
@@ -263,44 +265,45 @@ export function LeadDrawerDataTab({
     <form onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-3">
       <fieldset disabled={!canEdit || saving || converting} className="flex flex-col gap-3">
         {/* Banner de Estado / Conversión a Cliente */}
-        <div className="border border-zinc-800 bg-zinc-950 p-3">
+        <div className="rounded-xl border border-border/70 bg-card p-3.5 shadow-xs">
           {convertedId ? (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs text-emerald-400">
                 <CheckCircle2 size={16} className="shrink-0 text-emerald-400" />
                 <span>
-                  Este prospecto está convertido a <strong>Cliente #{convertedId}</strong>.
+                  Este prospecto está convertido a <strong className="text-foreground">Cliente #{convertedId}</strong>.
                 </span>
               </div>
               <Link
                 href={`/workspace/crm/clientes/${convertedId}`}
-                className="inline-flex items-center gap-1 border border-emerald-800 bg-emerald-950/60 px-2.5 py-1 text-[11px] font-mono text-emerald-300 hover:bg-emerald-900/60 transition"
+                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
               >
                 <ExternalLink size={12} /> Ver Ficha de Cliente
               </Link>
             </div>
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-col">
-                <span className="text-xs font-semibold text-white">Conversión Comercial</span>
-                <span className="text-[11px] text-zinc-400">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-semibold text-foreground">Conversión Comercial</span>
+                <span className="text-[11px] text-muted-foreground">
                   Crea la cuenta oficial de cliente heredando datos, notas y timeline in-situ.
                 </span>
               </div>
               {canEdit && (
-                <button
+                <Button
                   type="button"
+                  size="sm"
                   disabled={converting || saving}
                   onClick={() => void handleConvert()}
-                  className="inline-flex items-center gap-1.5 border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-black transition hover:bg-emerald-500 disabled:opacity-50"
+                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs h-8"
                 >
                   {converting ? (
-                    <Loader2 size={13} className="animate-spin text-black" />
+                    <Loader2 size={13} className="animate-spin" />
                   ) : (
                     <UserCheck size={13} />
                   )}
                   Convertir a Cliente
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -503,23 +506,24 @@ export function LeadDrawerDataTab({
         </label>
 
         {error && (
-          <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300" role="alert">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-xs text-destructive" role="alert">
             {error}
           </div>
         )}
         {feedback && (
-          <div className="border border-emerald-800 bg-emerald-900/30 px-3 py-2 text-xs text-emerald-300" role="status">
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-400 font-medium" role="status">
             {feedback}
           </div>
         )}
         {canEdit && (
-          <button
+          <Button
             type="submit"
             disabled={saving}
-            className="mt-2 self-start border border-white bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-black transition hover:bg-zinc-200 disabled:opacity-50"
+            size="sm"
+            className="mt-2 self-start font-semibold gap-1.5"
           >
-            {saving ? 'Guardando...' : 'Guardar Cambios'}
-          </button>
+            {saving ? 'Guardando…' : 'Guardar Cambios'}
+          </Button>
         )}
       </fieldset>
     </form>
