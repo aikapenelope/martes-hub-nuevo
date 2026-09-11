@@ -214,5 +214,114 @@ describe('Torre de Control Comercial — getWorkspaceOverviewData', () => {
       expect(urgentCount).toBe(2)
     })
   })
+
+  describe('Alerta SLA WhatsApp 24h', () => {
+    it('filtra estrictamente conversaciones abiertas que realmente esperan respuesta del agente', async () => {
+      const now = new Date()
+      const criticalInboundIso = new Date(now.getTime() - 22 * 3600_000).toISOString()
+      const repliedOutboundIso = new Date(now.getTime() - 21 * 3600_000).toISOString()
+
+      const mockConversations = [
+        // Caso 1: abierta y sin responder (debe contar)
+        {
+          id: 1,
+          status: 'open',
+          lastInboundAt: criticalInboundIso,
+          lastMessageAt: criticalInboundIso,
+        },
+        // Caso 2: abierta pero respondida posteriormente por el agente (NO debe contar)
+        {
+          id: 2,
+          status: 'open',
+          lastInboundAt: criticalInboundIso,
+          lastMessageAt: repliedOutboundIso,
+        },
+        // Caso 3: resuelta (NO debe contar)
+        {
+          id: 3,
+          status: 'resolved',
+          lastInboundAt: criticalInboundIso,
+          lastMessageAt: criticalInboundIso,
+        },
+      ]
+
+      const mockFind = vi.fn().mockImplementation(({ collection }: { collection: string }) => {
+        if (collection === 'conversations') {
+          return Promise.resolve({ docs: mockConversations, totalDocs: mockConversations.length })
+        }
+        return Promise.resolve({ docs: [], totalDocs: 0 })
+      })
+      const mockCount = vi.fn().mockResolvedValue({ totalDocs: 0 })
+      const mockPayload = {
+        find: mockFind,
+        count: mockCount,
+        db: { pool: undefined },
+      } as unknown as Payload
+
+      const result = await getWorkspaceOverviewData({
+        payload: mockPayload,
+        user: mockUser,
+        tenantId: 10,
+      })
+
+      // Solo el caso 1 debe activar la alerta
+      expect(result.metrics.critical24hCount).toBe(1)
+      const slaAlert = result.operationalAlerts.find((a) => a.id === 'whatsapp-24h-sla')
+      expect(slaAlert).toBeDefined()
+      expect(slaAlert?.title).toContain('1 conversación de WhatsApp con ventana por expirar')
+
+      // Verificar que la consulta SLA filtra por canal WhatsApp / WhatsApp Web
+      const convFindCall = mockFind.mock.calls.find(
+        (call) => call[0].collection === 'conversations' && call[0].select?.channel,
+      )
+      expect(convFindCall).toBeDefined()
+      const whereJson = JSON.stringify(convFindCall![0].where)
+      expect(whereJson).toContain('"channel":{"in":["whatsapp","whatsapp_web"]}')
+    })
+
+    it('pagina exhaustivamente sin detenerse en 200 conversaciones críticas', async () => {
+      const now = new Date()
+      const criticalIso = new Date(now.getTime() - 22 * 3600_000).toISOString()
+
+      // 2 páginas de conversaciones críticas
+      const page1 = Array.from({ length: 150 }, (_, i) => ({
+        id: i + 1,
+        status: 'open',
+        channel: 'whatsapp',
+        lastInboundAt: criticalIso,
+        lastMessageAt: criticalIso,
+      }))
+      const page2 = Array.from({ length: 110 }, (_, i) => ({
+        id: i + 151,
+        status: 'open',
+        channel: 'whatsapp',
+        lastInboundAt: criticalIso,
+        lastMessageAt: criticalIso,
+      }))
+
+      const mockFind = vi.fn().mockImplementation(({ collection, page }: { collection: string; page?: number }) => {
+        if (collection === 'conversations') {
+          if (page === 1) return Promise.resolve({ docs: page1, hasNextPage: true, totalDocs: 260 })
+          return Promise.resolve({ docs: page2, hasNextPage: false, totalDocs: 260 })
+        }
+        return Promise.resolve({ docs: [], totalDocs: 0 })
+      })
+      const mockCount = vi.fn().mockResolvedValue({ totalDocs: 0 })
+      const mockPayload = {
+        find: mockFind,
+        count: mockCount,
+        db: { pool: undefined },
+      } as unknown as Payload
+
+      const result = await getWorkspaceOverviewData({
+        payload: mockPayload,
+        user: mockUser,
+        tenantId: 10,
+      })
+
+      // 150 + 110 = 260 conversaciones contadas (sin truncar en 200)
+      expect(result.metrics.critical24hCount).toBe(260)
+    })
+  })
 })
 

@@ -360,6 +360,7 @@ export interface CrmConversationRef {
   status: Conversation['status']
   contactAddress: string
   lastMessageAt: string | null
+  lastInboundAt: string | null
 }
 
 export interface CrmRecordDetail {
@@ -649,6 +650,77 @@ export async function getCrmRecord({
       status: c.status,
       contactAddress: c.contactAddress,
       lastMessageAt: c.lastMessageAt ?? null,
+      lastInboundAt: c.lastInboundAt ?? null,
     })),
   }
+}
+
+export interface CrmBilledTotals {
+  totalBilled: number
+  billedCount: number
+}
+
+/**
+ * Calcula la facturación acumulada (LTV) y el número de cobros pagados de forma exhaustiva
+ * y aislada por tenant directamente sobre la colección 'payments', sin estar sujeta a límites
+ * de paginación del timeline. Para empresas, agrega los pagos de todos sus clientes vinculados.
+ */
+export async function getCrmBilledTotals({
+  payload,
+  user,
+  tenantId,
+  type,
+  id,
+  relatedClients,
+}: {
+  payload: Payload
+  user: User
+  tenantId: number
+  type: CrmView
+  id: number
+  relatedClients?: { id: number }[]
+}): Promise<CrmBilledTotals> {
+  const billingClientIds: number[] =
+    type === 'clientes'
+      ? [id]
+      : type === 'empresas'
+      ? (relatedClients || []).map((c) => c.id)
+      : []
+
+  if (billingClientIds.length === 0) {
+    return { totalBilled: 0, billedCount: 0 }
+  }
+
+  let totalBilled = 0
+  let billedCount = 0
+  let page = 1
+  let hasMore = true
+
+  while (hasMore) {
+    const res = await payload.find({
+      collection: 'payments',
+      where: {
+        and: [
+          { tenant: { equals: tenantId } },
+          { client: { in: billingClientIds } },
+          { status: { equals: 'pagado' } },
+        ],
+      },
+      depth: 0,
+      limit: 500,
+      page,
+      select: { amount: true },
+      overrideAccess: false,
+      user,
+    })
+
+    for (const payment of res.docs) {
+      totalBilled += payment.amount || 0
+    }
+    billedCount += res.docs.length
+    hasMore = Boolean(res.hasNextPage)
+    page += 1
+  }
+
+  return { totalBilled, billedCount }
 }
