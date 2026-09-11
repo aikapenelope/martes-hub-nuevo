@@ -25,6 +25,8 @@ import type { Client, Segment, Tenant, User } from '@/payload-types'
 import type { WorkspaceOverviewData } from './types'
 import type { AgendaItem } from '@/lib/agenda-data'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import {
   Sheet,
   SheetContent,
@@ -80,9 +82,9 @@ interface CockpitFocusViewsProps {
   tenant: Tenant
   dateTitle: string
   canEdit: boolean
-  clients: Client[]
+  clients: Client[] | null
   data: WorkspaceOverviewData
-  agenda: AgendaItem[]
+  agenda: AgendaItem[] | null
   /** Opciones del drawer 360°: agentes asignables y rubros del tenant. */
   assignees?: User[]
   segments?: Segment[]
@@ -238,7 +240,7 @@ export function CockpitFocusViews({
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-mono uppercase tracking-wider text-foreground/80 flex items-center gap-2">
                 <span className="w-2 h-2 bg-sky-400 inline-block shadow-[0_0_8px_rgba(56,189,248,0.5)]" />
-                Agenda próxima · 7 días ({agenda.length})
+                Agenda próxima · 7 días {agenda !== null ? `(${agenda.length})` : ''}
               </h2>
               <Link
                 href="/workspace/calendar"
@@ -249,7 +251,14 @@ export function CockpitFocusViews({
             </div>
 
             <div className="bg-card text-card-foreground border border-border p-3.5 !p-0">
-              {agenda.length === 0 ? (
+              {agenda === null ? (
+                <div className="p-6 text-center text-xs font-mono text-muted-foreground space-y-1">
+                  <p className="font-bold text-destructive">No se pudo cargar la agenda.</p>
+                  <p className="text-[11px]">
+                    Hubo un problema al consultar los eventos próximos. Recarga la página para reintentar.
+                  </p>
+                </div>
+              ) : agenda.length === 0 ? (
                 <div className="p-6 text-center text-xs font-mono text-muted-foreground space-y-1">
                   <Zap size={20} className="mx-auto text-muted-foreground/60 mb-2" />
                   <p className="font-bold text-foreground">Nada pendiente en la agenda esta semana.</p>
@@ -382,98 +391,71 @@ export function CockpitFocusViews({
         timeRange={data.timeRange}
       />
 
-      {/* 3. Selector de Vistas de Enfoque (Tabs OLED) & Bento Customizer */}
+      {/* 3. Selector de Vistas de Enfoque (Tabs) & Bento Customizer */}
       <nav
         aria-label="Vistas de enfoque del tablero"
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-y border-border bg-background/40 py-2.5 px-1"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-y border-border py-2.5"
       >
-        <div className="inline-flex items-center p-1 bg-background border border-border gap-1">
-          <Button
+        <div className="inline-flex items-center rounded-lg bg-muted/60 p-1 border border-border/40 gap-1">
+          <button
             type="button"
-            variant="ghost"
             onClick={() => handleSelectView('operativa')}
-            className={`h-auto flex gap-2 rounded-none px-3.5 py-1.5 text-xs font-mono uppercase tracking-wider transition ${
+            className={cn(
+              'flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-colors',
               activeView === 'operativa'
-                ? 'bg-primary font-black text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-            }`}
+                ? 'bg-background text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
           >
-            <Activity
-              size={14}
-              className={activeView === 'operativa' ? 'text-primary-foreground' : 'text-sky-400'}
-            />
+            <Activity className="size-3.5 text-sky-400" />
             <span>Operativa · Hoy</span>
             {urgentCount > 0 ? (
-              <span
-                className={`px-1.5 py-0.2 text-[10px] font-bold border font-mono ${
-                  activeView === 'operativa'
-                    ? 'bg-amber-500 text-black border-amber-600'
-                    : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                }`}
-              >
+              <Badge variant="warning" className="text-[10px] h-4 px-1.5 font-semibold">
                 {urgentCount}
-              </span>
+              </Badge>
             ) : (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+              <span className="size-1.5 rounded-full bg-emerald-500 inline-block" />
             )}
-            <kbd className="hidden md:inline-block text-[9px] px-1 py-0.2 opacity-60 border border-current font-mono">
-              1
-            </kbd>
-          </Button>
+          </button>
 
-          <Button
+          <button
             type="button"
-            variant="ghost"
             onClick={() => handleSelectView('ejecutiva')}
-            className={`h-auto flex gap-2 rounded-none px-3.5 py-1.5 text-xs font-mono uppercase tracking-wider transition ${
+            className={cn(
+              'flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-colors',
               activeView === 'ejecutiva'
-                ? 'bg-primary font-black text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-            }`}
+                ? 'bg-background text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
           >
-            <BarChart3
-              size={14}
-              className={activeView === 'ejecutiva' ? 'text-primary-foreground' : 'text-indigo-400'}
-            />
+            <BarChart3 className="size-3.5 text-indigo-400" />
             <span>Ejecutiva · Rendimiento</span>
-            <span
-              className={`px-1.5 py-0.2 text-[10px] font-bold border font-mono ${
-                activeView === 'ejecutiva'
-                  ? 'bg-indigo-600 text-primary-foreground border-indigo-700'
-                  : 'bg-muted text-muted-foreground border-border'
-              }`}
-            >
+            <Badge variant="outline" className="text-[10px] h-4 px-1.5">
               KPIs
-            </span>
-            <kbd className="hidden md:inline-block text-[9px] px-1 py-0.2 opacity-60 border border-current font-mono">
-              2
-            </kbd>
-          </Button>
+            </Badge>
+          </button>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <Button
             type="button"
-            variant="ghost"
+            variant={showConfig ? 'secondary' : 'outline'}
+            size="sm"
             onClick={() => setShowConfig(!showConfig)}
-            className={`h-auto gap-1.5 px-2.5 py-1 border text-[11px] font-mono transition ${
-              showConfig
-                ? 'bg-sky-400 text-black border-sky-300 font-bold'
-                : 'bg-muted/80 hover:bg-accent border-border text-foreground/80'
-            }`}
+            className="h-8 gap-2 text-xs font-medium"
             title="Personalizar bloques visibles del Bento"
           >
-            <SlidersHorizontal size={13} />
+            <SlidersHorizontal className="size-3.5" />
             <span>Personalizar Bento</span>
           </Button>
 
           <div className="hidden lg:flex items-center gap-2">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-foreground/80">Telemetría activa</span>
+              <span className="size-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
+              <span className="text-foreground/90 font-medium">Telemetría activa</span>
             </span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground text-[11px]">
+            <span>·</span>
+            <span className="text-muted-foreground text-xs">
               {activeView === 'operativa'
                 ? 'Acción inmediata, agenda y seguimiento'
                 : 'Salud comercial, conversión y finanzas'}

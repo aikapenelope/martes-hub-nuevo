@@ -1,9 +1,20 @@
 'use client'
 
 import React, { useMemo, useState } from 'react'
+import { Activity } from 'lucide-react'
 
 import { HourlyHeatmap } from './HourlyHeatmap'
 import type { HourBucket } from './overview/types'
+import { Badge } from '@/components/ui/badge'
+import {
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { DashboardCard } from '@/components/dashboard-card'
+import { cn } from '@/lib/utils'
 
 interface HeatmapDay {
   dateStr: string
@@ -48,22 +59,25 @@ export function ActivityHeatmap({ daysData, hourBuckets, totalInteractions }: Ac
   }, [daysData])
 
   return (
-    <div className="space-y-3 border border-border bg-card p-3.5 text-card-foreground">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800/80">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h2 className="text-sm font-black text-white flex items-center gap-2 font-mono uppercase tracking-wider">
-              <span className="w-2.5 h-2.5 bg-sky-400 inline-block shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
-              Matriz de Actividad Comercial (52 Semanas)
-            </h2>
+    <DashboardCard className="gap-0">
+      <CardHeader className="border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 space-y-0 py-3.5 px-4 sm:px-6">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-sky-500/20 bg-sky-500/10 text-sky-400">
+            <Activity className="size-4" />
           </div>
-          <p className="mt-1 text-[11px] text-zinc-500">
-            Actividades, mensajes y pagos registrados por día del tenant activo
-          </p>
+          <div>
+            <CardTitle className="text-sm font-semibold tracking-tight">
+              Matriz de Actividad Comercial (52 Semanas)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Actividades, mensajes y pagos registrados por día del tenant activo
+            </CardDescription>
+          </div>
         </div>
+
         <div className="flex items-center gap-3">
-          {/* Toggle 52 semanas / por hora (patrón dashboard-9) */}
-          <nav aria-label="Vista de la matriz de actividad" className="flex items-center gap-1">
+          {/* Toggle 52 semanas / por hora */}
+          <div className="inline-flex items-center rounded-lg bg-muted/60 p-1 border border-border/40">
             {(
               [
                 { key: 'year', label: '52 Semanas' },
@@ -74,69 +88,73 @@ export function ActivityHeatmap({ daysData, hourBuckets, totalInteractions }: Ac
                 key={opt.key}
                 type="button"
                 onClick={() => setView(opt.key)}
-                aria-current={view === opt.key ? 'true' : undefined}
-                className={`px-2 py-0.5 text-[10px] font-mono uppercase transition ${
+                className={cn(
+                  'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
                   view === opt.key
-                    ? 'bg-white text-black font-bold'
-                    : 'border border-zinc-800 text-zinc-400 hover:text-white'
-                }`}
+                    ? 'bg-background text-foreground shadow-xs font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
               >
                 {opt.label}
               </button>
             ))}
-          </nav>
-          <span className="text-xs font-mono text-zinc-400">
-            <strong className="text-white">{totalInteractions}</strong> interacciones en el período
-          </span>
-        </div>
-      </div>
-
-      {totalInteractions === 0 ? (
-        <div className="py-8 text-center text-xs text-zinc-500 font-mono">
-          Sin actividad registrada todavía en este período.
-        </div>
-      ) : view === 'hours' ? (
-        <HourlyHeatmap hourBuckets={hourBuckets} totalInteractions={totalInteractions} />
-      ) : (
-        <div className="overflow-x-auto pb-1">
-          <div className="flex gap-[3px]" style={{ minWidth: weeks.length * 13 }}>
-            {weeks.map((week, wIdx) => (
-              <div key={wIdx} className="flex flex-col gap-[3px]">
-                {week.map((day) => (
-                  <div
-                    key={day.dateStr}
-                    tabIndex={0}
-                    role="img"
-                    className={`heat-cell heat-${levelFor(day.count, maxCount)} cursor-pointer`}
-                    onMouseEnter={() => setHovered(day)}
-                    onMouseLeave={() => setHovered(null)}
-                    onFocus={() => setHovered(day)}
-                    onBlur={() => setHovered(null)}
-                    aria-label={`${day.count} interacciones el ${day.dateStr}`}
-                  />
-                ))}
-              </div>
-            ))}
           </div>
-        </div>
-      )}
 
-      <div className="flex items-center justify-between text-[11px] font-mono text-zinc-500 pt-1">
+          <Badge variant="outline" className="text-xs font-medium">
+            <strong className="text-foreground font-semibold mr-1">{totalInteractions}</strong>{' '}
+            interacciones
+          </Badge>
+        </div>
+      </CardHeader>
+
+      <CardContent className="p-4 sm:p-6">
+        {totalInteractions === 0 ? (
+          <div className="py-8 text-center text-xs text-muted-foreground">
+            Sin actividad registrada todavía en este período.
+          </div>
+        ) : view === 'hours' ? (
+          <HourlyHeatmap hourBuckets={hourBuckets} totalInteractions={totalInteractions} />
+        ) : (
+          <div className="overflow-x-auto pb-1">
+            <div className="flex gap-[3px]" style={{ minWidth: weeks.length * 13 }}>
+              {weeks.map((week, wIdx) => (
+                <div key={wIdx} className="flex flex-col gap-[3px]">
+                  {week.map((day) => (
+                    <div
+                      key={day.dateStr}
+                      tabIndex={0}
+                      role="img"
+                      className={`heat-cell heat-${levelFor(day.count, maxCount)} cursor-pointer`}
+                      onMouseEnter={() => setHovered(day)}
+                      onMouseLeave={() => setHovered(null)}
+                      onFocus={() => setHovered(day)}
+                      onBlur={() => setHovered(null)}
+                      aria-label={`${day.count} interacciones el ${day.dateStr}`}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+
+      <CardFooter className="border-t py-2.5 px-4 sm:px-6 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
         <span>
           {hovered
             ? `${hovered.count} ${hovered.count !== 1 ? 'interacciones' : 'interacción'} · ${hovered.dateStr}`
             : 'Pasa el cursor sobre una celda para ver el detalle'}
         </span>
-        <span className="flex items-center gap-1">
-          Menos
+        <span className="flex items-center gap-1.5">
+          <span>Menos</span>
           <span className="heat-cell heat-0 !w-2.5 !h-2.5" />
           <span className="heat-cell heat-1 !w-2.5 !h-2.5" />
           <span className="heat-cell heat-2 !w-2.5 !h-2.5" />
           <span className="heat-cell heat-3 !w-2.5 !h-2.5" />
           <span className="heat-cell heat-4 !w-2.5 !h-2.5" />
-          Más
+          <span>Más</span>
         </span>
-      </div>
-    </div>
+      </CardFooter>
+    </DashboardCard>
   )
 }

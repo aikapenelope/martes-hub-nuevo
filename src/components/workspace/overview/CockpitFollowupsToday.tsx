@@ -2,6 +2,14 @@ import Link from 'next/link'
 import { ArrowRight, Clock, MessageCircle, PhoneCall, UserRound } from 'lucide-react'
 import type { FollowUpItem } from '@/lib/followups-today'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import {
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { DashboardCard } from '@/components/dashboard-card'
 
 const PIPELINE_LABELS: Record<string, string> = {
   nuevo: 'Nuevo',
@@ -31,101 +39,131 @@ export function CockpitFollowupsToday({
   const extra = items.length - shown.length
 
   return (
-    <div className="p-3.5 bg-card text-card-foreground border border-border space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-border">
+    <DashboardCard className="gap-0">
+      <CardHeader className="border-b flex flex-row items-center justify-between space-y-0 py-3.5 px-4 sm:px-6">
         <div className="flex items-center gap-2.5">
-          <h2 className="text-xs font-black text-foreground font-mono uppercase tracking-wider flex items-center gap-2">
-            <PhoneCall className="w-3.5 h-3.5 text-emerald-400" /> Seguimientos de Hoy
-          </h2>
-          <span
-            className={`font-mono text-[10px] font-bold px-2 py-0.5 border ${
-              items.length > 0
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                : 'bg-emerald-950/40 text-emerald-300 border-emerald-900/60'
-            }`}
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-emerald-500/20 bg-emerald-500/10 text-emerald-500">
+            <PhoneCall className="size-4" />
+          </div>
+          <div>
+            <CardTitle className="text-sm font-semibold tracking-tight">Seguimientos de Hoy</CardTitle>
+            <CardDescription className="text-xs">Contactos que requieren atención según SLA</CardDescription>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Badge
+            variant={items.length > 0 ? 'warning' : 'success'}
+            className="text-[11px] font-medium"
           >
-            {items.length > 0 ? `${items.length} POR CONTACTAR` : 'AL DÍA'}
-          </span>
+            {items.length > 0 ? `${items.length} por contactar` : 'Al día'}
+          </Badge>
+          <Button asChild variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground">
+            <Link href="/workspace/hoy" className="flex items-center gap-1">
+              <span>Agenda</span>
+              <ArrowRight className="size-3" />
+            </Link>
+          </Button>
         </div>
-        <Link
-          href="/workspace/hoy"
-          className="text-xs font-mono text-emerald-400 hover:underline flex items-center gap-1 font-bold"
-        >
-          Agenda completa →
-        </Link>
-      </div>
+      </CardHeader>
 
-      {shown.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2.5">
-          {shown.map((item) => (
-            <div key={`${item.kind}:${item.id}`} className="p-3 border border-border bg-muted/40 space-y-2 border-l-2 border-l-emerald-400/80">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <strong className="text-foreground text-xs block truncate">{item.name}</strong>
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <UserRound className="w-3 h-3 shrink-0" />
-                    {PIPELINE_LABELS[item.pipeline] ?? item.pipeline}
+      <CardContent className="p-0">
+        {shown.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px bg-border p-px">
+            {shown.map((item) => (
+              <div
+                key={`${item.kind}:${item.id}`}
+                className="flex flex-col justify-between bg-background p-4 space-y-3 transition-colors hover:bg-muted/30"
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <strong className="text-sm font-medium text-foreground truncate block">
+                      {item.name}
+                    </strong>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] shrink-0 font-medium ${
+                        item.reason === 'Nunca contactado'
+                          ? 'border-amber-500/30 text-amber-500 bg-amber-500/5'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      {item.reason === 'Nunca contactado' ? 'Nuevo' : `${item.daysSince}d`}
+                    </Badge>
+                  </div>
+
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <UserRound className="size-3 text-muted-foreground/70 shrink-0" />
+                    <span>{PIPELINE_LABELS[item.pipeline] ?? item.pipeline}</span>
                   </span>
+
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1">
+                    <Clock className="size-3 text-muted-foreground/70 shrink-0" />
+                    <span className="truncate">{item.reason}</span>
+                  </p>
                 </div>
-                <span
-                  className={`shrink-0 text-[10px] font-mono font-bold px-1.5 py-0.5 border ${
-                    item.reason === 'Nunca contactado'
-                      ? 'bg-amber-950/40 text-amber-300 border-amber-800/60'
-                      : 'bg-muted text-foreground/80 border-border'
-                  }`}
-                >
-                  {item.reason === 'Nunca contactado' ? 'NUEVO' : `${item.daysSince}d`}
-                </span>
-              </div>
 
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 font-mono">
-                <Clock className="w-3 h-3 shrink-0 text-muted-foreground" />
-                {item.reason}
-              </p>
-
-              <div className="flex items-center gap-1.5 pt-1">
-                <a
-                  href={item.waLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-600/40 text-emerald-300 text-[10px] font-bold uppercase font-mono transition"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
-                </a>
-                {item.kind === 'lead' && onOpenLead ? (
+                <div className="flex items-center gap-1.5 pt-2 border-t border-border/40">
                   <Button
-                    type="button"
-                    onClick={() => onOpenLead(item.id)}
-                    className="h-auto gap-1 rounded-none border border-border bg-muted px-2 py-1.5 font-mono text-[10px] font-bold uppercase text-foreground transition hover:bg-accent"
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-7 text-xs border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-500 gap-1.5"
                   >
-                    Ficha <ArrowRight className="size-3" />
+                    <a
+                      href={item.waLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageCircle className="size-3.5 text-emerald-500" />
+                      <span>WhatsApp</span>
+                    </a>
                   </Button>
-                ) : (
-                  <Link
-                    href={item.crmUrl}
-                    className="inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-muted hover:bg-accent border border-border text-foreground text-[10px] font-bold uppercase font-mono transition"
-                  >
-                    Ficha <ArrowRight className="w-3 h-3" />
-                  </Link>
-                )}
+
+                  {item.kind === 'lead' && onOpenLead ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onOpenLead(item.id)}
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Ficha <ArrowRight className="size-3 ml-0.5" />
+                    </Button>
+                  ) : (
+                    <Button
+                      asChild
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <Link href={item.crmUrl}>
+                        Ficha <ArrowRight className="size-3 ml-0.5" />
+                      </Link>
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="py-3 text-center font-mono text-xs text-muted-foreground">
-          Nadie supera su SLA de contacto hoy. Operación al día.
-        </div>
-      )}
+            ))}
+          </div>
+        ) : (
+          <div className="py-8 text-center text-xs text-muted-foreground">
+            Nadie supera su SLA de contacto hoy. Operación al día.
+          </div>
+        )}
+      </CardContent>
 
       {extra > 0 && (
-        <p className="text-[11px] font-mono text-muted-foreground text-right">
-          +{extra} más en la{' '}
-          <Link href="/workspace/hoy" className="text-emerald-400 hover:underline font-bold">
-            agenda de hoy
+        <div className="px-4 py-2 border-t border-border/50 text-right bg-muted/20">
+          <Link
+            href="/workspace/hoy"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1 font-medium"
+          >
+            <span>+{extra} más en la agenda de hoy</span>
+            <ArrowRight className="size-3" />
           </Link>
-        </p>
+        </div>
       )}
-    </div>
+    </DashboardCard>
   )
 }

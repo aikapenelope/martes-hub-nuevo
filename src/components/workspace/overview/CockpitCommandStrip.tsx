@@ -5,22 +5,24 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Calendar, RefreshCw, Send } from 'lucide-react'
 import type { Client, Tenant } from '@/payload-types'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { CrmFormDialog } from '@/components/workspace/CrmFormDialog'
 import { PaymentCreateDialog } from '@/components/workspace/PaymentCreateDialog'
+import { cn } from '@/lib/utils'
 import type { TimeRangeKey } from './types'
 
 interface CockpitCommandStripProps {
   tenant: Tenant
   dateTitle: string
   canEdit: boolean
-  clients: Client[]
+  clients: Client[] | null
   timeRange: TimeRangeKey
 }
 
 const RANGES: { key: TimeRangeKey; label: string }[] = [
   { key: 'hoy', label: 'Hoy' },
   { key: '7d', label: '7 Días' },
-  { key: '30d', label: 'Mes (30D)' },
+  { key: '30d', label: '30 Días' },
   { key: '90d', label: 'Trimestre' },
   { key: 'ano', label: 'Año' },
 ]
@@ -50,41 +52,45 @@ export function CockpitCommandStrip({
   }
 
   return (
-    <section className="p-3.5 border border-border bg-card text-card-foreground bracket-accent flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-      <div>
-        <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground uppercase tracking-widest mb-1">
-          <span className="w-2 h-2 bg-sky-400 pulse-glow inline-block" />
-          <span>Operación en línea · {dateTitle.toUpperCase()}</span>
-        </div>
-        <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-3 font-mono uppercase">
-          Torre de Control Comercial
-          <span className="text-[10px] font-bold px-2 py-0.5 bg-sky-500/10 text-sky-400 border border-sky-500/25">
-            {tenant.name}
+    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border border-border bg-card p-4 sm:p-5 text-card-foreground">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="flex size-2 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
+          <span className="uppercase tracking-wider font-medium text-[11px]">
+            Operación en línea · {dateTitle}
           </span>
-        </h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
+            Torre de Control Comercial
+          </h1>
+          <Badge variant="outline" className="text-xs font-medium tracking-wide">
+            {tenant.name}
+          </Badge>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2.5 font-mono text-xs">
+      <div className="flex flex-wrap items-center gap-2.5">
         {/* Selector de Rango Temporal */}
-        <div className="inline-flex items-center bg-background border border-border p-0.5">
-          <span className="px-2 text-muted-foreground flex items-center gap-1 text-[11px]">
-            <Calendar size={12} className="text-muted-foreground" />
+        <div className="inline-flex items-center rounded-lg bg-muted/60 p-1 border border-border/40">
+          <span className="px-2 text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+            <Calendar className="size-3.5 text-muted-foreground" />
             <span className="hidden sm:inline">Rango:</span>
           </span>
           {RANGES.map((r) => (
-            <Button
+            <button
               key={r.key}
               type="button"
-              variant="ghost"
               onClick={() => handleRangeChange(r.key)}
-              className={`h-auto rounded-none px-2 py-1 text-[10px] font-bold uppercase transition ${
+              className={cn(
+                'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
                 timeRange === r.key
-                  ? 'bg-sky-400 text-black'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
+                  ? 'bg-background text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
             >
               {r.label}
-            </Button>
+            </button>
           ))}
         </div>
 
@@ -95,9 +101,10 @@ export function CockpitCommandStrip({
           size="icon"
           onClick={handleRefresh}
           title="Sincronizar métricas en tiempo real"
-          className="border-border bg-muted text-foreground/80 hover:bg-accent hover:text-foreground"
+          className="size-8"
         >
-          <RefreshCw size={14} />
+          <RefreshCw className="size-3.5" />
+          <span className="sr-only">Actualizar datos</span>
         </Button>
 
         {canEdit ? (
@@ -107,28 +114,23 @@ export function CockpitCommandStrip({
           </>
         ) : (
           <>
-            <Link
-              href="/workspace/crm"
-              className="px-3.5 py-2 bg-muted hover:bg-accent border border-border text-foreground font-bold flex items-center gap-2 uppercase transition"
-            >
-              Ir al CRM
-            </Link>
-            <Link
-              href="/workspace/billing"
-              className="px-3.5 py-2 bg-muted hover:bg-accent border border-border text-foreground font-bold flex items-center gap-2 uppercase transition"
-            >
-              Facturación
-            </Link>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/workspace/crm">Ir al CRM</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/workspace/billing">Facturación</Link>
+            </Button>
           </>
         )}
-        <Link
-          href="/workspace/inbox"
-          className="px-4 py-2 bg-sky-400 hover:bg-sky-300 text-black font-black flex items-center gap-2 uppercase transition shadow-[0_0_16px_rgba(56,189,248,0.35)]"
-        >
-          <Send className="w-4 h-4" /> Ir al Inbox
-        </Link>
+
+        <Button asChild size="sm" className="gap-1.5">
+          <Link href="/workspace/inbox">
+            <Send className="size-3.5" />
+            <span>Ir al Inbox</span>
+          </Link>
+        </Button>
       </div>
-    </section>
+    </div>
   )
 }
 

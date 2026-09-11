@@ -44,7 +44,7 @@ const textareaCls =
   'flex min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 font-mono text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30'
 
 interface PaymentCreateDialogProps {
-  clients: Client[]
+  clients: Client[] | null
   variant?: 'primary' | 'secondary'
   defaultRate?: string
   rateSource?: 'bcv' | 'binance' | 'manual'
@@ -188,7 +188,16 @@ export function PaymentCreateDialog({
             </div>
           )}
 
-          {clients.length === 0 ? (
+          {clients === null ? (
+            <div className="space-y-3 border border-border bg-background p-6 text-center">
+              <p className="text-xs text-destructive font-medium">
+                Error al cargar la lista de clientes del CRM.
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                No fue posible conectar con el CRM para obtener los clientes. Recarga la página para reintentar.
+              </p>
+            </div>
+          ) : clients.length === 0 ? (
             <div className="space-y-3 border border-border bg-background p-6 text-center">
               <p className="text-xs text-muted-foreground">
                 No hay clientes registrados en este tenant.
