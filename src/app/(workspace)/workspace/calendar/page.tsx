@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
-import { PageHero } from '@/components/workspace/oled'
+import { PageHeader } from '@/components/workspace/page-header'
 import { getCalendarMonthData } from '@/lib/calendar-data'
 import { CalendarView } from '@/components/workspace/calendar/CalendarView'
 import { getAssignableUsers } from '@/lib/tasks-data'
@@ -73,7 +73,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
         eyebrow={`Operaciones · ${tenant.name}`}
         title="Calendario & Agenda Unificada"
         description="Visualización centralizada de citas de Google Calendar, compromisos comerciales, tareas por vencer y cobros del mes."

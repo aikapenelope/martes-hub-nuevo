@@ -44,7 +44,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
+import { KpiCard } from '@/components/workspace/kpi-card'
+import { PageHeader } from '@/components/workspace/page-header'
+import { Badge } from '@/components/ui/badge'
 import { PaymentCreateDialog } from '@/components/workspace/PaymentCreateDialog'
 import { QuoteInvoiceCreateDialog } from '@/components/workspace/QuoteInvoiceCreateDialog'
 
@@ -482,7 +484,7 @@ export function BillingWorkspace({
   return (
     <div className="space-y-5">
       {/* 1. Hero del módulo con Quick Dialogs */}
-      <PageHero
+      <PageHeader
         eyebrow="Ventas y Finanzas Operativas"
         title="Facturación & Cobranzas"
         description={`Gestión comercial, flujo de cobros y emisión de comprobantes de ${tenantName}.`}
@@ -727,13 +729,13 @@ export function BillingWorkspace({
 
       {/* 5.A. Tablas de Cobros (Todos / Pendientes / Pagados) */}
       {(activeTab === 'todos_cobros' || activeTab === 'pendientes' || activeTab === 'pagados') && (
-        <OledCard className="!p-0 animate-fadeIn">
+        <div className="bg-card text-card-foreground border border-border p-3.5 !p-0 animate-fadeIn">
           {filteredPayments.length === 0 ? (
-            <EmptyState>
+            <div className="py-10 text-center font-mono text-xs text-muted-foreground">
               {searchQuery
                 ? `No se encontraron cobros coincidentes con «${searchQuery}».`
                 : 'No hay registros de cobros para este filtro.'}
-            </EmptyState>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="text-left text-xs">
@@ -777,19 +779,20 @@ export function BillingWorkspace({
                           {usd.format(p.amount)}
                         </TableCell>
                         <TableCell className="px-4 py-3">
-                          <StatusBadge
-                            tone={
+                          <Badge
+                            variant={
                               isOverdue
-                                ? 'danger'
+                                ? 'destructive'
                                 : isPaid
                                   ? 'success'
                                   : isCancelled
-                                    ? 'neutral'
+                                    ? 'outline'
                                     : 'warning'
                             }
+                            className="font-mono text-[10px]"
                           >
                             {p.status}
-                          </StatusBadge>
+                          </Badge>
                         </TableCell>
                         <TableCell className="px-4 py-3 font-mono text-muted-foreground">
                           <div>{p.dueDate ? dateFmt.format(new Date(p.dueDate)) : '—'}</div>
@@ -890,18 +893,18 @@ export function BillingWorkspace({
             </span>
             <span className="text-muted-foreground">Haz clic en cualquier fila para ver el detalle 360°</span>
           </footer>
-        </OledCard>
+        </div>
       )}
 
       {/* 5.B. Pestaña: Cotizaciones (Quotes) */}
       {activeTab === 'cotizaciones' && (
-        <OledCard className="!p-0 animate-fadeIn">
+        <div className="bg-card text-card-foreground border border-border p-3.5 !p-0 animate-fadeIn">
           {filteredQuotes.length === 0 ? (
-            <EmptyState>
+            <div className="py-10 text-center font-mono text-xs text-muted-foreground">
               {searchQuery
                 ? `No se encontraron cotizaciones coincidentes con «${searchQuery}».`
                 : 'Sin cotizaciones registradas.'}
-            </EmptyState>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="text-left text-xs">
@@ -937,17 +940,18 @@ export function BillingWorkspace({
                           {usd.format(q.total ?? 0)}
                         </TableCell>
                         <TableCell className="px-4 py-3">
-                          <StatusBadge
-                            tone={
+                          <Badge
+                            variant={
                               q.status === 'accepted'
                                 ? 'success'
                                 : q.status === 'rejected' || q.status === 'expired'
-                                  ? 'danger'
-                                  : 'neutral'
+                                  ? 'destructive'
+                                  : 'outline'
                             }
+                            className="font-mono text-[10px]"
                           >
                             {q.status || 'draft'}
-                          </StatusBadge>
+                          </Badge>
                         </TableCell>
                         <TableCell className="px-4 py-3 font-mono text-muted-foreground">
                           {q.validUntil ? dateFmt.format(new Date(q.validUntil)) : '—'}
@@ -1012,18 +1016,18 @@ export function BillingWorkspace({
           <footer className="border-t border-border px-4 py-3 text-xs font-mono text-muted-foreground">
             <span>{filteredQuotes.length} cotizaciones registradas</span>
           </footer>
-        </OledCard>
+        </div>
       )}
 
       {/* 5.C. Pestaña: Facturas (Invoices) */}
       {activeTab === 'facturas' && (
-        <OledCard className="!p-0 animate-fadeIn">
+        <div className="bg-card text-card-foreground border border-border p-3.5 !p-0 animate-fadeIn">
           {filteredInvoices.length === 0 ? (
-            <EmptyState>
+            <div className="py-10 text-center font-mono text-xs text-muted-foreground">
               {searchQuery
                 ? `No se encontraron facturas coincidentes con «${searchQuery}».`
                 : 'Sin facturas emitidas.'}
-            </EmptyState>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="text-left text-xs">
@@ -1057,17 +1061,18 @@ export function BillingWorkspace({
                           {usd.format(inv.total ?? 0)}
                         </TableCell>
                         <TableCell className="px-4 py-3">
-                          <StatusBadge
-                            tone={
+                          <Badge
+                            variant={
                               inv.status === 'paid'
                                 ? 'success'
                                 : inv.status === 'overdue' || inv.status === 'cancelled'
-                                  ? 'danger'
-                                  : 'neutral'
+                                  ? 'destructive'
+                                  : 'outline'
                             }
+                            className="font-mono text-[10px]"
                           >
                             {inv.status || 'draft'}
-                          </StatusBadge>
+                          </Badge>
                         </TableCell>
                         <TableCell className="px-4 py-3 font-mono text-muted-foreground">
                           {inv.dueDate ? dateFmt.format(new Date(inv.dueDate)) : '—'}
@@ -1132,7 +1137,7 @@ export function BillingWorkspace({
           <footer className="border-t border-border px-4 py-3 text-xs font-mono text-muted-foreground">
             <span>{filteredInvoices.length} facturas emitidas</span>
           </footer>
-        </OledCard>
+        </div>
       )}
 
       {/* 6. Slide-Over Sheet: Terminal Fintech 360° */}
@@ -1188,19 +1193,20 @@ export function BillingWorkspace({
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                         Cobro #{payment.id}
                       </span>
-                      <StatusBadge
-                        tone={
+                      <Badge
+                        variant={
                           isPaid
                             ? 'success'
                             : isOverdue
-                              ? 'danger'
+                              ? 'destructive'
                               : isCancelled
-                                ? 'neutral'
+                                ? 'outline'
                                 : 'warning'
                         }
+                        className="font-mono text-[10px]"
                       >
                         {payment.status}
-                      </StatusBadge>
+                      </Badge>
                     </div>
 
                     <h3 className="text-base font-bold text-foreground">
@@ -1630,17 +1636,18 @@ export function BillingWorkspace({
                       <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
                         Cotización Comercial
                       </span>
-                      <StatusBadge
-                        tone={
+                      <Badge
+                        variant={
                           q.status === 'accepted'
                             ? 'success'
                             : q.status === 'rejected' || q.status === 'expired'
-                              ? 'danger'
-                              : 'neutral'
+                              ? 'destructive'
+                              : 'outline'
                         }
+                        className="font-mono text-[10px]"
                       >
                         {q.status || 'draft'}
-                      </StatusBadge>
+                      </Badge>
                     </div>
 
                     <h3 className="text-lg font-bold text-foreground font-mono">
@@ -1778,17 +1785,18 @@ export function BillingWorkspace({
                       <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
                         Factura Emitida
                       </span>
-                      <StatusBadge
-                        tone={
+                      <Badge
+                        variant={
                           inv.status === 'paid'
                             ? 'success'
                             : inv.status === 'overdue' || inv.status === 'cancelled'
-                              ? 'danger'
-                              : 'neutral'
+                              ? 'destructive'
+                              : 'outline'
                         }
+                        className="font-mono text-[10px]"
                       >
                         {inv.status || 'draft'}
-                      </StatusBadge>
+                      </Badge>
                     </div>
 
                     <h3 className="text-lg font-bold text-foreground font-mono">

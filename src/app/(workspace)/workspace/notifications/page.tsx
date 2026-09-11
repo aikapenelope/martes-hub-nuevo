@@ -9,7 +9,8 @@ import Link from 'next/link'
 import { AlertCircle, BellRing, Inbox, MailWarning } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
-import { EmptyState, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
+import { PageHeader } from '@/components/workspace/page-header'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { EmailLog, Notification } from '@/payload-types'
 
@@ -60,7 +61,7 @@ export default async function NotificationsPage() {
   const failedEmails = failedEmailsRes.docs as EmailLog[]
   return (
     <div className="space-y-6">
-      <PageHero
+      <PageHeader
         eyebrow="Operación"
         title="Incidentes de Canales"
         description="Alertas de OpenBSP, workers y crons, más emails fallidos o rebotados. Es la fuente que alimenta el contador de fallos del monitor de salud del cockpit."
@@ -77,9 +78,9 @@ export default async function NotificationsPage() {
           <BellRing size={14} className="text-amber-400" />
           Notificaciones del sistema ({notificationsRes.totalDocs})
         </h2>
-        <OledCard className="!p-0">
+        <div className="bg-card text-card-foreground border border-border p-3.5 !p-0">
           {notifications.length === 0 ? (
-            <EmptyState>Sin notificaciones registradas. Los canales están tranquilos.</EmptyState>
+            <div className="py-10 text-center font-mono text-xs text-muted-foreground">Sin notificaciones registradas. Los canales están tranquilos.</div>
           ) : (
             <div className="flex flex-col divide-y divide-border">
               {notifications.map((n) => {
@@ -122,7 +123,7 @@ export default async function NotificationsPage() {
               })}
             </div>
           )}
-        </OledCard>
+        </div>
       </section>
 
       {/* Emails fallidos / rebotados (webhook de Resend) */}
@@ -131,9 +132,9 @@ export default async function NotificationsPage() {
           <MailWarning size={14} className="text-red-400" />
           Emails fallidos o rebotados ({failedEmailsRes.totalDocs})
         </h2>
-        <OledCard className="!p-0">
+        <div className="bg-card text-card-foreground border border-border p-3.5 !p-0">
           {failedEmails.length === 0 ? (
-            <EmptyState>Ningún email marcado como fallido o rebotado.</EmptyState>
+            <div className="py-10 text-center font-mono text-xs text-muted-foreground">Ningún email marcado como fallido o rebotado.</div>
           ) : (
             <div className="flex flex-col divide-y divide-border">
               {failedEmails.map((e) => (
@@ -142,7 +143,7 @@ export default async function NotificationsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm text-foreground truncate font-mono">{e.to}</span>
-                      <StatusBadge>{e.status === 'bounced' ? 'Rebotado' : 'Fallido'}</StatusBadge>
+                      <Badge variant="outline" className="font-mono text-[10px]">{e.status === 'bounced' ? 'Rebotado' : 'Fallido'}</Badge>
                       {e.subject && (
                         <span className="text-[11px] text-muted-foreground truncate">{e.subject}</span>
                       )}
@@ -160,7 +161,7 @@ export default async function NotificationsPage() {
               ))}
             </div>
           )}
-        </OledCard>
+        </div>
       </section>
     </div>
   )

@@ -8,8 +8,10 @@ import { AlertTriangle, CalendarClock, CircleDollarSign, RefreshCw } from 'lucid
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { MembershipCreateDialog } from '@/components/workspace/MembershipCreateDialog'
-import { EmptyState, KpiCard, PageHero, StatusBadge } from '@/components/workspace/oled'
 import { MembershipStatusSelect } from '@/components/workspace/MembershipStatusSelect'
+import { KpiCard } from '@/components/workspace/kpi-card'
+import { PageHeader } from '@/components/workspace/page-header'
+import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import {
 	Table,
@@ -24,11 +26,11 @@ import type { Client, Membership } from '@/payload-types'
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 const date = new Intl.DateTimeFormat('es-VE', { day: 'numeric', month: 'short', year: 'numeric' })
 
-const STATUS_TONE: Record<Membership['status'] & string, 'success' | 'warning' | 'danger' | 'neutral'> = {
+const STATUS_VARIANT: Record<Membership['status'] & string, 'success' | 'warning' | 'destructive' | 'outline'> = {
   activa: 'success',
   pausada: 'warning',
-  vencida: 'danger',
-  cancelada: 'neutral',
+  vencida: 'destructive',
+  cancelada: 'outline',
 }
 
 export default async function MembershipsPage() {
@@ -72,7 +74,7 @@ export default async function MembershipsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
         eyebrow={`Membresías · ${context.tenant.name}`}
         title="Membresías y Suscripciones"
         description="Planes recurrentes, renovaciones y MRR del tenant activo."
@@ -88,7 +90,7 @@ export default async function MembershipsPage() {
 
       <Card className="gap-0 overflow-hidden py-0">
         {memberships.length === 0 ? (
-          <EmptyState>Sin membresías registradas para este tenant todavía.</EmptyState>
+          <div className="py-10 text-center font-mono text-xs text-muted-foreground">Sin membresías registradas para este tenant todavía.</div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -121,7 +123,7 @@ export default async function MembershipsPage() {
                             label={`Cambiar estado de membresía de ${clientName}`}
                           />
                         ) : (
-                          <StatusBadge tone={STATUS_TONE[m.status ?? 'activa']}>{m.status}</StatusBadge>
+                          <Badge variant={STATUS_VARIANT[m.status ?? 'activa']} className="font-mono text-[10px]">{m.status}</Badge>
                         )}
                       </TableCell>
                     </TableRow>

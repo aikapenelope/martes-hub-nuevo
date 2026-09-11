@@ -1,6 +1,5 @@
 import { TrendingUp, TrendingDown } from 'lucide-react'
 
-import { OledCard } from '@/components/workspace/oled'
 import type { MonthlySeries } from '@/lib/trend-widgets'
 
 /**
@@ -53,7 +52,7 @@ export function TrendStrip({ trends }: { trends: MonthlySeries }) {
 
   return (
     <section className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="Tendencias de 6 meses">
-      <OledCard>
+      <div className="bg-card text-card-foreground border border-border p-3.5">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Cobrado · 6 meses</p>
           <DeltaChip delta={trends.cobradoDeltaPct} />
@@ -65,9 +64,9 @@ export function TrendStrip({ trends }: { trends: MonthlySeries }) {
         <div className="mt-1 flex justify-between text-[8px] font-mono text-muted-foreground">
           {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
         </div>
-      </OledCard>
+      </div>
 
-      <OledCard>
+      <div className="bg-card text-card-foreground border border-border p-3.5">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Leads nuevos · 6 meses</p>
           <DeltaChip delta={trends.leadsNuevosDeltaPct} />
@@ -79,9 +78,9 @@ export function TrendStrip({ trends }: { trends: MonthlySeries }) {
         <div className="mt-1 flex justify-between text-[8px] font-mono text-muted-foreground">
           {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
         </div>
-      </OledCard>
+      </div>
 
-      <OledCard>
+      <div className="bg-card text-card-foreground border border-border p-3.5">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Actividades · 6 meses</p>
           <DeltaChip delta={trends.actividadesDeltaPct} />
@@ -93,7 +92,7 @@ export function TrendStrip({ trends }: { trends: MonthlySeries }) {
         <div className="mt-1 flex justify-between text-[8px] font-mono text-muted-foreground">
           {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
         </div>
-      </OledCard>
+      </div>
     </section>
   )
 }

@@ -8,7 +8,8 @@ import { FileText, Receipt, File as FileIcon } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { DocumentUploadDialog } from '@/components/workspace/DocumentUploadDialog'
-import { EmptyState, KpiCard, OledCard, PageHero } from '@/components/workspace/oled'
+import { KpiCard } from '@/components/workspace/kpi-card'
+import { PageHeader } from '@/components/workspace/page-header'
 import {
   Table,
   TableBody,
@@ -63,7 +64,7 @@ export default async function DocumentsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
         eyebrow={`Documentos · ${context.tenant.name}`}
         title="Contratos y Documentos"
         description="Contratos, facturas y archivos PDF por cliente."
@@ -76,9 +77,9 @@ export default async function DocumentsPage() {
         <KpiCard label="Otros" value={byType.otro} icon={FileIcon} accent="indigo" note="Documentos sin clasificar" />
       </section>
 
-      <OledCard className="!p-0">
+      <div className="bg-card text-card-foreground border border-border p-3.5 !p-0">
         {documents.length === 0 ? (
-          <EmptyState>Sin documentos subidos para este tenant todavía.</EmptyState>
+          <div className="py-10 text-center font-mono text-xs text-muted-foreground">Sin documentos subidos para este tenant todavía.</div>
         ) : (
           <div className="overflow-x-auto">
             <Table className="w-full text-left text-xs">
@@ -117,7 +118,7 @@ export default async function DocumentsPage() {
             </Table>
           </div>
         )}
-      </OledCard>
+      </div>
     </div>
   )
 }

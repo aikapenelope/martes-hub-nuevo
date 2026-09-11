@@ -24,7 +24,6 @@ import {
 import type { Client, Segment, Tenant, User } from '@/payload-types'
 import type { WorkspaceOverviewData } from './types'
 import type { AgendaItem } from '@/lib/agenda-data'
-import { OledCard } from '@/components/workspace/oled'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -249,7 +248,7 @@ export function CockpitFocusViews({
               </Link>
             </div>
 
-            <OledCard className="!p-0">
+            <div className="bg-card text-card-foreground border border-border p-3.5 !p-0">
               {agenda.length === 0 ? (
                 <div className="p-6 text-center text-xs font-mono text-muted-foreground space-y-1">
                   <Zap size={20} className="mx-auto text-muted-foreground/60 mb-2" />
@@ -315,7 +314,7 @@ export function CockpitFocusViews({
                   })}
                 </div>
               )}
-            </OledCard>
+            </div>
           </section>
         )
       case 'feed':

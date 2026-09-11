@@ -10,7 +10,8 @@ import { Layers, Users } from 'lucide-react'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { deleteSegmentAction } from '@/lib/segment-actions'
 import { SegmentCreateDialog } from '@/components/workspace/SegmentCreateDialog'
-import { EmptyState, KpiCard, OledCard, PageHero } from '@/components/workspace/oled'
+import { KpiCard } from '@/components/workspace/kpi-card'
+import { PageHeader } from '@/components/workspace/page-header'
 import { Button } from '@/components/ui/button'
 import type { Segment } from '@/payload-types'
 
@@ -67,7 +68,7 @@ export default async function SegmentsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
         eyebrow={`Rubros · ${context.tenant.name}`}
         title="Rubros y Segmentos"
         description="Clasificación de clientes/leads usada en CRM, catálogo y campañas de email."
@@ -83,9 +84,9 @@ export default async function SegmentsPage() {
       <section className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
         {segments.length === 0 ? (
           <div className="md:col-span-2 xl:col-span-3">
-            <OledCard>
-              <EmptyState>Sin rubros registrados todavía.</EmptyState>
-            </OledCard>
+            <div className="bg-card text-card-foreground border border-border p-3.5">
+              <div className="py-10 text-center font-mono text-xs text-muted-foreground">Sin rubros registrados todavía.</div>
+            </div>
           </div>
         ) : (
           segments.map((s) => {

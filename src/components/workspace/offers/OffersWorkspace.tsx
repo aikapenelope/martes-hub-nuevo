@@ -24,7 +24,9 @@ import {
 import type { Client, Lead, Media, Offer, Quote, Segment } from '@/payload-types'
 import { useRouter } from 'next/navigation'
 import { cn } from 'cn'
-import { EmptyState, KpiCard, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
+import { KpiCard } from '@/components/workspace/kpi-card'
+import { PageHeader } from '@/components/workspace/page-header'
+import { Badge } from '@/components/ui/badge'
 import { OfferCreateDialog } from '@/components/workspace/OfferCreateDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -396,7 +398,7 @@ export function OffersWorkspace({
         </div>
       )}
 
-      <PageHero
+      <PageHeader
         eyebrow={`Comercial & Cotizaciones · ${tenantName}`}
         title="Ofertas y Presupuestos"
         description="Gestión integral de servicios, catálogo de precios base y emisión de cotizaciones con envío por WhatsApp."
@@ -500,13 +502,13 @@ export function OffersWorkspace({
         <section className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3 animate-fadeIn">
           {filteredOffers.length === 0 ? (
             <div className="md:col-span-2 xl:col-span-3">
-              <OledCard>
-                <EmptyState>
+              <div className="bg-card text-card-foreground border border-border p-3.5">
+                <div className="py-10 text-center font-mono text-xs text-muted-foreground">
                   {searchQuery
                     ? `No se encontraron ofertas coincidentes con «${searchQuery}».`
                     : 'Sin ofertas registradas para este tenant todavía.'}
-                </EmptyState>
-              </OledCard>
+                </div>
+              </div>
             </div>
           ) : (
             filteredOffers.map((o) => {
@@ -521,9 +523,9 @@ export function OffersWorkspace({
                       <strong className="text-sm font-bold text-foreground transition group-hover:text-sky-300">
                         {o.name}
                       </strong>
-                      <StatusBadge tone={o.active ? 'success' : 'neutral'}>
+                      <Badge variant={o.active ? 'success' : 'outline'} className="font-mono text-[10px]">
                         {o.active ? 'Activa' : 'Pausada'}
-                      </StatusBadge>
+                      </Badge>
                     </div>
                     {o.description && (
                       <p className="text-xs leading-relaxed text-muted-foreground">{o.description}</p>
@@ -580,13 +582,13 @@ export function OffersWorkspace({
 
       {/* CONTENIDO TAB 2: COTIZACIONES EMITIDAS */}
       {activeTab === 'cotizaciones' && (
-        <OledCard className="!p-0 animate-fadeIn">
+        <div className="bg-card text-card-foreground border border-border p-3.5 !p-0 animate-fadeIn">
           {filteredQuotes.length === 0 ? (
-            <EmptyState>
+            <div className="py-10 text-center font-mono text-xs text-muted-foreground">
               {searchQuery
                 ? `No se encontraron cotizaciones para «${searchQuery}».`
                 : 'Sin cotizaciones emitidas en este workspace aún.'}
-            </EmptyState>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table className="text-left text-xs">
@@ -621,16 +623,17 @@ export function OffersWorkspace({
                           {usd.format(q.total ?? 0)}
                         </TableCell>
                         <TableCell className="px-4 py-3">
-                          <StatusBadge
-                            tone={
+                          <Badge
+                            variant={
                               q.status === 'accepted'
                                 ? 'success'
                                 : q.status === 'rejected' || q.status === 'expired'
-                                  ? 'danger'
+                                  ? 'destructive'
                                   : q.status === 'sent'
                                     ? 'warning'
-                                    : 'neutral'
+                                    : 'outline'
                             }
+                            className="font-mono text-[10px]"
                           >
                             {q.status === 'draft'
                               ? 'Borrador'
@@ -641,7 +644,7 @@ export function OffersWorkspace({
                                   : q.status === 'rejected'
                                     ? 'Rechazada'
                                     : q.status || 'draft'}
-                          </StatusBadge>
+                          </Badge>
                         </TableCell>
                         <TableCell className="px-4 py-3 font-mono text-muted-foreground">
                           {q.validUntil ? dateFmt.format(new Date(q.validUntil)) : '—'}
@@ -739,7 +742,7 @@ export function OffersWorkspace({
               </div>
             )}
           </footer>
-        </OledCard>
+        </div>
       )}
 
       {/* DIÁLOGO: CONSTRUCTOR DE NUEVA COTIZACIÓN RÁPIDA */}
@@ -1145,9 +1148,9 @@ export function OffersWorkspace({
                     <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
                       {selectedQuote.quoteNumber || `COT-#${selectedQuote.id}`}
                     </span>
-                    <StatusBadge tone={selectedQuote.status === 'accepted' ? 'success' : 'neutral'}>
+                    <Badge variant={selectedQuote.status === 'accepted' ? 'success' : 'outline'} className="font-mono text-[10px]">
                       {selectedQuote.status || 'draft'}
-                    </StatusBadge>
+                    </Badge>
                   </div>
 
                   <h3 className="text-lg font-bold text-foreground">

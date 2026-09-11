@@ -33,7 +33,7 @@ import {
   NewConversationDrawer,
   type ContactItem,
 } from './inbox/NewConversationDrawer'
-import { HeroAction, PageHero } from '@/components/workspace/oled'
+import { PageHeader } from '@/components/workspace/page-header'
 import {
   getInboxAssigneesAction,
   replyConversationAction,
@@ -279,20 +279,21 @@ export function InboxWorkspace({
 
   return (
     <div className="flex h-[calc(100vh-6.5rem)] flex-col gap-3">
-      {/* 1. PageHero del Módulo Omnicanal */}
-      <PageHero
+      {/* 1. Encabezado del Módulo Omnicanal */}
+      <PageHeader
         eyebrow="Consola Omnicanal · Módulo 3"
         title="Inbox Omnicanal 360°"
         description={`Gestión unificada de WhatsApp, Instagram y Web chat para ${tenantName || 'tu empresa'}.`}
         actions={
           canEdit ? (
-            <HeroAction
-              variant="primary"
-              icon={Plus}
+            <Button
+              type="button"
               onClick={() => setIsNewConvOpen(true)}
+              className="bg-sky-400 font-mono text-xs font-black uppercase text-black shadow-[0_0_16px_rgba(56,189,248,0.35)] hover:bg-sky-300"
             >
+              <Plus className="h-4 w-4" />
               + Nueva Conversación
-            </HeroAction>
+            </Button>
           ) : undefined
         }
       />

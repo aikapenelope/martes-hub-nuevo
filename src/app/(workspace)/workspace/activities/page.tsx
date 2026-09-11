@@ -9,7 +9,8 @@ import type { Where } from 'payload'
 import { Activity, Mail, MessageSquare, PhoneCall, StickyNote, Users } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
-import { EmptyState, KpiCard, OledCard, PageHero } from '@/components/workspace/oled'
+import { KpiCard } from '@/components/workspace/kpi-card'
+import { PageHeader } from '@/components/workspace/page-header'
 import { ActivityDrawer } from '@/components/workspace/ActivityDrawer'
 import type { Activity as ActivityDoc, Client, Lead } from '@/payload-types'
 
@@ -86,7 +87,7 @@ export default async function ActivitiesPage({
 
   return (
     <div className="space-y-4">
-      <PageHero
+      <PageHeader
         eyebrow={`Historial · ${context.tenant.name}`}
         title="Actividades Comerciales"
         description="Timeline unificado de contactos con leads y clientes."
@@ -110,9 +111,11 @@ export default async function ActivitiesPage({
         ))}
       </div>
 
-      <OledCard className="!p-0">
+      <div className="bg-card text-card-foreground border border-border p-3.5 !p-0">
         {activities.length === 0 ? (
-          <EmptyState>Sin actividades registradas{validType ? ` del tipo «${TYPE_META[validType].label}»` : ''}.</EmptyState>
+          <div className="py-10 text-center font-mono text-xs text-muted-foreground">
+            Sin actividades registradas{validType ? ` del tipo «${TYPE_META[validType].label}»` : ''}.
+          </div>
         ) : (
           <ol className="flex flex-col">
             {activities.map((a) => {
@@ -151,7 +154,7 @@ export default async function ActivitiesPage({
             })}
           </ol>
         )}
-      </OledCard>
+      </div>
     </div>
   )
 }
