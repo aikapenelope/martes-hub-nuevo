@@ -65,13 +65,13 @@ export default async function FeedbackPage({
           <>
             <Link
               href="/workspace/feedback"
-              className={!onlyComplaints ? 'px-3.5 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono' : 'px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-bold uppercase tracking-wider font-mono'}
+              className={!onlyComplaints ? 'px-3.5 py-2 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider font-mono' : 'px-3.5 py-2 bg-muted hover:bg-accent border border-border text-foreground text-xs font-bold uppercase tracking-wider font-mono'}
             >
               Todos
             </Link>
             <Link
               href="/workspace/feedback?filtro=quejas"
-              className={onlyComplaints ? 'px-3.5 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono' : 'px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-bold uppercase tracking-wider font-mono'}
+              className={onlyComplaints ? 'px-3.5 py-2 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider font-mono' : 'px-3.5 py-2 bg-muted hover:bg-accent border border-border text-foreground text-xs font-bold uppercase tracking-wider font-mono'}
             >
               Solo quejas
             </Link>
@@ -98,14 +98,14 @@ export default async function FeedbackPage({
               const linkedLead = typeof s.lead === 'object' && s.lead ? (s.lead as Lead) : null
               const person = s.respondentName || s.respondentEmail || s.respondentPhone || 'Anónimo'
               return (
-                <div key={s.id} className="border-b border-zinc-900 p-4 last:border-0">
+                <div key={s.id} className="border-b border-border p-4 last:border-0">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <strong className="text-sm text-white">{person}</strong>
+                        <strong className="text-sm text-foreground">{person}</strong>
                         {s.isComplaint && <StatusBadge tone="danger">Queja / Alerta</StatusBadge>}
                       </div>
-                      <span className="text-[10px] text-zinc-500 font-mono">
+                      <span className="text-[10px] text-muted-foreground font-mono">
                         {s.formName} · {dateFmt.format(new Date(s.createdAt))}
                         {s.respondentEmail && ` · ${s.respondentEmail}`}
                         {s.respondentPhone && ` · ${s.respondentPhone}`}
@@ -125,9 +125,9 @@ export default async function FeedbackPage({
                   {answerEntries.length > 0 && (
                     <dl className="mt-3 grid gap-2 sm:grid-cols-2">
                       {answerEntries.map(([label, value]) => (
-                        <div key={label} className="oled-subcard p-2">
-                          <dt className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono">{label}</dt>
-                          <dd className="mt-0.5 text-xs text-zinc-200 break-words">{String(value)}</dd>
+                        <div key={label} className="border border-border bg-muted/40 p-2">
+                          <dt className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono">{label}</dt>
+                          <dd className="mt-0.5 text-xs text-foreground break-words">{String(value)}</dd>
                         </div>
                       ))}
                     </dl>

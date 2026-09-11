@@ -25,7 +25,7 @@ export function CockpitConversionFunnel({ metrics }: { metrics: WorkspaceOvervie
       label: 'Nuevos / Inbound',
       count: leadsNuevoCount,
       valueAmount: estimatedRevenueNew,
-      colorAccent: '#71717a', // zinc-500
+      colorAccent: '#71717a', // neutro base
     },
     {
       label: 'En Conversación',
@@ -56,18 +56,18 @@ export function CockpitConversionFunnel({ metrics }: { metrics: WorkspaceOvervie
   ]
 
   return (
-    <div className="p-3.5 oled-card space-y-3.5">
-      <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800">
+    <div className="p-3.5 bg-card text-card-foreground border border-border space-y-3.5">
+      <div className="flex items-center justify-between pb-2.5 border-b border-border">
         <div>
-          <h2 className="text-xs font-black text-white font-mono uppercase tracking-wider flex items-center gap-2">
+          <h2 className="text-xs font-black text-foreground font-mono uppercase tracking-wider flex items-center gap-2">
             <Layers className="w-3.5 h-3.5 text-sky-400" /> Embudo de Conversión
           </h2>
-          <p className="text-[11px] text-zinc-500">Volumen y tasa de avance real entre etapas</p>
+          <p className="text-[11px] text-muted-foreground">Volumen y tasa de avance real entre etapas</p>
         </div>
         <div className="flex items-center gap-3">
           {globalConversionRate !== null && (
-            <span className="text-[11px] font-mono text-zinc-400 border border-zinc-800 px-2 py-0.5">
-              Global: <strong className="text-white">{globalConversionRate.toFixed(1)}%</strong>
+            <span className="text-[11px] font-mono text-muted-foreground border border-border px-2 py-0.5">
+              Global: <strong className="text-foreground">{globalConversionRate.toFixed(1)}%</strong>
             </span>
           )}
           <Link href="/workspace/crm" className="text-xs font-mono text-sky-400 hover:underline flex items-center gap-1 font-bold">

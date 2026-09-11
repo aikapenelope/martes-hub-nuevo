@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import type { Client, Conversation, ConversationSummary, EmailLog, Lead, Payment } from '@/payload-types'
+import { Button } from '@/components/ui/button'
 import { formatTimeAgo } from '@/lib/crm-pipeline-window'
 
 const currency = new Intl.NumberFormat('es-VE', {
@@ -20,7 +21,7 @@ const currency = new Intl.NumberFormat('es-VE', {
 
 const SENTIMENT_BADGES: Record<string, { label: string; cls: string }> = {
   positivo: { label: 'Positivo', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
-  neutral: { label: 'Neutral', cls: 'bg-zinc-800 text-zinc-300 border-zinc-700' },
+  neutral: { label: 'Neutral', cls: 'bg-muted text-foreground/80 border-border' },
   negativo: { label: 'Negativo', cls: 'bg-rose-500/10 text-rose-400 border-rose-500/30' },
   en_riesgo: { label: 'En Riesgo', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
 }
@@ -56,40 +57,40 @@ export function CockpitOmnichannelFeed({
   const aiSummaries = summaries.filter((s) => s.generatedBy === 'hermes_ai' || s.generatedBy === 'openbsp_agent')
 
   return (
-    <div className="p-3.5 oled-card space-y-3.5">
-      <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-zinc-800">
+    <div className="p-3.5 bg-card text-card-foreground border border-border space-y-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-border">
         <div>
-          <h2 className="text-xs font-black text-white font-mono uppercase tracking-wider flex items-center gap-2">
+          <h2 className="text-xs font-black text-foreground font-mono uppercase tracking-wider flex items-center gap-2">
             <span className="w-2 h-2 bg-sky-400 pulse-glow inline-block" /> Feed Omnicanal
           </h2>
-          <p className="text-[11px] text-zinc-500">Eventos de WhatsApp, agentes IA, email y cobros</p>
+          <p className="text-[11px] text-muted-foreground">Eventos de WhatsApp, agentes IA, email y cobros</p>
         </div>
 
         {/* Selector de modo: Todos vs Agentes IA */}
-        <div className="inline-flex p-0.5 bg-black border border-zinc-800 font-mono text-[10px]">
-          <button
+        <div className="inline-flex p-0.5 bg-background border border-border font-mono text-[10px]">
+          <Button
             type="button"
             onClick={() => setFilterMode('all')}
-            className={`px-2 py-0.5 transition ${
+            className={`h-auto rounded-none px-2 py-0.5 font-mono text-[10px] font-normal transition ${
               filterMode === 'all'
-                ? 'bg-zinc-800 text-white font-bold'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'bg-muted text-foreground font-bold'
+                : 'text-muted-foreground hover:text-foreground/80'
             }`}
           >
             Todos
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => setFilterMode('ai')}
-            className={`px-2 py-0.5 flex items-center gap-1 transition ${
+            className={`h-auto rounded-none px-2 py-0.5 flex items-center gap-1 font-mono text-[10px] font-normal transition ${
               filterMode === 'ai'
                 ? 'bg-indigo-950 text-indigo-300 border border-indigo-800 font-bold'
-                : 'text-zinc-500 hover:text-indigo-400'
+                : 'text-muted-foreground hover:text-indigo-400'
             }`}
           >
-            <Sparkles size={11} className="text-indigo-400" />
+            <Sparkles className="size-[11px] text-indigo-400" />
             <span>Agentes IA ({aiSummaries.length})</span>
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -97,10 +98,10 @@ export function CockpitOmnichannelFeed({
         /* Vista dedicada a actividad de Agentes IA (Hermes / Jena / OpenBSP) */
         <div className="space-y-2 font-mono text-xs">
           {aiSummaries.length === 0 ? (
-            <div className="p-6 text-center text-zinc-500 font-mono text-xs space-y-1">
-              <Bot size={20} className="mx-auto text-zinc-600 mb-1.5" />
-              <p className="text-zinc-400 font-bold">Sin resúmenes de IA registrados aún.</p>
-              <p className="text-[11px] text-zinc-600">
+            <div className="p-6 text-center text-muted-foreground font-mono text-xs space-y-1">
+              <Bot size={20} className="mx-auto text-muted-foreground mb-1.5" />
+              <p className="text-muted-foreground font-bold">Sin resúmenes de IA registrados aún.</p>
+              <p className="text-[11px] text-muted-foreground">
                 Cuando los agentes sinteticen conversaciones o analicen leads, aparecerán aquí.
               </p>
             </div>
@@ -125,7 +126,7 @@ export function CockpitOmnichannelFeed({
                       onOpenLead(relatedLeadId)
                     }
                   }}
-                  className={`p-3 oled-subcard space-y-1.5 transition group ${
+                  className={`p-3 border border-border bg-muted/40 space-y-1.5 transition group ${
                     relatedLeadId && onOpenLead ? 'cursor-pointer hover:border-indigo-800/80' : ''
                   }`}
                 >
@@ -135,23 +136,23 @@ export function CockpitOmnichannelFeed({
                         <Bot className="w-3.5 h-3.5" />
                         {agentName}
                       </span>
-                      <span className="text-zinc-600">·</span>
-                      <span className="text-zinc-300 font-bold truncate max-w-[140px] sm:max-w-[200px]">
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-foreground/80 font-bold truncate max-w-[140px] sm:max-w-[200px]">
                         {contactName}
                       </span>
                     </div>
-                    <span className="text-[10px] text-zinc-500">{formatTimeAgo(s.createdAt, nowTime)}</span>
+                    <span className="text-[10px] text-muted-foreground">{formatTimeAgo(s.createdAt, nowTime)}</span>
                   </div>
 
-                  <p className="text-zinc-200 text-xs line-clamp-2 leading-relaxed">{s.summary}</p>
+                  <p className="text-foreground text-xs line-clamp-2 leading-relaxed">{s.summary}</p>
 
-                  <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-zinc-900/80 text-[10px]">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-border text-[10px]">
                     <div className="flex items-center gap-1.5">
                       <span className={`border px-1.5 py-0.2 uppercase font-bold text-[9px] ${sentiment.cls}`}>
                         {sentiment.label}
                       </span>
                       {s.nextSteps && (
-                        <span className="text-zinc-400 truncate max-w-[160px] hidden sm:inline">
+                        <span className="text-muted-foreground truncate max-w-[160px] hidden sm:inline">
                           ➔ {s.nextSteps}
                         </span>
                       )}
@@ -171,15 +172,15 @@ export function CockpitOmnichannelFeed({
         /* Vista unificada (Todos los eventos) */
         <div className="space-y-2.5 font-mono text-xs">
           {latestConv && (
-            <div className="p-3 oled-subcard space-y-1.5">
+            <div className="p-3 border border-border bg-muted/40 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-sky-400 font-bold flex items-center gap-1.5">
                   <MessageCircle className="w-3.5 h-3.5" /> WhatsApp / Instagram
                 </span>
-                <span className="text-[10px] text-zinc-500">{formatTimeAgo(latestConv.updatedAt, nowTime)}</span>
+                <span className="text-[10px] text-muted-foreground">{formatTimeAgo(latestConv.updatedAt, nowTime)}</span>
               </div>
-              <p className="text-zinc-200 text-xs truncate">Interacción activa con {latestConv.contactAddress}</p>
-              <div className="flex justify-between text-[10px] text-zinc-500 pt-1">
+              <p className="text-foreground text-xs truncate">Interacción activa con {latestConv.contactAddress}</p>
+              <div className="flex justify-between text-[10px] text-muted-foreground pt-1">
                 <span>Canal: {latestConv.channel}</span>
               </div>
             </div>
@@ -187,7 +188,7 @@ export function CockpitOmnichannelFeed({
 
           {latestSummary && (
             <div
-              className={`p-3 oled-subcard space-y-1.5 ${
+              className={`p-3 border border-border bg-muted/40 space-y-1.5 ${
                 typeof latestSummary.lead === 'object' && latestSummary.lead !== null && onOpenLead
                   ? 'cursor-pointer hover:border-indigo-800/80'
                   : ''
@@ -202,10 +203,10 @@ export function CockpitOmnichannelFeed({
                 <span className="text-indigo-400 font-bold flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" /> Resumen IA ({AGENT_LABELS[latestSummary.generatedBy || 'hermes_ai'] || 'IA'})
                 </span>
-                <span className="text-[10px] text-zinc-500">{formatTimeAgo(latestSummary.createdAt, nowTime)}</span>
+                <span className="text-[10px] text-muted-foreground">{formatTimeAgo(latestSummary.createdAt, nowTime)}</span>
               </div>
-              <p className="text-zinc-200 text-xs truncate">{latestSummary.summary}</p>
-              <div className="flex justify-between text-[10px] text-zinc-500 pt-1">
+              <p className="text-foreground text-xs truncate">{latestSummary.summary}</p>
+              <div className="flex justify-between text-[10px] text-muted-foreground pt-1">
                 <span>Sentimiento: {latestSummary.sentiment}</span>
                 {latestSummary.nextSteps && <span className="truncate max-w-[160px]">➔ {latestSummary.nextSteps}</span>}
               </div>
@@ -213,32 +214,32 @@ export function CockpitOmnichannelFeed({
           )}
 
           {latestEmail && (
-            <div className="p-3 oled-subcard space-y-1.5">
+            <div className="p-3 border border-border bg-muted/40 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-cyan-400 font-bold flex items-center gap-1.5">
                   <MailCheck className="w-3.5 h-3.5" /> Email (Resend)
                 </span>
-                <span className="text-[10px] text-zinc-500">{formatTimeAgo(latestEmail.createdAt, nowTime)}</span>
+                <span className="text-[10px] text-muted-foreground">{formatTimeAgo(latestEmail.createdAt, nowTime)}</span>
               </div>
-              <p className="text-zinc-200 text-xs truncate">{latestEmail.subject}</p>
-              <div className="flex justify-between text-[10px] text-zinc-500 pt-1">
+              <p className="text-foreground text-xs truncate">{latestEmail.subject}</p>
+              <div className="flex justify-between text-[10px] text-muted-foreground pt-1">
                 <span>{latestEmail.to}</span>
               </div>
             </div>
           )}
 
           {latestPayment && (
-            <div className="p-3 oled-subcard space-y-1.5">
+            <div className="p-3 border border-border bg-muted/40 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-amber-400 font-bold flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Pago Confirmado
                 </span>
-                <span className="text-[10px] text-zinc-500">{formatTimeAgo(latestPayment.createdAt, nowTime)}</span>
+                <span className="text-[10px] text-muted-foreground">{formatTimeAgo(latestPayment.createdAt, nowTime)}</span>
               </div>
-              <p className="text-zinc-200 text-xs truncate">
+              <p className="text-foreground text-xs truncate">
                 {currency.format(Number(latestPayment.amount))} · {latestPayment.concept || 'Cobro'}
               </p>
-              <div className="flex justify-between text-[10px] text-zinc-500 pt-1">
+              <div className="flex justify-between text-[10px] text-muted-foreground pt-1">
                 <span>
                   Cliente:{' '}
                   {typeof latestPayment.client === 'object' && latestPayment.client !== null
@@ -250,7 +251,7 @@ export function CockpitOmnichannelFeed({
           )}
 
           {!latestConv && !latestSummary && !latestEmail && !latestPayment && (
-            <div className="p-6 text-center text-zinc-500 font-mono text-xs">
+            <div className="p-6 text-center text-muted-foreground font-mono text-xs">
               Sin actividad reciente registrada todavía.
             </div>
           )}

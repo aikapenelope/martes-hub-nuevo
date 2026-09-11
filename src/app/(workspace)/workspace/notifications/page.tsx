@@ -10,6 +10,7 @@ import { AlertCircle, BellRing, Inbox, MailWarning } from 'lucide-react'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { EmptyState, OledCard, PageHero, StatusBadge } from '@/components/workspace/oled'
+import { Button } from '@/components/ui/button'
 import type { EmailLog, Notification } from '@/payload-types'
 
 const datetimeFmt = new Intl.DateTimeFormat('es', {
@@ -64,18 +65,15 @@ export default async function NotificationsPage() {
         title="Incidentes de Canales"
         description="Alertas de OpenBSP, workers y crons, más emails fallidos o rebotados. Es la fuente que alimenta el contador de fallos del monitor de salud del cockpit."
         actions={
-          <Link
-            href="/workspace/email"
-            className="px-3 py-1.5 text-xs font-mono border border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500 transition"
-          >
-            Ir a Email Marketing →
-          </Link>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/workspace/email">Ir a Email Marketing →</Link>
+          </Button>
         }
       />
 
       {/* Notificaciones del sistema (openbsp-error-poll y workers) */}
       <section className="space-y-2">
-        <h2 className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-zinc-300">
+        <h2 className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-foreground/80">
           <BellRing size={14} className="text-amber-400" />
           Notificaciones del sistema ({notificationsRes.totalDocs})
         </h2>
@@ -83,7 +81,7 @@ export default async function NotificationsPage() {
           {notifications.length === 0 ? (
             <EmptyState>Sin notificaciones registradas. Los canales están tranquilos.</EmptyState>
           ) : (
-            <div className="flex flex-col divide-y divide-zinc-900/80">
+            <div className="flex flex-col divide-y divide-border">
               {notifications.map((n) => {
                 const meta = SEVERITY_META[n.severity ?? 'info']
                 return (
@@ -100,23 +98,23 @@ export default async function NotificationsPage() {
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <strong className="text-sm text-white truncate">{n.title}</strong>
+                        <strong className="text-sm text-foreground truncate">{n.title}</strong>
                         <span
                           className={`font-mono text-[9px] uppercase border px-1.5 py-0.2 shrink-0 ${meta.cls}`}
                         >
                           {meta.label}
                         </span>
                         {n.source && (
-                          <span className="font-mono text-[9px] uppercase text-zinc-500 border border-zinc-800 px-1.5 py-0.2">
+                          <span className="font-mono text-[9px] uppercase text-muted-foreground border border-border px-1.5 py-0.2">
                             {n.source}
                           </span>
                         )}
                       </div>
                       {n.body && (
-                        <p className="text-[11px] text-zinc-400 mt-0.5 line-clamp-2">{n.body}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
                       )}
                     </div>
-                    <span className="shrink-0 text-[11px] font-mono text-zinc-500">
+                    <span className="shrink-0 text-[11px] font-mono text-muted-foreground">
                       {datetimeFmt.format(new Date(n.occurredAt ?? n.createdAt))}
                     </span>
                   </div>
@@ -129,7 +127,7 @@ export default async function NotificationsPage() {
 
       {/* Emails fallidos / rebotados (webhook de Resend) */}
       <section className="space-y-2">
-        <h2 className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-zinc-300">
+        <h2 className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-foreground/80">
           <MailWarning size={14} className="text-red-400" />
           Emails fallidos o rebotados ({failedEmailsRes.totalDocs})
         </h2>
@@ -137,16 +135,16 @@ export default async function NotificationsPage() {
           {failedEmails.length === 0 ? (
             <EmptyState>Ningún email marcado como fallido o rebotado.</EmptyState>
           ) : (
-            <div className="flex flex-col divide-y divide-zinc-900/80">
+            <div className="flex flex-col divide-y divide-border">
               {failedEmails.map((e) => (
                 <div key={e.id} className="flex items-start gap-3 px-4 py-3">
-                  <Inbox size={16} className="text-zinc-500 shrink-0 mt-0.5" />
+                  <Inbox size={16} className="text-muted-foreground shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm text-zinc-200 truncate font-mono">{e.to}</span>
+                      <span className="text-sm text-foreground truncate font-mono">{e.to}</span>
                       <StatusBadge>{e.status === 'bounced' ? 'Rebotado' : 'Fallido'}</StatusBadge>
                       {e.subject && (
-                        <span className="text-[11px] text-zinc-500 truncate">{e.subject}</span>
+                        <span className="text-[11px] text-muted-foreground truncate">{e.subject}</span>
                       )}
                     </div>
                     {e.error && (
@@ -155,7 +153,7 @@ export default async function NotificationsPage() {
                       </p>
                     )}
                   </div>
-                  <span className="shrink-0 text-[11px] font-mono text-zinc-500">
+                  <span className="shrink-0 text-[11px] font-mono text-muted-foreground">
                     {datetimeFmt.format(new Date(e.updatedAt))}
                   </span>
                 </div>

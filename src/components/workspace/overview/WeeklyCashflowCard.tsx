@@ -25,36 +25,36 @@ export function WeeklyCashflowCard({ data }: { data: WeeklyCashflow }) {
   return (
     <OledCard>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Cobranza · 8 semanas</p>
+        <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Cobranza · 8 semanas</p>
         <Link href="/workspace/billing" className="text-[11px] font-mono text-cyan-400 hover:underline">
           Facturación →
         </Link>
       </div>
-      <p className="mt-0.5 text-[10px] text-zinc-600">Cobrado por fecha de pago · Pendiente por fecha acordada</p>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">Cobrado por fecha de pago · Pendiente por fecha acordada</p>
 
       {hasData ? (
         <>
           <div className="mt-3">
             <SegmentedBarChart {...data} />
           </div>
-          <div className="mt-1 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-2 text-[11px] font-mono">
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-2 text-[11px] font-mono">
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5 text-zinc-400">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
                 <span className="inline-block h-2.5 w-2.5 rounded-sm bg-white" /> Cobrado
               </span>
-              <span className="flex items-center gap-1.5 text-zinc-400">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
                 <span className="inline-block h-2.5 w-2.5 rounded-sm bg-zinc-600" /> Pendiente
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="font-bold text-white">{currency.format(totalCobrado)}</span>
-              <span className="text-zinc-500">Pendiente: {currency.format(totalPendiente)}</span>
+              <span className="font-bold text-foreground">{currency.format(totalCobrado)}</span>
+              <span className="text-muted-foreground">Pendiente: {currency.format(totalPendiente)}</span>
             </div>
           </div>
         </>
       ) : (
         <div className="mt-3 flex h-36 items-center justify-center text-center">
-          <p className="font-mono text-[11px] text-zinc-600">
+          <p className="font-mono text-[11px] text-muted-foreground">
             Sin cobros ni vencimientos registrados en las últimas 8 semanas.
           </p>
         </div>

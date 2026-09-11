@@ -20,7 +20,7 @@ function SparkBars({ values, accent }: { values: number[]; accent: string }) {
       {values.map((v, i) => (
         <span
           key={i}
-          className={`w-full rounded-sm ${i === values.length - 1 ? accent : 'bg-zinc-800'}`}
+          className={`w-full rounded-sm ${i === values.length - 1 ? accent : 'bg-muted'}`}
           style={{ height: `${Math.max(6, Math.round((v / max) * 100))}%` }}
         />
       ))}
@@ -55,42 +55,42 @@ export function TrendStrip({ trends }: { trends: MonthlySeries }) {
     <section className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="Tendencias de 6 meses">
       <OledCard>
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Cobrado · 6 meses</p>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Cobrado · 6 meses</p>
           <DeltaChip delta={trends.cobradoDeltaPct} />
         </div>
-        <p className="mt-1 text-xl font-bold font-mono text-white">{fmtMoney(trends.cobrado[5] ?? 0)} <span className="text-[10px] font-normal text-zinc-600">este mes</span></p>
+        <p className="mt-1 text-xl font-bold font-mono text-foreground">{fmtMoney(trends.cobrado[5] ?? 0)} <span className="text-[10px] font-normal text-muted-foreground">este mes</span></p>
         <div className="mt-2">
           <SparkBars values={trends.cobrado} accent="bg-emerald-500/70" />
         </div>
-        <div className="mt-1 flex justify-between text-[8px] font-mono text-zinc-600">
+        <div className="mt-1 flex justify-between text-[8px] font-mono text-muted-foreground">
           {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
         </div>
       </OledCard>
 
       <OledCard>
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Leads nuevos · 6 meses</p>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Leads nuevos · 6 meses</p>
           <DeltaChip delta={trends.leadsNuevosDeltaPct} />
         </div>
-        <p className="mt-1 text-xl font-bold font-mono text-white">{trends.leadsNuevos[5] ?? 0} <span className="text-[10px] font-normal text-zinc-600">este mes</span></p>
+        <p className="mt-1 text-xl font-bold font-mono text-foreground">{trends.leadsNuevos[5] ?? 0} <span className="text-[10px] font-normal text-muted-foreground">este mes</span></p>
         <div className="mt-2">
           <SparkBars values={trends.leadsNuevos} accent="bg-sky-500/70" />
         </div>
-        <div className="mt-1 flex justify-between text-[8px] font-mono text-zinc-600">
+        <div className="mt-1 flex justify-between text-[8px] font-mono text-muted-foreground">
           {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
         </div>
       </OledCard>
 
       <OledCard>
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Actividades · 6 meses</p>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Actividades · 6 meses</p>
           <DeltaChip delta={trends.actividadesDeltaPct} />
         </div>
-        <p className="mt-1 text-xl font-bold font-mono text-white">{trends.actividades[5] ?? 0} <span className="text-[10px] font-normal text-zinc-600">este mes</span></p>
+        <p className="mt-1 text-xl font-bold font-mono text-foreground">{trends.actividades[5] ?? 0} <span className="text-[10px] font-normal text-muted-foreground">este mes</span></p>
         <div className="mt-2">
           <SparkBars values={trends.actividades} accent="bg-amber-500/70" />
         </div>
-        <div className="mt-1 flex justify-between text-[8px] font-mono text-zinc-600">
+        <div className="mt-1 flex justify-between text-[8px] font-mono text-muted-foreground">
           {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
         </div>
       </OledCard>
