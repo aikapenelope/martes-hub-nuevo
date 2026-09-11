@@ -1,16 +1,15 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { Camera, Globe, Loader2, MessageCircle, Plus, Search, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import {
-  Camera,
-  Globe,
-  Loader2,
-  MessageCircle,
-  Plus,
-  Search,
-  X,
-} from 'lucide-react'
-import { Drawer } from '@/components/workspace/overlays'
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import {
   createConversationAction,
   searchInboxCrmContactsAction,
@@ -138,8 +137,11 @@ export function NewConversationDrawer({
       .slice(0, 20)
   }, [contacts, searchTerm, searchState])
 
-  const serverHasMore = Boolean(searchState && searchState.query === searchTerm.trim() && searchState.hasMore)
-  const serverTotal = searchState && searchState.query === searchTerm.trim() ? searchState.total : null
+  const serverHasMore = Boolean(
+    searchState && searchState.query === searchTerm.trim() && searchState.hasMore,
+  )
+  const serverTotal =
+    searchState && searchState.query === searchTerm.trim() ? searchState.total : null
 
   const handleSelectContact = (c: ContactItem) => {
     setSelectedContact(c)
@@ -189,270 +191,323 @@ export function NewConversationDrawer({
   }
 
   return (
-    <Drawer
+    <Sheet
       open={open}
-      onClose={() => {
-        handleReset()
-        onClose()
+      onOpenChange={(o) => {
+        if (!o) {
+          handleReset()
+          onClose()
+        }
       }}
-      size="md"
-      title="Iniciar Conversación · Consola Omnicanal"
     >
-      <form onSubmit={handleSubmit} className="space-y-4 font-mono text-xs">
-        {error && (
-          <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 text-xs">
-            {error}
-          </div>
-        )}
-
-        {/* Modo de Destinatario */}
-        <div className="flex border border-zinc-800 bg-black p-0.5">
-          <button
-            type="button"
-            onClick={() => {
-              setMode('crm')
-              setError(null)
-            }}
-            className={`flex-1 py-1.5 uppercase font-bold text-center transition ${
-              mode === 'crm' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Contacto CRM
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('custom')
-              setSelectedContact(null)
-              setError(null)
-            }}
-            className={`flex-1 py-1.5 uppercase font-bold text-center transition ${
-              mode === 'custom' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Número Manual
-          </button>
-        </div>
-
-        {/* Búsqueda y Selección en CRM */}
-        {mode === 'crm' && (
-          <div className="space-y-2">
-            {selectedContact ? (
-              <div className="p-3 bg-zinc-900 border border-zinc-700 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className={`text-[9px] uppercase px-1 py-0.2 font-bold ${
-                        selectedContact.kind === 'client'
-                          ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                          : 'bg-sky-950 text-sky-300 border border-sky-800'
-                      }`}
-                    >
-                      {selectedContact.kind === 'client' ? 'Cliente' : 'Prospecto'}
-                    </span>
-                    <strong className="text-white text-sm">{selectedContact.name}</strong>
-                  </div>
-                  {selectedContact.company && (
-                    <span className="text-[11px] text-zinc-400 block">{selectedContact.company}</span>
-                  )}
-                  {selectedContact.phone && (
-                    <span className="text-[10px] text-emerald-400 font-mono block mt-0.5">
-                      Tel: {selectedContact.phone}
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedContact(null)}
-                  className="p-1 text-zinc-400 hover:text-white"
-                  title="Cambiar contacto"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <span className="text-[10px] text-zinc-400 uppercase font-bold">
-                  Buscar Cliente o Prospecto
-                </span>
-                <div className="relative">
-                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Nombre, empresa, teléfono..."
-                    className="w-full bg-black border border-zinc-800 pl-8 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-600"
-                  />
-                  {isSearchingServer && Boolean(searchTerm.trim()) && (
-                    <Loader2 size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 animate-spin" />
-                  )}
-                </div>
-
-                <div className="max-h-48 overflow-y-auto border border-zinc-850 divide-y divide-zinc-900 bg-zinc-950">
-                  {displayedContacts.length === 0 ? (
-                    <p className="p-3 text-[11px] text-zinc-500 text-center">
-                      No se encontraron contactos en el CRM.
-                    </p>
-                  ) : (
-                    displayedContacts.map((c) => (
-                      <button
-                        key={`${c.kind}-${c.id}`}
-                        type="button"
-                        onClick={() => handleSelectContact(c)}
-                        className="w-full p-2 text-left hover:bg-zinc-900 transition flex items-center justify-between"
-                      >
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={`text-[8px] uppercase px-1 py-0.2 ${
-                                c.kind === 'client'
-                                  ? 'bg-emerald-950/80 text-emerald-300'
-                                  : 'bg-sky-950/80 text-sky-300'
-                              }`}
-                            >
-                              {c.kind === 'client' ? 'CLI' : 'LEAD'}
-                            </span>
-                            <span className="text-white font-bold">{c.name}</span>
-                          </div>
-                          {c.company && (
-                            <span className="text-[10px] text-zinc-500 block">{c.company}</span>
-                          )}
-                        </div>
-                        {c.phone ? (
-                          <span className="text-[10px] text-zinc-400 font-mono">{c.phone}</span>
-                        ) : (
-                          <span className="text-[9px] text-amber-400/80">Sin tel</span>
-                        )}
-                      </button>
-                    ))
-                  )}
-                  {serverHasMore && (
-                    <button
-                      type="button"
-                      disabled={loadingMore}
-                      onClick={handleLoadMore}
-                      className="w-full py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[10px] uppercase font-bold border-t border-zinc-800 flex items-center justify-center gap-1.5 transition"
-                    >
-                      {loadingMore ? <Loader2 size={11} className="animate-spin" /> : null}
-                      <span>
-                        {loadingMore
-                          ? 'Cargando más contactos...'
-                          : `Cargar más (${displayedContacts.length} de ${serverTotal ?? 'más'})`}
-                      </span>
-                    </button>
-                  )}
-                </div>
+      <SheetContent
+        side="right"
+        className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md"
+      >
+        <SheetHeader className="border-b border-border px-4 py-3">
+          <SheetTitle className="text-sm font-bold uppercase tracking-wider text-foreground truncate">
+            Iniciar Conversación · Consola Omnicanal
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            Inicia un hilo con un contacto del CRM o con un número manual
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-1 flex-col overflow-y-auto p-4">
+          <form onSubmit={handleSubmit} className="space-y-4 font-mono text-xs">
+            {error && (
+              <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 text-xs">
+                {error}
               </div>
             )}
-          </div>
-        )}
 
-        {/* Entrada Manual de Número */}
-        {(mode === 'custom' || (selectedContact && !selectedContact.phone)) && (
-          <label className="flex flex-col gap-1 text-[10px] text-zinc-400 uppercase">
-            <span>Número de Contacto (E.164 sin +) <span className="text-rose-400">*</span></span>
-            <input
-              type="text"
-              value={customAddress}
-              onChange={(e) => setCustomAddress(e.target.value)}
-              placeholder="Ej: 584121234567 o usuario_instagram"
-              required
-              className="bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600 font-mono"
-            />
-          </label>
-        )}
-
-        {/* Canal de Salida */}
-        <div className="space-y-1">
-          <span className="text-[10px] text-zinc-400 uppercase font-bold block">Canal</span>
-          <div className="grid grid-cols-3 gap-1.5">
-            {[
-              { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, color: 'text-emerald-400' },
-              { id: 'instagram_dm', label: 'Instagram', icon: Camera, color: 'text-purple-400' },
-              { id: 'web', label: 'Web Chat', icon: Globe, color: 'text-sky-400' },
-            ].map(({ id, label, icon: Icon, color }) => (
+            {/* Modo de Destinatario */}
+            <div className="flex border border-border bg-background p-0.5">
               <button
-                key={id}
                 type="button"
-                onClick={() => setChannel(id as typeof channel)}
-                className={`p-2 border text-center transition flex flex-col items-center gap-1 ${
-                  channel === id
-                    ? 'border-white bg-zinc-850 text-white font-bold'
-                    : 'border-zinc-850 bg-black text-zinc-400 hover:text-white'
+                onClick={() => {
+                  setMode('crm')
+                  setError(null)
+                }}
+                className={`flex-1 py-1.5 uppercase font-bold text-center transition ${
+                  mode === 'crm'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <Icon size={14} className={channel === id ? 'text-white' : color} />
-                <span className="text-[10px]">{label}</span>
+                Contacto CRM
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Prioridad */}
-        <label className="flex flex-col gap-1 text-[10px] text-zinc-400 uppercase">
-          <span>Prioridad Inicial</span>
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as typeof priority)}
-            className="bg-black border border-zinc-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600 font-mono"
-          >
-            <option value="baja">Baja</option>
-            <option value="media">Media</option>
-            <option value="alta">Alta</option>
-          </select>
-        </label>
-
-        {/* Mensaje Inicial Opcional */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-zinc-400 uppercase font-bold">
-              Primer Mensaje (Opcional)
-            </span>
-            <div className="flex items-center gap-1">
-              {DEFAULT_QUICK_SNIPPETS.slice(0, 2).map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setInitialMessage(s.text)}
-                  className="text-[9px] text-zinc-400 hover:text-white underline font-mono"
-                >
-                  {s.shortcut}
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('custom')
+                  setSelectedContact(null)
+                  setError(null)
+                }}
+                className={`flex-1 py-1.5 uppercase font-bold text-center transition ${
+                  mode === 'custom'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Número Manual
+              </button>
             </div>
-          </div>
-          <textarea
-            value={initialMessage}
-            onChange={(e) => setInitialMessage(e.target.value)}
-            rows={3}
-            placeholder="Escribe el mensaje que se enviará al abrir el hilo..."
-            className="w-full bg-black border border-zinc-800 p-2.5 text-xs text-white focus:outline-none focus:border-zinc-600 resize-none font-sans"
-          />
-        </div>
 
-        {/* Botones de Acción */}
-        <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-900">
-          <button
-            type="button"
-            onClick={() => {
-              handleReset()
-              onClose()
-            }}
-            className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold uppercase transition font-mono"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={isPending}
-            className="px-5 py-2 bg-white hover:bg-zinc-200 text-black text-xs font-black uppercase tracking-wider transition flex items-center gap-1.5 disabled:opacity-50 font-mono shadow-lg shadow-zinc-950"
-          >
-            {isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={14} />}
-            <span>Abrir Hilo</span>
-          </button>
+            {/* Búsqueda y Selección en CRM */}
+            {mode === 'crm' && (
+              <div className="space-y-2">
+                {selectedContact ? (
+                  <div className="p-3 bg-muted border border-border flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`text-[9px] uppercase px-1 py-0.2 font-bold ${
+                            selectedContact.kind === 'client'
+                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                              : 'bg-sky-950 text-sky-300 border border-sky-800'
+                          }`}
+                        >
+                          {selectedContact.kind === 'client' ? 'Cliente' : 'Prospecto'}
+                        </span>
+                        <strong className="text-foreground text-sm">{selectedContact.name}</strong>
+                      </div>
+                      {selectedContact.company && (
+                        <span className="text-[11px] text-muted-foreground block">
+                          {selectedContact.company}
+                        </span>
+                      )}
+                      {selectedContact.phone && (
+                        <span className="text-[10px] text-emerald-400 font-mono block mt-0.5">
+                          Tel: {selectedContact.phone}
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => setSelectedContact(null)}
+                      title="Cambiar contacto"
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">
+                      Buscar Cliente o Prospecto
+                    </span>
+                    <div className="relative">
+                      <Search
+                        size={13}
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                      />
+                      <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Nombre, empresa, teléfono..."
+                        className="w-full border border-input bg-transparent pl-8 pr-8 py-1.5 text-xs text-foreground focus:outline-none focus:border-ring dark:bg-input/30"
+                      />
+                      {isSearchingServer && Boolean(searchTerm.trim()) && (
+                        <Loader2
+                          size={12}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin"
+                        />
+                      )}
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto border border-border divide-y divide-border bg-background">
+                      {displayedContacts.length === 0 ? (
+                        <p className="p-3 text-[11px] text-muted-foreground text-center">
+                          No se encontraron contactos en el CRM.
+                        </p>
+                      ) : (
+                        displayedContacts.map((c) => (
+                          <button
+                            key={`${c.kind}-${c.id}`}
+                            type="button"
+                            onClick={() => handleSelectContact(c)}
+                            className="w-full p-2 text-left hover:bg-muted transition flex items-center justify-between"
+                          >
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`text-[8px] uppercase px-1 py-0.2 ${
+                                    c.kind === 'client'
+                                      ? 'bg-emerald-950/80 text-emerald-300'
+                                      : 'bg-sky-950/80 text-sky-300'
+                                  }`}
+                                >
+                                  {c.kind === 'client' ? 'CLI' : 'LEAD'}
+                                </span>
+                                <span className="text-foreground font-bold">{c.name}</span>
+                              </div>
+                              {c.company && (
+                                <span className="text-[10px] text-muted-foreground block">
+                                  {c.company}
+                                </span>
+                              )}
+                            </div>
+                            {c.phone ? (
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                {c.phone}
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-amber-400/80">Sin tel</span>
+                            )}
+                          </button>
+                        ))
+                      )}
+                      {serverHasMore && (
+                        <Button
+                          type="button"
+                          disabled={loadingMore}
+                          onClick={handleLoadMore}
+                          className="w-full rounded-none border-t border-border bg-muted py-2 font-mono text-[10px] font-bold uppercase text-foreground/80 hover:bg-accent hover:text-foreground"
+                        >
+                          {loadingMore ? <Loader2 className="size-3 animate-spin" /> : null}
+                          <span>
+                            {loadingMore
+                              ? 'Cargando más contactos...'
+                              : `Cargar más (${displayedContacts.length} de ${serverTotal ?? 'más'})`}
+                          </span>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Entrada Manual de Número */}
+            {(mode === 'custom' || (selectedContact && !selectedContact.phone)) && (
+              <label className="flex flex-col gap-1 text-[10px] text-muted-foreground uppercase">
+                <span>
+                  Número de Contacto (E.164 sin +) <span className="text-rose-400">*</span>
+                </span>
+                <input
+                  type="text"
+                  value={customAddress}
+                  onChange={(e) => setCustomAddress(e.target.value)}
+                  placeholder="Ej: 584121234567 o usuario_instagram"
+                  required
+                  className="border border-input bg-transparent px-3 py-2 text-xs text-foreground focus:outline-none focus:border-ring font-mono dark:bg-input/30"
+                />
+              </label>
+            )}
+
+            {/* Canal de Salida */}
+            <div className="space-y-1">
+              <span className="text-[10px] text-muted-foreground uppercase font-bold block">
+                Canal
+              </span>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  {
+                    id: 'whatsapp',
+                    label: 'WhatsApp',
+                    icon: MessageCircle,
+                    color: 'text-emerald-400',
+                  },
+                  {
+                    id: 'instagram_dm',
+                    label: 'Instagram',
+                    icon: Camera,
+                    color: 'text-purple-400',
+                  },
+                  { id: 'web', label: 'Web Chat', icon: Globe, color: 'text-sky-400' },
+                ].map(({ id, label, icon: Icon, color }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setChannel(id as typeof channel)}
+                    className={`p-2 border text-center transition flex flex-col items-center gap-1 ${
+                      channel === id
+                        ? 'border-foreground bg-muted text-foreground font-bold'
+                        : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Icon size={14} className={channel === id ? 'text-foreground' : color} />
+                    <span className="text-[10px]">{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Prioridad */}
+            <label className="flex flex-col gap-1 text-[10px] text-muted-foreground uppercase">
+              <span>Prioridad Inicial</span>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as typeof priority)}
+                className="border border-input bg-transparent px-3 py-2 text-xs text-foreground focus:outline-none focus:border-ring font-mono dark:bg-input/30"
+              >
+                <option value="baja">Baja</option>
+                <option value="media">Media</option>
+                <option value="alta">Alta</option>
+              </select>
+            </label>
+
+            {/* Mensaje Inicial Opcional */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold">
+                  Primer Mensaje (Opcional)
+                </span>
+                <div className="flex items-center gap-1">
+                  {DEFAULT_QUICK_SNIPPETS.slice(0, 2).map((s) => (
+                    <Button
+                      key={s.id}
+                      type="button"
+                      variant="link"
+                      onClick={() => setInitialMessage(s.text)}
+                      className="h-auto p-0 text-[9px] font-mono text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    >
+                      {s.shortcut}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <textarea
+                value={initialMessage}
+                onChange={(e) => setInitialMessage(e.target.value)}
+                rows={3}
+                placeholder="Escribe el mensaje que se enviará al abrir el hilo..."
+                className="w-full border border-input bg-transparent p-2.5 text-xs text-foreground focus:outline-none focus:border-ring resize-none font-sans dark:bg-input/30"
+              />
+            </div>
+
+            {/* Botones de Acción */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  handleReset()
+                  onClose()
+                }}
+                className="px-4 border-transparent bg-muted text-foreground/80 font-mono text-xs font-bold uppercase hover:bg-accent hover:text-foreground"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isPending}
+                className="px-5 font-mono text-xs font-black uppercase tracking-wider shadow-lg shadow-black/50"
+              >
+                {isPending ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Plus className="size-3.5" />
+                )}
+                <span>Abrir Hilo</span>
+              </Button>
+            </div>
+          </form>
         </div>
-      </form>
-    </Drawer>
+      </SheetContent>
+    </Sheet>
   )
 }

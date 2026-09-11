@@ -64,22 +64,22 @@ export default async function MediaPage() {
             const isImage = m.mimeType?.startsWith('image/')
             const dims = m.width && m.height ? `${m.width}×${m.height}` : null
             return (
-              <article key={m.id} className="oled-card flex flex-col overflow-hidden p-0">
-                <div className="flex h-28 items-center justify-center border-b border-zinc-900 bg-zinc-950">
+              <article key={m.id} className="flex flex-col overflow-hidden border border-border bg-card p-0 text-card-foreground">
+                <div className="flex h-28 items-center justify-center border-b border-border bg-background">
                   {isImage && m.url ? (
                     // eslint-disable-next-line @next/next/no-img-element -- URLs dinámicas de media propia (payload uploads), no requieren optimización del loader
                     <img src={m.url} alt={m.alt} className="h-full w-full object-cover" loading="lazy" />
                   ) : (
-                    <FileIcon className="h-8 w-8 text-zinc-600" />
+                    <FileIcon className="h-8 w-8 text-muted-foreground" />
                   )}
                 </div>
                 <div className="space-y-1 p-3">
-                  <p className="truncate text-xs font-semibold text-white" title={m.filename ?? undefined}>{m.filename}</p>
-                  <p className="text-[10px] font-mono text-zinc-500">
+                  <p className="truncate text-xs font-semibold text-foreground" title={m.filename ?? undefined}>{m.filename}</p>
+                  <p className="text-[10px] font-mono text-muted-foreground">
                     {sizeFmt(m.filesize ?? 0)}{dims ? ` · ${dims}` : ''}
                   </p>
                   <div className="flex items-center justify-between pt-1">
-                    <span className="text-[9px] font-mono uppercase text-zinc-600">{dateFmt.format(new Date(m.createdAt))}</span>
+                    <span className="text-[9px] font-mono uppercase text-muted-foreground">{dateFmt.format(new Date(m.createdAt))}</span>
                     {m.url && (
                       <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-mono text-sky-400 hover:text-sky-300" title="Copiar/abrir URL pública">
                         URL →
