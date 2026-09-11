@@ -45,14 +45,14 @@ export function CockpitAlertStrip({ alerts }: CockpitAlertStripProps) {
               <Icon className={`w-4 h-4 mt-0.5 sm:mt-0 shrink-0 ${iconCls}`} />
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-foreground leading-tight">{alert.title}</span>
+                  <span className="font-bold leading-tight">{alert.title}</span>
                   {alert.badge && (
                     <span className={`font-mono text-[9px] uppercase border px-1.5 py-0.2 ${badgeCls}`}>
                       {alert.badge}
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-foreground/80 mt-0.5 leading-snug">{alert.subtitle}</p>
+                <p className="text-[11px] mt-0.5 leading-snug opacity-90">{alert.subtitle}</p>
               </div>
             </div>
 
