@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Camera, ChevronRight, Compass, Globe, MapPin, MessageCircle, Share2, UserPlus, Users2 } from 'lucide-react'
+import { Bot, Camera, ChevronRight, Compass, Globe, MapPin, MessageCircle, PhoneCall, Share2, UserPlus, Users2 } from 'lucide-react'
 import type { ChannelSourceMetric } from './types'
 import { MonoDonutChart, MONO_PALETTE } from '@/components/workspace/monocharts'
 import { Badge } from '@/components/ui/badge'
@@ -20,9 +20,11 @@ interface CockpitSourceBreakdownProps {
 const SOURCE_ICONS: Record<string, typeof Compass> = {
   google_maps: MapPin,
   puerta_fria: Compass,
+  llamada_fria: PhoneCall,
   whatsapp: MessageCircle,
   instagram_dm: Camera,
   tally: Globe,
+  apify: Bot,
   referido: Users2,
   linkedin: Share2,
   manual: UserPlus,

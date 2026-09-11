@@ -152,4 +152,38 @@ describe('collectFollowupsToday — reglas del triage (ítem 3)', () => {
       priority: 60, // 4 días * 10 + bonus 20 de etapa nuevo
     })
   })
+
+  it('recorre todas las páginas de leads y clientes cuando hasNextPage es true', async () => {
+    const tenDaysAgo = new Date(Date.now() - 10 * DAY_MS).toISOString()
+    const mockFind = vi.fn().mockImplementation(({ collection, page }: { collection: string; page?: number }) => {
+      if (collection === 'conversations') {
+        return Promise.resolve({ docs: [], totalDocs: 0, hasNextPage: false })
+      }
+      if (collection === 'leads') {
+        if (page === 1) {
+          return Promise.resolve({
+            docs: [{ id: 101, fullName: 'Lead P1', phone: '584120000101', status: 'nuevo', createdAt: tenDaysAgo }],
+            totalDocs: 2,
+            hasNextPage: true,
+          })
+        }
+        return Promise.resolve({
+          docs: [{ id: 102, fullName: 'Lead P2', phone: '584120000102', status: 'nuevo', createdAt: tenDaysAgo }],
+          totalDocs: 2,
+          hasNextPage: false,
+        })
+      }
+      if (collection === 'clients') {
+        return Promise.resolve({ docs: [], totalDocs: 0, hasNextPage: false })
+      }
+      return Promise.resolve({ docs: [], totalDocs: 0, hasNextPage: false })
+    })
+
+    const payload = { find: mockFind } as unknown as import('payload').Payload
+    const items = await collectFollowupsToday({ payload, user: mockUser, tenantId: 10 })
+
+    expect(items.map((i) => i.id)).toEqual([101, 102])
+    expect(mockFind).toHaveBeenCalledWith(expect.objectContaining({ collection: 'leads', page: 1 }))
+    expect(mockFind).toHaveBeenCalledWith(expect.objectContaining({ collection: 'leads', page: 2 }))
+  })
 })

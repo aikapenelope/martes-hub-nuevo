@@ -64,7 +64,7 @@ export function CockpitConversionFunnel({
       colorAccent: '#fbbf24', // amber-400
     },
     {
-      label: 'Cerrado Ganado (Activos)',
+      label: 'Cerrado Ganado',
       count: totalConvertedClients,
       conversionRate: rateQualifiedToWon,
       colorAccent: '#ffffff', // white glow

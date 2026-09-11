@@ -4,6 +4,7 @@ export const LEAD_SOURCES = [
   'manual',
   'google_maps',
   'puerta_fria',
+  'llamada_fria',
   'whatsapp',
   'instagram_dm',
   'linkedin',
