@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { AlertTriangle, ArrowRight, CheckCircle2, ShieldAlert } from 'lucide-react'
 import type { CockpitOperationalAlert } from './types'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
 interface CockpitAlertStripProps {
   alerts: CockpitOperationalAlert[]
@@ -9,16 +11,19 @@ interface CockpitAlertStripProps {
 export function CockpitAlertStrip({ alerts }: CockpitAlertStripProps) {
   if (alerts.length === 0) {
     return (
-      <div className="flex items-center justify-between border border-emerald-950/60 bg-emerald-950/20 px-4 py-3 text-xs text-emerald-300">
+      <div className="flex items-center justify-between border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-xs">
         <div className="flex items-center gap-2.5">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+            <CheckCircle2 className="size-3.5" />
+          </div>
           <span>
-            <strong className="font-semibold text-emerald-200">Operación Comercial al 100%:</strong> Sin alertas críticas activas. Ventanas de WhatsApp, cobros y tareas al día.
+            <strong className="font-semibold text-foreground">Operación Comercial al 100%:</strong>{' '}
+            <span className="text-muted-foreground">Sin alertas críticas activas. Ventanas de WhatsApp, cobros y tareas al día.</span>
           </span>
         </div>
-        <span className="font-mono text-[10px] uppercase text-emerald-400/80 border border-emerald-800/60 px-2 py-0.5">
+        <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-medium">
           SLA Óptimo
-        </span>
+        </Badge>
       </div>
     )
   }
@@ -28,41 +33,52 @@ export function CockpitAlertStrip({ alerts }: CockpitAlertStripProps) {
       {alerts.map((alert) => {
         const isCritical = alert.severity === 'critical'
         const Icon = isCritical ? ShieldAlert : AlertTriangle
-        const borderCls = isCritical
-          ? 'border-red-900/60 bg-red-950/25 text-red-200'
-          : 'border-amber-900/60 bg-amber-950/25 text-amber-200'
-        const iconCls = isCritical ? 'text-red-400' : 'text-amber-400'
-        const badgeCls = isCritical
-          ? 'bg-red-950 border-red-800 text-red-300'
-          : 'bg-amber-950 border-amber-800 text-amber-300'
 
         return (
           <div
             key={alert.id}
-            className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border px-4 py-3 text-xs transition ${borderCls}`}
+            className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border px-4 py-3 text-xs transition ${
+              isCritical
+                ? 'border-destructive/30 bg-destructive/5 text-foreground'
+                : 'border-amber-500/30 bg-amber-500/5 text-foreground'
+            }`}
           >
             <div className="flex items-start sm:items-center gap-3">
-              <Icon className={`w-4 h-4 mt-0.5 sm:mt-0 shrink-0 ${iconCls}`} />
+              <div
+                className={`flex size-7 shrink-0 items-center justify-center rounded-full ${
+                  isCritical
+                    ? 'bg-destructive/10 text-destructive'
+                    : 'bg-amber-500/10 text-amber-500'
+                }`}
+              >
+                <Icon className="size-4" />
+              </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold leading-tight">{alert.title}</span>
+                  <span className="font-semibold text-foreground">{alert.title}</span>
                   {alert.badge && (
-                    <span className={`font-mono text-[9px] uppercase border px-1.5 py-0.2 ${badgeCls}`}>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-medium ${
+                        isCritical
+                          ? 'border-destructive/30 text-destructive'
+                          : 'border-amber-500/30 text-amber-600 dark:text-amber-400'
+                      }`}
+                    >
                       {alert.badge}
-                    </span>
+                    </Badge>
                   )}
                 </div>
-                <p className="text-[11px] mt-0.5 leading-snug opacity-90">{alert.subtitle}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{alert.subtitle}</p>
               </div>
             </div>
 
-            <Link
-              href={alert.href}
-              className="inline-flex items-center gap-1.5 shrink-0 self-start sm:self-auto font-mono text-[11px] font-bold text-foreground hover:underline uppercase tracking-wider bg-background/40 border border-border px-3 py-1.5 transition hover:bg-background/80"
-            >
-              <span>{alert.actionText}</span>
-              <ArrowRight className="w-3 h-3" />
-            </Link>
+            <Button asChild variant="outline" size="sm" className="h-7 text-xs gap-1.5 shrink-0 self-start sm:self-auto">
+              <Link href={alert.href}>
+                <span>{alert.actionText}</span>
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
           </div>
         )
       })}

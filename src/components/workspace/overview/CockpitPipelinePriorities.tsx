@@ -1,7 +1,15 @@
 import Link from 'next/link'
-import { Building2, Flame, MessageCircle, Sparkles } from 'lucide-react'
+import { ArrowRight, Building2, Flame, MessageCircle, Sparkles } from 'lucide-react'
 import type { Lead } from '@/payload-types'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import {
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { DashboardCard } from '@/components/dashboard-card'
 
 const currency = new Intl.NumberFormat('es-VE', {
   style: 'currency',
@@ -17,95 +25,120 @@ export function CockpitPipelinePriorities({
   onOpenLead?: (leadId: number) => void
 }) {
   return (
-    <div className="p-3.5 bg-card text-card-foreground border border-border space-y-3.5">
-      <div className="flex items-center justify-between pb-2.5 border-b border-border">
-        <div>
-          <h2 className="text-xs font-black text-foreground font-mono uppercase tracking-wider flex items-center gap-2">
-            <Flame className="w-3.5 h-3.5 text-amber-400" /> Prioridades del Pipeline
-          </h2>
-          <p className="text-[11px] text-muted-foreground">Leads calificados/contactados con movimiento más reciente</p>
+    <DashboardCard className="gap-0">
+      <CardHeader className="border-b flex flex-row items-center justify-between space-y-0 py-3.5 px-4 sm:px-6">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-amber-500/20 bg-amber-500/10 text-amber-500">
+            <Flame className="size-4" />
+          </div>
+          <div>
+            <CardTitle className="text-sm font-semibold tracking-tight">Prioridades del Pipeline</CardTitle>
+            <CardDescription className="text-xs">Leads calificados con mayor potencial y actividad reciente</CardDescription>
+          </div>
         </div>
-        <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[10px] font-mono border border-amber-500/20 font-bold">
-          {hotLeads.length > 0 ? `${hotLeads.length} PRIORITARIOS` : 'SIN ALERTAS'}
-        </span>
-      </div>
 
-      <div className="space-y-2.5 font-mono text-xs">
+        <Badge
+          variant={hotLeads.length > 0 ? 'warning' : 'outline'}
+          className="text-[11px] font-medium"
+        >
+          {hotLeads.length > 0 ? `${hotLeads.length} prioritarios` : 'Sin alertas'}
+        </Badge>
+      </CardHeader>
+
+      <CardContent className="p-0">
         {hotLeads.length > 0 ? (
-          hotLeads.map((lead, idx) => {
-            const borderColors = ['border-l-amber-400', 'border-l-sky-400', 'border-l-indigo-400']
-            const borderCls = borderColors[idx % borderColors.length]
-            const actionLabel = lead.status === 'calificado' ? 'Enviar cotización' : 'Agendar seguimiento'
-            const cleanPhone = lead.phone ? lead.phone.replace(/\D/g, '') : null
+          <ul className="divide-y divide-border">
+            {hotLeads.map((lead) => {
+              const actionLabel = lead.status === 'calificado' ? 'Enviar cotización' : 'Agendar seguimiento'
+              const cleanPhone = lead.phone ? lead.phone.replace(/\D/g, '') : null
 
-            return (
-              <div key={lead.id} className={`p-3 border border-border bg-muted/40 space-y-2 border-l-2 ${borderCls}`}>
-                <div className="flex justify-between items-start">
-                  <div className="min-w-0 flex-1">
-                    <strong className="text-foreground text-xs block truncate max-w-[180px]">{lead.fullName}</strong>
-                    {lead.companyName && (
-                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
-                        <Building2 size={10} className="shrink-0 text-muted-foreground" />
-                        {lead.companyName}
-                      </span>
-                    )}
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-muted-foreground">{lead.source}</span>
+              return (
+                <li
+                  key={lead.id}
+                  className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/30 transition-colors"
+                >
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <strong className="text-sm font-medium text-foreground truncate">
+                        {lead.fullName}
+                      </strong>
+                      {lead.companyName && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground truncate">
+                          <Building2 className="size-3 text-muted-foreground/70 shrink-0" />
+                          {lead.companyName}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2.5 text-xs text-muted-foreground flex-wrap">
+                      <span className="capitalize">{lead.source}</span>
+                      <span>·</span>
                       {cleanPhone ? (
                         <a
                           href={`https://wa.me/${cleanPhone}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[10px] text-emerald-400 hover:underline"
+                          className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline"
                           title="Escribir por WhatsApp"
                         >
-                          <MessageCircle size={10} className="text-[#25d366]" />
+                          <MessageCircle className="size-3 text-emerald-500" />
                           +{cleanPhone}
                         </a>
                       ) : (
-                        <span className="text-[10px] text-muted-foreground">{lead.email ?? 'sin contacto'}</span>
+                        <span>{lead.email ?? 'Sin contacto'}</span>
+                      )}
+                    </div>
+
+                    {lead.notes && (
+                      <p className="text-xs text-muted-foreground/80 line-clamp-1 pt-0.5">
+                        {lead.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/40">
+                    {typeof lead.estimatedValue === 'number' && (
+                      <span className="font-semibold text-sm tabular-nums text-foreground">
+                        {currency.format(lead.estimatedValue)}
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground hidden md:inline-flex items-center gap-1">
+                        <Sparkles className="size-3 text-primary" /> {actionLabel}
+                      </span>
+
+                      {onOpenLead ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onOpenLead(lead.id)}
+                          className="h-7 text-xs gap-1"
+                        >
+                          <span>Ficha</span>
+                          <ArrowRight className="size-3" />
+                        </Button>
+                      ) : (
+                        <Button asChild variant="outline" size="sm" className="h-7 text-xs gap-1">
+                          <Link href={`/workspace/crm/leads/${lead.id}`}>
+                            <span>Ficha</span>
+                            <ArrowRight className="size-3" />
+                          </Link>
+                        </Button>
                       )}
                     </div>
                   </div>
-                  {typeof lead.estimatedValue === 'number' && (
-                    <span className="text-amber-400 font-bold shrink-0 text-xs">
-                      {currency.format(lead.estimatedValue)}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-foreground/80 line-clamp-2">
-                  {lead.notes ?? 'Sin notas registradas.'}
-                </p>
-                <div className="flex items-center justify-between pt-1.5 border-t border-border">
-                  <span className="text-[10px] text-indigo-400 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> {actionLabel}
-                  </span>
-                  {onOpenLead ? (
-                    <Button
-                      type="button"
-                      onClick={() => onOpenLead(lead.id)}
-                      className="h-auto gap-1 rounded-none bg-muted px-2 py-0.5 text-[10px] font-bold uppercase text-foreground transition hover:bg-accent"
-                    >
-                      Abrir →
-                    </Button>
-                  ) : (
-                    <Link
-                      href={`/workspace/crm/leads/${lead.id}`}
-                      className="px-2 py-0.5 bg-muted hover:bg-accent text-foreground text-[10px] uppercase font-bold transition inline-flex items-center gap-1"
-                    >
-                      Abrir →
-                    </Link>
-                  )}
-                </div>
-              </div>
-            )
-          })
+                </li>
+              )
+            })}
+          </ul>
         ) : (
-          <div className="p-6 text-center text-muted-foreground font-mono text-xs">
+          <div className="p-8 text-center text-xs text-muted-foreground">
             No hay leads calificados o contactados en este momento.
           </div>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </DashboardCard>
   )
 }

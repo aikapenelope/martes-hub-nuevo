@@ -1,7 +1,16 @@
 import Link from 'next/link'
-import { Layers } from 'lucide-react'
+import { ArrowRight, Layers } from 'lucide-react'
 import type { WorkspaceOverviewMetrics } from './types'
 import { MonoFunnel, type FunnelStage } from '@/components/workspace/monocharts'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { DashboardCard } from '@/components/dashboard-card'
 
 export function CockpitConversionFunnel({ metrics }: { metrics: WorkspaceOverviewMetrics }) {
   const {
@@ -56,28 +65,37 @@ export function CockpitConversionFunnel({ metrics }: { metrics: WorkspaceOvervie
   ]
 
   return (
-    <div className="p-3.5 bg-card text-card-foreground border border-border space-y-3.5">
-      <div className="flex items-center justify-between pb-2.5 border-b border-border">
-        <div>
-          <h2 className="text-xs font-black text-foreground font-mono uppercase tracking-wider flex items-center gap-2">
-            <Layers className="w-3.5 h-3.5 text-sky-400" /> Embudo de Conversión
-          </h2>
-          <p className="text-[11px] text-muted-foreground">Volumen y tasa de avance real entre etapas</p>
+    <DashboardCard className="gap-0">
+      <CardHeader className="border-b flex flex-row items-center justify-between space-y-0 py-3.5 px-4 sm:px-6">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-sky-500/20 bg-sky-500/10 text-sky-400">
+            <Layers className="size-4" />
+          </div>
+          <div>
+            <CardTitle className="text-sm font-semibold tracking-tight">Embudo de Conversión</CardTitle>
+            <CardDescription className="text-xs">Volumen y tasa de avance real entre etapas</CardDescription>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          {globalConversionRate !== null && (
-            <span className="text-[11px] font-mono text-muted-foreground border border-border px-2 py-0.5">
-              Global: <strong className="text-foreground">{globalConversionRate.toFixed(1)}%</strong>
-            </span>
-          )}
-          <Link href="/workspace/crm" className="text-xs font-mono text-sky-400 hover:underline flex items-center gap-1 font-bold">
-            Pipeline →
-          </Link>
-        </div>
-      </div>
 
-      <MonoFunnel stages={stages} />
-    </div>
+        <div className="flex items-center gap-2">
+          {globalConversionRate !== null && (
+            <Badge variant="outline" className="text-xs font-medium">
+              Global: <strong className="ml-1 text-foreground font-semibold">{globalConversionRate.toFixed(1)}%</strong>
+            </Badge>
+          )}
+          <Button asChild variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground">
+            <Link href="/workspace/crm" className="flex items-center gap-1">
+              <span>Pipeline</span>
+              <ArrowRight className="size-3" />
+            </Link>
+          </Button>
+        </div>
+      </CardHeader>
+
+      <CardContent className="p-4 sm:p-6">
+        <MonoFunnel stages={stages} />
+      </CardContent>
+    </DashboardCard>
   )
 }
 

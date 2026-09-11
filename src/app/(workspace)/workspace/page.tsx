@@ -18,6 +18,8 @@
 import 'server-only'
 
 import Link from 'next/link'
+import { ArrowRight, CalendarPlus, CreditCard, Mail, MessageSquare } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import type { Client, Segment, User } from '@/payload-types'
@@ -49,15 +51,11 @@ export default async function WorkspacePage({
 
   const [data, agenda, trends, cashflow] = await Promise.all([
     getWorkspaceOverviewData({ payload, user, tenant, tenantId, timeRange }),
-    getUpcomingAgenda({ payload, user, tenantId, days: 7 }),
-    getMonthlyTrends({ payload, tenantId, user }),
-    getWeeklyCashflow({ payload, tenantId, user }),
+    getUpcomingAgenda({ payload, user, tenantId, days: 7 }).catch(() => []),
+    getMonthlyTrends({ payload, tenantId, user }).catch(() => null),
+    getWeeklyCashflow({ payload, tenantId, user }).catch(() => null),
   ])
 
-  // Lista ligera de clientes (solo id/name) para el dialog de "+ Cobro".
-  // Agentes asignables y rubros del tenant para la pestaña "Datos CRM" del
-  // drawer 360°: sin estas opciones el formulario perdería las relaciones
-  // existentes al guardar (mismos criterios que el pipeline del CRM).
   const [clientsForDialog, agentsForDrawer, segmentsForDrawer] = await Promise.all([
     canEdit
       ? payload.find({
@@ -69,7 +67,7 @@ export default async function WorkspacePage({
           where: { tenant: { equals: tenantId } },
           overrideAccess: false,
           user,
-        })
+        }).catch(() => null)
       : Promise.resolve(null),
     canEdit
       ? payload.find({
@@ -79,7 +77,7 @@ export default async function WorkspacePage({
           depth: 0,
           overrideAccess: false,
           user,
-        })
+        }).catch(() => null)
       : Promise.resolve(null),
     canEdit
       ? payload.find({
@@ -89,11 +87,11 @@ export default async function WorkspacePage({
           depth: 0,
           overrideAccess: false,
           user,
-        })
+        }).catch(() => null)
       : Promise.resolve(null),
   ])
 
-  const RANGES: Array<{ key: TimeRangeKey; label: string }> = [
+  const RANGES: { key: TimeRangeKey; label: string }[] = [
     { key: 'hoy', label: 'Hoy' },
     { key: '7d', label: '7D' },
     { key: '30d', label: '1M' },
@@ -101,26 +99,47 @@ export default async function WorkspacePage({
     { key: 'ano', label: '1A' },
   ]
   const QUICK_ACTIONS = [
-    { href: '/workspace/billing', title: 'Registrar cobro', desc: 'Pagos, facturas y conciliación.' },
-    { href: '/workspace/outreach', title: 'Prospección WhatsApp', desc: 'Interesados con mensajes listos.' },
-    { href: '/workspace/email', title: 'Nueva campaña', desc: 'Email masivo por segmento.' },
-    { href: '/workspace/activities', title: 'Registrar actividad', desc: 'Llamadas, reuniones, notas.' },
+    {
+      href: '/workspace/billing',
+      title: 'Registrar cobro',
+      desc: 'Pagos, facturas y conciliación.',
+      icon: CreditCard,
+    },
+    {
+      href: '/workspace/outreach',
+      title: 'Prospección WhatsApp',
+      desc: 'Interesados con mensajes listos.',
+      icon: MessageSquare,
+    },
+    {
+      href: '/workspace/email',
+      title: 'Nueva campaña',
+      desc: 'Email masivo por segmento.',
+      icon: Mail,
+    },
+    {
+      href: '/workspace/activities',
+      title: 'Registrar actividad',
+      desc: 'Llamadas, reuniones, notas.',
+      icon: CalendarPlus,
+    },
   ]
 
   return (
     <div className="space-y-4">
-      {/* Selector de rango */}
-      <nav aria-label="Rango de tiempo" className="flex items-center gap-1">
+      {/* Selector de rango de tiempo estilo segmented control */}
+      <nav aria-label="Rango de tiempo" className="inline-flex items-center rounded-lg bg-muted/60 p-1 border border-border/40">
         {RANGES.map((r) => (
           <Link
             key={r.key}
             href={`/workspace?rango=${r.key}&vista=${initialView}`}
             aria-current={timeRange === r.key ? 'true' : undefined}
-            className={`px-2.5 py-1 text-[11px] font-mono uppercase transition ${
+            className={cn(
+              'px-3 py-1 text-xs font-medium rounded-md transition-colors',
               timeRange === r.key
-                ? 'bg-primary text-primary-foreground font-bold'
-                : 'border border-border text-muted-foreground hover:text-foreground'
-            }`}
+                ? 'bg-background text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
           >
             {r.label}
           </Link>
@@ -129,26 +148,34 @@ export default async function WorkspacePage({
 
       {trends && <TrendStrip trends={trends} />}
 
-      {/* Cobranza de 8 semanas (chart segmentado: blanco = cobrado, gris = pendiente) */}
+      {/* Cobranza de 8 semanas */}
       {cashflow && <WeeklyCashflowCard data={cashflow} />}
 
-      {/* Accesos rápidos (patrón dashboard-9: chevron a la derecha de cada fila) */}
-      <section className="grid grid-cols-2 gap-2.5 lg:grid-cols-4" aria-label="Acciones rápidas">
-        {QUICK_ACTIONS.map((action) => (
-          <Link
-            key={action.href}
-            href={action.href}
-            className="flex items-center justify-between gap-2 border border-border bg-card p-3.5 transition hover:border-muted-foreground/40 group"
-          >
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-foreground">{action.title}</p>
-              <p className="mt-1 truncate text-[11px] text-muted-foreground">{action.desc}</p>
-            </div>
-            <span className="shrink-0 font-mono text-sm text-muted-foreground transition group-hover:text-foreground" aria-hidden="true">
-              &gt;
-            </span>
-          </Link>
-        ))}
+      {/* Accesos rápidos: cuadrícula bento interactiva con iconos refinados */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-border p-px" aria-label="Acciones rápidas">
+        {QUICK_ACTIONS.map((action) => {
+          const Icon = action.icon
+          return (
+            <Link
+              key={action.href}
+              href={action.href}
+              className="group relative flex items-center justify-between gap-3 bg-background p-4 transition-colors hover:bg-muted/40"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/50 text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/30">
+                  <Icon className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+                    {action.title}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">{action.desc}</p>
+                </div>
+              </div>
+              <ArrowRight className="size-4 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+            </Link>
+          )
+        })}
       </section>
       <CockpitFocusViews
         tenant={tenant}

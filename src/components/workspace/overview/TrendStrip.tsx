@@ -1,6 +1,7 @@
-import { TrendingUp, TrendingDown } from 'lucide-react'
-
 import type { MonthlySeries } from '@/lib/trend-widgets'
+import { DashboardCard } from '@/components/dashboard-card'
+import { CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Delta, DeltaIcon, DeltaValue } from '@/components/delta'
 
 /**
  * Mini-sparklines del Resumen (estilo dashboard, dentro del sistema OLED):
@@ -19,7 +20,7 @@ function SparkBars({ values, accent }: { values: number[]; accent: string }) {
       {values.map((v, i) => (
         <span
           key={i}
-          className={`w-full rounded-sm ${i === values.length - 1 ? accent : 'bg-muted'}`}
+          className={`w-full rounded-[2px] ${i === values.length - 1 ? accent : 'bg-muted/80'}`}
           style={{ height: `${Math.max(6, Math.round((v / max) * 100))}%` }}
         />
       ))}
@@ -32,67 +33,88 @@ function fmtMoney(n: number): string {
   return `$${Math.round(n)}`
 }
 
-/** Chip ▲/▼ de variación % (mes completo anterior vs su previo); oculto si no hay base de comparación. */
-function DeltaChip({ delta }: { delta: number | null }) {
-  if (delta === null) return null
-  return (
-    <span
-      title="Δ% del último mes completo vs el anterior"
-      className={`flex items-center gap-1 text-[10px] font-mono ${delta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
-    >
-      {delta >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-      {delta >= 0 ? '+' : ''}
-      {Math.round(delta)}%
-    </span>
-  )
-}
-
 export function TrendStrip({ trends }: { trends: MonthlySeries }) {
   const monthLabels = trends.months.map((m) => MES_LABEL[m.slice(5)] ?? m.slice(5))
 
   return (
-    <section className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="Tendencias de 6 meses">
-      <div className="bg-card text-card-foreground border border-border p-3.5">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Cobrado · 6 meses</p>
-          <DeltaChip delta={trends.cobradoDeltaPct} />
-        </div>
-        <p className="mt-1 text-xl font-bold font-mono text-foreground">{fmtMoney(trends.cobrado[5] ?? 0)} <span className="text-[10px] font-normal text-muted-foreground">este mes</span></p>
-        <div className="mt-2">
-          <SparkBars values={trends.cobrado} accent="bg-emerald-500/70" />
-        </div>
-        <div className="mt-1 flex justify-between text-[8px] font-mono text-muted-foreground">
-          {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
-        </div>
-      </div>
+    <section className="grid grid-cols-1 gap-px bg-border p-px sm:grid-cols-3" aria-label="Tendencias de 6 meses">
+      <DashboardCard className="gap-0">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="font-mono text-xs uppercase tracking-wider text-muted-foreground font-normal">
+            Cobrado · 6 meses
+          </CardTitle>
+          {trends.cobradoDeltaPct !== null && (
+            <Delta value={trends.cobradoDeltaPct} variant="badge">
+              <DeltaIcon variant="trend" />
+              <DeltaValue />
+            </Delta>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-2xl font-semibold tabular-nums text-foreground">
+            {fmtMoney(trends.cobrado[5] ?? 0)}{' '}
+            <span className="text-xs font-normal text-muted-foreground font-sans">este mes</span>
+          </p>
+          <div className="mt-1">
+            <SparkBars values={trends.cobrado} accent="bg-emerald-400" />
+          </div>
+          <div className="flex justify-between text-[9px] font-mono text-muted-foreground">
+            {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
+          </div>
+        </CardContent>
+      </DashboardCard>
 
-      <div className="bg-card text-card-foreground border border-border p-3.5">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Leads nuevos · 6 meses</p>
-          <DeltaChip delta={trends.leadsNuevosDeltaPct} />
-        </div>
-        <p className="mt-1 text-xl font-bold font-mono text-foreground">{trends.leadsNuevos[5] ?? 0} <span className="text-[10px] font-normal text-muted-foreground">este mes</span></p>
-        <div className="mt-2">
-          <SparkBars values={trends.leadsNuevos} accent="bg-sky-500/70" />
-        </div>
-        <div className="mt-1 flex justify-between text-[8px] font-mono text-muted-foreground">
-          {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
-        </div>
-      </div>
+      <DashboardCard className="gap-0">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="font-mono text-xs uppercase tracking-wider text-muted-foreground font-normal">
+            Leads nuevos · 6 meses
+          </CardTitle>
+          {trends.leadsNuevosDeltaPct !== null && (
+            <Delta value={trends.leadsNuevosDeltaPct} variant="badge">
+              <DeltaIcon variant="trend" />
+              <DeltaValue />
+            </Delta>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-2xl font-semibold tabular-nums text-foreground">
+            {trends.leadsNuevos[5] ?? 0}{' '}
+            <span className="text-xs font-normal text-muted-foreground font-sans">este mes</span>
+          </p>
+          <div className="mt-1">
+            <SparkBars values={trends.leadsNuevos} accent="bg-sky-400" />
+          </div>
+          <div className="flex justify-between text-[9px] font-mono text-muted-foreground">
+            {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
+          </div>
+        </CardContent>
+      </DashboardCard>
 
-      <div className="bg-card text-card-foreground border border-border p-3.5">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Actividades · 6 meses</p>
-          <DeltaChip delta={trends.actividadesDeltaPct} />
-        </div>
-        <p className="mt-1 text-xl font-bold font-mono text-foreground">{trends.actividades[5] ?? 0} <span className="text-[10px] font-normal text-muted-foreground">este mes</span></p>
-        <div className="mt-2">
-          <SparkBars values={trends.actividades} accent="bg-amber-500/70" />
-        </div>
-        <div className="mt-1 flex justify-between text-[8px] font-mono text-muted-foreground">
-          {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
-        </div>
-      </div>
+      <DashboardCard className="gap-0">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="font-mono text-xs uppercase tracking-wider text-muted-foreground font-normal">
+            Actividades · 6 meses
+          </CardTitle>
+          {trends.actividadesDeltaPct !== null && (
+            <Delta value={trends.actividadesDeltaPct} variant="badge">
+              <DeltaIcon variant="trend" />
+              <DeltaValue />
+            </Delta>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-2xl font-semibold tabular-nums text-foreground">
+            {trends.actividades[5] ?? 0}{' '}
+            <span className="text-xs font-normal text-muted-foreground font-sans">este mes</span>
+          </p>
+          <div className="mt-1">
+            <SparkBars values={trends.actividades} accent="bg-amber-400" />
+          </div>
+          <div className="flex justify-between text-[9px] font-mono text-muted-foreground">
+            {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
+          </div>
+        </CardContent>
+      </DashboardCard>
     </section>
   )
 }

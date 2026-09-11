@@ -44,9 +44,9 @@ export function HourlyHeatmap({ hourBuckets, totalInteractions }: HourlyHeatmapP
       <div className="inline-flex flex-col gap-[3px] min-w-max">
         {/* Encabezado: días de la semana */}
         <div className="flex gap-[3px] items-end">
-          <span className="w-7 shrink-0 text-right text-[8px] font-mono text-zinc-600" aria-hidden="true" />
+          <span className="w-7 shrink-0 text-right text-[8px] font-mono text-muted-foreground/60" aria-hidden="true" />
           {DOW_LABELS.map((d) => (
-            <span key={d} className="w-10 text-center text-[9px] font-mono uppercase tracking-wider text-zinc-500">
+            <span key={d} className="w-10 text-center text-[9px] font-mono uppercase tracking-wider text-muted-foreground">
               {d}
             </span>
           ))}
@@ -56,7 +56,7 @@ export function HourlyHeatmap({ hourBuckets, totalInteractions }: HourlyHeatmapP
         {Array.from({ length: 24 }, (_, hour) => (
           <div key={hour} className="flex gap-[3px] items-center">
             <span
-              className="w-7 shrink-0 text-right text-[8px] font-mono text-zinc-600"
+              className="w-7 shrink-0 text-right text-[8px] font-mono text-muted-foreground/60"
               aria-hidden={hour % 3 !== 0}
             >
               {hour % 3 === 0 ? `${String(hour).padStart(2, '0')}h` : ''}
@@ -81,20 +81,20 @@ export function HourlyHeatmap({ hourBuckets, totalInteractions }: HourlyHeatmapP
         ))}
       </div>
 
-      <div className="flex items-center justify-between text-[11px] font-mono text-zinc-500 pt-1.5">
+      <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
         <span>
           {hovered
             ? `${hovered.count} ${hovered.count !== 1 ? 'interacciones' : 'interacción'} · ${DOW_LABELS[hovered.dow]} ${String(hovered.hour).padStart(2, '0')}:00`
             : 'Pasa el cursor sobre una celda para ver el detalle'}
         </span>
-        <span className="flex items-center gap-1">
-          Menos
+        <span className="flex items-center gap-1.5">
+          <span>Menos</span>
           <span className="heat-cell heat-0 !w-2.5 !h-2.5" />
           <span className="heat-cell heat-1 !w-2.5 !h-2.5" />
           <span className="heat-cell heat-2 !w-2.5 !h-2.5" />
           <span className="heat-cell heat-3 !w-2.5 !h-2.5" />
           <span className="heat-cell heat-4 !w-2.5 !h-2.5" />
-          Más
+          <span>Más</span>
         </span>
       </div>
       <span className="sr-only">{totalInteractions} interacciones en el período</span>
