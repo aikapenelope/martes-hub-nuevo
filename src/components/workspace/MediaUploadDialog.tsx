@@ -126,7 +126,10 @@ export function MediaUploadDialog() {
           if (!next) closeDialog()
         }}
       >
-        <SheetContent side="right" className="gap-0 data-[side=right]:sm:max-w-lg">
+        <SheetContent
+          side="right"
+          className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
+        >
           <SheetHeader className="border-b border-border px-4 py-3">
             <SheetTitle className="truncate text-sm font-bold uppercase tracking-wider text-foreground">
               Subir a la Biblioteca de Media

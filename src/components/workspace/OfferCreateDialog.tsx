@@ -38,7 +38,10 @@ export function OfferCreateDialog({ segments }: { segments: Array<{ id: number; 
           if (!next) setOpen(false)
         }}
       >
-        <SheetContent side="right" className="gap-0 data-[side=right]:sm:max-w-md">
+        <SheetContent
+          side="right"
+          className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md"
+        >
           <SheetHeader className="border-b border-border px-4 py-3">
             <SheetTitle className="truncate text-sm font-bold uppercase tracking-wider text-foreground">
               Nueva oferta
