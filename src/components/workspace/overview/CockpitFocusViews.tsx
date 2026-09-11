@@ -25,7 +25,14 @@ import type { Client, Segment, Tenant, User } from '@/payload-types'
 import type { WorkspaceOverviewData } from './types'
 import type { AgendaItem } from '@/lib/agenda-data'
 import { OledCard } from '@/components/workspace/oled'
-import { Drawer } from '@/components/workspace/overlays'
+import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { CrmLeadDrawer } from '@/components/workspace/CrmLeadDrawer'
 import { CockpitCommandStrip } from './CockpitCommandStrip'
 import { CockpitAlertStrip } from './CockpitAlertStrip'
@@ -230,7 +237,7 @@ export function CockpitFocusViews({
         return (
           <section className="space-y-2">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-mono uppercase tracking-wider text-zinc-300 flex items-center gap-2">
+              <h2 className="text-xs font-mono uppercase tracking-wider text-foreground/80 flex items-center gap-2">
                 <span className="w-2 h-2 bg-sky-400 inline-block shadow-[0_0_8px_rgba(56,189,248,0.5)]" />
                 Agenda próxima · 7 días ({agenda.length})
               </h2>
@@ -244,15 +251,15 @@ export function CockpitFocusViews({
 
             <OledCard className="!p-0">
               {agenda.length === 0 ? (
-                <div className="p-6 text-center text-xs font-mono text-zinc-500 space-y-1">
-                  <Zap size={20} className="mx-auto text-zinc-600 mb-2" />
-                  <p className="text-zinc-400 font-bold">Nada pendiente en la agenda esta semana.</p>
-                  <p className="text-[11px] text-zinc-600">
+                <div className="p-6 text-center text-xs font-mono text-muted-foreground space-y-1">
+                  <Zap size={20} className="mx-auto text-muted-foreground/60 mb-2" />
+                  <p className="font-bold text-foreground">Nada pendiente en la agenda esta semana.</p>
+                  <p className="text-[11px]">
                     Las reuniones agendadas en Google Calendar, cobros y tareas aparecerán aquí automáticamente.
                   </p>
                 </div>
               ) : (
-                <div className="flex flex-col divide-y divide-zinc-900/80">
+                <div className="flex flex-col divide-y divide-border">
                   {agenda.slice(0, 8).map((item, i) => {
                     const badge = agendaTypeBadge[item.type]
                     const isLeadCita =
@@ -270,9 +277,9 @@ export function CockpitFocusViews({
                             setSelectedAgendaItem(item)
                           }
                         }}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-900/40 transition group cursor-pointer"
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition group cursor-pointer"
                       >
-                        <span className="text-zinc-500 group-hover:text-white transition shrink-0">
+                        <span className="text-muted-foreground group-hover:text-foreground transition shrink-0">
                           {item.type === 'cita' ? (
                             <CalendarClock size={16} className="text-sky-400" />
                           ) : item.type === 'task' ? (
@@ -286,7 +293,7 @@ export function CockpitFocusViews({
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <strong className="truncate text-sm text-white group-hover:text-sky-300 transition">
+                            <strong className="truncate text-sm text-foreground group-hover:text-sky-300 transition">
                               {item.label}
                             </strong>
                             <span
@@ -295,12 +302,12 @@ export function CockpitFocusViews({
                               {badge.label}
                             </span>
                           </div>
-                          <span className="text-[11px] font-mono text-zinc-400 truncate block mt-0.5">
+                          <span className="text-[11px] font-mono text-muted-foreground truncate block mt-0.5">
                             {item.sublabel}
                           </span>
                         </div>
 
-                        <span className="shrink-0 text-[11px] font-mono text-zinc-400 text-right">
+                        <span className="shrink-0 text-[11px] font-mono text-muted-foreground text-right">
                           {agendaDateFmt.format(new Date(item.date))}
                         </span>
                       </div>
@@ -379,21 +386,22 @@ export function CockpitFocusViews({
       {/* 3. Selector de Vistas de Enfoque (Tabs OLED) & Bento Customizer */}
       <nav
         aria-label="Vistas de enfoque del tablero"
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-y border-zinc-900/80 py-2.5 bg-black/40 px-1"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-y border-border bg-background/40 py-2.5 px-1"
       >
-        <div className="inline-flex items-center p-1 bg-zinc-950 border border-zinc-800 gap-1">
-          <button
+        <div className="inline-flex items-center p-1 bg-background border border-border gap-1">
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => handleSelectView('operativa')}
-            className={`px-3.5 py-1.5 text-xs font-mono uppercase tracking-wider flex items-center gap-2 transition ${
+            className={`h-auto flex gap-2 rounded-none px-3.5 py-1.5 text-xs font-mono uppercase tracking-wider transition ${
               activeView === 'operativa'
-                ? 'bg-white text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900/60'
+                ? 'bg-primary font-black text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
             }`}
           >
             <Activity
               size={14}
-              className={activeView === 'operativa' ? 'text-black' : 'text-sky-400'}
+              className={activeView === 'operativa' ? 'text-primary-foreground' : 'text-sky-400'}
             />
             <span>Operativa · Hoy</span>
             {urgentCount > 0 ? (
@@ -412,27 +420,28 @@ export function CockpitFocusViews({
             <kbd className="hidden md:inline-block text-[9px] px-1 py-0.2 opacity-60 border border-current font-mono">
               1
             </kbd>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => handleSelectView('ejecutiva')}
-            className={`px-3.5 py-1.5 text-xs font-mono uppercase tracking-wider flex items-center gap-2 transition ${
+            className={`h-auto flex gap-2 rounded-none px-3.5 py-1.5 text-xs font-mono uppercase tracking-wider transition ${
               activeView === 'ejecutiva'
-                ? 'bg-white text-black font-black shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900/60'
+                ? 'bg-primary font-black text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
             }`}
           >
             <BarChart3
               size={14}
-              className={activeView === 'ejecutiva' ? 'text-black' : 'text-indigo-400'}
+              className={activeView === 'ejecutiva' ? 'text-primary-foreground' : 'text-indigo-400'}
             />
             <span>Ejecutiva · Rendimiento</span>
             <span
               className={`px-1.5 py-0.2 text-[10px] font-bold border font-mono ${
                 activeView === 'ejecutiva'
-                  ? 'bg-indigo-600 text-white border-indigo-700'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800'
+                  ? 'bg-indigo-600 text-primary-foreground border-indigo-700'
+                  : 'bg-muted text-muted-foreground border-border'
               }`}
             >
               KPIs
@@ -440,31 +449,32 @@ export function CockpitFocusViews({
             <kbd className="hidden md:inline-block text-[9px] px-1 py-0.2 opacity-60 border border-current font-mono">
               2
             </kbd>
-          </button>
+          </Button>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-mono text-zinc-400">
-          <button
+        <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setShowConfig(!showConfig)}
-            className={`px-2.5 py-1 border text-[11px] font-mono flex items-center gap-1.5 transition ${
+            className={`h-auto gap-1.5 px-2.5 py-1 border text-[11px] font-mono transition ${
               showConfig
                 ? 'bg-sky-400 text-black border-sky-300 font-bold'
-                : 'bg-zinc-900/80 hover:bg-zinc-800 border-zinc-800 text-zinc-300'
+                : 'bg-muted/80 hover:bg-accent border-border text-foreground/80'
             }`}
             title="Personalizar bloques visibles del Bento"
           >
             <SlidersHorizontal size={13} />
             <span>Personalizar Bento</span>
-          </button>
+          </Button>
 
           <div className="hidden lg:flex items-center gap-2">
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-zinc-300">Telemetría activa</span>
+              <span className="text-foreground/80">Telemetría activa</span>
             </span>
-            <span className="text-zinc-600">·</span>
-            <span className="text-zinc-400 text-[11px]">
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground text-[11px]">
               {activeView === 'operativa'
                 ? 'Acción inmediata, agenda y seguimiento'
                 : 'Salud comercial, conversión y finanzas'}
@@ -475,24 +485,25 @@ export function CockpitFocusViews({
 
       {/* Panel Desplegable: Personalización del Bento Modular y Elástico */}
       {showConfig && (
-        <div className="p-3.5 oled-card border-sky-900/50 bg-sky-950/15 space-y-3 animate-fadeIn font-mono text-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
+        <div className="p-3.5 border border-sky-900/50 bg-sky-950/15 text-card-foreground space-y-3 animate-fadeIn font-mono text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-2.5">
             <div className="flex items-center gap-2">
               <LayoutGrid size={15} className="text-sky-400" />
-              <span className="font-bold text-white text-sm">
+              <span className="font-bold text-foreground text-sm">
                 Personalizar Bento ({activeView === 'operativa' ? 'Vista Operativa' : 'Vista Ejecutiva'})
               </span>
-              <span className="hidden sm:inline text-[10px] text-zinc-500 bg-zinc-900 px-2 py-0.5 border border-zinc-800">
+              <span className="hidden sm:inline text-[10px] text-muted-foreground bg-muted px-2 py-0.5 border border-border">
                 Auto-flow elástico
               </span>
             </div>
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={resetWidgets}
-              className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1.5 transition self-start sm:self-auto px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800"
+              className="h-auto self-start sm:self-auto gap-1.5 border-border bg-muted px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <RotateCcw size={12} /> Restaurar distribución original
-            </button>
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 pt-1">
@@ -507,57 +518,60 @@ export function CockpitFocusViews({
                   key={w.key}
                   className={`p-2.5 border transition flex flex-col justify-between gap-2 ${
                     w.visible
-                      ? 'bg-zinc-950/90 border-zinc-800 hover:border-zinc-700'
-                      : 'bg-black/80 border-zinc-900/80 opacity-60'
+                      ? 'bg-background/90 border-border hover:border-muted-foreground/40'
+                      : 'bg-background/80 border-border opacity-60'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() => toggleWidget(w.key, isExec)}
-                      className="flex items-center gap-2 min-w-0 text-left hover:text-sky-300 transition"
+                      className="flex min-w-0 items-center gap-2 text-left hover:text-sky-300"
                       title={w.visible ? 'Ocultar widget' : 'Mostrar widget'}
                     >
                       {w.visible ? (
                         <Eye size={13} className="text-emerald-400 shrink-0" />
                       ) : (
-                        <EyeOff size={13} className="text-zinc-600 shrink-0" />
+                        <EyeOff size={13} className="text-muted-foreground shrink-0" />
                       )}
                       <span
                         className={`text-xs truncate font-sans font-medium ${
-                          w.visible ? 'text-zinc-200' : 'text-zinc-500 line-through'
+                          w.visible ? 'text-foreground/90' : 'text-muted-foreground line-through'
                         }`}
                       >
                         {w.label}
                       </span>
-                    </button>
+                    </Button>
 
                     <div className="flex items-center gap-0.5 shrink-0">
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         disabled={isFirst}
                         onClick={() => moveWidget(w.key, 'up', isExec)}
-                        className="p-1 text-zinc-400 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-400 hover:bg-zinc-800 rounded transition"
+                        className="h-auto rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-20"
                         title="Subir posición"
                       >
                         <ArrowUp size={12} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="ghost"
                         disabled={isLast}
                         onClick={() => moveWidget(w.key, 'down', isExec)}
-                        className="p-1 text-zinc-400 hover:text-white disabled:opacity-20 disabled:hover:text-zinc-400 hover:bg-zinc-800 rounded transition"
+                        className="h-auto rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-20"
                         title="Bajar posición"
                       >
                         <ArrowDown size={12} />
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
                   {w.visible && (
-                    <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-zinc-900 text-[10px]">
-                      <span className="text-zinc-500 font-mono">Ancho:</span>
-                      <div className="inline-flex items-center bg-zinc-900/90 border border-zinc-800 p-0.5 rounded gap-0.5">
+                    <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-border text-[10px]">
+                      <span className="text-muted-foreground font-mono">Ancho:</span>
+                      <div className="inline-flex items-center bg-muted/90 border border-border p-0.5 rounded gap-0.5">
                         {(
                           [
                             { id: 'compact' as const, label: '1/3' },
@@ -566,19 +580,20 @@ export function CockpitFocusViews({
                             { id: 'full' as const, label: 'Full' },
                           ] as const
                         ).map((opt) => (
-                          <button
+                          <Button
                             key={opt.id}
                             type="button"
+                            variant="ghost"
                             onClick={() => updateWidgetSpan(w.key, opt.id, isExec)}
-                            className={`px-1.5 py-0.5 font-mono transition ${
+                            className={`h-auto rounded-none px-1.5 py-0.5 font-mono transition ${
                               currentSpan === opt.id
                                 ? 'bg-sky-400 text-black font-bold shadow-sm'
-                                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                             }`}
                             title={`Tamaño ${opt.label}`}
                           >
                             {opt.label}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     </div>
@@ -606,16 +621,17 @@ export function CockpitFocusViews({
               )
             })}
           {operativeWidgets.every((w) => !w.visible) && (
-            <div className="col-span-full p-8 text-center border border-dashed border-zinc-800 text-zinc-500 font-mono text-xs space-y-2">
-              <p className="text-zinc-400 font-bold">No hay widgets visibles en la vista operativa.</p>
+            <div className="col-span-full p-8 text-center border border-dashed border-border text-muted-foreground font-mono text-xs space-y-2">
+              <p className="font-bold text-foreground">No hay widgets visibles en la vista operativa.</p>
               <p>Abre «Personalizar Bento» arriba para activar los bloques que desees ver.</p>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={resetWidgets}
-                className="mt-2 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-sky-400 border border-zinc-800 text-xs font-mono inline-flex items-center gap-1.5"
+                className="mt-2 h-auto gap-1.5 border-border bg-muted px-3 py-1.5 font-mono text-xs text-sky-400 hover:bg-accent"
               >
                 <RotateCcw size={12} /> Restaurar distribución original
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -634,78 +650,109 @@ export function CockpitFocusViews({
               )
             })}
           {executiveWidgets.every((w) => !w.visible) && (
-            <div className="col-span-full p-8 text-center border border-dashed border-zinc-800 text-zinc-500 font-mono text-xs space-y-2">
-              <p className="text-zinc-400 font-bold">No hay widgets visibles en la vista ejecutiva.</p>
+            <div className="col-span-full p-8 text-center border border-dashed border-border text-muted-foreground font-mono text-xs space-y-2">
+              <p className="font-bold text-foreground">No hay widgets visibles en la vista ejecutiva.</p>
               <p>Abre «Personalizar Bento» arriba para activar los bloques que desees ver.</p>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={resetWidgets}
-                className="mt-2 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-sky-400 border border-zinc-800 text-xs font-mono inline-flex items-center gap-1.5"
+                className="mt-2 h-auto gap-1.5 border-border bg-muted px-3 py-1.5 font-mono text-xs text-sky-400 hover:bg-accent"
               >
                 <RotateCcw size={12} /> Restaurar distribución original
-              </button>
+              </Button>
             </div>
           )}
         </div>
       )}
 
-      {/* 4. Drawer 360° Polimórfico (Ficha de Lead o Preview Contextual) */}
-      <Drawer
+      {/* 4. Sheet 360° Polimórfico (Ficha de Lead o Preview Contextual) */}
+      <Sheet
         open={selectedLeadId !== null}
-        onClose={() => setSelectedLeadId(null)}
-        title="Ficha 360° del Prospecto"
+        onOpenChange={(open) => {
+          if (!open) setSelectedLeadId(null)
+        }}
       >
-        {selectedLeadId !== null && (
-          <CrmLeadDrawer
-            leadId={selectedLeadId}
-            canEdit={canEdit}
-            assignees={assignees}
-            segments={segments}
-            onUpdated={() => {
-              // Refresca los server components del dashboard: nombres, valores,
-              // prioridades y seguimientos reflejan el guardado sin recargar
-              router.refresh()
-            }}
-          />
-        )}
-      </Drawer>
-
-      {/* Drawer Contextual para Citas / Cobros / Tareas de la Agenda */}
-      <Drawer
-        open={selectedAgendaItem !== null}
-        onClose={() => setSelectedAgendaItem(null)}
-        title={selectedAgendaItem ? selectedAgendaItem.label : 'Detalle'}
-      >
-        {selectedAgendaItem && (
-          <div className="space-y-4 font-mono text-xs">
-            <div className="p-3 oled-subcard space-y-2 border-l-2 border-sky-400">
-              <span
-                className={`font-mono text-[9px] uppercase border px-1.5 py-0.2 ${
-                  agendaTypeBadge[selectedAgendaItem.type].cls
-                }`}
-              >
-                {agendaTypeBadge[selectedAgendaItem.type].label}
-              </span>
-              <h3 className="text-sm font-bold text-white mt-1">{selectedAgendaItem.label}</h3>
-              <p className="text-zinc-400 text-xs">{selectedAgendaItem.sublabel}</p>
-              <div className="text-[11px] text-zinc-500 pt-1 border-t border-zinc-900 flex items-center gap-1.5">
-                <Clock size={12} className="text-zinc-400" />
-                <span>Fecha: {agendaDateFmt.format(new Date(selectedAgendaItem.date))}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <Link
-                href={selectedAgendaItem.href}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-sky-400 hover:bg-sky-300 text-black font-bold uppercase transition"
-              >
-                <span>Abrir en módulo completo</span>
-                <ArrowRight size={14} />
-              </Link>
-            </div>
+        <SheetContent
+          side="right"
+          className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl"
+        >
+          <SheetHeader className="border-b border-border px-4 py-3">
+            <SheetTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Ficha 360° del Prospecto
+            </SheetTitle>
+            <SheetDescription className="sr-only">Ficha CRM 360° del prospecto</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-1 flex-col overflow-y-auto p-4">
+            {selectedLeadId !== null && (
+              <CrmLeadDrawer
+                leadId={selectedLeadId}
+                canEdit={canEdit}
+                assignees={assignees}
+                segments={segments}
+                onUpdated={() => {
+                  // Refresca los server components del dashboard: nombres, valores,
+                  // prioridades y seguimientos reflejan el guardado sin recargar
+                  router.refresh()
+                }}
+              />
+            )}
           </div>
-        )}
-      </Drawer>
+        </SheetContent>
+      </Sheet>
+
+      {/* Sheet Contextual para Citas / Cobros / Tareas de la Agenda */}
+      <Sheet
+        open={selectedAgendaItem !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAgendaItem(null)
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md"
+        >
+          <SheetHeader className="border-b border-border px-4 py-3">
+            <SheetTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+              {selectedAgendaItem ? selectedAgendaItem.label : 'Detalle'}
+            </SheetTitle>
+            <SheetDescription className="sr-only">
+              Detalle del elemento de la agenda
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-1 flex-col overflow-y-auto p-4">
+            {selectedAgendaItem && (
+              <div className="space-y-4 font-mono text-xs">
+                <div className="p-3 space-y-2 border border-sky-400 border-l-2 bg-muted/40">
+                  <span
+                    className={`font-mono text-[9px] uppercase border px-1.5 py-0.2 ${
+                      agendaTypeBadge[selectedAgendaItem.type].cls
+                    }`}
+                  >
+                    {agendaTypeBadge[selectedAgendaItem.type].label}
+                  </span>
+                  <h3 className="text-sm font-bold text-foreground mt-1">{selectedAgendaItem.label}</h3>
+                  <p className="text-muted-foreground text-xs">{selectedAgendaItem.sublabel}</p>
+                  <div className="text-[11px] text-muted-foreground pt-1 border-t border-border flex items-center gap-1.5">
+                    <Clock size={12} className="text-muted-foreground" />
+                    <span>Fecha: {agendaDateFmt.format(new Date(selectedAgendaItem.date))}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Link
+                    href={selectedAgendaItem.href}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-sky-400 hover:bg-sky-300 text-black font-bold uppercase transition"
+                  >
+                    <span>Abrir en módulo completo</span>
+                    <ArrowRight size={14} />
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

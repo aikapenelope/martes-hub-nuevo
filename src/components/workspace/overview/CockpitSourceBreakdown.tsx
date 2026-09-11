@@ -21,7 +21,7 @@ const SOURCE_ICONS: Record<string, typeof Compass> = {
 export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps) {
   if (sources.length === 0) {
     return (
-      <div className="border border-zinc-800 bg-zinc-950 p-4 text-center text-xs text-zinc-500 font-mono">
+      <div className="border border-border bg-background p-4 text-center text-xs text-muted-foreground font-mono">
         Sin prospectos registrados aún para analizar canales de captación.
       </div>
     )
@@ -35,15 +35,15 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
   }))
 
   return (
-    <div className="p-3.5 oled-card space-y-3.5">
-      <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800">
+    <div className="p-3.5 bg-card text-card-foreground border border-border space-y-3.5">
+      <div className="flex items-center justify-between pb-2.5 border-b border-border">
         <div>
-          <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-white flex items-center gap-2">
+          <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
             <Compass className="w-3.5 h-3.5 text-sky-400" /> Canales de Captación
           </h2>
-          <p className="text-[11px] text-zinc-500">Distribución de prospectos por canal de origen</p>
+          <p className="text-[11px] text-muted-foreground">Distribución de prospectos por canal de origen</p>
         </div>
-        <span className="font-mono text-[10px] text-zinc-400 border border-zinc-800 px-2 py-0.5 font-bold">
+        <span className="font-mono text-[10px] text-muted-foreground border border-border px-2 py-0.5 font-bold">
           {totalLeads} {totalLeads === 1 ? 'Lead' : 'Leads'}
         </span>
       </div>
@@ -53,25 +53,25 @@ export function CockpitSourceBreakdown({ sources }: CockpitSourceBreakdownProps)
         <MonoDonutChart data={donutData} centerLabel="LEADS" innerRadius={36} outerRadius={48} />
       </div>
 
-      <div className="space-y-2 font-mono text-xs border-t border-zinc-900 pt-2.5">
+      <div className="space-y-2 font-mono text-xs border-t border-border pt-2.5">
         {sources.slice(0, 5).map((item) => {
           const Icon = SOURCE_ICONS[item.source] || Compass
           return (
             <Link
               key={item.source}
               href={`/workspace/crm?vista=leads&modo=tabla&fuente=${item.source}`}
-              className="block p-2.5 oled-subcard space-y-1.5 hover:border-zinc-700 transition group"
+              className="block p-2.5 border border-border bg-muted/40 space-y-1.5 hover:border-muted-foreground/40 transition group"
               title={`Ver leads captados por ${item.label}`}
             >
               <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 font-medium text-zinc-200">
+                <span className="flex items-center gap-1.5 font-medium text-foreground">
                   <Icon className="w-3.5 h-3.5 text-sky-400" />
                   {item.label}
                 </span>
-                <span className="text-[11px] text-zinc-400 flex items-center gap-1.5">
-                  <strong className="text-white font-bold">{item.count}</strong>
-                  <span className="text-zinc-600">{item.percentage}%</span>
-                  <span className="font-mono text-[11px] text-zinc-600 group-hover:text-zinc-300 transition" aria-hidden="true">&gt;</span>
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                  <strong className="text-foreground font-bold">{item.count}</strong>
+                  <span className="text-muted-foreground">{item.percentage}%</span>
+                  <span className="font-mono text-[11px] text-muted-foreground group-hover:text-foreground/80 transition" aria-hidden="true">&gt;</span>
                 </span>
               </div>
               {/* Barra punteada (dashed) estilo dashboard-9 "Traffic sources" */}

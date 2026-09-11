@@ -11,6 +11,7 @@ import { getWorkspaceContext } from '@/lib/workspace-context'
 import { deleteSegmentAction } from '@/lib/segment-actions'
 import { SegmentCreateDialog } from '@/components/workspace/SegmentCreateDialog'
 import { EmptyState, KpiCard, OledCard, PageHero } from '@/components/workspace/oled'
+import { Button } from '@/components/ui/button'
 import type { Segment } from '@/payload-types'
 
 interface CountRow {
@@ -92,39 +93,44 @@ export default async function SegmentsPage() {
             const clients = clientCounts.get(s.id) ?? 0
             const total = leads + clients
             return (
-              <article key={s.id} className="oled-card flex flex-col gap-2 p-4">
+              <article key={s.id} className="bg-card text-card-foreground border border-border flex flex-col gap-2 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2.5">
-                    <span className="flex h-8 w-8 items-center justify-center border border-zinc-700 bg-zinc-900">
-                      <Layers className="h-4 w-4 text-zinc-400" />
+                    <span className="flex h-8 w-8 items-center justify-center border border-border bg-muted">
+                      <Layers className="h-4 w-4 text-muted-foreground" />
                     </span>
                     <div>
-                      <strong className="block text-sm text-white">{s.name}</strong>
-                      {s.description && <span className="text-[11px] text-zinc-500">{s.description}</span>}
+                      <strong className="block text-sm text-foreground">{s.name}</strong>
+                      {s.description && <span className="text-[11px] text-muted-foreground">{s.description}</span>}
                     </div>
                   </div>
                   {isAdmin && (
                     <form action={deleteSegmentAction}>
                       <input type="hidden" name="id" value={s.id} />
-                      <button type="submit" className="text-[10px] text-zinc-500 font-mono uppercase transition hover:text-red-400">
+                      <Button
+                        type="submit"
+                        variant="ghost"
+                        size="xs"
+                        className="px-1 font-mono text-[10px] uppercase text-muted-foreground hover:text-red-400"
+                      >
                         Eliminar
-                      </button>
+                      </Button>
                     </form>
                   )}
                 </div>
 
-                <div className="mt-auto grid grid-cols-2 gap-2 border-t border-zinc-900 pt-2.5 text-center">
+                <div className="mt-auto grid grid-cols-2 gap-2 border-t border-border pt-2.5 text-center">
                   <div>
-                    <p className="text-base font-black text-white font-mono">{leads}</p>
-                    <p className="text-[9px] font-mono uppercase tracking-wider text-zinc-500">Leads</p>
+                    <p className="text-base font-black text-foreground font-mono">{leads}</p>
+                    <p className="text-[9px] font-mono uppercase tracking-wider text-muted-foreground">Leads</p>
                   </div>
                   <div>
-                    <p className="text-base font-black text-white font-mono">{clients}</p>
-                    <p className="text-[9px] font-mono uppercase tracking-wider text-zinc-500">Clientes</p>
+                    <p className="text-base font-black text-foreground font-mono">{clients}</p>
+                    <p className="text-[9px] font-mono uppercase tracking-wider text-muted-foreground">Clientes</p>
                   </div>
                 </div>
 
-                <div className="h-1.5 w-full bg-zinc-900 overflow-hidden">
+                <div className="h-1.5 w-full bg-muted overflow-hidden">
                   <div
                     className="h-full bg-sky-500 transition-all duration-300"
                     style={{ width: `${Math.min(100, total * 10)}%` }}
