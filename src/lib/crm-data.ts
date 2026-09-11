@@ -360,6 +360,7 @@ export interface CrmConversationRef {
   status: Conversation['status']
   contactAddress: string
   lastMessageAt: string | null
+  lastInboundAt: string | null
 }
 
 export interface CrmRecordDetail {
@@ -649,6 +650,7 @@ export async function getCrmRecord({
       status: c.status,
       contactAddress: c.contactAddress,
       lastMessageAt: c.lastMessageAt ?? null,
+      lastInboundAt: c.lastInboundAt ?? null,
     })),
   }
 }

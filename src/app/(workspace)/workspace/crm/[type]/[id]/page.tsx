@@ -8,17 +8,23 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import {
   ArrowLeft,
-  Building2,
+  Calendar,
   Check,
   CheckCircle2,
   CheckSquare,
   CircleDot,
+  Clock,
+  DollarSign,
+  FileText,
+  Flame,
   Globe,
+  Layers,
   Mail,
   MapPin,
   MessageCircle,
   Phone,
   Plus,
+  Sparkles,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -39,8 +45,11 @@ import { ActivityDrawer } from '@/components/workspace/ActivityDrawer'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getAssignableUsers } from '@/lib/tasks-data'
 import { changeTaskStatusAction } from '@/lib/tasks-actions'
+import { computeDealVelocity, computeWindowState, formatTimeAgo } from '@/lib/crm-pipeline-window'
+import { cn } from '@/lib/utils'
 import type { Client, Company, Lead, Segment, User } from '@/payload-types'
 
 function relationName(value: number | Segment | User | Company | null | undefined): string {
@@ -338,6 +347,40 @@ export default async function CrmRecordPage({
     }
   }
 
+  // Métricas 360° del Contacto
+  const lastActivityIso =
+    detail.timeline[0]?.date ||
+    (isLead ? leadRecord?.updatedAt : isClient ? clientRecord?.updatedAt : companyRecord?.updatedAt) ||
+    new Date().toISOString()
+  const dealVelocity = computeDealVelocity(lastActivityIso)
+
+  // Conversación y ventana SLA de WhatsApp Meta
+  const mainConv = detail.conversations[0]
+  const windowState = mainConv
+    ? computeWindowState(mainConv.lastInboundAt, mainConv.lastMessageAt)
+    : null
+
+  // Iniciales para el avatar
+  const initials =
+    (name || 'ID')
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || (isCompany ? 'EM' : isLead ? 'LD' : 'CL')
+
+  // Total cobrado / LTV
+  const totalBilled = detail.timeline
+    .filter((t) => t.kind === 'cobro' && t.detail?.includes('pagado'))
+    .reduce((acc, t) => {
+      const match = t.detail?.match(/\$([0-9.]+)/)
+      return acc + (match ? Number(match[1]) : 0)
+    }, 0)
+
+  const pendingTasksCount = detail.tasks.filter(
+    (t) => t.status !== 'completada' && t.status !== 'cancelada',
+  ).length
+
   return (
     <div className="space-y-4">
       <Link href={`/workspace/crm?vista=${type}`} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors font-sans">
@@ -360,14 +403,10 @@ export default async function CrmRecordPage({
       )}
 
       {/* Hero Header 360° Moderno */}
-      <header className="flex flex-col justify-between gap-4 rounded-xl border border-border/70 bg-card p-5 shadow-xs sm:flex-row sm:items-center">
+      <header className="flex flex-col justify-between gap-4 rounded-xl border border-border bg-card/60 backdrop-blur-xs p-5 shadow-xs sm:flex-row sm:items-center">
         <div className="flex items-center gap-3.5">
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/60 text-foreground font-bold text-sm">
-            {isCompany ? (
-              <Building2 className="size-5 text-muted-foreground" aria-hidden="true" />
-            ) : (
-              <UserRound className="size-5 text-muted-foreground" aria-hidden="true" />
-            )}
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/60 text-foreground font-mono font-bold text-sm tracking-wider">
+            {initials}
           </span>
           <div>
             <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -382,6 +421,11 @@ export default async function CrmRecordPage({
               {isClient && clientRecord?.stage && (
                 <Badge variant="secondary" className="text-[10px] capitalize font-medium">
                   {clientRecord.stage}
+                </Badge>
+              )}
+              {isLead && leadRecord?.source && (
+                <Badge variant="outline" className="text-[10px] font-mono capitalize">
+                  {leadRecord.source.replace('_', ' ')}
                 </Badge>
               )}
             </div>
@@ -449,9 +493,144 @@ export default async function CrmRecordPage({
         </div>
       </header>
 
+      {/* Bento 360° KPI Bar */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {/* KPI 1: Etapa en Pipeline */}
+        <Card className="rounded-xl border border-border bg-card/60 p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Etapa Pipeline</span>
+            <Layers className="size-3.5 text-sky-400" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-lg font-bold tracking-tight text-foreground capitalize">
+              {isLead ? leadRecord?.status : isClient ? clientRecord?.stage : 'Activa'}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground truncate">
+            Activo {formatTimeAgo(lastActivityIso)}
+          </p>
+        </Card>
+
+        {/* KPI 2: Valor Comercial / Oportunidad */}
+        <Card className="rounded-xl border border-border bg-card/60 p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+              {isLead ? 'Oportunidad (Deal)' : 'Facturación Acumulada'}
+            </span>
+            <DollarSign className="size-3.5 text-emerald-400" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5 font-mono">
+            <span className="text-lg font-bold tracking-tight text-foreground tabular-nums">
+              {isLead
+                ? (leadRecord?.estimatedValue != null && leadRecord.estimatedValue > 0
+                    ? `$${leadRecord.estimatedValue.toLocaleString('en-US')}`
+                    : '—')
+                : (totalBilled > 0
+                    ? `$${totalBilled.toLocaleString('en-US')}`
+                    : '—')}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground truncate">
+            {isLead ? 'Valor proyectado de cierre' : `${detail.timeline.filter((t) => t.kind === 'cobro').length} cobros registrados`}
+          </p>
+        </Card>
+
+        {/* KPI 3: Velocidad y Temperatura */}
+        <Card className="rounded-xl border border-border bg-card/60 p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Temperatura</span>
+            <Flame className={cn("size-3.5", dealVelocity.temperature === 'hot' ? 'text-rose-400' : dealVelocity.temperature === 'warm' ? 'text-amber-400' : 'text-zinc-500')} />
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold font-mono uppercase",
+              dealVelocity.temperature === 'hot'
+                ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
+                : dealVelocity.temperature === 'warm'
+                ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                : "bg-muted text-muted-foreground border border-border"
+            )}>
+              {dealVelocity.temperature === 'hot' ? '🔥 Fresco' : dealVelocity.temperature === 'warm' ? '⚡ Tibio' : '❄ En Riesgo'}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground truncate">
+            {dealVelocity.label}
+          </p>
+        </Card>
+
+        {/* KPI 4: Ventana SLA WhatsApp */}
+        <Card className="rounded-xl border border-border bg-card/60 p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">WhatsApp Meta SLA</span>
+            <MessageCircle className="size-3.5 text-emerald-400" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            {mainConv && windowState ? (
+              windowState.needsReply ? (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold font-mono bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                  ⚠ Por responder
+                </span>
+              ) : windowState.windowMinutesRemaining != null && windowState.windowMinutesRemaining > 0 ? (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  {Math.floor(windowState.windowMinutesRemaining / 60)}h restantes
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold font-mono bg-muted text-muted-foreground border border-border">
+                  Expirada
+                </span>
+              )
+            ) : (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold font-mono bg-muted text-muted-foreground border border-border">
+                {phone ? 'Disponible' : 'Sin chat'}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground truncate">
+            {mainConv ? `${mainConv.contactAddress} · ${mainConv.status}` : phone ? phone : 'Sin número conectado'}
+          </p>
+        </Card>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[1.3fr_.9fr]">
         <div className="space-y-4">
-          <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
+          <Tabs defaultValue="ficha" className="space-y-4">
+            <TabsList className="bg-muted/40 border border-border/80 p-1 rounded-xl h-auto flex flex-wrap gap-1">
+              <TabsTrigger
+                value="ficha"
+                className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground rounded-lg py-1.5 px-3 flex items-center gap-1.5 font-medium"
+              >
+                <UserRound className="size-3.5" />
+                <span>{isCompany ? 'Datos de Empresa' : 'Ficha y Edición'}</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="tareas"
+                className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground rounded-lg py-1.5 px-3 flex items-center gap-1.5 font-medium"
+              >
+                <CheckSquare className="size-3.5" />
+                <span>Tareas ({pendingTasksCount})</span>
+              </TabsTrigger>
+              {isCompany && (
+                <TabsTrigger
+                  value="contactos"
+                  className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground rounded-lg py-1.5 px-3 flex items-center gap-1.5 font-medium"
+                >
+                  <Users className="size-3.5" />
+                  <span>Contactos ({(detail.relatedClients?.length || 0) + (detail.relatedLeads?.length || 0)})</span>
+                </TabsTrigger>
+              )}
+              {isLead && (
+                <TabsTrigger
+                  value="secuencias"
+                  className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground rounded-lg py-1.5 px-3 flex items-center gap-1.5 font-medium"
+                >
+                  <Mail className="size-3.5" />
+                  <span>Secuencias ({leadEnrollments.length})</span>
+                </TabsTrigger>
+              )}
+            </TabsList>
+
+            <TabsContent value="ficha" className="space-y-4 m-0">
+              <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
             <CardHeader className="border-b border-border/60 p-5">
               <CardTitle className="text-base font-bold text-foreground">
                 {isCompany ? 'Ficha de la Empresa' : 'Ficha 360°'}
@@ -864,9 +1043,11 @@ export default async function CrmRecordPage({
             )}
             </CardContent>
           </Card>
+        </TabsContent>
 
-          {/* Si es una empresa, mostrar sus contactos asociados (Leads y Clientes) */}
-          {isCompany && (
+        {/* Si es una empresa, mostrar sus contactos asociados (Leads y Clientes) */}
+        {isCompany && (
+          <TabsContent value="contactos" className="space-y-4 m-0">
             <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
               <CardHeader className="border-b border-border/60 p-5">
                 <div className="flex items-center gap-2">
@@ -945,9 +1126,11 @@ export default async function CrmRecordPage({
                 </div>
               </CardContent>
             </Card>
-          )}
+          </TabsContent>
+        )}
 
-          {/* Tareas y Compromisos asociados */}
+        {/* Tareas y Compromisos asociados */}
+        <TabsContent value="tareas" className="space-y-4 m-0">
           <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
             <CardHeader className="border-b border-border/60 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 space-y-0">
               <div>
@@ -1062,67 +1245,34 @@ export default async function CrmRecordPage({
             )}
             </CardContent>
           </Card>
-        </div>
+        </TabsContent>
 
-        <aside className="space-y-4">
-          <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
-            <CardHeader className="border-b border-border/60 p-5">
-              <CardTitle className="text-base font-bold text-foreground">Timeline unificado</CardTitle>
-              <CardDescription className="text-xs text-muted-foreground">
-                Conversaciones, emails, citas, tareas, cobros y actividades.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-5">
-              {detail.timeline.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Todavía no hay actividad para este registro.</p>
-              ) : (
-                <ol className="flex flex-col gap-3.5 border-l border-border/70 pl-4">
-                  {detail.timeline.map((entry, index) => (
-                    <li key={`${entry.kind}-${index}-${entry.date}`} className="relative">
-                      <span
-                        className={`absolute -left-[21px] top-1 h-2 w-2 rounded-full ${
-                          entry.direction === 'in' ? 'bg-emerald-400' : entry.direction === 'out' ? 'bg-sky-400' : 'bg-foreground'
-                        }`}
-                        aria-hidden="true"
-                      />
-                      {entry.href ? (
-                        <Link href={entry.href} className="block text-xs text-foreground hover:underline font-medium">
-                          {entry.title}
-                        </Link>
-                      ) : (
-                        <strong className="block text-xs text-foreground font-medium">{entry.title}</strong>
-                      )}
-                      {entry.detail && <span className="block text-[11px] text-muted-foreground mt-0.5">{entry.detail}</span>}
-                      <span className="text-[10px] text-muted-foreground font-mono mt-0.5 block">
-                        {entry.kind} · {new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.date))}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </CardContent>
-          </Card>
-
-          {isLead && (leadEnrollments.length > 0 || (context.canEdit && activeSequences.length > 0)) && (
+        {/* Secuencias de Email (si es lead) */}
+        {isLead && (
+          <TabsContent value="secuencias" className="space-y-4 m-0">
             <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
-              <CardHeader className="border-b border-border/60 p-4">
-                <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground">
-                  Secuencias de email
+              <CardHeader className="border-b border-border/60 p-5">
+                <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                  <Mail className="size-4 text-sky-400" />
+                  <span>Secuencias de email automatizadas</span>
                 </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">
+                  Automatizaciones de nutrición y seguimiento secuencial por correo.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="p-4 space-y-3">
-                {leadEnrollments.length > 0 && (
-                  <ul className="divide-y divide-border/60 rounded-lg border border-border/60 overflow-hidden">
+              <CardContent className="p-5 space-y-4">
+                {leadEnrollments.length > 0 ? (
+                  <ul className="divide-y divide-border/60 rounded-xl border border-border/60 overflow-hidden">
                     {leadEnrollments.map((enrollment) => {
                       const seqName =
                         typeof enrollment.sequence === 'object'
                           ? enrollment.sequence.name
                           : `#${enrollment.sequence}`
                       return (
-                        <li key={enrollment.id} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-muted/20">
+                        <li key={enrollment.id} className="flex items-center justify-between gap-3 p-3 text-xs bg-muted/20 hover:bg-muted/30 transition-colors">
                           <div className="min-w-0">
-                            <span className="block truncate text-foreground font-medium">{seqName}</span>
-                            <span className="font-mono text-[10px] text-muted-foreground">
+                            <span className="block truncate text-foreground font-semibold">{seqName}</span>
+                            <span className="font-mono text-[10px] text-muted-foreground mt-0.5 block">
                               {enrollment.status === 'activa'
                                 ? `activa · paso ${enrollment.currentStep + 1}`
                                 : enrollment.status}
@@ -1136,7 +1286,7 @@ export default async function CrmRecordPage({
                                 type="submit"
                                 variant="ghost"
                                 size="xs"
-                                className="h-6 text-[10px] text-muted-foreground hover:text-rose-400"
+                                className="h-7 text-xs text-muted-foreground hover:text-rose-400"
                               >
                                 Cancelar
                               </Button>
@@ -1146,21 +1296,29 @@ export default async function CrmRecordPage({
                       )
                     })}
                   </ul>
+                ) : (
+                  <div className="border border-border/60 bg-muted/20 rounded-xl p-4 text-center">
+                    <p className="text-xs text-muted-foreground font-mono">No hay secuencias activas para este prospecto.</p>
+                  </div>
                 )}
+
                 {context.canEdit && activeSequences.length > 0 && (
-                  <form action={enrollLeadInSequenceAction} className="flex flex-col gap-2 pt-1">
+                  <form action={enrollLeadInSequenceAction} className="flex flex-col gap-2.5 pt-2">
                     <input type="hidden" name="leadId" value={id} />
                     <input type="hidden" name="redirectTo" value={`/workspace/crm/leads/${id}`} />
-                    <select name="sequenceId" required defaultValue="" className={inputCls}>
-                      <option value="">Inscribir en secuencia…</option>
-                      {activeSequences.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
+                    <label className={labelCls}>
+                      Inscribir en nueva secuencia
+                      <select name="sequenceId" required defaultValue="" className={inputCls}>
+                        <option value="">Selecciona una secuencia…</option>
+                        {activeSequences.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <Button type="submit" size="sm" className="self-start text-xs font-semibold">
-                      Inscribir
+                      Inscribir ahora
                     </Button>
                   </form>
                 )}
@@ -1171,77 +1329,163 @@ export default async function CrmRecordPage({
                 )}
               </CardContent>
             </Card>
-          )}
-
-          {!isCompany && context.canEdit && (
-            <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
-              <CardHeader className="border-b border-border/60 p-4">
-                <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                  <Plus className="size-3.5 text-primary" aria-hidden="true" />
-                  <span>Registrar actividad</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4">
-                <form action={createActivityAction} className="flex flex-col gap-3">
-                  {isLead ? (
-                    <input type="hidden" name="lead" value={id} />
-                  ) : (
-                    <input type="hidden" name="client" value={id} />
-                  )}
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={labelCls}>
-                      Tipo
-                      <select name="type" defaultValue="nota" className={inputCls}>
-                        <option value="nota">Nota</option>
-                        <option value="llamada">Llamada</option>
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="email">Email</option>
-                        <option value="reunion">Reunión</option>
-                        <option value="otro">Otro</option>
-                      </select>
-                    </label>
-                    <label className={labelCls}>
-                      Fecha y hora
-                      <input type="datetime-local" name="occurredAt" className={inputCls} />
-                    </label>
-                  </div>
-                  <label className={labelCls}>
-                    Resumen
-                    <textarea
-                      name="summary"
-                      rows={3}
-                      maxLength={500}
-                      placeholder="¿Qué ocurrió? Ej: Llamada de 15 min, acordamos enviar propuesta"
-                      required
-                      className={inputCls}
-                    />
-                  </label>
-                  <Button type="submit" size="sm" className="self-start text-xs font-semibold">
-                    Guardar actividad
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-
-          {isLead && context.canEdit && !convertedId && (
-            <Card className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 shadow-xs">
-              <CardContent className="p-4">
-                <form action={convertLeadAction} className="flex flex-col gap-2">
-                  <input name="id" type="hidden" value={id} />
-                  <strong className="text-xs text-foreground font-semibold">¿La oportunidad avanzó?</strong>
-                  <p className="text-xs text-muted-foreground">
-                    Crea un cliente con estos datos y conserva el vínculo con el lead.
-                  </p>
-                  <Button type="submit" size="sm" className="mt-1 self-start text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white">
-                    Convertir a cliente
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-        </aside>
-      </div>
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
-  )
+
+    <aside className="space-y-4">
+      {/* Timeline Unificado 360° con micro-tarjetas modernas */}
+      <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
+        <CardHeader className="border-b border-border/60 p-4 sm:p-5 flex flex-row items-center justify-between space-y-0">
+          <div className="flex items-center gap-2">
+            <Clock className="size-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-bold text-foreground">Timeline Unificado</CardTitle>
+          </div>
+          <Badge variant="outline" className="text-[10px] font-mono">
+            {detail.timeline.length} eventos
+          </Badge>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-5">
+          {detail.timeline.length === 0 ? (
+            <p className="text-xs text-muted-foreground font-mono">Todavía no hay actividad registrada para este contacto.</p>
+          ) : (
+            <ol className="flex flex-col gap-3">
+              {detail.timeline.map((entry, index) => {
+                const IconComponent =
+                  entry.kind === 'conversacion'
+                    ? MessageCircle
+                    : entry.kind === 'email_buzon' || entry.kind === 'email_enviado'
+                    ? Mail
+                    : entry.kind === 'cobro'
+                    ? DollarSign
+                    : entry.kind === 'cita'
+                    ? Calendar
+                    : entry.kind === 'tarea'
+                    ? CheckSquare
+                    : FileText
+
+                const accentColor =
+                  entry.kind === 'conversacion'
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                    : entry.kind === 'cobro'
+                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+                    : entry.kind === 'email_buzon' || entry.kind === 'email_enviado'
+                    ? 'border-sky-500/30 bg-sky-500/10 text-sky-400'
+                    : entry.kind === 'tarea'
+                    ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-400'
+                    : 'border-border bg-muted/60 text-muted-foreground'
+
+                return (
+                  <li key={`${entry.kind}-${index}-${entry.date}`} className="flex gap-2.5 group">
+                    <div className={cn('size-7 rounded-lg border flex items-center justify-center shrink-0 mt-0.5', accentColor)}>
+                      <IconComponent className="size-3.5" />
+                    </div>
+                    <div className="flex-1 min-w-0 bg-background/50 border border-border/60 rounded-xl p-2.5 hover:border-border transition-colors">
+                      <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-semibold">
+                          {entry.kind.replace('_', ' ')}
+                        </span>
+                        <span className="text-[10px] font-mono text-muted-foreground">
+                          {formatTimeAgo(entry.date)}
+                        </span>
+                      </div>
+                      {entry.href ? (
+                        <Link href={entry.href} className="text-xs font-semibold text-foreground hover:underline block truncate">
+                          {entry.title}
+                        </Link>
+                      ) : (
+                        <p className="text-xs font-semibold text-foreground block truncate">{entry.title}</p>
+                      )}
+                      {entry.detail && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
+                          {entry.detail}
+                        </p>
+                      )}
+                      <span className="text-[9px] font-mono text-zinc-500 mt-1 block">
+                        {new Intl.DateTimeFormat('es', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(entry.date))}
+                      </span>
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+        </CardContent>
+      </Card>
+
+      {!isCompany && context.canEdit && (
+        <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
+          <CardHeader className="border-b border-border/60 p-4">
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+              <Plus className="size-3.5 text-primary" aria-hidden="true" />
+              <span>Registrar actividad</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <form action={createActivityAction} className="flex flex-col gap-3">
+              {isLead ? (
+                <input type="hidden" name="lead" value={id} />
+              ) : (
+                <input type="hidden" name="client" value={id} />
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className={labelCls}>
+                  Tipo
+                  <select name="type" defaultValue="nota" className={inputCls}>
+                    <option value="nota">Nota</option>
+                    <option value="llamada">Llamada</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="email">Email</option>
+                    <option value="reunion">Reunión</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </label>
+                <label className={labelCls}>
+                  Fecha y hora
+                  <input type="datetime-local" name="occurredAt" className={inputCls} />
+                </label>
+              </div>
+              <label className={labelCls}>
+                Resumen
+                <textarea
+                  name="summary"
+                  rows={3}
+                  maxLength={500}
+                  placeholder="¿Qué ocurrió? Ej: Llamada de 15 min, acordamos enviar propuesta"
+                  required
+                  className={inputCls}
+                />
+              </label>
+              <Button type="submit" size="sm" className="self-start text-xs font-semibold">
+                Guardar actividad
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {isLead && context.canEdit && !convertedId && (
+        <Card className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 shadow-xs">
+          <CardContent className="p-4">
+            <form action={convertLeadAction} className="flex flex-col gap-2">
+              <input name="id" type="hidden" value={id} />
+              <div className="flex items-center gap-1.5 text-xs text-foreground font-semibold">
+                <Sparkles className="size-3.5 text-emerald-400" />
+                <span>¿La oportunidad avanzó?</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Crea un cliente formal con estos datos y conserva todo el historial vinculado.
+              </p>
+              <Button type="submit" size="sm" className="mt-1 self-start text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white">
+                Convertir a cliente
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+    </aside>
+  </div>
+</div>
+)
 }

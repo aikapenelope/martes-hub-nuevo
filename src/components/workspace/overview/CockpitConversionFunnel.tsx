@@ -30,9 +30,6 @@ export function CockpitConversionFunnel({
     revenuePendingTotal,
     revenuePendingCount,
     totalConvertedClients,
-    rateNewToContacted,
-    rateContactedToQualified,
-    rateQualifiedToWon,
     globalConversionRate,
   } = metrics
 
@@ -47,14 +44,12 @@ export function CockpitConversionFunnel({
       label: 'En Conversación',
       count: leadsContactadoCount,
       valueAmount: estimatedRevenueContacted,
-      conversionRate: rateNewToContacted,
       colorAccent: '#38bdf8', // sky-400
     },
     {
       label: 'Calificados',
       count: leadsCalificadoCount,
       valueAmount: estimatedRevenueQualified,
-      conversionRate: rateContactedToQualified,
       colorAccent: '#818cf8', // indigo-400
     },
     {
@@ -66,7 +61,6 @@ export function CockpitConversionFunnel({
     {
       label: 'Cerrado Ganado',
       count: totalConvertedClients,
-      conversionRate: rateQualifiedToWon,
       colorAccent: '#ffffff', // white glow
     },
   ]
@@ -79,15 +73,15 @@ export function CockpitConversionFunnel({
             <Layers className="size-4" />
           </div>
           <div>
-            <CardTitle className="text-sm font-semibold tracking-tight">Embudo de Conversión</CardTitle>
-            <CardDescription className="text-xs">Volumen y tasa de avance real entre etapas</CardDescription>
+            <CardTitle className="text-sm font-semibold tracking-tight">Distribución del Pipeline</CardTitle>
+            <CardDescription className="text-xs">Volumen estimado y conteo activo por etapa comercial</CardDescription>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           {globalConversionRate !== null && (
             <Badge variant="outline" className="text-xs font-medium">
-              Global: <strong className="ml-1 text-foreground font-semibold">{globalConversionRate.toFixed(1)}%</strong>
+              Conv. Global: <strong className="ml-1 text-foreground font-semibold">{globalConversionRate.toFixed(1)}%</strong>
             </Badge>
           )}
           <Button asChild variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground">
