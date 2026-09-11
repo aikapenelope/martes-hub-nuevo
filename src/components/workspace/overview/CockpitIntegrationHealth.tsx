@@ -35,9 +35,9 @@ const STATUS_CONFIG = {
   },
   disabled: {
     icon: Radio,
-    badgeCls: 'bg-zinc-900 text-zinc-400 border-zinc-800',
-    borderCls: 'border-zinc-900 hover:border-zinc-800',
-    indicatorCls: 'bg-zinc-600',
+    badgeCls: 'bg-muted text-muted-foreground border-border',
+    borderCls: 'border-border hover:border-muted-foreground/40',
+    indicatorCls: 'bg-muted-foreground/60',
   },
 }
 
@@ -52,14 +52,14 @@ export function CockpitIntegrationHealth({ health }: { health: SystemHealthSumma
   const { items, overallStatus, recentErrorCount } = health
 
   return (
-    <div className="p-3.5 oled-card space-y-3.5">
-      <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-zinc-800">
+    <div className="p-3.5 bg-card text-card-foreground border border-border space-y-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-border">
         <div>
-          <h2 className="text-xs font-black text-white font-mono uppercase tracking-wider flex items-center gap-2">
+          <h2 className="text-xs font-black text-foreground font-mono uppercase tracking-wider flex items-center gap-2">
             <Radio className="w-3.5 h-3.5 text-sky-400" />
             Salud de Integraciones & Canales
           </h2>
-          <p className="text-[11px] text-zinc-500 font-mono">
+          <p className="text-[11px] text-muted-foreground font-mono">
             Estado operativo de WhatsApp (OpenBSP), Resend, Google Calendar y Webhooks
           </p>
         </div>
@@ -72,7 +72,7 @@ export function CockpitIntegrationHealth({ health }: { health: SystemHealthSumma
                 : overallStatus === 'warning'
                   ? 'bg-amber-950/50 text-amber-300 border-amber-800/60'
                   : overallStatus === 'disabled'
-                    ? 'bg-zinc-900/80 text-zinc-300 border-zinc-700'
+                    ? 'bg-muted/80 text-foreground/80 border-border'
                     : 'bg-red-950/50 text-red-300 border-red-800/60'
             }`}
           >
@@ -100,27 +100,27 @@ export function CockpitIntegrationHealth({ health }: { health: SystemHealthSumma
           return (
             <div
               key={item.id}
-              className={`p-3 oled-subcard space-y-2 border transition ${cfg.borderCls}`}
+              className={`p-3 border border-border bg-muted/40 space-y-2 border transition ${cfg.borderCls}`}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-xs text-zinc-200 font-bold">
+                <span className="flex items-center gap-1.5 text-xs text-foreground font-bold">
                   <CatIcon size={14} className="text-sky-400 shrink-0" />
                   <span className="truncate">{item.name}</span>
                 </span>
                 <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.indicatorCls}`} />
               </div>
 
-              <p className="text-[11px] text-zinc-300 line-clamp-2 leading-tight">
+              <p className="text-[11px] text-foreground/80 line-clamp-2 leading-tight">
                 {item.message}
               </p>
 
               {item.detail && (
-                <p className="text-[10px] text-zinc-500 truncate">
+                <p className="text-[10px] text-muted-foreground truncate">
                   {item.detail}
                 </p>
               )}
 
-              <div className="flex items-center justify-between pt-1 border-t border-zinc-900/80 text-[10px]">
+              <div className="flex items-center justify-between pt-1 border-t border-border text-[10px]">
                 <span className={`px-1.5 py-0.2 border uppercase font-bold ${cfg.badgeCls}`}>
                   {item.badge}
                 </span>

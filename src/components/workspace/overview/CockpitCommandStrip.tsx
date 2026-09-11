@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Calendar, RefreshCw, Send } from 'lucide-react'
 import type { Client, Tenant } from '@/payload-types'
+import { Button } from '@/components/ui/button'
 import { CrmFormDialog } from '@/components/workspace/CrmFormDialog'
 import { PaymentCreateDialog } from '@/components/workspace/PaymentCreateDialog'
 import type { TimeRangeKey } from './types'
@@ -49,13 +50,13 @@ export function CockpitCommandStrip({
   }
 
   return (
-    <section className="p-3.5 oled-card bracket-accent flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+    <section className="p-3.5 border border-border bg-card text-card-foreground bracket-accent flex flex-col xl:flex-row xl:items-center justify-between gap-4">
       <div>
-        <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400 uppercase tracking-widest mb-1">
+        <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground uppercase tracking-widest mb-1">
           <span className="w-2 h-2 bg-sky-400 pulse-glow inline-block" />
           <span>Operación en línea · {dateTitle.toUpperCase()}</span>
         </div>
-        <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-3 font-mono uppercase">
+        <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-3 font-mono uppercase">
           Torre de Control Comercial
           <span className="text-[10px] font-bold px-2 py-0.5 bg-sky-500/10 text-sky-400 border border-sky-500/25">
             {tenant.name}
@@ -65,36 +66,39 @@ export function CockpitCommandStrip({
 
       <div className="flex flex-wrap items-center gap-2.5 font-mono text-xs">
         {/* Selector de Rango Temporal */}
-        <div className="inline-flex items-center bg-zinc-950 border border-zinc-800 p-0.5">
-          <span className="px-2 text-zinc-500 flex items-center gap-1 text-[11px]">
-            <Calendar size={12} className="text-zinc-400" />
+        <div className="inline-flex items-center bg-background border border-border p-0.5">
+          <span className="px-2 text-muted-foreground flex items-center gap-1 text-[11px]">
+            <Calendar size={12} className="text-muted-foreground" />
             <span className="hidden sm:inline">Rango:</span>
           </span>
           {RANGES.map((r) => (
-            <button
+            <Button
               key={r.key}
               type="button"
+              variant="ghost"
               onClick={() => handleRangeChange(r.key)}
-              className={`px-2 py-1 text-[10px] font-bold uppercase transition ${
+              className={`h-auto rounded-none px-2 py-1 text-[10px] font-bold uppercase transition ${
                 timeRange === r.key
                   ? 'bg-sky-400 text-black'
-                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
               {r.label}
-            </button>
+            </Button>
           ))}
         </div>
 
         {/* Botón Refrescar Datos */}
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="icon"
           onClick={handleRefresh}
           title="Sincronizar métricas en tiempo real"
-          className="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white transition"
+          className="border-border bg-muted text-foreground/80 hover:bg-accent hover:text-foreground"
         >
           <RefreshCw size={14} />
-        </button>
+        </Button>
 
         {canEdit ? (
           <>
@@ -105,13 +109,13 @@ export function CockpitCommandStrip({
           <>
             <Link
               href="/workspace/crm"
-              className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold flex items-center gap-2 uppercase transition"
+              className="px-3.5 py-2 bg-muted hover:bg-accent border border-border text-foreground font-bold flex items-center gap-2 uppercase transition"
             >
               Ir al CRM
             </Link>
             <Link
               href="/workspace/billing"
-              className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold flex items-center gap-2 uppercase transition"
+              className="px-3.5 py-2 bg-muted hover:bg-accent border border-border text-foreground font-bold flex items-center gap-2 uppercase transition"
             >
               Facturación
             </Link>

@@ -51,16 +51,16 @@ export default async function MessageTemplatesPage() {
         ) : (
           <div className="flex flex-col">
             {templates.map((t) => (
-              <div key={t.id} className="flex items-start justify-between gap-3 border-b border-zinc-900 p-4 last:border-0">
+              <div key={t.id} className="flex items-start justify-between gap-3 border-b border-border p-4 last:border-0">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <MessageSquareText className="w-3.5 h-3.5 text-zinc-500" />
-                    <strong className="text-sm text-white">{t.name}</strong>
-                    <span className="text-[10px] text-zinc-500 font-mono uppercase">{t.language}</span>
-                    {t.category && <span className="text-[10px] text-zinc-500 font-mono">· {t.category}</span>}
+                    <MessageSquareText className="w-3.5 h-3.5 text-muted-foreground" />
+                    <strong className="text-sm text-foreground">{t.name}</strong>
+                    <span className="text-[10px] text-muted-foreground font-mono uppercase">{t.language}</span>
+                    {t.category && <span className="text-[10px] text-muted-foreground font-mono">· {t.category}</span>}
                   </div>
-                  {t.bodyText && <p className="mt-1.5 text-xs text-zinc-400">{t.bodyText}</p>}
-                  <span className="mt-1.5 block text-[10px] text-zinc-600 font-mono">
+                  {t.bodyText && <p className="mt-1.5 text-xs text-muted-foreground">{t.bodyText}</p>}
+                  <span className="mt-1.5 block text-[10px] text-muted-foreground font-mono">
                     Actualizada {dateFmt.format(new Date(t.updatedAt))}
                     {t.openbspTemplateId && ` · ID OpenBSP: ${t.openbspTemplateId}`}
                   </span>

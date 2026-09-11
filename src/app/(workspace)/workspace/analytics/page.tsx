@@ -11,7 +11,6 @@ import {
   Layers,
   MessageSquare,
   PhoneCall,
-  Sparkles,
   TrendingUp,
   UserCheck,
   Users,
@@ -27,7 +26,6 @@ import {
   MonoAreaChart,
   MonoDonutChart,
   MonoFunnel,
-  type FunnelStage,
 } from '@/components/workspace/monocharts'
 
 const usd = new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
@@ -105,7 +103,7 @@ export default async function AnalyticsPage() {
           eyebrow="Facturación"
           title="Ingresos Cobrados · Últimos 12 Meses"
           action={
-            <Link href="/workspace/billing" className="text-xs text-zinc-400 hover:text-white font-mono transition">
+            <Link href="/workspace/billing" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
               Ver cobros →
             </Link>
           }
@@ -125,7 +123,7 @@ export default async function AnalyticsPage() {
             eyebrow="Pipeline"
             title="Embudo de Conversión de Leads"
             action={
-              <Link href="/workspace/crm" className="text-xs text-zinc-400 hover:text-white font-mono transition">
+              <Link href="/workspace/crm" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
                 Ver leads →
               </Link>
             }
@@ -163,21 +161,21 @@ export default async function AnalyticsPage() {
                 ]}
               />
 
-              <div className="pt-3 border-t border-zinc-900 grid grid-cols-4 gap-2 text-center text-xs font-mono">
+              <div className="pt-3 border-t border-border grid grid-cols-4 gap-2 text-center text-xs font-mono">
                 <div>
-                  <div className="text-[10px] uppercase text-zinc-500">Nuevos</div>
-                  <div className="font-bold text-white mt-0.5">{funnel.nuevo}</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">Nuevos</div>
+                  <div className="font-bold text-foreground mt-0.5">{funnel.nuevo}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase text-zinc-500">Contactados</div>
-                  <div className="font-bold text-white mt-0.5">{funnel.contactado}</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">Contactados</div>
+                  <div className="font-bold text-foreground mt-0.5">{funnel.contactado}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase text-zinc-500">Calificados</div>
-                  <div className="font-bold text-white mt-0.5">{funnel.calificado}</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">Calificados</div>
+                  <div className="font-bold text-foreground mt-0.5">{funnel.calificado}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase text-zinc-500">Descartados</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">Descartados</div>
                   <div className="font-bold text-rose-400 mt-0.5">{funnel.descartado}</div>
                 </div>
               </div>
@@ -187,18 +185,18 @@ export default async function AnalyticsPage() {
 
         <div className="space-y-4">
           <OledCard>
-            <SectionHeader eyebrow="Tally Forms" title="Satisfacción y Calidad" action={<FileSpreadsheet className="w-4 h-4 text-zinc-400" />} />
+            <SectionHeader eyebrow="Tally Forms" title="Satisfacción y Calidad" action={<FileSpreadsheet className="w-4 h-4 text-muted-foreground" />} />
             <div className="space-y-2 text-xs font-mono">
-              <div className="flex justify-between border-b border-zinc-900 pb-2">
-                <span className="text-zinc-400">Total respuestas</span>
-                <span className="font-bold text-white">{satisfaction.totalSubmissions}</span>
+              <div className="flex justify-between border-b border-border pb-2">
+                <span className="text-muted-foreground">Total respuestas</span>
+                <span className="font-bold text-foreground">{satisfaction.totalSubmissions}</span>
               </div>
-              <div className="flex justify-between border-b border-zinc-900 pb-2">
-                <span className="text-zinc-400">Envíos sin quejas</span>
+              <div className="flex justify-between border-b border-border pb-2">
+                <span className="text-muted-foreground">Envíos sin quejas</span>
                 <span className="text-emerald-400 font-bold">{satisfaction.positiveSubmissions} ({satisfaction.satisfactionRate}%)</span>
               </div>
               <div className="flex justify-between pt-1">
-                <span className="text-zinc-400">Quejas / Alertas</span>
+                <span className="text-muted-foreground">Quejas / Alertas</span>
                 <span className={`font-bold ${satisfaction.complaints > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                   {satisfaction.complaints} alertas
                 </span>
@@ -207,23 +205,23 @@ export default async function AnalyticsPage() {
           </OledCard>
 
           <OledCard>
-            <SectionHeader eyebrow="Timeline" title="Interacciones del Mes" action={<Activity className="w-4 h-4 text-zinc-400" />} />
+            <SectionHeader eyebrow="Timeline" title="Interacciones del Mes" action={<Activity className="w-4 h-4 text-muted-foreground" />} />
             <div className="space-y-2 text-xs font-mono">
-              <div className="flex justify-between border-b border-zinc-900 pb-2">
-                <span className="text-zinc-400 flex items-center gap-1.5"><PhoneCall className="w-3 h-3" /> Llamadas</span>
-                <span className="font-bold text-white">{activities.byType.llamada}</span>
+              <div className="flex justify-between border-b border-border pb-2">
+                <span className="text-muted-foreground flex items-center gap-1.5"><PhoneCall className="w-3 h-3" /> Llamadas</span>
+                <span className="font-bold text-foreground">{activities.byType.llamada}</span>
               </div>
-              <div className="flex justify-between border-b border-zinc-900 pb-2">
-                <span className="text-zinc-400 flex items-center gap-1.5"><MessageSquare className="w-3 h-3" /> WhatsApp</span>
-                <span className="font-bold text-white">{activities.byType.whatsapp}</span>
+              <div className="flex justify-between border-b border-border pb-2">
+                <span className="text-muted-foreground flex items-center gap-1.5"><MessageSquare className="w-3 h-3" /> WhatsApp</span>
+                <span className="font-bold text-foreground">{activities.byType.whatsapp}</span>
               </div>
-              <div className="flex justify-between border-b border-zinc-900 pb-2">
-                <span className="text-zinc-400 flex items-center gap-1.5"><Users className="w-3 h-3" /> Reuniones</span>
-                <span className="font-bold text-white">{activities.byType.reunion}</span>
+              <div className="flex justify-between border-b border-border pb-2">
+                <span className="text-muted-foreground flex items-center gap-1.5"><Users className="w-3 h-3" /> Reuniones</span>
+                <span className="font-bold text-foreground">{activities.byType.reunion}</span>
               </div>
               <div className="flex justify-between pt-1">
-                <span className="text-zinc-400 flex items-center gap-1.5"><Layers className="w-3 h-3" /> Notas y seguimiento</span>
-                <span className="font-bold text-white">{activities.byType.nota + activities.byType.email + activities.byType.otro}</span>
+                <span className="text-muted-foreground flex items-center gap-1.5"><Layers className="w-3 h-3" /> Notas y seguimiento</span>
+                <span className="font-bold text-foreground">{activities.byType.nota + activities.byType.email + activities.byType.otro}</span>
               </div>
             </div>
           </OledCard>
@@ -233,27 +231,27 @@ export default async function AnalyticsPage() {
               eyebrow="Operaciones"
               title="Cumplimiento de Tareas"
               action={
-                <Link href="/workspace/tasks" className="text-xs text-zinc-400 hover:text-white font-mono transition">
+                <Link href="/workspace/tasks" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
                   Ver tareas →
                 </Link>
               }
             />
             <div className="space-y-2 text-xs font-mono">
-              <div className="flex justify-between border-b border-zinc-900 pb-2">
-                <span className="text-zinc-400">Tasa de finalización</span>
+              <div className="flex justify-between border-b border-border pb-2">
+                <span className="text-muted-foreground">Tasa de finalización</span>
                 <span className="text-emerald-400 font-bold">{tasks.completionRate}%</span>
               </div>
-              <div className="flex justify-between border-b border-zinc-900 pb-2">
-                <span className="text-zinc-400">Completadas este mes</span>
-                <span className="font-bold text-white">{tasks.completedMonth}</span>
+              <div className="flex justify-between border-b border-border pb-2">
+                <span className="text-muted-foreground">Completadas este mes</span>
+                <span className="font-bold text-foreground">{tasks.completedMonth}</span>
               </div>
-              <div className="flex justify-between border-b border-zinc-900 pb-2">
-                <span className="text-zinc-400">Pendientes activas</span>
+              <div className="flex justify-between border-b border-border pb-2">
+                <span className="text-muted-foreground">Pendientes activas</span>
                 <span className="font-bold text-amber-400">{tasks.pendingTotal}</span>
               </div>
               <div className="flex justify-between pt-1">
-                <span className="text-zinc-400">Atrasadas / Vencidas</span>
-                <span className={`font-bold ${tasks.overdueTotal > 0 ? 'text-red-400' : 'text-zinc-500'}`}>
+                <span className="text-muted-foreground">Atrasadas / Vencidas</span>
+                <span className={`font-bold ${tasks.overdueTotal > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
                   {tasks.overdueTotal} {tasks.overdueTotal === 1 ? 'tarea' : 'tareas'}
                 </span>
               </div>
@@ -269,7 +267,7 @@ export default async function AnalyticsPage() {
           title="Conversión por Origen y por Agente"
           description="Embudo entrada → contactado → calificado → cliente. Agregado en base de datos."
           action={
-            <Link href="/workspace/crm" className="text-xs text-zinc-400 hover:text-white font-mono transition">
+            <Link href="/workspace/crm" className="text-xs text-muted-foreground hover:text-foreground font-mono transition">
               Ver CRM →
             </Link>
           }
@@ -312,7 +310,7 @@ export default async function AnalyticsPage() {
           eyebrow="Adquisición"
           title="Canales de Captación de Leads"
           action={
-            <Link href="/workspace/crm" className="text-xs text-zinc-400 hover:text-white font-mono transition inline-flex items-center gap-1">
+            <Link href="/workspace/crm" className="text-xs text-muted-foreground hover:text-foreground font-mono transition inline-flex items-center gap-1">
               Explorar CRM <ArrowRight className="w-3 h-3" />
             </Link>
           }
@@ -323,13 +321,13 @@ export default async function AnalyticsPage() {
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {sources.map((item) => (
-              <div key={item.source} className="oled-subcard p-3">
+              <div key={item.source} className="border border-border bg-muted/40 p-3">
                 <div className="flex justify-between items-baseline mb-1">
-                  <span className="text-xs font-bold text-white font-mono">{item.label}</span>
-                  <span className="text-[10px] font-mono text-zinc-400">{item.pct}%</span>
+                  <span className="text-xs font-bold text-foreground font-mono">{item.label}</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">{item.pct}%</span>
                 </div>
-                <div className="text-lg font-bold text-white font-mono">{item.count}</div>
-                <div className="h-1 bg-zinc-900 mt-2 overflow-hidden">
+                <div className="text-lg font-bold text-foreground font-mono">{item.count}</div>
+                <div className="h-1 bg-muted mt-2 overflow-hidden">
                   <div className="h-full bg-sky-400" style={{ width: `${Math.max(item.pct, 4)}%` }} />
                 </div>
               </div>
