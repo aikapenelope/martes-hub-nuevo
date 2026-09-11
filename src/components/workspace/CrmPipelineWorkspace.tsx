@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Sheet,
   SheetContent,
@@ -68,10 +69,10 @@ function windowTone(minutes: number | null): WindowTone {
 }
 
 const WINDOW_TONE_CLASS: Record<WindowTone, string> = {
-  'sin-datos': 'bg-muted text-muted-foreground border-border',
-  verde: 'bg-emerald-900/50 text-emerald-400 border-emerald-800',
-  ambar: 'bg-amber-900/50 text-amber-300 border-amber-800',
-  rojo: 'bg-red-900/50 text-red-400 border-red-800',
+  'sin-datos': 'bg-muted/80 text-muted-foreground border-border',
+  verde: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  ambar: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  rojo: 'bg-destructive/10 text-destructive border-destructive/20',
 }
 
 const WINDOW_TONE_LABEL: Record<WindowTone, string> = {
@@ -82,15 +83,15 @@ const WINDOW_TONE_LABEL: Record<WindowTone, string> = {
 }
 
 const VELOCITY_BORDER: Record<DealTemperature, string> = {
-  hot: 'border-l-2 border-l-emerald-500',
-  warm: 'border-l-2 border-l-amber-500',
-  cold: 'border-l-2 border-l-rose-500/80',
+  hot: 'border-l-[3px] border-l-emerald-500',
+  warm: 'border-l-[3px] border-l-amber-500',
+  cold: 'border-l-[3px] border-l-rose-500',
 }
 
 const VELOCITY_CLASS: Record<DealTemperature, string> = {
-  hot: 'border-emerald-800/80 bg-emerald-950/60 text-emerald-300',
-  warm: 'border-amber-800/80 bg-amber-950/60 text-amber-300',
-  cold: 'border-rose-950/60 bg-rose-950/30 text-rose-300/80',
+  hot: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400',
+  warm: 'border-amber-500/20 bg-amber-500/10 text-amber-400',
+  cold: 'border-rose-500/20 bg-rose-500/10 text-rose-400',
 }
 
 function initialsOf(name: string): string {
@@ -144,28 +145,28 @@ function PipelineCardView({
         }
       }}
       aria-pressed={selected}
-      className={`border bg-background p-3 text-left transition-all duration-150 relative group ${
-        canEdit ? 'cursor-grab active:cursor-grabbing hover:border-muted-foreground/40' : 'cursor-pointer'
+      className={`rounded-lg border bg-card p-3.5 text-left transition-all duration-150 relative group shadow-xs ${
+        canEdit ? 'cursor-grab active:cursor-grabbing hover:border-foreground/30 hover:shadow-sm' : 'cursor-pointer'
       } ${
-        selected ? 'border-foreground' : 'border-border'
+        selected ? 'ring-2 ring-primary border-primary' : 'border-border'
       } ${
         card.velocity ? VELOCITY_BORDER[card.velocity.temperature] : ''
       } ${
         isBeingDragged
-          ? 'opacity-30 scale-[0.97] border-sky-400/80 shadow-[0_0_15px_rgba(56,189,248,0.3)]'
+          ? 'opacity-30 scale-[0.97] border-primary shadow-[0_0_15px_rgba(56,189,248,0.3)]'
           : ''
       }`}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2.5">
         {canEdit && (
           <span
-            className="mt-1 text-muted-foreground/60 group-hover:text-muted-foreground transition shrink-0"
+            className="mt-1 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors shrink-0"
             title="Arrastra para mover de columna"
           >
             <GripVertical size={13} />
           </span>
         )}
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center bg-muted text-[10px] font-bold text-foreground">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-[10px] font-bold text-foreground">
           {initialsOf(card.fullName)}
         </span>
         <div className="min-w-0 flex-1">
@@ -193,48 +194,48 @@ function PipelineCardView({
           )}
         </div>
         {showInactivityAlert && (
-          <CircleAlert size={14} className="shrink-0 text-red-400" aria-label="Más de 30 minutos sin respuesta" />
+          <CircleAlert size={14} className="shrink-0 text-destructive" aria-label="Más de 30 minutos sin respuesta" />
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         {card.velocity && (
           <span
-            className={`inline-flex items-center gap-1 border px-1.5 py-0.5 text-[9px] font-mono font-medium ${VELOCITY_CLASS[card.velocity.temperature]}`}
+            className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-mono font-medium ${VELOCITY_CLASS[card.velocity.temperature]}`}
             title={`Velocidad comercial: ${card.velocity.label}`}
           >
-            {card.velocity.temperature === 'hot' && <Flame size={9} className="text-emerald-400" />}
-            {card.velocity.temperature === 'warm' && <Timer size={9} className="text-amber-400" />}
-            {card.velocity.temperature === 'cold' && <Snowflake size={9} className="text-rose-400" />}
+            {card.velocity.temperature === 'hot' && <Flame size={10} className="text-emerald-400" />}
+            {card.velocity.temperature === 'warm' && <Timer size={10} className="text-amber-400" />}
+            {card.velocity.temperature === 'cold' && <Snowflake size={10} className="text-rose-400" />}
             <span>{card.velocity.label}</span>
           </span>
         )}
         {card.city && (
-          <span className="inline-flex items-center gap-1 border border-border bg-muted/60 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground">
-            <MapPin size={9} />
+          <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+            <MapPin size={10} />
             {card.city}
           </span>
         )}
         {card.channel && (
-          <span className="inline-flex items-center gap-1 border border-border bg-muted px-1.5 py-0.5 text-[9px] font-mono text-foreground/80">
+          <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-foreground/80">
             {card.channel === 'instagram_dm' ? <Camera size={10} /> : <MessageCircle size={10} className="text-[#25d366]" />}
             {card.channel === 'instagram_dm' ? 'Instagram' : 'WhatsApp'}
           </span>
         )}
-        <span className={`inline-flex items-center border px-1.5 py-0.5 text-[9px] font-mono ${WINDOW_TONE_CLASS[tone]}`}>
+        <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-mono ${WINDOW_TONE_CLASS[tone]}`}>
           {WINDOW_TONE_LABEL[tone]}
         </span>
       </div>
 
       {card.lastMessage && (
-        <p className="mt-2 line-clamp-2 text-[11px] text-muted-foreground">
-          <span className="text-muted-foreground">{card.lastMessage.direction === 'inbound' ? '←' : '→'}</span> {card.lastMessage.text}
-          <span className="ml-1 text-muted-foreground">· {card.lastMessage.relative}</span>
+        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+          <span className="text-muted-foreground/80">{card.lastMessage.direction === 'inbound' ? '←' : '→'}</span> {card.lastMessage.text}
+          <span className="ml-1 text-muted-foreground/60">· {card.lastMessage.relative}</span>
         </p>
       )}
 
       {/* Barra de acciones rápidas: WhatsApp, Email y Conversión in-situ */}
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 border-t border-border pt-2">
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1.5 border-t border-border pt-2">
         <div className="flex items-center gap-1">
           {card.phone && (
             <a
@@ -242,7 +243,7 @@ function PipelineCardView({
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-muted text-muted-foreground hover:border-emerald-600 hover:text-[#25d366] hover:bg-accent transition"
+              className="inline-flex size-6 items-center justify-center rounded-md border border-border bg-muted/60 text-muted-foreground hover:border-emerald-500/40 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
               title="WhatsApp directo"
             >
               <MessageCircle size={11} />
@@ -252,7 +253,7 @@ function PipelineCardView({
             <a
               href={`mailto:${card.email}`}
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-muted text-muted-foreground hover:border-sky-600 hover:text-sky-300 hover:bg-accent transition"
+              className="inline-flex size-6 items-center justify-center rounded-md border border-border bg-muted/60 text-muted-foreground hover:border-sky-500/40 hover:text-sky-400 hover:bg-sky-500/10 transition-colors"
               title={`Escribir a ${card.email}`}
             >
               <Mail size={11} />
@@ -265,7 +266,7 @@ function PipelineCardView({
             <Link
               href={`/workspace/crm/clientes/${card.convertedClientId}`}
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1 rounded border border-emerald-800/60 bg-emerald-950/60 px-1.5 py-0.5 text-[9px] font-mono font-medium text-emerald-300 hover:bg-emerald-900/60 hover:border-emerald-600 transition"
+              className="inline-flex items-center gap-1 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-mono font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
               title="Prospecto convertido a cliente oficial. Ver ficha."
             >
               <CheckCircle2 size={10} className="text-emerald-400" />
@@ -275,18 +276,19 @@ function PipelineCardView({
             <Button
               type="button"
               size="xs"
+              variant="outline"
               disabled={isConverting}
               onClick={(e) => {
                 e.stopPropagation()
                 onConvert(card.id)
               }}
-              className="h-auto gap-1 rounded border-border bg-muted px-2 py-0.5 font-mono text-[9px] font-medium text-foreground/80 hover:border-emerald-600 hover:bg-emerald-950/40 hover:text-emerald-300"
+              className="h-6 gap-1 rounded-md px-2 py-0 text-[10px] font-medium text-foreground hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors"
               title="Convertir lead a cliente oficial in-situ"
             >
               {isConverting ? (
-                <Loader2 className="size-2.5 animate-spin text-muted-foreground" />
+                <Loader2 className="size-3 animate-spin text-muted-foreground" />
               ) : (
-                <UserCheck className="size-2.5 text-emerald-400" />
+                <UserCheck className="size-3 text-emerald-400" />
               )}
               Convertir
             </Button>
@@ -297,18 +299,18 @@ function PipelineCardView({
       <div className="mt-2 flex items-center justify-between gap-2 border-t border-border pt-2">
         {card.assignedTo?.name ? (
           <span
-            className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[9px] font-mono text-foreground/80"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground"
             title={`Responsable: ${card.assignedTo.name}`}
           >
             <UserRound size={9} className="text-muted-foreground" />
             {card.assignedTo.name.split(' ')[0]}
           </span>
         ) : (
-          <span className="text-[9px] font-mono text-muted-foreground">Martes</span>
+          <span className="text-[10px] font-mono text-muted-foreground">Martes</span>
         )}
         {card.estimatedValue ? (
-          <span className="flex items-center gap-0.5 text-[10px] font-mono font-bold text-emerald-400">
-            <DollarSign size={10} /> {card.estimatedValue.toLocaleString('en-US')}
+          <span className="flex items-center gap-0.5 text-xs font-mono font-semibold text-emerald-400 tabular-nums">
+            <DollarSign size={11} /> {card.estimatedValue.toLocaleString('en-US')}
           </span>
         ) : null}
       </div>
@@ -465,8 +467,8 @@ export function CrmPipelineWorkspace({
   return (
     <>
       {/* Barra de Filtros Reactivos, Búsqueda y Totales Monetarios */}
-      <div className="flex flex-col gap-3 border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between shadow-xs">
+        <div className="flex flex-1 flex-wrap items-center gap-2.5">
           <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -474,7 +476,7 @@ export function CrmPipelineWorkspace({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar por nombre, empresa, teléfono..."
-              className="w-full border border-border bg-background pl-8 pr-7 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-muted-foreground/40 focus:outline-none font-sans"
+              className="h-8 w-full rounded-lg border border-input bg-background pl-8 pr-7 py-1 text-xs text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none font-sans"
             />
             {searchQuery && (
               <Button
@@ -482,7 +484,7 @@ export function CrmPipelineWorkspace({
                 variant="ghost"
                 size="icon-xs"
                 onClick={() => setSearchQuery('')}
-                className="absolute top-1/2 right-1.5 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 title="Limpiar búsqueda"
               >
                 <X className="size-3.5" />
@@ -495,7 +497,7 @@ export function CrmPipelineWorkspace({
             <select
               value={agentFilter}
               onChange={(e) => setAgentFilter(e.target.value)}
-              className="border border-border bg-background px-2 py-1.5 text-xs text-foreground/80 focus:border-muted-foreground/40 focus:outline-none font-mono"
+              className="h-8 rounded-lg border border-input bg-background px-2.5 py-1 text-xs text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none font-sans"
             >
               <option value="all">Todos los agentes</option>
               <option value="unassigned">Sin asignar (Martes)</option>
@@ -512,32 +514,30 @@ export function CrmPipelineWorkspace({
         </div>
 
         <div className="flex flex-wrap items-center gap-3 border-t border-border pt-2 sm:border-t-0 sm:pt-0">
-          <div className="flex items-center gap-1 text-[11px] font-mono text-muted-foreground">
+          <div className="flex items-center gap-1 text-xs font-mono text-muted-foreground">
             <span className="text-muted-foreground">Leads:</span>
-            <span className="font-bold text-foreground">
+            <span className="font-semibold text-foreground tabular-nums">
               {visibleLeadsCount}
               {visibleLeadsCount !== totalLeadsCount && ` de ${totalLeadsCount}`}
             </span>
           </div>
 
-          <div className="flex items-center gap-1 rounded border border-emerald-900/60 bg-emerald-950/40 px-2 py-1 text-[11px] font-mono text-emerald-300">
-            <DollarSign size={12} className="text-emerald-400" />
-            <span>Valor Pipeline:</span>
-            <span className="font-bold text-emerald-300">
-              ${totalPipelineValue.toLocaleString('en-US')}
-            </span>
+          <div className="flex items-center gap-1 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-mono text-emerald-400 font-semibold tabular-nums">
+            <DollarSign size={13} className="text-emerald-400" />
+            <span>Pipeline:</span>
+            <span>${totalPipelineValue.toLocaleString('en-US')}</span>
           </div>
         </div>
       </div>
 
       {error && (
-        <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300 font-mono" role="alert">
+        <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3.5 py-2.5 text-xs text-destructive font-mono" role="alert">
           {error}
         </div>
       )}
 
       {feedback && (
-        <div className="border border-emerald-800 bg-emerald-900/30 px-3 py-2 text-xs text-emerald-300 font-mono" role="status">
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-2.5 text-xs text-emerald-400 font-mono" role="status">
           {feedback}
         </div>
       )}
@@ -550,9 +550,9 @@ export function CrmPipelineWorkspace({
           return (
             <section
               key={column.status}
-              className={`flex flex-col border bg-background transition-all duration-150 ${
+              className={`flex flex-col rounded-xl border bg-card transition-all duration-150 overflow-hidden ${
                 isTarget
-                  ? 'kanban-column-drop-active shadow-[0_0_15px_rgba(56,189,248,0.15)] ring-1 ring-sky-500/50'
+                  ? 'ring-2 ring-primary border-primary shadow-[0_0_15px_rgba(56,189,248,0.2)]'
                   : 'border-border'
               }`}
               onDragOver={(event) => {
@@ -576,7 +576,7 @@ export function CrmPipelineWorkspace({
                 if (Number.isInteger(leadId) && leadId > 0) moveCard(leadId, column.status)
               }}
             >
-              <header className="flex flex-col gap-1 border-b border-border p-3 bg-background/60">
+              <header className="flex flex-col gap-1 border-b border-border p-3.5 bg-muted/30">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">{COLUMN_LABEL[column.status]}</h2>
                   <div className="flex items-center gap-1.5">
@@ -589,22 +589,22 @@ export function CrmPipelineWorkspace({
                         redirectTo="/workspace/crm?vista=pipeline"
                       />
                     )}
-                    <span className="border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono text-foreground/80">
+                    <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-mono tabular-nums">
                       {column.cards.length}
                       {column.cards.length !== column.total && ` / ${column.total}`}
-                    </span>
+                    </Badge>
                   </div>
                 </div>
                 {columnValue > 0 && (
-                  <span className="flex items-center gap-0.5 text-[10px] font-mono font-medium text-emerald-400/90">
+                  <span className="flex items-center gap-0.5 text-[10px] font-mono font-medium text-emerald-400 tabular-nums">
                     <DollarSign size={10} />
                     {columnValue.toLocaleString('en-US')}
                   </span>
                 )}
               </header>
-              <div className="flex flex-1 flex-col gap-2 p-2" style={{ minHeight: '8rem' }}>
+              <div className="flex flex-1 flex-col gap-2 p-2.5 bg-muted/10" style={{ minHeight: '8rem' }}>
                 {isTarget && (
-                  <div className="border border-dashed border-sky-400/60 bg-sky-950/20 py-3 text-center text-[10px] font-mono uppercase tracking-wider text-sky-300 rounded transition-all animate-pulse">
+                  <div className="border border-dashed border-primary/50 bg-primary/10 py-3 text-center text-xs font-mono uppercase tracking-wider text-primary rounded-lg transition-all animate-pulse">
                     Soltar aquí para mover a {COLUMN_LABEL[column.status]}
                   </div>
                 )}

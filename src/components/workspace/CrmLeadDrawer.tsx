@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Clock3, ExternalLink, Mail, MessageCircle, Pencil, Sparkles } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import type { Activity, Lead, Segment, User } from '@/payload-types'
 import type { LeadDrawerData, TabKey } from './lead-drawer/types'
 import { LeadDrawerWhatsAppTab } from './lead-drawer/LeadDrawerWhatsAppTab'
@@ -86,43 +86,68 @@ export function CrmLeadDrawer({
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <div role="tablist" className="flex flex-wrap gap-1 border-b border-border pb-2" aria-label="Secciones de la ficha">
-        {TABS.map(({ key, label, icon: Icon }) => (
-          <Button
-            key={key}
-            id={`lead-tab-${key}`}
-            role="tab"
-            type="button"
-            variant="ghost"
-            onClick={() => setTab(key)}
-            aria-selected={tab === key}
-            aria-controls={`lead-panel-${key}`}
-            className={`h-auto gap-1.5 rounded-none px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider ${
-              tab === key
-                ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground'
-                : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
-            }`}
-          >
-            <Icon className="size-3" aria-hidden="true" /> {label}
-          </Button>
-        ))}
+      <div
+        role="tablist"
+        className="flex items-center gap-1 rounded-lg border border-border/40 bg-muted/60 p-1 overflow-x-auto"
+        aria-label="Secciones de la ficha"
+      >
+        {TABS.map(({ key, label, icon: Icon }) => {
+          const active = tab === key
+          return (
+            <button
+              key={key}
+              id={`lead-tab-${key}`}
+              role="tab"
+              type="button"
+              onClick={() => setTab(key)}
+              aria-selected={active}
+              aria-controls={`lead-panel-${key}`}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all shrink-0',
+                active
+                  ? 'bg-background text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Icon
+                className={cn('size-3.5', active ? 'text-primary' : 'text-muted-foreground')}
+                aria-hidden="true"
+              />
+              <span>{label}</span>
+            </button>
+          )
+        })}
       </div>
 
-      {loading && <p className="font-mono text-xs text-muted-foreground">Cargando ficha…</p>}
+      {loading && (
+        <div className="flex items-center gap-2 py-4 text-xs text-muted-foreground">
+          <div className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span>Cargando ficha…</span>
+        </div>
+      )}
       {error && (
-        <div className="border border-red-800 bg-red-900/30 px-3 py-2 text-xs text-red-300" role="alert">
+        <div
+          className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-xs text-destructive"
+          role="alert"
+        >
           {error}
         </div>
       )}
 
       {data && !loading && (
-        <div id={`lead-panel-${tab}`} role="tabpanel" aria-labelledby={`lead-tab-${tab}`} className="flex-1 overflow-y-auto">
-          <div className="mb-2 flex justify-end">
+        <div
+          id={`lead-panel-${tab}`}
+          role="tabpanel"
+          aria-labelledby={`lead-tab-${tab}`}
+          className="flex-1 overflow-y-auto"
+        >
+          <div className="mb-3 flex justify-end">
             <Link
               href={`/workspace/crm/leads/${leadId}`}
-              className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              <ExternalLink size={11} aria-hidden="true" /> Ficha completa + timeline unificado
+              <span>Ficha completa + timeline</span>
+              <ExternalLink size={12} aria-hidden="true" />
             </Link>
           </div>
           {tab === 'datos' && (

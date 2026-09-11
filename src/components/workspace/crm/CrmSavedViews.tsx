@@ -6,7 +6,7 @@ import { crmViewHref, crmViewMatches, type SavedCrmViewLike } from '@/lib/crm-vi
 import { createCrmSavedViewAction, deleteCrmSavedViewAction } from '@/lib/crm-view-actions'
 
 /**
- * Barra de vistas guardadas del CRM (ítem 4): chips privados por usuario que
+ * Barra de vistas guardadas del CRM: chips privados por usuario que
  * re-aplican un conjunto de filtros con un clic, guardado de la vista actual
  * (upsert por nombre) y borrado individual. Server component: aplicar es
  * navegación y guardar/borrar son server actions — cero JS de cliente.
@@ -25,13 +25,13 @@ export function CrmSavedViews({
   const estado = filters.view === 'leads' ? (filters.status === 'todos' ? '' : filters.status) : filters.stage === 'todos' ? '' : filters.stage
 
   return (
-    <section className="flex flex-wrap items-center gap-2 border border-zinc-800 bg-zinc-950 px-4 py-3">
-      <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+    <section className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card text-card-foreground px-4 py-3 shadow-xs">
+      <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
         Vistas guardadas
       </span>
 
       {views.length === 0 && (
-        <span className="text-xs text-zinc-600">Guardá tu primer filtro para re-aplicarlo aquí.</span>
+        <span className="text-xs text-muted-foreground">Guarda tu primer filtro para re-aplicarlo aquí con un clic.</span>
       )}
 
       {views.map((view) => {
@@ -39,23 +39,23 @@ export function CrmSavedViews({
         return (
           <span
             key={view.id}
-            className={`inline-flex items-center border text-xs transition ${
+            className={`inline-flex items-center rounded-lg border text-xs transition-colors ${
               active
-                ? 'border-white bg-zinc-900 text-white'
-                : 'border-zinc-800 bg-black text-zinc-300 hover:border-zinc-600'
+                ? 'border-primary/40 bg-primary/10 text-primary font-semibold'
+                : 'border-border bg-muted/50 text-muted-foreground hover:border-foreground/30 hover:text-foreground'
             }`}
           >
             <Link href={crmViewHref(view)} className="px-2.5 py-1">
               {view.name}
             </Link>
             {canEdit && (
-              <form action={deleteCrmSavedViewAction} className="pr-1">
+              <form action={deleteCrmSavedViewAction} className="pr-1.5 flex items-center">
                 <input type="hidden" name="viewId" value={view.id} />
                 <button
                   type="submit"
                   title="Eliminar vista"
                   aria-label={`Eliminar vista ${view.name}`}
-                  className="text-zinc-500 transition hover:text-red-400"
+                  className="text-muted-foreground/60 transition-colors hover:text-destructive p-0.5 rounded"
                 >
                   <X size={12} />
                 </button>
@@ -78,14 +78,14 @@ export function CrmSavedViews({
             required
             maxLength={60}
             placeholder="Nombre para esta vista…"
-            className="border border-zinc-800 bg-black px-3 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none w-52"
+            className="h-8 w-52 rounded-lg border border-input bg-background px-3 py-1 text-xs text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none font-sans"
           />
           <button
             type="submit"
             title="Guardar los filtros actuales como vista"
-            className="inline-flex items-center gap-1.5 border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-zinc-800 font-mono"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-muted px-3 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           >
-            <BookmarkPlus className="h-3.5 w-3.5" /> Guardar vista
+            <BookmarkPlus className="size-3.5 text-primary" /> Guardar vista
           </button>
         </form>
       )}
