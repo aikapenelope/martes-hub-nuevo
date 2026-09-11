@@ -182,7 +182,12 @@ export function EmailCampaignCreateDialog({
           )}
           <div className="flex justify-end gap-2 pt-1">
             {/* type="button": sin él, Cancelar haría submit del form (review Devin). */}
-            <Button type="button" variant="outline" className="bg-muted font-mono text-xs font-bold uppercase tracking-wider text-foreground/80 hover:bg-accent hover:text-foreground">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              className="bg-muted font-mono text-xs font-bold uppercase tracking-wider text-foreground/80 hover:bg-accent hover:text-foreground"
+            >
               Cancelar
             </Button>
             <Button type="submit" disabled={saving} className="font-mono text-xs font-bold uppercase tracking-wider">
