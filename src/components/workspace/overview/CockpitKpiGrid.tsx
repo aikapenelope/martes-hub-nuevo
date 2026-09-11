@@ -41,7 +41,7 @@ export function CockpitKpiGrid({
     leadsCreatedInPeriod,
     conversionsInPeriod,
     leadsNuevosTrendPct,
-    conversionTrendPct: _conversionTrendPct,
+    conversionTrendPct,
     overdueTasksCount,
     metaHealthPct,
     critical24hCount,
@@ -145,9 +145,17 @@ export function CockpitKpiGrid({
             </span>
           </div>
           <div className="space-y-1">
-            <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+            <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground">
               <span>Conv: {globalConversionRate !== null ? `${globalConversionRate.toFixed(1)}%` : '—'}</span>
-              <span className="text-muted-foreground truncate">· {conversionsInPeriod} conv.</span>
+              <span className="flex items-center gap-1 text-muted-foreground truncate">
+                <span>· {conversionsInPeriod} conv.</span>
+                {conversionTrendPct !== null && (
+                  <Delta value={conversionTrendPct} className="text-[10px]">
+                    <DeltaIcon variant="trend" />
+                    <DeltaValue />
+                  </Delta>
+                )}
+              </span>
             </div>
             <div className="h-1.5 w-full bg-muted overflow-hidden rounded-full">
               <div className="h-full bg-cyan-400 rounded-full transition-all" style={{ width: `${Math.min(100, globalConversionRate ?? 0)}%` }} />

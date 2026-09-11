@@ -51,9 +51,9 @@ export default async function WorkspacePage({
 
   const [data, agenda, trends, cashflow] = await Promise.all([
     getWorkspaceOverviewData({ payload, user, tenant, tenantId, timeRange }),
-    getUpcomingAgenda({ payload, user, tenantId, days: 7 }).catch(() => []),
-    getMonthlyTrends({ payload, tenantId, user }).catch(() => null),
-    getWeeklyCashflow({ payload, tenantId, user }).catch(() => null),
+    getUpcomingAgenda({ payload, user, tenantId, days: 7 }),
+    getMonthlyTrends({ payload, tenantId, user }),
+    getWeeklyCashflow({ payload, tenantId, user }),
   ])
 
   const [clientsForDialog, agentsForDrawer, segmentsForDrawer] = await Promise.all([
@@ -67,7 +67,7 @@ export default async function WorkspacePage({
           where: { tenant: { equals: tenantId } },
           overrideAccess: false,
           user,
-        }).catch(() => null)
+        })
       : Promise.resolve(null),
     canEdit
       ? payload.find({
@@ -77,7 +77,7 @@ export default async function WorkspacePage({
           depth: 0,
           overrideAccess: false,
           user,
-        }).catch(() => null)
+        })
       : Promise.resolve(null),
     canEdit
       ? payload.find({
@@ -87,7 +87,7 @@ export default async function WorkspacePage({
           depth: 0,
           overrideAccess: false,
           user,
-        }).catch(() => null)
+        })
       : Promise.resolve(null),
   ])
 
