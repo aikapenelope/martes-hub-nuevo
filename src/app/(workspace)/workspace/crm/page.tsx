@@ -13,6 +13,7 @@ import { getCrmPipelineData } from '@/lib/crm-pipeline-data'
 import { getWorkspaceContext } from '@/lib/workspace-context'
 import { findAllPages } from '@/lib/lead-scoring'
 import type { Segment, User } from '@/payload-types'
+import { Building2, UserCheck, Users } from 'lucide-react'
 import { CrmHeader } from '@/components/workspace/crm/CrmHeader'
 import { CrmViewNavigation } from '@/components/workspace/crm/CrmViewNavigation'
 import { CrmTableListView } from '@/components/workspace/crm/CrmTableListView'
@@ -111,18 +112,33 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
     <>
       <CrmHeader tenant={context.tenant} view={data.view} canEdit={context.canEdit} />
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="bg-card text-card-foreground border border-border p-3.5">
-          <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Leads abiertos</p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">{data.totals.leads}</p>
+      <section className="grid grid-cols-1 gap-px bg-border p-px rounded-xl overflow-hidden sm:grid-cols-3" aria-label="Resumen del CRM">
+        <div className="bg-card p-4 sm:p-5 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Leads abiertos</p>
+            <p className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground tabular-nums">{data.totals.leads}</p>
+          </div>
+          <span className="flex size-9 items-center justify-center rounded-lg border border-cyan-500/20 bg-cyan-500/10 text-cyan-400">
+            <Users className="size-4" />
+          </span>
         </div>
-        <div className="bg-card text-card-foreground border border-border p-3.5">
-          <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Clientes activos</p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">{data.totals.clients}</p>
+        <div className="bg-card p-4 sm:p-5 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Clientes activos</p>
+            <p className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground tabular-nums">{data.totals.clients}</p>
+          </div>
+          <span className="flex size-9 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
+            <UserCheck className="size-4" />
+          </span>
         </div>
-        <div className="bg-card text-card-foreground border border-border p-3.5">
-          <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Empresas registradas</p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">{data.totals.companies}</p>
+        <div className="bg-card p-4 sm:p-5 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">Empresas registradas</p>
+            <p className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground tabular-nums">{data.totals.companies}</p>
+          </div>
+          <span className="flex size-9 items-center justify-center rounded-lg border border-indigo-500/20 bg-indigo-500/10 text-indigo-400">
+            <Building2 className="size-4" />
+          </span>
         </div>
       </section>
 
