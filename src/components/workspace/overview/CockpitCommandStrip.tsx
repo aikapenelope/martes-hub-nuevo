@@ -15,7 +15,7 @@ interface CockpitCommandStripProps {
   tenant: Tenant
   dateTitle: string
   canEdit: boolean
-  clients: Client[]
+  clients: Client[] | null
   timeRange: TimeRangeKey
 }
 

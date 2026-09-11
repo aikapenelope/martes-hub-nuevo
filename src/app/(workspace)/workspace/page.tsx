@@ -53,7 +53,7 @@ export default async function WorkspacePage({
     getWorkspaceOverviewData({ payload, user, tenant, tenantId, timeRange }),
     getUpcomingAgenda({ payload, user, tenantId, days: 7 }).catch((err) => {
       console.error('[workspace] Error cargando agenda próxima:', err)
-      return []
+      return null
     }),
     getMonthlyTrends({ payload, tenantId, user }).catch((err) => {
       console.error('[workspace] Error cargando tendencias mensuales:', err)
@@ -205,7 +205,7 @@ export default async function WorkspacePage({
         tenant={tenant}
         dateTitle={data.dateTitle}
         canEdit={canEdit}
-        clients={(clientsForDialog?.docs ?? []) as Client[]}
+        clients={canEdit ? (clientsForDialog ? (clientsForDialog.docs as Client[]) : null) : []}
         assignees={(agentsForDrawer?.docs ?? []) as User[]}
         segments={(segmentsForDrawer?.docs ?? []) as Segment[]}
         data={data}

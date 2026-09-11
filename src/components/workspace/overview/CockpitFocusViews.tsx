@@ -82,9 +82,9 @@ interface CockpitFocusViewsProps {
   tenant: Tenant
   dateTitle: string
   canEdit: boolean
-  clients: Client[]
+  clients: Client[] | null
   data: WorkspaceOverviewData
-  agenda: AgendaItem[]
+  agenda: AgendaItem[] | null
   /** Opciones del drawer 360°: agentes asignables y rubros del tenant. */
   assignees?: User[]
   segments?: Segment[]
@@ -240,7 +240,7 @@ export function CockpitFocusViews({
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-mono uppercase tracking-wider text-foreground/80 flex items-center gap-2">
                 <span className="w-2 h-2 bg-sky-400 inline-block shadow-[0_0_8px_rgba(56,189,248,0.5)]" />
-                Agenda próxima · 7 días ({agenda.length})
+                Agenda próxima · 7 días {agenda !== null ? `(${agenda.length})` : ''}
               </h2>
               <Link
                 href="/workspace/calendar"
@@ -251,7 +251,14 @@ export function CockpitFocusViews({
             </div>
 
             <div className="bg-card text-card-foreground border border-border p-3.5 !p-0">
-              {agenda.length === 0 ? (
+              {agenda === null ? (
+                <div className="p-6 text-center text-xs font-mono text-muted-foreground space-y-1">
+                  <p className="font-bold text-destructive">No se pudo cargar la agenda.</p>
+                  <p className="text-[11px]">
+                    Hubo un problema al consultar los eventos próximos. Recarga la página para reintentar.
+                  </p>
+                </div>
+              ) : agenda.length === 0 ? (
                 <div className="p-6 text-center text-xs font-mono text-muted-foreground space-y-1">
                   <Zap size={20} className="mx-auto text-muted-foreground/60 mb-2" />
                   <p className="font-bold text-foreground">Nada pendiente en la agenda esta semana.</p>
