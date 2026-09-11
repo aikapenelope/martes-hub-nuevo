@@ -4,17 +4,22 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ImagePlus, Loader2, Send, X } from 'lucide-react'
 
-import { Drawer } from '@/components/workspace/overlays'
 import { createSocialPostAction, publishSocialPostAction } from '@/lib/social-actions'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import type { SocialAccount } from '@/payload-types'
 
 const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
-const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
-const btnPrimary =
-  'px-4 py-2 bg-white hover:bg-zinc-200 text-black text-xs font-bold uppercase tracking-wider font-mono disabled:opacity-40'
-const btnGhost =
-  'px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono'
+  'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30'
+const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-muted-foreground'
+const btnCls = 'font-mono text-xs font-bold uppercase tracking-wider'
 
 type Platform = 'instagram' | 'tiktok'
 
@@ -108,30 +113,44 @@ export function SocialPostCreateDialog({ accounts }: { accounts: SocialAccount[]
 
   return (
     <>
-      <button
+      <Button
         type="button"
-        className="px-4 py-2 bg-white hover:bg-zinc-200 text-black text-xs font-bold transition inline-flex items-center gap-1.5 uppercase tracking-wider font-mono"
+        className={btnCls}
         onClick={() => setOpen(true)}
       >
-        <Send size={14} /> Nuevo post
-      </button>
+        <Send className="size-3.5" /> Nuevo post
+      </Button>
 
-      <Drawer open={open} onClose={() => setOpen(false)} title="Nueva Publicación" size="xl">
-        {/* Pestañas por plataforma */}
-        <div className="flex gap-1 px-4 pt-1 border-b border-zinc-800">
-          {(['instagram', 'tiktok'] as Platform[]).map((slug) => (
-            <button
-              key={slug}
-              type="button"
-              onClick={() => switchPlatform(slug)}
-              className={`px-3 py-2 text-[11px] font-bold uppercase tracking-wider font-mono border-b-2 -mb-px transition ${
-                platform === slug ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              {slug === 'instagram' ? 'Instagram' : 'TikTok'}
-            </button>
-          ))}
-        </div>
+      <Sheet
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) setOpen(false)
+        }}
+      >
+        <SheetContent side="right" className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
+          <SheetHeader className="border-b border-border px-4 py-3">
+            <SheetTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Nueva Publicación
+            </SheetTitle>
+            <SheetDescription className="sr-only">Composer de publicaciones para redes sociales</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-1 flex-col overflow-y-auto p-4">
+          {/* Pestañas por plataforma */}
+          <div className="flex gap-1 px-4 pt-1 border-b border-border">
+            {(['instagram', 'tiktok'] as Platform[]).map((slug) => (
+              <Button
+                key={slug}
+                type="button"
+                variant="ghost"
+                onClick={() => switchPlatform(slug)}
+                className={`-mb-px rounded-none border-b-2 px-3 py-2 text-[11px] font-bold uppercase tracking-wider font-mono ${
+                  platform === slug ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {slug === 'instagram' ? 'Instagram' : 'TikTok'}
+              </Button>
+            ))}
+          </div>
 
         <form
           ref={formRef}
@@ -149,7 +168,7 @@ export function SocialPostCreateDialog({ accounts }: { accounts: SocialAccount[]
           )}
 
           {connectedAccounts.length === 0 ? (
-            <p className="text-xs text-zinc-400 font-sans normal-case">
+            <p className="text-xs text-muted-foreground font-sans normal-case">
               {platform === 'instagram'
                 ? 'No hay cuentas Instagram conectadas todavía — conéctala en Ajustes → Conexiones.'
                 : 'Conecta una cuenta TikTok para publicar.'}
@@ -179,20 +198,21 @@ export function SocialPostCreateDialog({ accounts }: { accounts: SocialAccount[]
               <label className={labelCls}>
                 Imagen (JPG/PNG/WebP — temporal: se borra a las 48h)
                 {imagePreview ? (
-                  <div className="relative border border-zinc-800">
+                  <div className="relative border border-border">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={imagePreview} alt="Vista previa" className="max-h-64 w-auto" />
-                    <button
+                    <Button
                       type="button"
+                      size="icon-xs"
                       aria-label="Quitar imagen"
-                      className="absolute top-2 right-2 p-1 bg-black/70 border border-zinc-700 text-white"
+                      className="absolute top-2 right-2 border-border bg-background/70 text-foreground hover:bg-background"
                       onClick={() => pickImage(null)}
                     >
-                      <X size={14} />
-                    </button>
+                      <X className="size-3.5" />
+                    </Button>
                   </div>
                 ) : (
-                  <div className="border border-dashed border-zinc-700 p-4 flex items-center gap-2 text-zinc-500">
+                  <div className="border border-dashed border-border p-4 flex items-center gap-2 text-muted-foreground">
                     <ImagePlus size={16} />
                     <input
                       type="file"
@@ -208,7 +228,7 @@ export function SocialPostCreateDialog({ accounts }: { accounts: SocialAccount[]
               <label className={labelCls}>
                 <div className="flex justify-between items-center w-full">
                   <span>Caption</span>
-                  <span className={caption.length > 2200 ? 'text-red-500' : 'text-zinc-500'}>
+                  <span className={caption.length > 2200 ? 'text-red-500' : 'text-muted-foreground'}>
                     {caption.length}/2200
                   </span>
                 </div>
@@ -229,12 +249,11 @@ export function SocialPostCreateDialog({ accounts }: { accounts: SocialAccount[]
                 <input name="scheduledAt" type="datetime-local" className={inputCls} />
               </label>
 
-              <label className="flex items-center gap-2 text-xs text-white font-sans normal-case">
-                <input
-                  type="checkbox"
+              <label htmlFor="social-post-publish-now" className="flex items-center gap-2 text-xs text-foreground font-sans normal-case">
+                <Checkbox
+                  id="social-post-publish-now"
                   checked={publishNow}
-                  onChange={(event) => setPublishNow(event.target.checked)}
-                  className="accent-white"
+                  onCheckedChange={(checked) => setPublishNow(checked === true)}
                 />
                 Publicar ya en {platform === 'instagram' ? 'Instagram' : 'TikTok'}
               </label>
@@ -251,23 +270,25 @@ export function SocialPostCreateDialog({ accounts }: { accounts: SocialAccount[]
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-3 mt-auto border-t border-zinc-800">
-                <button type="button" className={btnGhost} onClick={() => setOpen(false)}>
+              <div className="flex justify-end gap-2 pt-3 mt-auto border-t border-border">
+                <Button type="button" variant="outline" className={btnCls} onClick={() => setOpen(false)}>
                   Cancelar
-                </button>
-                <button type="submit" className={btnPrimary} disabled={busy}>
+                </Button>
+                <Button type="submit" className={btnCls} disabled={busy}>
                   {busy ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1" />
+                    <Loader2 className="mr-1 inline size-3.5 animate-spin" />
                   ) : (
-                    <Send size={12} className="inline mr-1" />
+                    <Send className="mr-1 inline size-3" />
                   )}
                   {publishNow ? 'Publicar' : 'Guardar'}
-                </button>
+                </Button>
               </div>
             </>
           )}
         </form>
-      </Drawer>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   )
 }

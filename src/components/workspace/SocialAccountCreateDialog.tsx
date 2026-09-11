@@ -1,14 +1,27 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Radio, X } from 'lucide-react'
+import { Plus } from 'lucide-react'
 
 import { createSocialAccountAction } from '@/lib/social-actions'
-import { Drawer } from '@/components/workspace/overlays'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 
-const inputCls =
-  'w-full border border-zinc-800 bg-black px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600'
-const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-zinc-400'
+const labelCls = 'flex flex-col gap-1 text-xs font-mono uppercase tracking-wider text-muted-foreground'
 
 /**
  * Reemplaza el link a `/admin/collections/social-accounts/create`. Solo se
@@ -21,60 +34,83 @@ export function SocialAccountCreateDialog({ variant = 'button' }: { variant?: 'b
   return (
     <>
       {variant === 'button' ? (
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="icon-sm"
           aria-label="Conectar cuenta"
-          className="px-2 py-1 bg-zinc-900 border border-zinc-700 text-white"
           onClick={() => setOpen(true)}
         >
-          <Plus size={14} />
-        </button>
+          <Plus className="size-3.5" />
+        </Button>
       ) : (
-        <button
+        <Button
           type="button"
-          className="mt-2 px-3 py-1.5 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono"
+          size="sm"
+          className="mt-2 font-mono text-xs font-bold uppercase tracking-wider"
           onClick={() => setOpen(true)}
         >
           Conectar cuenta
-        </button>
+        </Button>
       )}
 
-      <Drawer open={open} onClose={() => setOpen(false)} title="Conectar Cuenta Social" size="md">
+      <Sheet
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) setOpen(false)
+        }}
+      >
+        <SheetContent side="right" className="w-full gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
+          <SheetHeader className="border-b border-border px-4 py-3">
+            <SheetTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Conectar Cuenta Social
+            </SheetTitle>
+            <SheetDescription className="sr-only">Registra una cuenta social del tenant</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-1 flex-col overflow-y-auto p-4">
 
         <form action={createSocialAccountAction} className="flex flex-col gap-3">
-          <p className="text-[11px] text-zinc-500">
+          <p className="text-[11px] text-muted-foreground">
             Referencia de la cuenta (nombre e ID) — sin credenciales. La conexión real de publicación
             se gestiona en Metricool o Composio, conectados por MCP a este sistema.
           </p>
           <label className={labelCls}>
             Nombre de la cuenta / página
-            <input name="accountName" required maxLength={160} className={inputCls} />
+            <Input name="accountName" required maxLength={160} />
           </label>
           <label className={labelCls}>
             Plataforma
-            <select name="platform" defaultValue="instagram" className={inputCls}>
-              <option value="instagram">Instagram Business</option>
-              <option value="facebook">Facebook Page</option>
-            </select>
+            <Select name="platform" defaultValue="instagram">
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Instagram Business" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="instagram">Instagram Business</SelectItem>
+                <SelectItem value="facebook">Facebook Page</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label className={labelCls}>
             ID de la cuenta en la plataforma
-            <input name="platformAccountId" required maxLength={160} className={inputCls} placeholder="Page ID, IG Business Account ID, o el de Metricool" />
+            <Input name="platformAccountId" required maxLength={160} placeholder="Page ID, IG Business Account ID, o el de Metricool" />
           </label>
           <div className="flex justify-end gap-2 pt-1">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              className="font-mono text-xs font-bold uppercase tracking-wider"
               onClick={() => setOpen(false)}
-              className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold uppercase tracking-wider font-mono"
             >
               Cancelar
-            </button>
-            <button type="submit" className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider font-mono">
+            </Button>
+            <Button type="submit" className="font-mono text-xs font-bold uppercase tracking-wider">
               Conectar
-            </button>
+            </Button>
           </div>
         </form>
-      </Drawer>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   )
 }
