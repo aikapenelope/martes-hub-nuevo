@@ -4,6 +4,8 @@ import { AppHeader } from "@/components/app-header";
 import { AppSidebar } from "@/components/app-sidebar";
 import type { ShellUser } from "@/components/app-sidebar";
 
+import { Toaster } from "@/components/ui/sonner";
+
 /**
  * Shell del workspace (esqueleto efferd): sidebar colapsable + header sticky
  * + contenido centrado. Las páginas viven dentro; el chrome es el mismo para
@@ -33,6 +35,7 @@ export function AppShell({
 				>
 					{children}
 				</div>
+				<Toaster />
 			</SidebarInset>
 		</SidebarProvider>
 	);

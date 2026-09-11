@@ -11,6 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { toast } from 'sonner'
 import type { Lead, Client } from '@/payload-types'
 
 /* Campos nativos (select con option vacío no puede ser Select Radix: regla Devin #2). */
@@ -26,9 +27,10 @@ export function DirectEmailDrawer({ leads, clients }: { leads: Lead[], clients: 
     startTransition(async () => {
       try {
         await sendDirectEmailAction(formData)
+        toast.success('Correo enviado correctamente')
         setOpen(false)
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'Error enviando el correo')
+        toast.error(err instanceof Error ? err.message : 'Error enviando el correo')
       }
     })
   }

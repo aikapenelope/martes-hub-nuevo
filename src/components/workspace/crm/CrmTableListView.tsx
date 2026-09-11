@@ -160,7 +160,7 @@ export function CrmTableListView({
                         <div className="text-[10px]">{relationName(lead.segment)}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-[10px] font-mono px-1.5 py-0.5 ${lead.status === 'descartado' ? 'bg-red-900/50 text-red-400 border border-red-800' : 'bg-zinc-800 text-zinc-300 border border-zinc-700'}`}>
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 ${lead.status === 'descartado' ? 'bg-red-950/60 text-red-200 border border-red-800/80' : 'bg-muted text-foreground/90 border border-border'}`}>
                           {leadLabels[lead.status]}
                         </span>
                       </td>
@@ -187,7 +187,7 @@ export function CrmTableListView({
                         <div className="text-[10px]">{relationName(client.assignedAgent)}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-[10px] font-mono px-1.5 py-0.5 ${client.stage === 'perdido' ? 'bg-red-900/50 text-red-400 border border-red-800' : 'bg-zinc-800 text-zinc-300 border border-zinc-700'}`}>
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 ${client.stage === 'perdido' ? 'bg-red-950/60 text-red-200 border border-red-800/80' : 'bg-muted text-foreground/90 border border-border'}`}>
                           {clientLabels[client.stage]}
                         </span>
                       </td>
